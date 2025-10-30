@@ -1,0 +1,44 @@
+﻿account:
+  profile: "demo"            # demo | live
+  server:
+    demo:  "OANDA-Demo"
+    live:  "OANDA-Live"
+  login_env_key: "MT5_LOGIN"
+  password_env_key: "MT5_PASSWORD"
+
+runtime:
+  timezone: "Asia/Tokyo"
+  symbol: "USDJPY"
+  timeframe_exec: "M5"
+  max_positions: 1
+  spread_limit: 0.015
+  slip_limit: 0.015
+
+lot:
+  base_equity_per_0p01: 10000
+  min_lot: 0.01
+  max_lot: 1.00
+  lot_step: 0.01
+
+risk:
+  daily_loss_stop: 0.05
+  dd_stop: 0.10
+  max_consecutive_losses: 5
+
+entry:
+  threshold_buy: 0.60
+  threshold_sell: 0.60
+
+exit:
+  mode: "fixed"
+  tp_pips: 15
+  sl_pips: 10
+
+ai:
+  stacking: false
+  models:
+    - name: "lgbm_cls"
+  features:
+    base: ["ema_5","ema_20","rsi_14","atr_14","adx_14","bbp","vol_chg","wick_ratio"]
+  retrain:
+    schedule_cron: "sat 03:00"

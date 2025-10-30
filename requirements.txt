@@ -1,0 +1,14 @@
+﻿MetaTrader5
+PyQt6
+pyqtgraph
+matplotlib
+numpy
+pandas
+scikit-learn
+lightgbm
+xgboost
+joblib
+pydantic
+pyyaml
+loguru
+shap

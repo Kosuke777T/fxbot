@@ -1,0 +1,11 @@
+﻿venv/
+__pycache__/
+*.pkl
+*.onnx
+*.log
+logs/
+data/
+models_store/
+.env
+.idea/
+.vscode/
