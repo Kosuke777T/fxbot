@@ -1,0 +1,3 @@
+scripts/register_weekly_task.ps1
+の実行
+powershell -ExecutionPolicy Bypass -File scripts\register_weekly_task.ps1 -ProjectDir "C:\fxbot" -StartTime "03:05" -DayOfWeek Sunday

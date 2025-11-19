@@ -1,0 +1,54 @@
+{
+  "model_name": "LightGBM_clf",
+  "version": "20251109_151424",
+  "features": [
+    "ret1",
+    "ret3",
+    "ret5",
+    "vol20",
+    "sma5",
+    "sma10",
+    "sma20",
+    "sma50",
+    "ema5",
+    "ema10",
+    "ema20",
+    "ema50",
+    "bb_p",
+    "rsi14",
+    "atr14",
+    "pos_in_range",
+    "vol_sma20",
+    "vol_chg"
+  ],
+  "horizon": 10,
+  "oof_metrics": {
+    "auc": 0.5064424379151414,
+    "logloss": 0.7038851880761127,
+    "thr_oof": 0.22620300323149092,
+    "f1_oof": 0.672308862684985,
+    "thr_final": 0.21489285306991637
+  },
+  "folds": [
+    {
+      "fold": 0,
+      "train_start": "2024-07-08 15:55:00",
+      "train_end": "2025-09-24 12:00:00",
+      "test_start": "2025-09-24 12:05:00",
+      "test_end": "2025-10-28 21:10:00",
+      "n_train": 90000,
+      "n_test": 7000,
+      "auc": 0.5064424379151414,
+      "logloss": 0.7038851880761127,
+      "f1_at_thr": 0.672308862684985,
+      "thr": 0.22620300323149092
+    }
+  ],
+  "source_csv": "USDJPY_M5.csv",
+  "bars": {
+    "total": 99431,
+    "train": 90000,
+    "test": 7000,
+    "step": 7000
+  }
+}

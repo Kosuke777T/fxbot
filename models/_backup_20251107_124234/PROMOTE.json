@@ -1,0 +1,31 @@
+{
+  "promote": true,
+  "ok_auc": true,
+  "ok_f1": true,
+  "reason": "meets all thresholds",
+  "report_path": "logs\\retrain\\report_17623833702376008.json",
+  "candidate_model_path": "models\\_staging\\LightGBM_clf.pkl",
+  "bundle_path": "models\\LightGBM_clf.pkl",
+  "metrics": {
+    "train": {
+      "auc": 0.8335395156978243
+    },
+    "valid": {
+      "auc": 0.5042649980209518,
+      "f1@best": 0.6838423773732458,
+      "best_threshold": 0.23
+    },
+    "test": {
+      "auc": 0.5209736058269924,
+      "f1@0.5": 0.5627575871112777,
+      "f1@best": 0.6830141892822703,
+      "best_threshold": 0.23
+    }
+  },
+  "thresholds": {
+    "auc_test_min": 0.5,
+    "f1_test_min": 0.4
+  },
+  "best_threshold": 0.23,
+  "generated_at": "2025-11-06T07:56:10+09:00"
+}

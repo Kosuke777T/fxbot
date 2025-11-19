@@ -1,0 +1,83 @@
+{
+  "model_name": "LightGBM_clf",
+  "file": "LightGBM_clf_20251117_090029.pkl",
+  "created_at_utc": "2025-11-17T09:00:29.885401+00:00",
+  "version": 1763370029.885401,
+  "symbol": "USDJPY-",
+  "timeframe": "M5",
+  "label_horizon_bars": 10,
+  "min_pips": 1.0,
+  "features": [
+    "ret_1",
+    "ret_5",
+    "ema_5",
+    "ema_20",
+    "ema_ratio",
+    "rsi_14",
+    "atr_14",
+    "range",
+    "vol_chg"
+  ],
+  "wfo": {
+    "mean_logloss": 0.6928379801133823,
+    "mean_accuracy": 0.4980235042735043,
+    "folds": [
+      {
+        "fold": 0,
+        "train_start": "0",
+        "train_end": "18719",
+        "val_start": "18720",
+        "val_end": "37439",
+        "logloss": 0.6933083701123033,
+        "accuracy": 0.49423076923076925,
+        "n_train": 18720,
+        "n_val": 18720
+      },
+      {
+        "fold": 1,
+        "train_start": "0",
+        "train_end": "37439",
+        "val_start": "37440",
+        "val_end": "56159",
+        "logloss": 0.6933127238177201,
+        "accuracy": 0.4934294871794872,
+        "n_train": 37440,
+        "n_val": 18720
+      },
+      {
+        "fold": 2,
+        "train_start": "0",
+        "train_end": "56159",
+        "val_start": "56160",
+        "val_end": "74879",
+        "logloss": 0.6931237537753804,
+        "accuracy": 0.49561965811965814,
+        "n_train": 56160,
+        "n_val": 18720
+      },
+      {
+        "fold": 3,
+        "train_start": "0",
+        "train_end": "74879",
+        "val_start": "74880",
+        "val_end": "93599",
+        "logloss": 0.6916070636119697,
+        "accuracy": 0.5088141025641025,
+        "n_train": 74880,
+        "n_val": 18720
+      }
+    ]
+  },
+  "threshold": {
+    "best_threshold": 0.45,
+    "best_equity": 1404.0
+  },
+  "data": {
+    "csv_path": "data\\USDJPY\\ohlcv\\USDJPY_M5.csv",
+    "from": "2024-07-08T11:45:00",
+    "to": "2025-11-15T08:50:00",
+    "n_rows_raw": 100328,
+    "n_rows_train": 93602
+  },
+  "sha256": "b295dca189f82b939f14c9790c5646bbf91e4a84f02b9052745993415fa48e39"
+}

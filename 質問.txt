@@ -1,0 +1,19 @@
+PS C:\Users\macht\OneDrive\fxbot> python -m tools.backtest_run `
+>>   --csv data\USDJPY\ohlcv\USDJPY_M5.csv `
+>>   --start 2024-01-01 --end 2025-11-09 `
+>>   --capital 100000 `
+>>   --mode wfo `
+>>   --symbol USDJPY `
+>>   --timeframe M5 `
+>>   --layout per-symbol `
+>>   --train-ratio 0.7
+[main] mode=wfo csv=C:\Users\macht\OneDrive\fxbot\data\USDJPY\ohlcv\USDJPY_M5.csv
+[wfo] start
+[wfo] read_csv C:\Users\macht\OneDrive\fxbot\data\USDJPY\ohlcv\USDJPY_M5.csv
+[wfo] slice 2024-01-01 .. 2025-11-09
+[wfo] equity compute train
+[wfo] AI model not used (C:\Users\macht\OneDrive\fxbot\active_model.json not found.) -> fallback to buy&hold
+[wfo] equity compute test
+[wfo] AI model not used (C:\Users\macht\OneDrive\fxbot\active_model.json not found.) -> fallback to buy&hold
+[wfo] done
+C:\Users\macht\OneDrive\fxbot\logs\backtest\USDJPY\M5\equity_curve.csv

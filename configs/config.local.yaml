@@ -1,0 +1,7 @@
+runtime:
+  symbol: "USDJPY-"
+  spread_limit_pips: 1.5
+  max_positions: 1
+
+risk:
+  max_consecutive_losses: 5

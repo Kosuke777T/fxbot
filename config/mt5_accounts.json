@@ -1,0 +1,15 @@
+{
+  "active_profile": "demo",
+  "profiles": {
+    "demo": {
+      "login": 22004581,
+      "password": "eXSIDTUCV4&",
+      "server": "GaitameFinest-Demo"
+    },
+    "real": {
+      "login": 3002973,
+      "password": "QpNa@w7s",
+      "server": "GaitameFinest-LIVE"
+    }
+  }
+}

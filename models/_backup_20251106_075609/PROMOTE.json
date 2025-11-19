@@ -1,0 +1,23 @@
+{
+  "promote": false,
+  "ok_auc": false,
+  "ok_f1": true,
+  "reason": "auc(0.4974)<min(0.5)",
+  "report_path": "logs\\retrain\\report_17623327167915437.json",
+  "candidate_model_path": "models\\_staging\\LightGBM_clf.pkl",
+  "bundle_path": null,
+  "metrics": {
+    "train": {
+      "auc": 0.7661655535330207
+    },
+    "test": {
+      "auc": 0.49739469285841986,
+      "f1@0.5": 0.48237597911227154
+    }
+  },
+  "thresholds": {
+    "auc_test_min": 0.5,
+    "f1_test_min": 0.4
+  },
+  "generated_at": "2025-11-05T17:51:56+09:00"
+}

@@ -1,0 +1,83 @@
+{
+  "model_name": "LightGBM_clf",
+  "file": "LightGBM_clf_20251113_021127.pkl",
+  "created_at_utc": "2025-11-13T02:11:27.702013+00:00",
+  "version": 1762999887.702013,
+  "symbol": "USDJPY-",
+  "timeframe": "M5",
+  "label_horizon_bars": 10,
+  "min_pips": 1.0,
+  "features": [
+    "ret_1",
+    "ret_5",
+    "ema_5",
+    "ema_20",
+    "ema_ratio",
+    "rsi_14",
+    "atr_14",
+    "range",
+    "vol_chg"
+  ],
+  "wfo": {
+    "mean_logloss": 0.6927752303733606,
+    "mean_accuracy": 0.5017101325352715,
+    "folds": [
+      {
+        "fold": 0,
+        "train_start": "0",
+        "train_end": "18711",
+        "val_start": "18712",
+        "val_end": "37423",
+        "logloss": 0.6934206025559282,
+        "accuracy": 0.49497648567764,
+        "n_train": 18712,
+        "n_val": 18712
+      },
+      {
+        "fold": 1,
+        "train_start": "0",
+        "train_end": "37423",
+        "val_start": "37424",
+        "val_end": "56135",
+        "logloss": 0.6930787631020349,
+        "accuracy": 0.49748824283882,
+        "n_train": 37424,
+        "n_val": 18712
+      },
+      {
+        "fold": 2,
+        "train_start": "0",
+        "train_end": "56135",
+        "val_start": "56136",
+        "val_end": "74847",
+        "logloss": 0.6932739936306026,
+        "accuracy": 0.4948161607524583,
+        "n_train": 56136,
+        "n_val": 18712
+      },
+      {
+        "fold": 3,
+        "train_start": "0",
+        "train_end": "74847",
+        "val_start": "74848",
+        "val_end": "93559",
+        "logloss": 0.6913275380278749,
+        "accuracy": 0.5195596408721675,
+        "n_train": 74848,
+        "n_val": 18712
+      }
+    ]
+  },
+  "threshold": {
+    "best_threshold": 0.45,
+    "best_equity": 1344.0
+  },
+  "data": {
+    "csv_path": "data\\USDJPY\\ohlcv\\USDJPY_M5.csv",
+    "from": "2024-07-08T11:45:00",
+    "to": "2025-11-13T02:05:00",
+    "n_rows_raw": 100349,
+    "n_rows_train": 93560
+  },
+  "sha256": "580a643fabf0f5250729ac63c0d56cc8e4ae1d9f2497d78fbb2a64634ba357a0"
+}

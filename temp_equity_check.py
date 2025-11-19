@@ -1,0 +1,10 @@
+import pandas as pd, pathlib, numpy as np
+p = pathlib.Path(r"D:\macht\OneDrive\fxbot\logs\backtest\USDJPY\M5\equity_curve.csv")
+df = pd.read_csv(p)
+print("[equity] cols:", df.columns.tolist())
+sig = df.get("signal", pd.Series(0, index=df.index)).astype('int', errors='ignore')
+chg = sig.ne(sig.shift(1)).fillna(sig.iloc[0] != 0)
+print("signal unique:", sorted(pd.unique(sig)))
+print("nonzero count:", int((sig != 0).sum()), "/", len(sig))
+print("change points:", int(chg.sum()))
+print("first rows:\n", df.head(3))

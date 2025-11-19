@@ -1,0 +1,16 @@
+{
+  "activated_at_jst": "2025-11-06 17:32:33",
+  "source": "direct-pkl",
+  "source_path": "D:\\macht\\OneDrive\\fxbot\\models\\LightGBM_clf.pkl",
+  "target_path": "D:\\macht\\OneDrive\\fxbot\\models\\LightGBM_clf.pkl",
+  "sha256": "919ce06a7a8b9d168f43f6292085ee653340efdff7aa2bdc1aca9cfaa8f73a3e",
+  "version": "1762417953.1939232",
+  "features_hash": null,
+  "best_threshold": 0.2,
+  "best_threshold_source_report": "logs\\retrain\\report_17625000562076344.json",
+  "calibration": {
+    "path": "models\\calib_isotonic.pkl",
+    "method": "isotonic"
+  },
+  "selected_lookahead": 15
+}

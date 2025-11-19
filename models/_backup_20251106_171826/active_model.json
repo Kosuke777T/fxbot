@@ -1,0 +1,11 @@
+{
+  "activated_at_jst": "2025-11-06 07:58:33",
+  "source": "direct-pkl",
+  "source_path": "D:\\macht\\OneDrive\\fxbot\\models\\LightGBM_clf.pkl",
+  "target_path": "D:\\macht\\OneDrive\\fxbot\\models\\LightGBM_clf.pkl",
+  "sha256": "d653985f407ac30e2d28b40c8f7552dace63066336e38cd9731b52d6da5b85a9",
+  "version": "1762383513.2150698",
+  "features_hash": null,
+  "best_threshold": 0.23,
+  "best_threshold_source_report": "logs\\retrain\\report_17623833702376008.json"
+}

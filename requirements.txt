@@ -5,10 +5,11 @@ matplotlib
 numpy
 pandas
 scikit-learn
+joblib
 lightgbm
 xgboost
-joblib
+shap
 pydantic
 pyyaml
+python-dotenv
 loguru
-shap

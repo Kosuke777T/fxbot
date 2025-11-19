@@ -1,0 +1,248 @@
+仕様の統合まとめ（＋実戦で効く追記）
+あなたの要件は、Python 3.13 主体で MT5 を操作し、PyQt6 GUIで運用・学習・可視化まで回す“総合ボット”。下記に全体像→GUI→AI→売買制御→運用・監視→開発体制の順で整理し、足りないけど効く追記を埋め込みました。
+________________________________________
+0) 全体アーキテクチャ（役割分離が命）
+•	UI 層（PyQt6 + PyQtGraph + matplotlib）
+表示・操作だけ。学習や発注はQt Worker/Thread経由で非同期実行。
+•	アプリ層（Controller/Service）
+o	TradeService：発注・ポジ管理（MT5 Python API）
+o	AISvc：推論（LightGBM/XGB/LSTM スタック → メタモデル）
+o	BacktestSvc / WFOSvc：バックテスト・ウォークフォワード
+o	RiskSvc：日次DD/連敗/スリッページ監視・サーキットブレーカー
+•	データ層
+o	DataStore：OHLCV・特徴量・学習データ、Feature Store 風に管理
+o	ModelRegistry：モデルファイル（名前・バージョン・検証指標）
+o	LogStore：取引・推論・エラー・約定・KPI ログ（CSV/Parquet）
+•	設定層
+o	config.yaml：口座切替、しきい値、ロット、リスク、学習パラメタ
+o	Secrets は .env（API キー類は絶対にコード直書きしない）
+追記ポイント：役割分離と非同期化（UI が固まらない）を初手で決める。これが“後からの地獄”を防ぐ最大の一手。
+________________________________________
+1) GUI 構成（あなたの要求＋運用で便利な追記）
+Dashboard
+•	残高 / 有効証拠金 / 含み損益 / 使用証拠金 / 余剰証拠金 / ポジ数 / ロット合計
+•	保有一覧（Buy=青 / Sell=赤、SL/TP、建値、現在値、含み損益、経過時間）
+•	追記：「通信状態」（MT5 接続/再接続回数/レイテンシ ms）と**「スプレッド/平均スリッページ」**を上段に常時表示。
+AIタブ
+•	勝率、平均損益、PF、平均保有時間、最大DD、連勝/連敗、総取引数
+•	月間/週間損益グラフ、直近予測確率（Buy/Sell 確信度）
+•	モデル名/検証指標/重要特徴量/SHAP 上位3 / 最新学習日時
+•	信頼度メーター（Validation → 最近の実運用サブセットでも表示）
+•	追記：データ/性能ドリフト警告灯（PSI/Logloss 警戒で黄、危険で赤）
+Chartタブ
+•	エクイティ、ドローダウン、時間帯×日付ヒートマップ
+•	AI 出力確率の時系列と指標オーバーレイ（SMA/RSI/ATR）
+•	追記：スリッページ分布ヒストグラム・取引前後のボラ分布
+Controlタブ
+•	取引 ON/OFF、ロット、確信度しきい値、固定 SL/TP、再学習、バックテスト
+•	リスクパラメタ表示（MAX_STAKE, DD_STOP, TREND_THRESHOLD…）
+•	追記：「緊急停止（全決済＋停止）」、**「保守モデルに切替」**ボタン
+Logタブ
+•	取引履歴・発注/約定ログ・エラーログ・アラート（DD/連敗/滑り/接続断）
+ムード表示
+•	「静穏」「ボラ急上昇」「反転警戒中」など
+•	追記：根拠のミニ吹き出し（例：H1 ADX>25 ＋ ATR↑）
+________________________________________
+2) AI 戦略ロードマップ（あなたの三段構え＋運用最適化）
+フェーズ1：M15＋H1（地合いモデル）
+•	まずは固定 TP=15, SL=10で方向学習の安定性を作る。
+•	LightGBM/XGBoost/LSTM を別々に学習→メタモデルで統合。
+•	追記：目的関数は Logloss + 実運用での期待値（カスタム）モニタ。
+フェーズ2：M5 追加（タイミング補完）
+•	M5 の“瞬間情報”（短期 EMA 傾き、ヒゲ比率、直近 ATR、ボラ加速）を追加。
+•	追記：**直近 N トレードの予測較正（Platt/Isotonic）**を週次で更新。
+フェーズ3：スタッキング統合（M15＋M5＋H1）
+•	各モデルの確率/回帰 pips 予測→LightGBM or ロジ回帰で最終判定。
+•	出口：LightGBM 回帰 pred_pips＋LSTM「勢い」→TP/SL/トレーリング自動調整。
+ドリフト&健全性
+•	特徴量ドリフト（PSI, KS）、性能ドリフト（移動窓 Logloss/Brrier）
+•	しきい値最適化：毎週末に ベイズ最適化（p_buy 閾値 / ATR 係数 / トレーリング開始BP）
+•	バンディット：複数の出口ポリシーを小ロットで並走し、良い方に重み付け。
+________________________________________
+3) 売買制御（約定の“堅牢化”が肝）
+•	ロット計算（あなたのルール）：有効証拠金 1 万円あたり 0.01 ロット
+例：20,000 円 → 0.02 lot（min_lot, lot_stepを考慮、上限 max_lot）
+•	最大保有ポジション数：max_positions 厳守（銘柄単位 / 全体単位の両方）
+o	発注前に口座と銘柄の未決済件数/チケットを再取得（二重発注防止）
+o	ミューテックスで同時発注の競合を遮断
+o	“約定確認の再試行”（一時エラー/リクオート/接続揺れ）
+•	サーキットブレーカー
+o	日次 DD% 超過 / 連敗 N 超 / スリッページ急増 → 取引停止＋アラート
+o	再開条件を明記（例：24h クールダウン＋移動窓 PF>1.05 など）
+追記：実運用で効く3点
+1.	発注デデュープ（同一秒の同一シグナルに UUID を付与して1回のみ）
+2.	ポジ過多ガード（“UI と別に”バックグラウンド監視が max_positions を超えたら強制クローズ or アラート）
+3.	スプレッド/ボラ過大フィルタ（閾値以上で新規エントリー禁止）
+________________________________________
+4) 運用・監視・自動再学習（VPS 2GB 前提の現実解）
+•	スケジューラ（週末非取引時間に）： 
+1.	データ同期 → 2) 特徴量更新 → 3) 学習 → 4) WFO → 5) しきい値最適化 → 6) 検証に通ったモデルだけ Promote
+•	軽量化（2GB 対策） 
+o	LightGBM/XGB は num_leaves/ max_depth/ n_estimators を控え目、n_jobs=1
+o	LSTM は小型（層浅め・ユニット少なめ）、シーケンス長短め
+o	学習はオフラインで段階的。GUI は推論のみ常時。
+•	再接続/ヘルスチェック 
+o	MT5 接続 watchdog（Ping、initialize 再試行、ブローカー切替）
+o	ファイルロック/書込権限/OneDrive 競合の検知
+•	ログ運用 
+o	取引・推論・発注・約定・エラー・KPI を分離ログ
+o	ログローテーション（サイズ/日次）＋CSV→Parquet 変換で高速集計
+________________________________________
+5) リスク・KPI のSLO（下限線を最初に引く）
+•	SLO 一例
+o	直近 100 取引で PF < 1.05 かつ 勝率 < 52% → 縮小運転（ロット 1/2）
+o	1 週間 DD > 5% → 取引停止＋「原因分析ジョブ」自動実行
+o	平均スリッページ > 目標の 2 倍 → 新規停止（決済のみ許可）
+•	KPI 定期ダッシュボード
+勝率 / PF / 期待値 / 最大DD / 約定拒否率 / 手数料比率 / 時間帯別成績 / 通貨別成績 / ドリフトスコア
+________________________________________
+6) 口座切替・環境差分・秘密管理
+•	本番 / デモは config.yaml の account.profile で即切替（接続先/口座ID/サーバー）
+•	環境自動認識（PC A / B / VPS）：HOSTNAME でパスと MT5 ターミナル名を切替
+•	.env にログイン情報/パス/トークン、Git には絶対に上げない
+________________________________________
+7) 参考フォルダ構成（最初から“育つ”配置）
+fxbot/
+  app/
+    gui/                # PyQt6 画面（Tabs/Widgets/Workers）
+    services/           # TradeSvc, AISvc, RiskSvc, BacktestSvc, WFOSvc
+    data/               # DataStore, Feature pipelines
+    models/             # ModelRegistry, loaders, metrics
+    core/               # utils, config loader, logging, schedulers
+  configs/
+    config.yaml         # 口座/リスク/学習/最適化/GUI しきい値
+    env.example         # 必要な .env キー一覧
+  notebooks/            # 実験用（VPS外でもOK）
+  logs/                 # trade/*.csv, errors/*.log, metrics/*.csv
+  models_store/         # *.pkl, *.onnx + metadata.json
+  scripts/              # train.py, make_features.py, backtest.py, wfo.py
+  tests/                # 単体/統合テスト
+
+________________________________________
+8) config.yaml 雛形（要点が全部入る版）
+account:
+  profile: "demo"            # demo | live
+  server:
+    demo:  "OANDA-Demo"
+    live:  "OANDA-Live"
+  login_env_key: "MT5_LOGIN"
+  password_env_key: "MT5_PASSWORD"
+
+runtime:
+  timezone: "Asia/Tokyo"
+  symbol: "USDJPY"
+  timeframe_exec: "M5"
+  max_positions: 1
+  spread_limit: 0.015   # 1.5pips
+  slip_limit: 0.015     # 1.5pips
+
+lot:
+  base_equity_per_0p01: 10000   # 1万円で0.01lot
+  min_lot: 0.01
+  max_lot: 1.00
+  lot_step: 0.01
+
+risk:
+  daily_loss_stop: 0.05   # 5%
+  dd_stop: 0.10           # 10%
+  max_consecutive_losses: 5
+  emergency_close_all: true
+
+entry:
+  threshold_buy: 0.60
+  threshold_sell: 0.60
+  holdout_minutes_after_news: 15
+
+exit:
+  mode: "fixed"           # fixed | atr | ai
+  tp_pips: 15
+  sl_pips: 10
+  atr_period: 14
+  atr_k_tp: 1.5
+  atr_k_sl: 1.0
+  trail_start_pips: 8
+  trail_step_pips: 3
+
+ai:
+  stacking: true
+  models:
+    - name: "lgbm_cls"
+    - name: "xgb_cls"
+    - name: "lstm_seq"
+  meta_model: "lgbm_meta"
+  features:
+    base: ["ema_5","ema_20","rsi_14","atr_14","adx_14","bbp","vol_chg","wick_ratio"]
+    m15_h1: true
+    m5_boost: true
+  labels:
+    type: "direction_10bars"   # or "pips_regression_10bars"
+  retrain:
+    schedule_cron: "sat 03:00"
+    wfo: { enabled: true, window_days: 90, step_days: 7 }
+    bayes_opt: { enabled: true, iters: 50 }
+
+monitor:
+  kpi_window_trades: 100
+  slo:
+    pf_min: 1.05
+    winrate_min: 0.52
+    weekly_dd_max: 0.05
+
+paths:
+  data_dir: "./data"
+  logs_dir: "./logs"
+  models_dir: "./models_store"
+
+________________________________________
+9) 売買フロー（疑似コードの要）
+on_tick():
+  if circuit_breaker.tripped(): return
+  if spread > spread_limit: return
+  if positions.count(symbol) >= max_positions: return
+
+  p_buy, p_sell, pred_pips = ai.predict(features_now)
+
+  signal = decide(p_buy, p_sell, thresholds)
+  if not signal: return
+
+  lot = calc_lot(equity, base_equity_per_0p01, min_lot, max_lot, lot_step)
+
+  sl, tp = exit_policy(signal, pred_pips, atr, config.exit)
+
+  ticket = trade_service.place_order_once(symbol, signal, lot, sl, tp)
+  log_trade(signal, lot, sl, tp, p_buy, p_sell, pred_pips, ticket)
+
+堅牢化フック：place_order_once() 内で
+•	ミューテックス / 直前重複チェック / 約定確認 / 例外→再試行（指数バックオフ）
+•	それでも失敗 → GUI にアラート＋ログ
+________________________________________
+10) バックテスト & WFO（現実的な検証）
+•	期間：直近 2–3 年を基本、ロールング WFO（例：90 日学習→7 日前進）
+•	指標：実運用 KPI 優先（PF、期待値、最大DD、スリッページ込み）
+•	比較：固定TP/SL vs ATR連動 vs AI出口、A/B ランで週次更新
+________________________________________
+11) 開発・運用の小技（効くやつ）
+•	再現性：乱数種固定、モデルと学習コードのコミットIDをメタデータに保存
+•	モデル命名規則：LightGBM_YYYYMMDD_HHMM_foldK.pkl
+•	テスト：ユニット（ロット計算/しきい値判定）＋疑似約定テスト
+•	障害耐性：プロセス監視（Windows タスクスケジューラ or NSSM）、クラッシュ時に自動再起動
+•	可搬性：依存は requirements.txt 固定、VPS は仮想環境運用
+________________________________________
+12) 最初の実装手順（1～2 日で“動く芯”まで）
+1.	フォルダ構成と config.yaml を作る
+2.	MT5 接続＋ティック購読＋口座情報の取得（GUI Dashboard に生表示）
+3.	固定ルールの売買（TP=15/SL=10、しきい値はダミー 0.6）で約定～ログまで一気通し
+4.	AI 推論（過去学習済みの軽量 LightGBM 一つ）を挿入
+5.	サーキットブレーカーとスプレッドガードを有効化
+6.	学習・WFO・ベイズ最適化は週末バッチとして最後に接続
+________________________________________
+付け加えた主なポイント（要約）
+•	非同期＆役割分離の明文化（GUI が固まらない）
+•	サーキットブレーカーとスプレッド/スリッページ制御
+•	発注のデデュープ / 競合防止 / 再試行で“二重建て・取りこぼし”を撲滅
+•	ドリフト検知・バンディット出口で運用中の適応性を確保
+•	VPS 2GB 向けの軽量化方針（モデル・並列・学習タイミング）
+•	モデル/データのメタデータ管理と再現性の確保
+________________________________________
+この設計に落とし込めば、**“動く最小構成”→“賢く育つ構成”**へ滑らかに拡張できます。次は、雛形コード（GUI 骨格＋TradeService スタブ＋固定TP/SLの発注）を一気に置いて、GUI 上でBalance/Equity と発注ボタンが生きてる状態まで作り込みましょう。
+
