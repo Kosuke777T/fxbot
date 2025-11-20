@@ -1,1 +1,1 @@
-.\.venv\Scripts\Activate.ps1
+D:\venv\fxbot-pca\.venv\Scripts\Activate.ps1
