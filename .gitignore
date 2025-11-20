@@ -22,7 +22,7 @@ models/*.pkl
 .idea/
 
 # 日本語仕様書・ToDoなど除外
-*.txt
+#*.txt
 
 # markdownは除外しない（READMEなど）
 !*.md
