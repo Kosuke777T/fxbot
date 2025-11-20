@@ -1,11 +1,28 @@
-﻿venv/
+﻿# --- Python 仮想環境 ---
+.venv/
+
+# --- Python キャッシュ ---
 __pycache__/
-*.pkl
-*.onnx
-*.log
-logs/
+.mypy_cache/
+.pytest_cache/
+
+# --- 大きなデータとモデル ---
 data/
-models_store/
-.env
-.idea/
+logs/
+*.csv
+*.pkl
+*.log
+
+# モデルだけフォルダ指定で無視したい場合はこんな感じでもOK
+models/
+models/*.pkl
+
+# --- IDE ---
 .vscode/
+.idea/
+
+# 日本語仕様書・ToDoなど除外
+*.txt
+
+# markdownは除外しない（READMEなど）
+!*.md
