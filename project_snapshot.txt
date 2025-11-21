@@ -1,8 +1,8 @@
 ############################################################
 # project_snapshot
 ############################################################
-generated_at: 2025-11-19 07:14:21
-project_root: D:\macht\OneDrive\fxbot
+generated_at: 2025-11-20 18:22:23
+project_root: D:\fxbot
 
 NOTE:
   - このファイルは ChatGPT にプロジェクト構造と主要ファイルを伝えるためのスナップショットです。
@@ -14,341 +14,341 @@ NOTE:
 ========================================
 
 fxbot/
-.env.example (updated: 2025-11-16 18:19:22)
-.gitignore (updated: 2025-10-30 13:42:17)
-.importlinter.ini (updated: 2025-11-08 15:23:56)
-active_model.json (updated: 2025-11-13 09:14:58)
-Agent HQ 用「細分化版」.txt (updated: 2025-11-17 16:04:05)
+.env.example (updated: 2025-11-20 17:32:02)
+.gitignore (updated: 2025-11-20 18:15:42)
+.importlinter.ini (updated: 2025-11-20 17:32:02)
+active_model.json (updated: 2025-11-20 17:32:02)
+Agent HQ 用「細分化版」.txt (updated: 2025-11-20 17:32:02)
 app/
-  __init__.py (updated: 2025-11-07 17:20:34)
+  __init__.py (updated: 2025-11-20 17:32:02)
   core/
-    config_loader.py (updated: 2025-11-08 16:30:44)
-    data_finder.py (updated: 2025-11-08 19:07:54)
-    logger.py (updated: 2025-11-08 18:42:29)
-    market.py (updated: 2025-11-08 16:28:41)
-    mt5_client.py (updated: 2025-11-18 18:51:15)
+    config_loader.py (updated: 2025-11-20 17:32:02)
+    data_finder.py (updated: 2025-11-20 17:32:02)
+    logger.py (updated: 2025-11-20 17:32:02)
+    market.py (updated: 2025-11-20 17:32:02)
+    mt5_client.py (updated: 2025-11-20 17:32:02)
   gui/
-    __init__.py (updated: 2025-11-01 12:57:56)
-    ai_tab.py (updated: 2025-11-17 17:55:56)
-    backtest_tab.py (updated: 2025-11-17 12:27:03)
-    control_tab.py (updated: 2025-11-09 14:38:03)
-    dashboard_tab.py (updated: 2025-11-07 18:01:58)
-    dashboard_tab_qt.py (updated: 2025-11-07 18:38:07)
-    history_tab.py (updated: 2025-11-08 16:13:26)
-    main.py (updated: 2025-11-17 18:36:27)
-    settings_tab.py (updated: 2025-11-19 05:21:17)
+    __init__.py (updated: 2025-11-20 17:32:02)
+    ai_tab.py (updated: 2025-11-20 17:32:02)
+    backtest_tab.py (updated: 2025-11-20 17:32:02)
+    control_tab.py (updated: 2025-11-20 17:32:02)
+    dashboard_tab.py (updated: 2025-11-20 17:32:02)
+    dashboard_tab_qt.py (updated: 2025-11-20 17:32:02)
+    history_tab.py (updated: 2025-11-20 17:32:02)
+    main.py (updated: 2025-11-20 17:32:02)
+    settings_tab.py (updated: 2025-11-20 17:32:02)
     widgets/
-      feature_importance.py (updated: 2025-11-08 16:37:43)
-      shap_bar.py (updated: 2025-11-17 17:55:44)
-  main_tk.py (updated: 2025-11-08 17:52:21)
+      feature_importance.py (updated: 2025-11-20 17:32:02)
+      shap_bar.py (updated: 2025-11-20 17:32:02)
+  main_tk.py (updated: 2025-11-20 17:32:02)
   services/
-    __init__.py (updated: 2025-11-07 17:20:34)
-    ai_service.py (updated: 2025-11-17 17:32:07)
-    aisvc_loader.py (updated: 2025-11-13 09:32:15)
-    circuit_breaker.py (updated: 2025-11-04 18:26:11)
-    data_guard.py (updated: 2025-11-09 16:25:51)
-    decision_log.py (updated: 2025-11-17 13:26:20)
-    event_store.py (updated: 2025-11-15 11:03:00)
-    execution_stub.py (updated: 2025-11-15 11:06:33)
-    feature_importance.py (updated: 2025-11-17 15:48:30)
-    metrics.py (updated: 2025-11-09 16:02:03)
-    mt5_account_store.py (updated: 2025-11-17 18:35:00)
-    mt5_selftest.py (updated: 2025-11-19 05:19:49)
-    mt5_service.py (updated: 2025-11-08 16:29:33)
-    orderbook_stub.py (updated: 2025-11-08 16:30:57)
-    recent_kpi.py (updated: 2025-11-17 15:24:27)
-    shap_service.py (updated: 2025-11-17 16:28:46)
-    trade_service.py (updated: 2025-11-08 17:50:39)
-    trade_state.py (updated: 2025-11-08 16:28:37)
-    trailing.py (updated: 2025-10-31 18:18:13)
-    trailing_hook.py (updated: 2025-11-08 16:30:32)
+    __init__.py (updated: 2025-11-20 17:32:02)
+    ai_service.py (updated: 2025-11-20 17:32:02)
+    aisvc_loader.py (updated: 2025-11-20 17:32:02)
+    circuit_breaker.py (updated: 2025-11-20 17:32:02)
+    data_guard.py (updated: 2025-11-20 17:32:02)
+    decision_log.py (updated: 2025-11-20 17:32:02)
+    event_store.py (updated: 2025-11-20 17:32:02)
+    execution_stub.py (updated: 2025-11-20 17:32:02)
+    feature_importance.py (updated: 2025-11-20 17:32:02)
+    metrics.py (updated: 2025-11-20 17:32:02)
+    mt5_account_store.py (updated: 2025-11-20 17:32:02)
+    mt5_selftest.py (updated: 2025-11-20 17:32:02)
+    mt5_service.py (updated: 2025-11-20 17:32:02)
+    orderbook_stub.py (updated: 2025-11-20 17:32:02)
+    recent_kpi.py (updated: 2025-11-20 17:32:02)
+    shap_service.py (updated: 2025-11-20 17:32:02)
+    trade_service.py (updated: 2025-11-20 17:32:02)
+    trade_state.py (updated: 2025-11-20 17:32:02)
+    trailing.py (updated: 2025-11-20 17:32:02)
+    trailing_hook.py (updated: 2025-11-20 17:32:02)
   strategies/
-    __init__.py (updated: 2025-11-09 19:59:41)
-    ai_strategy.py (updated: 2025-11-10 17:41:41)
-apply_order.py (updated: 2025-11-18 18:58:14)
+    __init__.py (updated: 2025-11-20 17:32:02)
+    ai_strategy.py (updated: 2025-11-20 17:32:02)
+apply_order.py (updated: 2025-11-20 17:32:02)
 config/
-  mt5_accounts.json (updated: 2025-11-18 08:02:48)
+  mt5_accounts.json (updated: 2025-11-20 17:32:02)
 configs/
-  .env.example (updated: 2025-10-30 13:42:31)
-  config copy.yaml (updated: 2025-10-31 18:17:51)
-  config.local.yaml (updated: 2025-10-30 16:40:40)
-  config.yaml (updated: 2025-11-17 14:50:50)
+  .env.example (updated: 2025-11-20 17:32:02)
+  config copy.yaml (updated: 2025-11-20 17:32:02)
+  config.local.yaml (updated: 2025-11-20 17:32:02)
+  config.yaml (updated: 2025-11-20 17:32:02)
 core/
-  __init__.py (updated: 2025-11-07 17:20:34)
+  __init__.py (updated: 2025-11-20 17:32:02)
   ai/
-    __init__.py (updated: 2025-10-30 17:35:38)
-    calibration.py (updated: 2025-11-08 16:39:34)
-    features.py (updated: 2025-11-08 18:06:34)
-    loader.py (updated: 2025-11-09 15:51:02)
-    service.py (updated: 2025-11-09 15:37:46)
-  config.py (updated: 2025-11-08 16:30:52)
-  indicators.py (updated: 2025-10-31 17:37:37)
+    __init__.py (updated: 2025-11-20 17:32:02)
+    calibration.py (updated: 2025-11-20 17:32:02)
+    features.py (updated: 2025-11-20 17:32:02)
+    loader.py (updated: 2025-11-20 17:32:02)
+    service.py (updated: 2025-11-20 17:32:02)
+  config.py (updated: 2025-11-20 17:32:02)
+  indicators.py (updated: 2025-11-20 17:32:02)
   metrics/
-  metrics.py (updated: 2025-11-01 17:49:30)
-    __init__.py (updated: 2025-11-07 18:25:03)
-    fi_extractor.py (updated: 2025-11-08 16:37:25)
-    registry.py (updated: 2025-11-08 16:30:26)
-  position_guard.py (updated: 2025-11-04 18:25:46)
+  metrics.py (updated: 2025-11-20 17:32:02)
+    __init__.py (updated: 2025-11-20 17:32:02)
+    fi_extractor.py (updated: 2025-11-20 17:32:02)
+    registry.py (updated: 2025-11-20 17:32:02)
+  position_guard.py (updated: 2025-11-20 17:32:02)
   utils/
-    __init__.py (updated: 2025-10-30 17:35:43)
-    clock.py (updated: 2025-10-31 17:59:26)
-    hashing.py (updated: 2025-10-30 17:35:50)
-    runtime.py (updated: 2025-11-04 18:04:57)
-    timeutil.py (updated: 2025-10-30 17:35:56)
-fxbot_path.py (updated: 2025-11-16 16:51:51)
-models_store/
-  LightGBM_20251113_0914.pkl (updated: 2025-11-13 09:14:58)
-mypy.ini (updated: 2025-11-08 15:55:54)
-notebooks/
-PROJECT_MAP.md (updated: 2025-11-08 12:15:22)
-project_snapshot-DESKTOP-KK77.txt (updated: 2025-11-15 17:04:05)
-project_snapshot.txt (updated: 2025-11-18 19:21:53)
-project_tree.txt (updated: 2025-11-08 15:20:24)
-pyproject.toml (updated: 2025-11-13 09:01:25)
-pytest.ini (updated: 2025-11-08 15:25:11)
-README.md (updated: 2025-11-16 18:19:22)
-requirements.txt (updated: 2025-11-15 17:02:50)
+    __init__.py (updated: 2025-11-20 17:32:02)
+    clock.py (updated: 2025-11-20 17:32:02)
+    hashing.py (updated: 2025-11-20 17:32:02)
+    runtime.py (updated: 2025-11-20 17:32:02)
+    timeutil.py (updated: 2025-11-20 17:32:02)
+fxbot_path.py (updated: 2025-11-20 17:32:02)
+mypy.ini (updated: 2025-11-20 17:32:02)
+PROJECT_MAP.md (updated: 2025-11-20 17:32:02)
+project_snapshot-DESKTOP-KK77.txt (updated: 2025-11-20 17:32:02)
+project_snapshot.txt (updated: 2025-11-20 17:32:02)
+project_tree.txt (updated: 2025-11-20 17:32:02)
+pyproject.toml (updated: 2025-11-20 17:32:02)
+pytest.ini (updated: 2025-11-20 17:32:02)
+README.md (updated: 2025-11-20 17:32:02)
+requirements.txt (updated: 2025-11-20 17:32:02)
 runtime/
-  metrics.json (updated: 2025-11-15 11:09:54)
-  metrics_044ho80o.json (updated: 2025-11-13 16:03:27)
-  metrics_04i6g_bm.json (updated: 2025-11-13 16:03:42)
-  metrics_08lb8guj.json (updated: 2025-11-13 16:16:56)
-  metrics_0fdsym9v.json (updated: 2025-11-13 16:09:10)
-  metrics_0ks5iv74.json (updated: 2025-11-13 16:08:24)
-  metrics_0m3pzxsa.json (updated: 2025-11-13 16:06:46)
-  metrics_0s0y1mq_.json (updated: 2025-11-13 16:12:04)
-  metrics_0so3t4e4.json (updated: 2025-11-13 16:08:49)
-  metrics_0t6las4q.json (updated: 2025-11-13 16:17:06)
-  metrics_13d1atob.json (updated: 2025-11-13 16:15:59)
-  metrics_1_r7f8xe.json (updated: 2025-11-13 16:10:21)
-  metrics_1ce8in0z.json (updated: 2025-11-13 16:09:05)
-  metrics_1f8wcifb.json (updated: 2025-11-13 16:10:11)
-  metrics_1nqq6c9g.json (updated: 2025-11-13 16:13:41)
-  metrics_1y_j88c6.json (updated: 2025-11-13 16:05:40)
-  metrics_2b5irl55.json (updated: 2025-11-13 16:16:20)
-  metrics_2llsmgld.json (updated: 2025-11-13 16:07:12)
-  metrics_2wh_r543.json (updated: 2025-11-13 16:07:27)
-  metrics_32ej_3qs.json (updated: 2025-11-13 16:06:41)
-  metrics_384xt0qj.json (updated: 2025-11-13 16:08:03)
-  metrics_3_z7j5dq.json (updated: 2025-11-13 16:11:13)
-  metrics_3op0smhm.json (updated: 2025-11-13 16:13:31)
-  metrics_3pck01qi.json (updated: 2025-11-09 15:59:06)
-  metrics_3pw7kppo.json (updated: 2025-11-09 15:59:00)
-  metrics_3w4e28bl.json (updated: 2025-11-13 16:15:44)
-  metrics_3wwdl7sf.json (updated: 2025-11-13 16:16:46)
-  metrics_3xjcntun.json (updated: 2025-11-09 15:59:03)
-  metrics_4fx6u97k.json (updated: 2025-11-13 16:14:53)
-  metrics_4jkcw838.json (updated: 2025-11-13 16:16:51)
-  metrics_4jwlaw79.json (updated: 2025-11-13 16:06:11)
-  metrics_4sqd0ccq.json (updated: 2025-11-13 16:11:02)
-  metrics_4u83ovxn.json (updated: 2025-11-15 11:09:54)
-  metrics_51fzibz0.json (updated: 2025-11-15 11:09:34)
-  metrics_56tbpp98.json (updated: 2025-11-13 16:11:08)
-  metrics_5_uus6ny.json (updated: 2025-11-13 16:08:39)
-  metrics_5c1keku_.json (updated: 2025-11-13 16:09:30)
-  metrics_681i8dz0.json (updated: 2025-11-15 11:09:39)
-  metrics_6g2ygykl.json (updated: 2025-11-13 16:08:13)
-  metrics_6jx0f61y.json (updated: 2025-11-13 16:17:01)
-  metrics_6mv45wka.json (updated: 2025-11-13 16:08:44)
-  metrics_6n99dteb.json (updated: 2025-11-13 16:06:31)
-  metrics_6oizo1ba.json (updated: 2025-11-13 16:12:19)
-  metrics_6u8fjy4e.json (updated: 2025-11-13 16:11:59)
-  metrics_751tqi7x.json (updated: 2025-11-15 11:09:29)
-  metrics_78ji6p4u.json (updated: 2025-11-13 16:09:56)
-  metrics_7bbmsyvw.json (updated: 2025-11-13 16:04:13)
-  metrics_7caerxlw.json (updated: 2025-11-13 16:14:22)
-  metrics_7pcppci4.json (updated: 2025-11-13 16:17:11)
-  metrics_7upf8_is.json (updated: 2025-11-13 16:07:17)
-  metrics_7wtig7zq.json (updated: 2025-11-13 16:15:29)
-  metrics_7yx4f9p_.json (updated: 2025-11-10 08:03:17)
-  metrics_8i0ku3__.json (updated: 2025-11-15 11:09:24)
-  metrics_8iecfllz.json (updated: 2025-11-07 19:20:22)
-  metrics_8s427o_h.json (updated: 2025-11-13 16:07:02)
-  metrics_8t5wcv0v.json (updated: 2025-11-13 16:14:27)
-  metrics_8wbixgeh.json (updated: 2025-11-13 16:09:25)
-  metrics_9clf0tik.json (updated: 2025-11-13 16:13:00)
-  metrics_9wqc4wjf.json (updated: 2025-11-13 16:15:13)
-  metrics_9y2xjt1a.json (updated: 2025-11-10 08:03:47)
-  metrics__7n81rbm.json (updated: 2025-11-10 08:03:23)
-  metrics__9tk6o8d.json (updated: 2025-11-13 16:14:17)
-  metrics___1o6ki2.json (updated: 2025-11-13 16:06:16)
-  metrics__cx1yvq5.json (updated: 2025-11-13 16:14:38)
-  metrics__g0tzwco.json (updated: 2025-11-13 16:05:24)
-  metrics__g6j76yc.json (updated: 2025-11-13 16:08:19)
-  metrics__l9umv1h.json (updated: 2025-11-13 16:17:16)
-  metrics__nrd_y1k.json (updated: 2025-11-13 16:13:51)
-  metrics__rjbfcpd.json (updated: 2025-11-13 16:10:16)
-  metrics__s4hfi2b.json (updated: 2025-11-13 16:14:48)
-  metrics__tv_40i0.json (updated: 2025-11-13 16:08:54)
-  metrics__vtagxy_.json (updated: 2025-11-13 16:06:21)
-  metrics_a4qsce4c.json (updated: 2025-11-13 16:04:38)
-  metrics_a_jw5ekj.json (updated: 2025-11-13 16:06:26)
-  metrics_abcuwh_8.json (updated: 2025-11-10 08:03:35)
-  metrics_aen0sw0t.json (updated: 2025-11-13 16:13:05)
-  metrics_avlwot5z.json (updated: 2025-11-13 16:11:23)
-  metrics_b_e39daa.json (updated: 2025-11-13 16:13:21)
-  metrics_beh8fq83.json (updated: 2025-11-13 16:04:49)
-  metrics_bkm4j_2_.json (updated: 2025-11-13 16:09:00)
-  metrics_bmocgusp.json (updated: 2025-11-13 16:13:57)
-  metrics_bsejl6ul.json (updated: 2025-11-13 16:10:27)
-  metrics_c19f7jhr.json (updated: 2025-11-13 16:03:57)
-  metrics_c6dlu7j3.json (updated: 2025-11-13 16:08:34)
-  metrics_c7srgc6l.json (updated: 2025-11-13 16:03:52)
-  metrics_cfvm2vuv.json (updated: 2025-11-13 16:12:14)
-  metrics_cs6cyrr4.json (updated: 2025-11-13 16:13:16)
-  metrics_ctdk6hr_.json (updated: 2025-11-13 16:13:36)
-  metrics_d0zio68n.json (updated: 2025-11-13 16:15:18)
-  metrics_d2fneb6c.json (updated: 2025-11-13 16:16:30)
-  metrics_d83v0qrg.json (updated: 2025-11-13 16:10:57)
-  metrics_d_7cu4co.json (updated: 2025-11-13 16:09:51)
-  metrics_e55ccqf4.json (updated: 2025-11-13 16:11:28)
-  metrics_efewdoso.json (updated: 2025-11-13 16:12:40)
-  metrics_es10kbkj.json (updated: 2025-11-13 16:14:12)
-  metrics_exyc2aoi.json (updated: 2025-11-13 16:12:09)
-  metrics_f4ba8yj0.json (updated: 2025-11-13 16:07:38)
-  metrics_fusrtchw.json (updated: 2025-11-13 16:12:35)
-  metrics_fvkjx3i3.json (updated: 2025-11-13 16:14:02)
-  metrics_fwgrd7ek.json (updated: 2025-11-13 16:13:26)
-  metrics_fx59gkw6.json (updated: 2025-11-13 16:14:07)
-  metrics_gctnecas.json (updated: 2025-11-13 16:12:24)
-  metrics_gdrsfom2.json (updated: 2025-11-13 16:12:55)
-  metrics_gh0exqfy.json (updated: 2025-11-13 16:04:28)
-  metrics_gn3r368k.json (updated: 2025-11-10 08:03:29)
-  metrics_gre0l2vv.json (updated: 2025-11-13 16:03:22)
-  metrics_gu2jj4x6.json (updated: 2025-11-09 15:53:13)
-  metrics_gy7yzni_.json (updated: 2025-11-15 11:09:49)
-  metrics_h2ke1que.json (updated: 2025-11-13 16:11:38)
-  metrics_h2zbzsi6.json (updated: 2025-11-13 16:15:34)
-  metrics_i5pwbdy8.json (updated: 2025-11-13 16:05:04)
-  metrics_i9ixee1p.json (updated: 2025-11-13 16:05:30)
-  metrics_iegm05ma.json (updated: 2025-11-13 16:07:07)
-  metrics_jeul60z4.json (updated: 2025-11-13 16:10:42)
-  metrics_jldkp6oj.json (updated: 2025-11-10 08:03:53)
-  metrics_joyqy1yz.json (updated: 2025-11-13 16:09:41)
-  metrics_k452r_bd.json (updated: 2025-11-09 15:58:57)
-  metrics_keyuq093.json (updated: 2025-11-13 16:04:43)
-  metrics_kijozz54.json (updated: 2025-11-13 16:10:52)
-  metrics_l0nrt8ax.json (updated: 2025-11-13 16:05:14)
-  metrics_l4qkqhvl.json (updated: 2025-11-13 16:11:18)
-  metrics_l9a3g7f_.json (updated: 2025-11-10 08:03:11)
-  metrics_lg3z_ojj.json (updated: 2025-11-13 16:04:08)
-  metrics_lij48idf.json (updated: 2025-11-13 16:16:35)
-  metrics_mfx0u92s.json (updated: 2025-11-13 16:06:00)
-  metrics_ml129ig1.json (updated: 2025-11-13 16:07:48)
-  metrics_mziwmuji.json (updated: 2025-11-13 16:05:55)
-  metrics_mzkihnhl.json (updated: 2025-11-13 16:06:05)
-  metrics_n92kltdx.json (updated: 2025-11-13 16:11:43)
-  metrics_naa4pb8_.json (updated: 2025-11-13 16:09:20)
-  metrics_o0bwp99t.json (updated: 2025-11-13 16:07:58)
-  metrics_oe0gx0ow.json (updated: 2025-11-13 16:05:50)
-  metrics_og6_x57t.json (updated: 2025-11-13 16:07:53)
-  metrics_okatezba.json (updated: 2025-11-13 16:09:35)
-  metrics_olwp427j.json (updated: 2025-11-13 16:15:54)
-  metrics_oy5jty8q.json (updated: 2025-11-13 16:03:32)
-  metrics_pbfm5_s8.json (updated: 2025-11-13 16:12:29)
-  metrics_pguw1jt8.json (updated: 2025-11-13 16:06:36)
-  metrics_q1mfycvq.json (updated: 2025-11-13 16:09:15)
-  metrics_q32vexb9.json (updated: 2025-11-13 16:03:37)
-  metrics_qd9sdimy.json (updated: 2025-11-13 16:11:49)
-  metrics_qmjxkoxo.json (updated: 2025-11-13 16:05:35)
-  metrics_qygbv_em.json (updated: 2025-11-13 16:04:02)
-  metrics_r1diayz3.json (updated: 2025-11-09 16:02:59)
-  metrics_r1oyukcw.json (updated: 2025-11-13 16:14:32)
-  metrics_r2iljktq.json (updated: 2025-11-09 16:03:05)
-  metrics_r4cxpbus.json (updated: 2025-11-13 16:10:06)
-  metrics_ri5kzye8.json (updated: 2025-11-13 16:08:29)
-  metrics_s_yeu75a.json (updated: 2025-11-13 16:04:33)
-  metrics_smrtxq4q.json (updated: 2025-11-13 16:16:15)
-  metrics_sunrm50l.json (updated: 2025-11-13 16:12:45)
-  metrics_szni51cl.json (updated: 2025-11-13 16:08:08)
-  metrics_szy5o819.json (updated: 2025-11-13 16:06:57)
-  metrics_t09rkk69.json (updated: 2025-11-13 16:16:25)
-  metrics_tnyuui1p.json (updated: 2025-11-13 16:16:05)
-  metrics_tvk5w34y.json (updated: 2025-11-13 16:07:32)
-  metrics_u85k0bty.json (updated: 2025-11-13 16:04:18)
-  metrics_ue987r_m.json (updated: 2025-11-13 16:15:49)
-  metrics_ugsv8j1h.json (updated: 2025-11-13 16:05:19)
-  metrics_uhoep47z.json (updated: 2025-11-13 16:04:54)
-  metrics_uiqkfigp.json (updated: 2025-11-13 16:10:47)
-  metrics_ujl1qfgc.json (updated: 2025-11-13 16:05:45)
-  metrics_v30su220.json (updated: 2025-11-13 16:15:39)
-  metrics_v372j6bp.json (updated: 2025-11-13 16:10:01)
-  metrics_vd8t6g2k.json (updated: 2025-11-13 16:11:33)
-  metrics_vi859rsu.json (updated: 2025-11-13 16:15:24)
-  metrics_vlx06rwe.json (updated: 2025-11-13 16:04:59)
-  metrics_vm46jhw3.json (updated: 2025-11-10 08:03:41)
-  metrics_vzimyuwy.json (updated: 2025-11-13 16:12:50)
-  metrics_w88v4g45.json (updated: 2025-11-13 16:10:37)
-  metrics_wcsasy33.json (updated: 2025-11-13 16:16:10)
-  metrics_x7rwrpb_.json (updated: 2025-11-09 15:53:10)
-  metrics_xbjh179p.json (updated: 2025-11-15 11:09:44)
-  metrics_xcr4m91b.json (updated: 2025-11-13 16:09:46)
-  metrics_xcyd97h5.json (updated: 2025-11-13 16:07:43)
-  metrics_xe7x_sje.json (updated: 2025-11-13 16:04:23)
-  metrics_xjeelk50.json (updated: 2025-11-13 16:15:08)
-  metrics_xqnkdh58.json (updated: 2025-11-13 16:10:32)
-  metrics_xuw93ulk.json (updated: 2025-11-13 16:05:09)
-  metrics_xxx7__b9.json (updated: 2025-11-13 16:06:51)
-  metrics_y1mt7hlm.json (updated: 2025-11-13 16:14:43)
-  metrics_y5_m62os.json (updated: 2025-11-13 16:15:03)
-  metrics_yehnyu4c.json (updated: 2025-11-13 16:07:22)
-  metrics_yuncl873.json (updated: 2025-11-13 16:14:58)
-  metrics_yv04iu3_.json (updated: 2025-11-13 16:11:54)
-  metrics_z4d75mrh.json (updated: 2025-11-13 16:16:40)
-  metrics_zn9wzer_.json (updated: 2025-11-13 16:03:47)
-  metrics_zrz0v00o.json (updated: 2025-11-13 16:13:46)
-  metrics_zskuik5i.json (updated: 2025-11-13 16:13:10)
-  trade_state.json (updated: 2025-11-09 15:27:01)
+  metrics.json (updated: 2025-11-20 17:32:02)
+  metrics_044ho80o.json (updated: 2025-11-20 17:32:02)
+  metrics_04i6g_bm.json (updated: 2025-11-20 17:32:02)
+  metrics_08lb8guj.json (updated: 2025-11-20 17:32:02)
+  metrics_0fdsym9v.json (updated: 2025-11-20 17:32:02)
+  metrics_0ks5iv74.json (updated: 2025-11-20 17:32:02)
+  metrics_0m3pzxsa.json (updated: 2025-11-20 17:32:02)
+  metrics_0s0y1mq_.json (updated: 2025-11-20 17:32:02)
+  metrics_0so3t4e4.json (updated: 2025-11-20 17:32:02)
+  metrics_0t6las4q.json (updated: 2025-11-20 17:32:02)
+  metrics_13d1atob.json (updated: 2025-11-20 17:32:02)
+  metrics_1_r7f8xe.json (updated: 2025-11-20 17:32:02)
+  metrics_1ce8in0z.json (updated: 2025-11-20 17:32:02)
+  metrics_1f8wcifb.json (updated: 2025-11-20 17:32:02)
+  metrics_1nqq6c9g.json (updated: 2025-11-20 17:32:02)
+  metrics_1y_j88c6.json (updated: 2025-11-20 17:32:02)
+  metrics_2b5irl55.json (updated: 2025-11-20 17:32:02)
+  metrics_2llsmgld.json (updated: 2025-11-20 17:32:02)
+  metrics_2wh_r543.json (updated: 2025-11-20 17:32:02)
+  metrics_32ej_3qs.json (updated: 2025-11-20 17:32:02)
+  metrics_384xt0qj.json (updated: 2025-11-20 17:32:02)
+  metrics_3_z7j5dq.json (updated: 2025-11-20 17:32:02)
+  metrics_3op0smhm.json (updated: 2025-11-20 17:32:02)
+  metrics_3pck01qi.json (updated: 2025-11-20 17:32:02)
+  metrics_3pw7kppo.json (updated: 2025-11-20 17:32:02)
+  metrics_3w4e28bl.json (updated: 2025-11-20 17:32:02)
+  metrics_3wwdl7sf.json (updated: 2025-11-20 17:32:02)
+  metrics_3xjcntun.json (updated: 2025-11-20 17:32:02)
+  metrics_4fx6u97k.json (updated: 2025-11-20 17:32:02)
+  metrics_4jkcw838.json (updated: 2025-11-20 17:32:02)
+  metrics_4jwlaw79.json (updated: 2025-11-20 17:32:02)
+  metrics_4sqd0ccq.json (updated: 2025-11-20 17:32:02)
+  metrics_4u83ovxn.json (updated: 2025-11-20 17:32:02)
+  metrics_51fzibz0.json (updated: 2025-11-20 17:32:02)
+  metrics_56tbpp98.json (updated: 2025-11-20 17:32:02)
+  metrics_5_uus6ny.json (updated: 2025-11-20 17:32:02)
+  metrics_5c1keku_.json (updated: 2025-11-20 17:32:02)
+  metrics_681i8dz0.json (updated: 2025-11-20 17:32:02)
+  metrics_6g2ygykl.json (updated: 2025-11-20 17:32:02)
+  metrics_6jx0f61y.json (updated: 2025-11-20 17:32:02)
+  metrics_6mv45wka.json (updated: 2025-11-20 17:32:02)
+  metrics_6n99dteb.json (updated: 2025-11-20 17:32:02)
+  metrics_6oizo1ba.json (updated: 2025-11-20 17:32:02)
+  metrics_6u8fjy4e.json (updated: 2025-11-20 17:32:02)
+  metrics_751tqi7x.json (updated: 2025-11-20 17:32:02)
+  metrics_78ji6p4u.json (updated: 2025-11-20 17:32:02)
+  metrics_7bbmsyvw.json (updated: 2025-11-20 17:32:02)
+  metrics_7caerxlw.json (updated: 2025-11-20 17:32:02)
+  metrics_7pcppci4.json (updated: 2025-11-20 17:32:02)
+  metrics_7upf8_is.json (updated: 2025-11-20 17:32:02)
+  metrics_7wtig7zq.json (updated: 2025-11-20 17:32:02)
+  metrics_7yx4f9p_.json (updated: 2025-11-20 17:32:02)
+  metrics_8i0ku3__.json (updated: 2025-11-20 17:32:02)
+  metrics_8iecfllz.json (updated: 2025-11-20 17:32:02)
+  metrics_8s427o_h.json (updated: 2025-11-20 17:32:02)
+  metrics_8t5wcv0v.json (updated: 2025-11-20 17:32:02)
+  metrics_8wbixgeh.json (updated: 2025-11-20 17:32:02)
+  metrics_9clf0tik.json (updated: 2025-11-20 17:32:02)
+  metrics_9wqc4wjf.json (updated: 2025-11-20 17:32:02)
+  metrics_9y2xjt1a.json (updated: 2025-11-20 17:32:02)
+  metrics__7n81rbm.json (updated: 2025-11-20 17:32:02)
+  metrics__9tk6o8d.json (updated: 2025-11-20 17:32:02)
+  metrics___1o6ki2.json (updated: 2025-11-20 17:32:02)
+  metrics__cx1yvq5.json (updated: 2025-11-20 17:32:02)
+  metrics__g0tzwco.json (updated: 2025-11-20 17:32:02)
+  metrics__g6j76yc.json (updated: 2025-11-20 17:32:02)
+  metrics__l9umv1h.json (updated: 2025-11-20 17:32:02)
+  metrics__nrd_y1k.json (updated: 2025-11-20 17:32:02)
+  metrics__rjbfcpd.json (updated: 2025-11-20 17:32:02)
+  metrics__s4hfi2b.json (updated: 2025-11-20 17:32:02)
+  metrics__tv_40i0.json (updated: 2025-11-20 17:32:02)
+  metrics__vtagxy_.json (updated: 2025-11-20 17:32:02)
+  metrics_a4qsce4c.json (updated: 2025-11-20 17:32:02)
+  metrics_a_jw5ekj.json (updated: 2025-11-20 17:32:02)
+  metrics_abcuwh_8.json (updated: 2025-11-20 17:32:02)
+  metrics_aen0sw0t.json (updated: 2025-11-20 17:32:02)
+  metrics_avlwot5z.json (updated: 2025-11-20 17:32:02)
+  metrics_b_e39daa.json (updated: 2025-11-20 17:32:02)
+  metrics_beh8fq83.json (updated: 2025-11-20 17:32:02)
+  metrics_bkm4j_2_.json (updated: 2025-11-20 17:32:02)
+  metrics_bmocgusp.json (updated: 2025-11-20 17:32:02)
+  metrics_bsejl6ul.json (updated: 2025-11-20 17:32:02)
+  metrics_c19f7jhr.json (updated: 2025-11-20 17:32:02)
+  metrics_c6dlu7j3.json (updated: 2025-11-20 17:32:02)
+  metrics_c7srgc6l.json (updated: 2025-11-20 17:32:02)
+  metrics_cfvm2vuv.json (updated: 2025-11-20 17:32:02)
+  metrics_cs6cyrr4.json (updated: 2025-11-20 17:32:02)
+  metrics_ctdk6hr_.json (updated: 2025-11-20 17:32:02)
+  metrics_d0zio68n.json (updated: 2025-11-20 17:32:02)
+  metrics_d2fneb6c.json (updated: 2025-11-20 17:32:02)
+  metrics_d83v0qrg.json (updated: 2025-11-20 17:32:02)
+  metrics_d_7cu4co.json (updated: 2025-11-20 17:32:02)
+  metrics_e55ccqf4.json (updated: 2025-11-20 17:32:02)
+  metrics_efewdoso.json (updated: 2025-11-20 17:32:02)
+  metrics_es10kbkj.json (updated: 2025-11-20 17:32:02)
+  metrics_exyc2aoi.json (updated: 2025-11-20 17:32:02)
+  metrics_f4ba8yj0.json (updated: 2025-11-20 17:32:02)
+  metrics_fusrtchw.json (updated: 2025-11-20 17:32:02)
+  metrics_fvkjx3i3.json (updated: 2025-11-20 17:32:02)
+  metrics_fwgrd7ek.json (updated: 2025-11-20 17:32:02)
+  metrics_fx59gkw6.json (updated: 2025-11-20 17:32:02)
+  metrics_gctnecas.json (updated: 2025-11-20 17:32:02)
+  metrics_gdrsfom2.json (updated: 2025-11-20 17:32:02)
+  metrics_gh0exqfy.json (updated: 2025-11-20 17:32:02)
+  metrics_gn3r368k.json (updated: 2025-11-20 17:32:02)
+  metrics_gre0l2vv.json (updated: 2025-11-20 17:32:02)
+  metrics_gu2jj4x6.json (updated: 2025-11-20 17:32:02)
+  metrics_gy7yzni_.json (updated: 2025-11-20 17:32:02)
+  metrics_h2ke1que.json (updated: 2025-11-20 17:32:02)
+  metrics_h2zbzsi6.json (updated: 2025-11-20 17:32:02)
+  metrics_i5pwbdy8.json (updated: 2025-11-20 17:32:02)
+  metrics_i9ixee1p.json (updated: 2025-11-20 17:32:02)
+  metrics_iegm05ma.json (updated: 2025-11-20 17:32:02)
+  metrics_jeul60z4.json (updated: 2025-11-20 17:32:02)
+  metrics_jldkp6oj.json (updated: 2025-11-20 17:32:02)
+  metrics_joyqy1yz.json (updated: 2025-11-20 17:32:02)
+  metrics_k452r_bd.json (updated: 2025-11-20 17:32:02)
+  metrics_keyuq093.json (updated: 2025-11-20 17:32:02)
+  metrics_kijozz54.json (updated: 2025-11-20 17:32:02)
+  metrics_l0nrt8ax.json (updated: 2025-11-20 17:32:02)
+  metrics_l4qkqhvl.json (updated: 2025-11-20 17:32:02)
+  metrics_l9a3g7f_.json (updated: 2025-11-20 17:32:02)
+  metrics_lg3z_ojj.json (updated: 2025-11-20 17:32:02)
+  metrics_lij48idf.json (updated: 2025-11-20 17:32:02)
+  metrics_mfx0u92s.json (updated: 2025-11-20 17:32:02)
+  metrics_ml129ig1.json (updated: 2025-11-20 17:32:02)
+  metrics_mziwmuji.json (updated: 2025-11-20 17:32:02)
+  metrics_mzkihnhl.json (updated: 2025-11-20 17:32:02)
+  metrics_n92kltdx.json (updated: 2025-11-20 17:32:02)
+  metrics_naa4pb8_.json (updated: 2025-11-20 17:32:02)
+  metrics_o0bwp99t.json (updated: 2025-11-20 17:32:02)
+  metrics_oe0gx0ow.json (updated: 2025-11-20 17:32:02)
+  metrics_og6_x57t.json (updated: 2025-11-20 17:32:02)
+  metrics_okatezba.json (updated: 2025-11-20 17:32:02)
+  metrics_olwp427j.json (updated: 2025-11-20 17:32:02)
+  metrics_oy5jty8q.json (updated: 2025-11-20 17:32:02)
+  metrics_pbfm5_s8.json (updated: 2025-11-20 17:32:02)
+  metrics_pguw1jt8.json (updated: 2025-11-20 17:32:02)
+  metrics_q1mfycvq.json (updated: 2025-11-20 17:32:02)
+  metrics_q32vexb9.json (updated: 2025-11-20 17:32:02)
+  metrics_qd9sdimy.json (updated: 2025-11-20 17:32:02)
+  metrics_qmjxkoxo.json (updated: 2025-11-20 17:32:02)
+  metrics_qygbv_em.json (updated: 2025-11-20 17:32:02)
+  metrics_r1diayz3.json (updated: 2025-11-20 17:32:02)
+  metrics_r1oyukcw.json (updated: 2025-11-20 17:32:02)
+  metrics_r2iljktq.json (updated: 2025-11-20 17:32:02)
+  metrics_r4cxpbus.json (updated: 2025-11-20 17:32:02)
+  metrics_ri5kzye8.json (updated: 2025-11-20 17:32:02)
+  metrics_s_yeu75a.json (updated: 2025-11-20 17:32:02)
+  metrics_smrtxq4q.json (updated: 2025-11-20 17:32:02)
+  metrics_sunrm50l.json (updated: 2025-11-20 17:32:02)
+  metrics_szni51cl.json (updated: 2025-11-20 17:32:02)
+  metrics_szy5o819.json (updated: 2025-11-20 17:32:02)
+  metrics_t09rkk69.json (updated: 2025-11-20 17:32:02)
+  metrics_tnyuui1p.json (updated: 2025-11-20 17:32:02)
+  metrics_tvk5w34y.json (updated: 2025-11-20 17:32:02)
+  metrics_u85k0bty.json (updated: 2025-11-20 17:32:02)
+  metrics_ue987r_m.json (updated: 2025-11-20 17:32:02)
+  metrics_ugsv8j1h.json (updated: 2025-11-20 17:32:02)
+  metrics_uhoep47z.json (updated: 2025-11-20 17:32:02)
+  metrics_uiqkfigp.json (updated: 2025-11-20 17:32:02)
+  metrics_ujl1qfgc.json (updated: 2025-11-20 17:32:02)
+  metrics_v30su220.json (updated: 2025-11-20 17:32:02)
+  metrics_v372j6bp.json (updated: 2025-11-20 17:32:02)
+  metrics_vd8t6g2k.json (updated: 2025-11-20 17:32:02)
+  metrics_vi859rsu.json (updated: 2025-11-20 17:32:02)
+  metrics_vlx06rwe.json (updated: 2025-11-20 17:32:02)
+  metrics_vm46jhw3.json (updated: 2025-11-20 17:32:02)
+  metrics_vzimyuwy.json (updated: 2025-11-20 17:32:02)
+  metrics_w88v4g45.json (updated: 2025-11-20 17:32:02)
+  metrics_wcsasy33.json (updated: 2025-11-20 17:32:02)
+  metrics_x7rwrpb_.json (updated: 2025-11-20 17:32:02)
+  metrics_xbjh179p.json (updated: 2025-11-20 17:32:02)
+  metrics_xcr4m91b.json (updated: 2025-11-20 17:32:02)
+  metrics_xcyd97h5.json (updated: 2025-11-20 17:32:02)
+  metrics_xe7x_sje.json (updated: 2025-11-20 17:32:02)
+  metrics_xjeelk50.json (updated: 2025-11-20 17:32:02)
+  metrics_xqnkdh58.json (updated: 2025-11-20 17:32:02)
+  metrics_xuw93ulk.json (updated: 2025-11-20 17:32:02)
+  metrics_xxx7__b9.json (updated: 2025-11-20 17:32:02)
+  metrics_y1mt7hlm.json (updated: 2025-11-20 17:32:02)
+  metrics_y5_m62os.json (updated: 2025-11-20 17:32:02)
+  metrics_yehnyu4c.json (updated: 2025-11-20 17:32:02)
+  metrics_yuncl873.json (updated: 2025-11-20 17:32:02)
+  metrics_yv04iu3_.json (updated: 2025-11-20 17:32:02)
+  metrics_z4d75mrh.json (updated: 2025-11-20 17:32:02)
+  metrics_zn9wzer_.json (updated: 2025-11-20 17:32:02)
+  metrics_zrz0v00o.json (updated: 2025-11-20 17:32:02)
+  metrics_zskuik5i.json (updated: 2025-11-20 17:32:02)
+  trade_state.json (updated: 2025-11-20 17:32:02)
 scripts/
-  cb_smoke.py (updated: 2025-11-08 18:04:19)
-  diagnose_symbol.py (updated: 2025-11-08 16:28:25)
-  dryrun_smoke.py (updated: 2025-11-08 17:52:10)
-  export_mt5_history.py (updated: 2025-11-08 16:33:31)
-  export_val_probs.py (updated: 2025-11-08 17:49:06)
-  make_csv_from_mt5.py (updated: 2025-11-16 17:01:59)
-  make_project_snapshot.py (updated: 2025-11-15 11:15:03)
-  make_toy_model.py (updated: 2025-11-08 18:06:59)
-  mt5_export_csv.py (updated: 2025-11-08 19:08:33)
-  mt5_smoke.py (updated: 2025-11-15 13:27:41)
-  print_runtime.py (updated: 2025-11-04 18:05:28)
-  promote_model.py (updated: 2025-11-08 16:28:33)
-  register_weekly_task.ps1 (updated: 2025-11-05 16:02:04)
-  rollback_model.py (updated: 2025-11-08 16:28:29)
-  selftest_mt5.py (updated: 2025-11-17 18:54:02)
-  selftest_order_flow.py (updated: 2025-11-18 18:38:20)
-  sim_trailing.py (updated: 2025-10-31 18:45:58)
-  swap_model.py (updated: 2025-11-08 16:13:21)
-  train_calibrator.py (updated: 2025-10-31 10:58:42)
-  verify_smoke.ps1 (updated: 2025-11-04 18:09:12)
-  walkforward_retrain.py (updated: 2025-11-14 06:44:09)
-  walkforward_train.py (updated: 2025-11-08 18:07:05)
-  weekly_retrain.py (updated: 2025-11-16 20:31:06)
-  weekly_wf.ps1 (updated: 2025-11-04 19:33:48)
-setup_weekly_job.ps1 (updated: 2025-11-13 09:16:34)
-temp_equity_check.py (updated: 2025-11-12 17:23:39)
+  cb_smoke.py (updated: 2025-11-20 17:32:02)
+  diagnose_symbol.py (updated: 2025-11-20 17:32:02)
+  dryrun_smoke.py (updated: 2025-11-20 17:32:02)
+  export_mt5_history.py (updated: 2025-11-20 17:32:02)
+  export_val_probs.py (updated: 2025-11-20 17:32:02)
+  make_csv_from_mt5.py (updated: 2025-11-20 17:32:02)
+  make_project_snapshot.py (updated: 2025-11-20 17:32:02)
+  make_toy_model.py (updated: 2025-11-20 17:32:02)
+  mt5_export_csv.py (updated: 2025-11-20 17:32:02)
+  mt5_smoke.py (updated: 2025-11-20 17:32:02)
+  print_runtime.py (updated: 2025-11-20 17:32:02)
+  promote_model.py (updated: 2025-11-20 17:32:02)
+  register_weekly_task.ps1 (updated: 2025-11-20 17:32:02)
+  rollback_model.py (updated: 2025-11-20 17:32:02)
+  selftest_mt5.py (updated: 2025-11-20 17:32:02)
+  selftest_order_flow.py (updated: 2025-11-20 17:32:02)
+  sim_trailing.py (updated: 2025-11-20 17:32:02)
+  swap_model.py (updated: 2025-11-20 17:32:02)
+  train_calibrator.py (updated: 2025-11-20 17:32:02)
+  verify_smoke.ps1 (updated: 2025-11-20 17:32:02)
+  walkforward_retrain.py (updated: 2025-11-20 17:32:02)
+  walkforward_train.py (updated: 2025-11-20 17:32:02)
+  weekly_retrain.py (updated: 2025-11-20 17:32:03)
+  weekly_wf.ps1 (updated: 2025-11-20 17:32:03)
+setup_weekly_job.ps1 (updated: 2025-11-20 17:32:03)
+temp_equity_check.py (updated: 2025-11-20 17:32:03)
 tests/
-  test_sanity.py (updated: 2025-11-08 16:28:20)
-tmp_view.py (updated: 2025-11-18 18:58:30)
-To Doリスト.txt (updated: 2025-10-30 12:27:55)
-To Doリスト2.txt (updated: 2025-11-15 17:23:43)
+  test_sanity.py (updated: 2025-11-20 17:32:03)
+tmp_view.py (updated: 2025-11-20 17:32:03)
+To Doリスト.txt (updated: 2025-11-20 17:32:02)
+To Doリスト2.txt (updated: 2025-11-20 17:32:02)
+To Doリストv4.txt (updated: 2025-11-20 12:59:03)
 tools/
-  __init__.py (updated: 2025-11-09 20:00:29)
-  backtest_equity_curve.py (updated: 2025-11-08 17:48:36)
-  backtest_run.py (updated: 2025-11-16 17:53:17)
-  dump_feature_importance.py (updated: 2025-11-08 16:29:47)
-  export_tree_clean.ps1 (updated: 2025-11-08 15:20:10)
-  inspect_report.py (updated: 2025-11-06 17:29:33)
-  list_wfo_reports.py (updated: 2025-11-16 19:59:13)
-  train_lightgbm.py (updated: 2025-11-10 17:19:21)
-  train_scaler.py (updated: 2025-11-10 16:21:05)
-やるべきこと.txt (updated: 2025-11-05 16:24:05)
-フェーズA~Hまでの結果.txt (updated: 2025-10-31 17:46:59)
-仕様の統合まとめ.docx (updated: 2025-11-10 16:03:06)
-仮想環境.txt (updated: 2025-11-13 17:30:21)
-作業6～8.txt (updated: 2025-10-31 18:09:22)
-作業9.txt (updated: 2025-10-31 19:02:14)
-備忘録.txt (updated: 2025-11-15 17:23:48)
-質問.txt (updated: 2025-11-13 17:30:23)
+  __init__.py (updated: 2025-11-20 17:32:03)
+  backtest_equity_curve.py (updated: 2025-11-20 17:32:03)
+  backtest_run.py (updated: 2025-11-20 17:32:03)
+  dump_feature_importance.py (updated: 2025-11-20 17:32:03)
+  export_tree_clean.ps1 (updated: 2025-11-20 17:32:03)
+  inspect_report.py (updated: 2025-11-20 17:32:03)
+  list_wfo_reports.py (updated: 2025-11-20 17:32:03)
+  train_lightgbm.py (updated: 2025-11-20 17:32:03)
+  train_scaler.py (updated: 2025-11-20 17:32:03)
+やるべきこと.txt (updated: 2025-11-20 17:32:03)
+フェーズA~Hまでの結果.txt (updated: 2025-11-20 17:32:03)
+仕様の統合まとめ.docx (updated: 2025-11-20 17:32:03)
+仕様書.txt (updated: 2025-11-20 17:32:03)
+仕様書v3.txt (updated: 2025-11-20 12:58:23)
+仮想環境.txt (updated: 2025-11-20 17:52:57)
+作業6～8.txt (updated: 2025-11-20 17:32:03)
+作業9.txt (updated: 2025-11-20 17:32:03)
+備忘録.txt (updated: 2025-11-20 17:32:03)
+質問.txt (updated: 2025-11-20 17:32:03)
 
 
 ========================================
@@ -10383,21 +10383,62 @@ print(df.head())
 
 === file: requirements.txt ===
 
-﻿MetaTrader5
-PyQt6
-pyqtgraph
-matplotlib
-numpy
-pandas
-scikit-learn
-joblib
-lightgbm
-xgboost
-shap
-pydantic
-pyyaml
-python-dotenv
-loguru
+annotated-types==0.7.0
+black==25.11.0
+cfgv==3.4.0
+click==8.3.1
+cloudpickle==3.1.2
+colorama==0.4.6
+contourpy==1.3.3
+cycler==0.12.1
+distlib==0.4.0
+filelock==3.20.0
+fonttools==4.60.1
+identify==2.6.15
+joblib==1.5.2
+kiwisolver==1.4.9
+lightgbm==4.6.0
+llvmlite==0.45.1
+loguru==0.7.3
+matplotlib==3.10.7
+metatrader5==5.0.5430
+mypy==1.18.2
+mypy_extensions==1.1.0
+nodeenv==1.9.1
+numba==0.62.1
+numpy==2.3.5
+packaging==25.0
+pandas==2.3.3
+pathspec==0.12.1
+pillow==12.0.0
+platformdirs==4.5.0
+pre_commit==4.4.0
+pydantic==2.12.4
+pydantic_core==2.41.5
+pyparsing==3.2.5
+PyQt6==6.10.0
+PyQt6-Qt6==6.10.0
+PyQt6_sip==13.10.2
+pyqtgraph==0.14.0
+python-dateutil==2.9.0.post0
+python-dotenv==1.2.1
+pytokens==0.3.0
+pytz==2025.2
+PyYAML==6.0.3
+ruff==0.14.5
+scikit-learn==1.7.2
+scipy==1.16.3
+shap==0.50.0
+six==1.17.0
+slicer==0.0.8
+threadpoolctl==3.6.0
+tqdm==4.67.1
+typing-inspection==0.4.2
+typing_extensions==4.15.0
+tzdata==2025.2
+virtualenv==20.35.4
+win32_setctime==1.2.0
+xgboost==3.1.1
 
 
 
@@ -16044,6 +16085,103 @@ for i in range(120, 190):
 
 
 
+=== file: To Doリストv4.txt ===
+
+ToDoリスト v4（内蔵スケジューラ前提）
+グループA：3％KPI向けのコア機能（既存A1〜A7の整理）
+
+ここは大きく変えず、既存のA1〜A7をそのまま進める方針：
+
+A1：バックテストから monthly_returns.csv を必ず出す。
+
+A2：基準ストラテジー（WFO＋月次リターンで妥当な設定）を1つ決める。
+
+A3：target_monthly_return / target_monthly_vol / max_monthly_dd を使うロット・SLOロジックの実装。
+
+A4：AIタブを「月次3％ダッシュボード」に仕上げる。
+
+A5：バックテスト診断AI v0（時間帯別・DD原因分析）。
+
+A6：MT5発注ラッパー＋1ヶ月デモ運用ログ。
+
+A7：本番移行チェックリスト（docs/production_checklist.md）。
+
+グループB：日本語UI・エディション制御・ランキング
+
+B1：日本語UI化・文字化け検査
+
+GUI全タブの日本語化。
+
+ログ出力・エラー文言の見直し。
+
+文字コードUTF-8統一と実際のログ・コンソールの確認。
+
+B2：エディション情報と機能ロック
+
+Edition 管理クラス（例：EditionGuard）を作成。
+
+edition=free/basic/pro/expert/master に応じて：
+
+接続可能口座（デモのみかどうか）
+
+ロット上限
+
+スケジューラ設定タブの機能ON/OFF
+
+KPI/AIタブの項目表示
+を制御。
+
+B3：ランキング機能 v0（ローカルモック）
+
+RankingService を実装し、ローカルJSONを「擬似サーバ」として読み書き。
+
+「ランキング」タブを追加して、エディション別ランキング一覧・自分の成績表示。
+
+Free閲覧のみ、Basic以上で送信ボタンONが動くことを確認。
+
+グループC：内蔵スケジューラと週次再学習
+
+C1：JobScheduler 基礎クラス実装
+
+バックグラウンドスレッドで単純な「時刻チェック→ジョブ実行」を行うクラスを services に実装。
+
+ジョブ定義は一旦ハードコーディング（週1回の再学習）で動くことを確認。
+
+C2：設定ファイル連携（config.scheduler.yaml）
+
+config.scheduler.yaml（または config.yaml の一部）にジョブ定義を記述。
+
+Editionごとの enabled / 編集可否を反映。
+
+C3：GUIからのスケジュール編集UI
+
+設定タブに「週次再学習（内蔵スケジューラ）」セクションを追加。
+
+Basic：
+
+スイッチ（ON/OFF）のみ。
+
+Pro以上：
+
+曜日・時刻・ターゲットプロファイル編集。
+
+スケジューラの現在状態（次回予定時刻）を表示。
+
+C4：週次再学習ワークフロー確認
+
+内蔵スケジューラをONにして、テスト用スケジュール（数分後）で scripts.walkforward_retrain.py が起動することを確認。
+
+本番用として土曜深夜実行などに切り替え、ログが期待どおりに残ることを確認。
+
+C5：旧Windowsタスクスケジューラスクリプトの整理
+
+weekly_wf.ps1 などの「Windowsタスクスケジューラ前提スクリプト」はアーカイブ化：
+
+scripts/legacy/ 等に移動し、「開発時の参考用」と明記。
+
+ドキュメント類からも Task Scheduler 依存の記述を削除または「非推奨」と明記。
+
+
 === file: tools/__init__.py ===
 
 
@@ -17515,10 +17653,567 @@ ENTRY を増やすためには一時的に entry.prob_threshold を 0.49 へ下�
 
 
 
+=== file: 仕様書.txt ===
+
+仕様の統合まとめ（＋実戦で効く追記）
+あなたの要件は、Python 3.13 主体で MT5 を操作し、PyQt6 GUIで運用・学習・可視化まで回す“総合ボット”。下記に全体像→GUI→AI→売買制御→運用・監視→開発体制の順で整理し、足りないけど効く追記を埋め込みました。
+________________________________________
+0) 全体アーキテクチャ（役割分離が命）
+•	UI 層（PyQt6 + PyQtGraph + matplotlib）
+表示・操作だけ。学習や発注はQt Worker/Thread経由で非同期実行。
+•	アプリ層（Controller/Service）
+o	TradeService：発注・ポジ管理（MT5 Python API）
+o	AISvc：推論（LightGBM/XGB/LSTM スタック → メタモデル）
+o	BacktestSvc / WFOSvc：バックテスト・ウォークフォワード
+o	RiskSvc：日次DD/連敗/スリッページ監視・サーキットブレーカー
+•	データ層
+o	DataStore：OHLCV・特徴量・学習データ、Feature Store 風に管理
+o	ModelRegistry：モデルファイル（名前・バージョン・検証指標）
+o	LogStore：取引・推論・エラー・約定・KPI ログ（CSV/Parquet）
+•	設定層
+o	config.yaml：口座切替、しきい値、ロット、リスク、学習パラメタ
+o	Secrets は .env（API キー類は絶対にコード直書きしない）
+追記ポイント：役割分離と非同期化（UI が固まらない）を初手で決める。これが“後からの地獄”を防ぐ最大の一手。
+________________________________________
+1) GUI 構成（あなたの要求＋運用で便利な追記）
+Dashboard
+•	残高 / 有効証拠金 / 含み損益 / 使用証拠金 / 余剰証拠金 / ポジ数 / ロット合計
+•	保有一覧（Buy=青 / Sell=赤、SL/TP、建値、現在値、含み損益、経過時間）
+•	追記：「通信状態」（MT5 接続/再接続回数/レイテンシ ms）と**「スプレッド/平均スリッページ」**を上段に常時表示。
+AIタブ
+•	勝率、平均損益、PF、平均保有時間、最大DD、連勝/連敗、総取引数
+•	月間/週間損益グラフ、直近予測確率（Buy/Sell 確信度）
+•	モデル名/検証指標/重要特徴量/SHAP 上位3 / 最新学習日時
+•	信頼度メーター（Validation → 最近の実運用サブセットでも表示）
+•	追記：データ/性能ドリフト警告灯（PSI/Logloss 警戒で黄、危険で赤）
+Chartタブ
+•	エクイティ、ドローダウン、時間帯×日付ヒートマップ
+•	AI 出力確率の時系列と指標オーバーレイ（SMA/RSI/ATR）
+•	追記：スリッページ分布ヒストグラム・取引前後のボラ分布
+Controlタブ
+•	取引 ON/OFF、ロット、確信度しきい値、固定 SL/TP、再学習、バックテスト
+•	リスクパラメタ表示（MAX_STAKE, DD_STOP, TREND_THRESHOLD…）
+•	追記：「緊急停止（全決済＋停止）」、**「保守モデルに切替」**ボタン
+Logタブ
+•	取引履歴・発注/約定ログ・エラーログ・アラート（DD/連敗/滑り/接続断）
+ムード表示
+•	「静穏」「ボラ急上昇」「反転警戒中」など
+•	追記：根拠のミニ吹き出し（例：H1 ADX>25 ＋ ATR↑）
+________________________________________
+2) AI 戦略ロードマップ（あなたの三段構え＋運用最適化）
+フェーズ1：M15＋H1（地合いモデル）
+•	まずは固定 TP=15, SL=10で方向学習の安定性を作る。
+•	LightGBM/XGBoost/LSTM を別々に学習→メタモデルで統合。
+•	追記：目的関数は Logloss + 実運用での期待値（カスタム）モニタ。
+フェーズ2：M5 追加（タイミング補完）
+•	M5 の“瞬間情報”（短期 EMA 傾き、ヒゲ比率、直近 ATR、ボラ加速）を追加。
+•	追記：**直近 N トレードの予測較正（Platt/Isotonic）**を週次で更新。
+フェーズ3：スタッキング統合（M15＋M5＋H1）
+•	各モデルの確率/回帰 pips 予測→LightGBM or ロジ回帰で最終判定。
+•	出口：LightGBM 回帰 pred_pips＋LSTM「勢い」→TP/SL/トレーリング自動調整。
+ドリフト&健全性
+•	特徴量ドリフト（PSI, KS）、性能ドリフト（移動窓 Logloss/Brrier）
+•	しきい値最適化：毎週末に ベイズ最適化（p_buy 閾値 / ATR 係数 / トレーリング開始BP）
+•	バンディット：複数の出口ポリシーを小ロットで並走し、良い方に重み付け。
+________________________________________
+3) 売買制御（約定の“堅牢化”が肝）
+•	ロット計算（あなたのルール）：有効証拠金 1 万円あたり 0.01 ロット
+例：20,000 円 → 0.02 lot（min_lot, lot_stepを考慮、上限 max_lot）
+•	最大保有ポジション数：max_positions 厳守（銘柄単位 / 全体単位の両方）
+o	発注前に口座と銘柄の未決済件数/チケットを再取得（二重発注防止）
+o	ミューテックスで同時発注の競合を遮断
+o	“約定確認の再試行”（一時エラー/リクオート/接続揺れ）
+•	サーキットブレーカー
+o	日次 DD% 超過 / 連敗 N 超 / スリッページ急増 → 取引停止＋アラート
+o	再開条件を明記（例：24h クールダウン＋移動窓 PF>1.05 など）
+追記：実運用で効く3点
+1.	発注デデュープ（同一秒の同一シグナルに UUID を付与して1回のみ）
+2.	ポジ過多ガード（“UI と別に”バックグラウンド監視が max_positions を超えたら強制クローズ or アラート）
+3.	スプレッド/ボラ過大フィルタ（閾値以上で新規エントリー禁止）
+________________________________________
+4) 運用・監視・自動再学習（VPS 2GB 前提の現実解）
+•	スケジューラ（週末非取引時間に）： 
+1.	データ同期 → 2) 特徴量更新 → 3) 学習 → 4) WFO → 5) しきい値最適化 → 6) 検証に通ったモデルだけ Promote
+•	軽量化（2GB 対策） 
+o	LightGBM/XGB は num_leaves/ max_depth/ n_estimators を控え目、n_jobs=1
+o	LSTM は小型（層浅め・ユニット少なめ）、シーケンス長短め
+o	学習はオフラインで段階的。GUI は推論のみ常時。
+•	再接続/ヘルスチェック 
+o	MT5 接続 watchdog（Ping、initialize 再試行、ブローカー切替）
+o	ファイルロック/書込権限/OneDrive 競合の検知
+•	ログ運用 
+o	取引・推論・発注・約定・エラー・KPI を分離ログ
+o	ログローテーション（サイズ/日次）＋CSV→Parquet 変換で高速集計
+________________________________________
+5) リスク・KPI のSLO（下限線を最初に引く）
+•	SLO 一例
+o	直近 100 取引で PF < 1.05 かつ 勝率 < 52% → 縮小運転（ロット 1/2）
+o	1 週間 DD > 5% → 取引停止＋「原因分析ジョブ」自動実行
+o	平均スリッページ > 目標の 2 倍 → 新規停止（決済のみ許可）
+•	KPI 定期ダッシュボード
+勝率 / PF / 期待値 / 最大DD / 約定拒否率 / 手数料比率 / 時間帯別成績 / 通貨別成績 / ドリフトスコア
+________________________________________
+6) 口座切替・環境差分・秘密管理
+•	本番 / デモは config.yaml の account.profile で即切替（接続先/口座ID/サーバー）
+•	環境自動認識（PC A / B / VPS）：HOSTNAME でパスと MT5 ターミナル名を切替
+•	.env にログイン情報/パス/トークン、Git には絶対に上げない
+________________________________________
+7) 参考フォルダ構成（最初から“育つ”配置）
+fxbot/
+  app/
+    gui/                # PyQt6 画面（Tabs/Widgets/Workers）
+    services/           # TradeSvc, AISvc, RiskSvc, BacktestSvc, WFOSvc
+    data/               # DataStore, Feature pipelines
+    models/             # ModelRegistry, loaders, metrics
+    core/               # utils, config loader, logging, schedulers
+  configs/
+    config.yaml         # 口座/リスク/学習/最適化/GUI しきい値
+    env.example         # 必要な .env キー一覧
+  notebooks/            # 実験用（VPS外でもOK）
+  logs/                 # trade/*.csv, errors/*.log, metrics/*.csv
+  models_store/         # *.pkl, *.onnx + metadata.json
+  scripts/              # train.py, make_features.py, backtest.py, wfo.py
+  tests/                # 単体/統合テスト
+
+________________________________________
+8) config.yaml 雛形（要点が全部入る版）
+account:
+  profile: "demo"            # demo | live
+  server:
+    demo:  "OANDA-Demo"
+    live:  "OANDA-Live"
+  login_env_key: "MT5_LOGIN"
+  password_env_key: "MT5_PASSWORD"
+
+runtime:
+  timezone: "Asia/Tokyo"
+  symbol: "USDJPY"
+  timeframe_exec: "M5"
+  max_positions: 1
+  spread_limit: 0.015   # 1.5pips
+  slip_limit: 0.015     # 1.5pips
+
+lot:
+  base_equity_per_0p01: 10000   # 1万円で0.01lot
+  min_lot: 0.01
+  max_lot: 1.00
+  lot_step: 0.01
+
+risk:
+  daily_loss_stop: 0.05   # 5%
+  dd_stop: 0.10           # 10%
+  max_consecutive_losses: 5
+  emergency_close_all: true
+
+entry:
+  threshold_buy: 0.60
+  threshold_sell: 0.60
+  holdout_minutes_after_news: 15
+
+exit:
+  mode: "fixed"           # fixed | atr | ai
+  tp_pips: 15
+  sl_pips: 10
+  atr_period: 14
+  atr_k_tp: 1.5
+  atr_k_sl: 1.0
+  trail_start_pips: 8
+  trail_step_pips: 3
+
+ai:
+  stacking: true
+  models:
+    - name: "lgbm_cls"
+    - name: "xgb_cls"
+    - name: "lstm_seq"
+  meta_model: "lgbm_meta"
+  features:
+    base: ["ema_5","ema_20","rsi_14","atr_14","adx_14","bbp","vol_chg","wick_ratio"]
+    m15_h1: true
+    m5_boost: true
+  labels:
+    type: "direction_10bars"   # or "pips_regression_10bars"
+  retrain:
+    schedule_cron: "sat 03:00"
+    wfo: { enabled: true, window_days: 90, step_days: 7 }
+    bayes_opt: { enabled: true, iters: 50 }
+
+monitor:
+  kpi_window_trades: 100
+  slo:
+    pf_min: 1.05
+    winrate_min: 0.52
+    weekly_dd_max: 0.05
+
+paths:
+  data_dir: "./data"
+  logs_dir: "./logs"
+  models_dir: "./models_store"
+
+________________________________________
+9) 売買フロー（疑似コードの要）
+on_tick():
+  if circuit_breaker.tripped(): return
+  if spread > spread_limit: return
+  if positions.count(symbol) >= max_positions: return
+
+  p_buy, p_sell, pred_pips = ai.predict(features_now)
+
+  signal = decide(p_buy, p_sell, thresholds)
+  if not signal: return
+
+  lot = calc_lot(equity, base_equity_per_0p01, min_lot, max_lot, lot_step)
+
+  sl, tp = exit_policy(signal, pred_pips, atr, config.exit)
+
+  ticket = trade_service.place_order_once(symbol, signal, lot, sl, tp)
+  log_trade(signal, lot, sl, tp, p_buy, p_sell, pred_pips, ticket)
+
+堅牢化フック：place_order_once() 内で
+•	ミューテックス / 直前重複チェック / 約定確認 / 例外→再試行（指数バックオフ）
+•	それでも失敗 → GUI にアラート＋ログ
+________________________________________
+10) バックテスト & WFO（現実的な検証）
+•	期間：直近 2–3 年を基本、ロールング WFO（例：90 日学習→7 日前進）
+•	指標：実運用 KPI 優先（PF、期待値、最大DD、スリッページ込み）
+•	比較：固定TP/SL vs ATR連動 vs AI出口、A/B ランで週次更新
+________________________________________
+11) 開発・運用の小技（効くやつ）
+•	再現性：乱数種固定、モデルと学習コードのコミットIDをメタデータに保存
+•	モデル命名規則：LightGBM_YYYYMMDD_HHMM_foldK.pkl
+•	テスト：ユニット（ロット計算/しきい値判定）＋疑似約定テスト
+•	障害耐性：プロセス監視（Windows タスクスケジューラ or NSSM）、クラッシュ時に自動再起動
+•	可搬性：依存は requirements.txt 固定、VPS は仮想環境運用
+________________________________________
+12) 最初の実装手順（1～2 日で“動く芯”まで）
+1.	フォルダ構成と config.yaml を作る
+2.	MT5 接続＋ティック購読＋口座情報の取得（GUI Dashboard に生表示）
+3.	固定ルールの売買（TP=15/SL=10、しきい値はダミー 0.6）で約定～ログまで一気通し
+4.	AI 推論（過去学習済みの軽量 LightGBM 一つ）を挿入
+5.	サーキットブレーカーとスプレッドガードを有効化
+6.	学習・WFO・ベイズ最適化は週末バッチとして最後に接続
+________________________________________
+付け加えた主なポイント（要約）
+•	非同期＆役割分離の明文化（GUI が固まらない）
+•	サーキットブレーカーとスプレッド/スリッページ制御
+•	発注のデデュープ / 競合防止 / 再試行で“二重建て・取りこぼし”を撲滅
+•	ドリフト検知・バンディット出口で運用中の適応性を確保
+•	VPS 2GB 向けの軽量化方針（モデル・並列・学習タイミング）
+•	モデル/データのメタデータ管理と再現性の確保
+________________________________________
+この設計に落とし込めば、**“動く最小構成”→“賢く育つ構成”**へ滑らかに拡張できます。次は、雛形コード（GUI 骨格＋TradeService スタブ＋固定TP/SLの発注）を一気に置いて、GUI 上でBalance/Equity と発注ボタンが生きてる状態まで作り込みましょう。
+
+
+
+
+=== file: 仕様書v3.txt ===
+
+（内蔵スケジューラ＋日本語版＋エディション構成）
+0) 目的・ターゲット
+
+目的：
+
+MT5 + PyQt6 + AIモデル（LightGBM 他）を利用し、
+
+月間3％前後のリターンを「目指す」 自動FX売買ボットを構築・運用する。
+
+3％/月は達成義務ではなく KPI（目標指標） として扱う。
+
+同時に、最大ドローダウン（資産ピーク比） -15〜-20％以内 を安全ラインとする。
+
+ターゲットユーザー：
+
+Windowsユーザー（日本語環境の個人トレーダー）
+
+MT5を使った裁量トレーダーから、半自動〜自動に移行したい層
+
+EAは触ったことがあるが「AI＋統計＋可視化」で運用を改善したい人
+
+非機能的要件：
+
+Windows 10 / 11 (64bit)
+
+日本語UI（メニュー・メッセージ・ログ）
+
+Windowsタスクスケジューラに依存しない
+→ すべての定期実行は 内蔵スケジューラ で行う。
+
+1) 全体アーキテクチャ
+
+3レイヤ構成：
+
+GUI層（app.gui） … PyQt6ベースの画面
+
+サービス層（app.services） … AIサービス / KPI計算 / ログ / スケジューラ / ランキング etc.
+
+コア層（app.core） … MT5ラッパー、戦略ロジック、バックテストエンジン
+
+実行形態：
+
+通常は GUIアプリとして起動。
+
+将来的に「常駐モード（タスクトレイ常駐のみ）」にも対応できるよう、サービス層をGUIに強く依存させない設計にする。
+
+設定・データ：
+
+共通設定：config.yaml + config.local.yaml
+
+モデル保存：models/
+
+ログ：logs/
+
+決定ログ：logs/decisions_*.jsonl
+
+バックテスト結果：backtests/{profile}/...
+
+2) エディション構成（Free / Basic / Pro / Expert / Master）
+共通仕様
+
+すべてのエディションで 同一の実行ファイル を使う。
+
+機能差は「エディション情報（edition: free/basic/pro/expert/master）」で制御する。
+
+Edition 情報は
+
+ライセンス認証
+
+設定ファイル
+
+またはビルド時に埋め込み
+のいずれかで決まる。
+
+fxbot Free（無理のお試し版）
+
+接続可能口座：デモ口座のみ
+
+自動売買：OK（ただしロット上限小）
+
+バックテスト：OK（期間制限なし）
+
+内蔵スケジューラ：
+
+画面上には表示するが、常に「OFF固定」（設定不可）
+
+AIタブ：
+
+KPIの基本項目のみ表示（今月損益％、勝率、PFなど）
+
+Feature Importance / SHAP は非表示
+
+ランキング：
+
+他ユーザーのランキング閲覧のみ（自分の成績送信は不可）
+
+fxbot Basic
+
+接続可能口座：デモ＋本口座
+
+自動売買：
+
+単一ストラテジープロファイルで稼働
+
+内蔵スケジューラ：
+
+週1回 再学習＆WFO をON/OFFで切り替え可能（曜日・時刻はデフォルト値のみ変更不可）
+
+AIタブ：
+
+KPI + 月次リターン簡易表示
+
+ランキング：
+
+Basicエディションのランキング閲覧
+
+「今月の成績を送信」ボタン有効
+
+fxbot Pro
+
+Basicのすべて＋
+
+ストラテジー：
+
+複数プロファイル（トレンド/レンジ 等）の切り替え
+
+AIタブ：
+
+Feature Importance
+
+SHAP上位特徴（Top N）
+
+内蔵スケジューラ：
+
+複数ジョブ（再学習／診断レポート）が登録可能
+
+曜日・時刻の編集可能
+
+バックテスト診断AI：
+
+v0（時間帯別・相場条件別集計）のレポート出力
+
+ランキング：
+
+Pro専用ランキング
+
+自分の過去ランキング履歴（ローカル保存）も表示
+
+fxbot Expert
+
+Proのすべて＋
+
+高度なフィルタ設定（ATR・時間帯・ボラティリティ帯など）をGUIから編集可
+
+スケジューラ：
+
+任意Pythonスクリプト（内部定義されたジョブ）の組合せで実行プランを作成可能
+
+バックテスト診断AI：
+
+追加の切り口（例：連敗中のみ抽出、DD直前の特徴など）
+
+ランキング：
+
+Expert専用ランキング（リターンとDDを考慮した複合スコアなど）
+
+fxbot Master（開発者・自分専用）
+
+一般販売なし。
+
+すべての機能を制限なしで利用可能。
+
+追加：
+
+ランキング送信先URL、APIキー、テスト送信などの開発用ツール
+
+内蔵スケジューラに任意ジョブを登録可能（バックテスト一括実行、モデル比較など）
+
+3) 内蔵スケジューラ仕様（JobScheduler）
+3-1. 基本方針
+
+Windowsタスクスケジューラは使わない。
+
+アプリ内部に JobScheduler（常駐サービス）を持ち、
+
+指定された時間になったら
+
+指定された「ジョブ」をサブプロセスまたはスレッドで実行する。
+
+GUIが起動している間のみ動くのか、トレイ常駐にするのかは段階的に拡張：
+
+v1：GUI起動中のみ動作（週末はPC＋アプリ起動が前提）
+
+v2：タスクトレイ常駐モードで、ウィンドウを閉じてもスケジューラが動き続ける（Expert / Master向け）
+
+3-2. ジョブの種類（v1）
+
+再学習＋Walk-Forward 検証：
+
+python -m scripts.walkforward_retrain --profile ...
+
+バックテスト診断レポート生成：
+
+python -m scripts.diagnose_backtest --profile ...
+
+将来：
+
+ログ圧縮、バックアップなど
+
+3-3. スケジュール表現
+
+config.scheduler.yaml または config.yaml の scheduler セクションに記述：
+
+scheduler:
+  enabled: true
+  jobs:
+    - id: weekly_retrain
+      enabled: true
+      edition_min: basic
+      weekday: 5        # 0=月, 6=日
+      hour: 3
+      minute: 0
+      command: "python -m scripts.walkforward_retrain --profile default"
+    - id: weekly_report
+      enabled: true
+      edition_min: pro
+      weekday: 6
+      hour: 8
+      minute: 0
+      command: "python -m scripts.diagnose_backtest --profile default"
+
+
+Pro以上では GUI から編集可能。
+
+Basic では weekly_retrain ON/OFF だけ可能（曜日・時刻は固定）。
+
+3-4. JobScheduler の動作
+
+アプリ起動時に config を読み込んで JobScheduler インスタンスを作成。
+
+バックグラウンドスレッドで
+
+30秒〜1分ごとに現在時刻をチェック
+
+実行条件を満たすジョブだけを一度実行
+
+実行履歴（成功/失敗、開始・終了時刻）を logs/scheduler.log に残す。
+
+同一ジョブは同じ日付・同じタイミングで二重起動されないよう last_run_at を管理。
+
+4) ランキング機能仕様（バージョン別）
+4-1. 目的
+
+エディションごとのユーザーが「月次リターン」を共有し、モチベーションとベンチマークを得る。
+
+仕様としては “任意参加のランキング機能” にとどめる（利用しなくても本体機能はフル動作）。
+
+4-2. クライアント側
+
+サービス層に RankingService を実装：
+
+月次リターンの集計（バックテスト・実運用の両方）
+
+ペイロード（ニックネーム、年月、リターン％、エディション）生成
+
+送信結果のローカル保存（再送制御）
+
+GUI：
+
+「ランキング」タブ（ or AIタブ内のサブタブ）
+
+ドロップダウンでエディション選択（Basic/Pro/Expert 別）
+
+自分の順位・自分の月次リターン表示
+
+Freeは閲覧のみ、Basic以上で送信ボタン有効。
+
+4-3. サーバ側（ここでは要求だけ）
+
+/api/ranking/submit：
+
+認証済ユーザーからの成績送信
+
+/api/ranking/top?edition=pro&year=2025&month=11：
+
+上位N名を返す
+
+今の段階では、クライアント側はローカルモック実装から始めて、サーバが準備できたら切り替える。
+
+5) 日本語UI・表記ルール
+
+メニュー／ボタン／ダイアログはすべて日本語表記。
+
+単語例：
+
+「利益率」,「最大ドローダウン」,「勝率」,「プロフィットファクター（PF）」,「週次再学習」,「スケジュール設定」など。
+
+ログ出力も日本語＋簡単な英語併記（例：「MT5 接続に失敗しました (login error)」）。
+
+文字コードはすべて UTF-8（BOMなし）に統一する。
+
+
+
 === file: 仮想環境.txt ===
 
-.\.venv\Scripts\Activate.ps1
-
+D:\venv\fxbot-pca\.venv\Scripts\Activate.ps1
 
 
 === file: 作業6～8.txt ===

@@ -1,0 +1,36 @@
+# ==== フォルダツリー作成スクリプト ====
+# 出力: project_tree.txt
+# フォルダ: D:\fxbot（必要なら書き換え）
+
+$root = "D:\fxbot"
+$output = "project_tree.txt"
+
+function Write-Tree {
+    param(
+        [System.IO.DirectoryInfo]$Dir,
+        [int]$Level
+    )
+
+    $indent = " " * ($Level * 2)
+    Add-Content -Path $output -Value ("{0}{1}/" -f $indent, $Dir.Name)
+
+    # ファイル一覧
+    foreach ($file in $Dir.GetFiles()) {
+        Add-Content -Path $output -Value ("{0}  {1}" -f $indent, $file.Name)
+    }
+
+    # サブディレクトリを再帰処理
+    foreach ($sub in $Dir.GetDirectories()) {
+        Write-Tree -Dir $sub -Level ($Level + 1)
+    }
+}
+
+# 既存ファイルがあれば削除
+if (Test-Path $output) {
+    Remove-Item $output
+}
+
+# 実行
+Write-Tree -Dir (Get-Item $root) -Level 0
+
+Write-Host "フォルダツリーを project_tree.txt に保存しました。"

@@ -1,4 +1,3 @@
-# app/core/mt5_client.py
 import time
 import MetaTrader5 as MT5
 import pandas as pd
@@ -26,7 +25,7 @@ POSITION_COLUMNS = [
 
 
 class MT5Client:
-    """MT5 発注・接続を扱う最小構成のラッパー"""
+    """MT5 発注・接続ラッパー（最小構成）"""
 
     def __init__(self, login: int, password: str, server: str, timeout: float = 5.0):
         self.login = login
@@ -40,12 +39,9 @@ class MT5Client:
     # 接続系
     # ------------------------
     def initialize(self) -> bool:
-        """
-        MT5 terminal connection only; login happens via login_account().
-        """
+        """MT5ターミナルの初期化（ログインは login_account()）"""
         logger.info("MT5 initialize() called...")
 
-        # timeout は渡さず、デフォルト挙動に任せる
         if not MT5.initialize():
             err = MT5.last_error()
             logger.error(f"MT5 initialize() failed: {err}")
@@ -57,9 +53,7 @@ class MT5Client:
         return True
 
     def login_account(self) -> bool:
-        """
-        Perform MT5 login using the configured credentials.
-        """
+        """設定されたログイン情報で MT5.login() を実行"""
         logger.info(
             f"MT5 login() called with login={self.login}, server={self.server}"
         )
@@ -78,6 +72,7 @@ class MT5Client:
         return True
 
     def shutdown(self):
+        """MT5 をシャットダウン"""
         logger.info("MT5 shutdown()")
         MT5.shutdown()
         self.connected = False
@@ -85,38 +80,55 @@ class MT5Client:
     # ------------------------
     # 発注
     # ------------------------
-    def order_send(self, symbol: str, order_type: str, lot: float,
-                   sl: Optional[float] = None,
-                   tp: Optional[float] = None,
-                   retries: int = 3) -> Optional[int]:
+    def order_send(
+        self,
+        symbol: str,
+        order_type: str,
+        lot: float,
+        sl: Optional[float] = None,
+        tp: Optional[float] = None,
+        retries: int = 3,
+    ) -> Optional[int]:
         """
-        成行発注�BUY/SELL�
-        order_type: "BUY" or "SELL"
-        戻り値: 成功した� order 番号�int��、失敗したら None
+        成行発注（BUY / SELL）
+
+        Parameters
+        ----------
+        symbol : str
+        order_type : "BUY" or "SELL"
+        lot : float
+        sl, tp : Optional[float]
+        retries : int
+
+        Returns
+        -------
+        Optional[int]
+            成功: チケット番号（int）
+            失敗: None
         """
 
         if order_type not in ("BUY", "SELL"):
             raise ValueError(f"order_type must be BUY/SELL: got {order_type}")
 
-        # 1) シンボル�報を取得して、見えな�場合� symbol_select する
+        # --- 1) シンボル情報をチェック ---
         info = MT5.symbol_info(symbol)
         if info is None:
-            logger.error(f"[order_send] symbol_info({symbol}) � None��シンボルが存在しな�可能性�")
+            logger.error(f"[order_send] symbol_info({symbol}) が None。シンボルが存在しない可能性")
             return None
 
         if not info.visible:
-            logger.info(f"[order_send] {symbol} が非表示なので symbol_select しま�")
+            logger.info(f"[order_send] {symbol} が非表示なので symbol_select() します")
             if not MT5.symbol_select(symbol, True):
-                logger.error(f"[order_send] symbol_select({symbol}, True) に失�")
+                logger.error(f"[order_send] symbol_select({symbol}, True) に失敗")
                 return None
 
-        # 2) �ィ�ク�報を取�
+        # --- 2) 最新ティック ---
         tick = MT5.symbol_info_tick(symbol)
         if tick is None:
-            logger.error(f"[order_send] symbol_info_tick({symbol}) � None��ティ�クが取得できなぼ")
+            logger.error(f"[order_send] symbol_info_tick({symbol}) が None。ティックが取得できない")
             return None
 
-        # MetaTrader5 の注�種別
+        # --- 3) 注文種別と価格 ---
         if order_type == "BUY":
             mt_type = MT5.ORDER_TYPE_BUY
             price = tick.ask
@@ -124,6 +136,7 @@ class MT5Client:
             mt_type = MT5.ORDER_TYPE_SELL
             price = tick.bid
 
+        # --- 4) 注文リクエスト ---
         request: Dict[str, Any] = {
             "action": MT5.TRADE_ACTION_DEAL,
             "symbol": symbol,
@@ -140,13 +153,18 @@ class MT5Client:
 
         last_error: Optional[tuple[int, str]] = None
 
+        # --- 5) リトライ付き order_send ---
         for attempt in range(1, retries + 1):
-            logger.info(f"[order_send] Try {attempt}/{retries}: {order_type} {lot} lot @ {price} {symbol}")
+            logger.info(
+                f"[order_send] Try {attempt}/{retries}: {order_type} {lot} lot @ {price} {symbol}"
+            )
+
             result = MT5.order_send(request)
 
             if result is None:
                 last_error = MT5.last_error()
                 logger.error(f"[order_send] result is None, last_error={last_error}")
+
             else:
                 logger.info(
                     "[order_send] retcode=%s, order=%s, deal=%s, comment=%s",
@@ -156,42 +174,50 @@ class MT5Client:
                     getattr(result, "comment", None),
                 )
 
-                # 成功判定：�行なので DONE 系を主に見る
+                # 成行なので DONE = 成功
                 if result.retcode == MT5.TRADE_RETCODE_DONE:
                     ticket = int(result.order or result.deal or 0)
                     if ticket > 0:
                         logger.info(f"[order_send] 成功: ticket={ticket}")
                         return ticket
                     else:
-                        logger.warning(f"[order_send] DONE だ� ticket が取得できな�: result={result}")
+                        logger.warning(f"[order_send] DONE だが ticket が取得できない: {result}")
 
                 else:
-                    logger.warning(f"[order_send] 失� retcode={result.retcode}, 再試行するかも…")
+                    logger.warning(
+                        f"[order_send] 失敗 retcode={result.retcode}。再試行する場合があります"
+                    )
 
             if attempt < retries:
                 time.sleep(1.0)
 
         logger.error(f"[order_send] 全 {retries} 回リトライしても失敗。last_error={last_error}")
         return None
+
     # ------------------------
-    # ����
+    # 決済（クローズ）
     # ------------------------
     def close_position(self, ticket: int, symbol: str, retries: int = 3) -> bool:
-        """���s�N���[�Y"""
+        """指定チケットの成行クローズ"""
 
         pos = MT5.positions_get(ticket=ticket)
         if not pos:
-            logger.error(f"ticket={ticket} �̃|�W�V�����Ȃ�")
+            logger.error(f"ticket={ticket} のポジションが存在しません")
             return False
 
         position = pos[0]
         lot = position.volume
+
+        # position.type: 0=BUY, 1=SELL
         order_type = MT5.ORDER_TYPE_SELL if position.type == 0 else MT5.ORDER_TYPE_BUY
-        price = (
-            MT5.symbol_info_tick(symbol).bid
-            if order_type == MT5.ORDER_TYPE_SELL
-            else MT5.symbol_info_tick(symbol).ask
-        )
+
+        # クローズ価格
+        t = MT5.symbol_info_tick(symbol)
+        if t is None:
+            logger.error(f"[close_position] symbol_info_tick({symbol}) が None")
+            return False
+
+        price = t.bid if order_type == MT5.ORDER_TYPE_SELL else t.ask
 
         request = {
             "action": MT5.TRADE_ACTION_DEAL,
@@ -211,25 +237,23 @@ class MT5Client:
             result = MT5.order_send(request)
 
             if result and result.retcode == MT5.TRADE_RETCODE_DONE:
-                logger.info(f"�N���[�Y����: ticket={ticket}")
+                logger.info(f"クローズ成功: ticket={ticket}")
                 return True
 
             logger.error(
-                f"retcode={result.retcode if result else None}, "
-                f"err={MT5.last_error()}"
+                f"retcode={result.retcode if result else None}, err={MT5.last_error()}"
             )
             time.sleep(1.0)
 
-        logger.error("[close_position] �S���g���C���s")
+        logger.error("[close_position] 全リトライ失敗")
         return False
+
     # ------------------------
     # ポジション一覧
     # ------------------------
     def get_positions(self):
-        from MetaTrader5 import positions_get
-
         try:
-            pos = positions_get()
+            pos = MT5.positions_get()
             if pos is None:
                 self.logger.warning("positions_get() returned None")
                 return []
@@ -250,7 +274,6 @@ class MT5Client:
             rows = [p for p in rows if getattr(p, "symbol", None) == symbol]
 
         if not rows:
-            # 空でも列は固定して返す
             return pd.DataFrame(columns=POSITION_COLUMNS)
 
         data = []
