@@ -8,7 +8,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
 
 # --- プロジェクトルートを sys.path に追加してから app.* を import する ---
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -25,6 +24,58 @@ from app.strategies.ai_strategy import (
 LOG_DIR = PROJECT_ROOT / "logs" / "backtest"
 
 # === equity utils ===
+
+# === monthly_returns.csv を生成するユーティリティ ===
+import pandas as pd
+
+
+def compute_monthly_returns(equity_csv_path: str, out_path: str):
+    df = pd.read_csv(equity_csv_path)
+
+    if "timestamp" not in df.columns and "time" in df.columns:
+        df = df.rename(columns={"time": "timestamp"})
+
+    # 必須カラムチェック：timestamp, equity
+    if not {"timestamp", "equity"}.issubset(df.columns):
+        raise ValueError("equity_curve.csv に必要なカラムがありません (timestamp, equity)")
+
+    # timestamp → datetime 変換
+    df["timestamp"] = pd.to_datetime(df["timestamp"])
+
+    # 月末の equity を集計
+    df["year"] = df["timestamp"].dt.year
+    df["month"] = df["timestamp"].dt.month
+
+    # 月初値を取得
+    first = df.groupby(["year", "month"])["equity"].first()
+    last = df.groupby(["year", "month"])["equity"].last()
+
+    # リターン計算
+    monthly_return = (last - first) / first * 100
+
+    # 同時に月次DDも計算する（peak-to-trough）
+    def calc_dd(sub):
+        peak = sub["equity"].cummax()
+        dd = (sub["equity"] - peak) / peak * 100
+        return dd.min()
+
+    dd_rows = []
+    for (y, m), sub in df.groupby(["year", "month"]):
+        dd_rows.append({
+            "year": y,
+            "month": m,
+            "dd_pct": calc_dd(sub)
+        })
+    dd_df = pd.DataFrame(dd_rows).set_index(["year", "month"])
+
+    out = pd.DataFrame({
+        "return_pct": monthly_return,
+    }).join(dd_df)
+
+    out = out.reset_index().sort_values(["year", "month"])
+    out.to_csv(out_path, index=False)
+
+    print(f"[bt] write monthly {out_path}")
 
 
 @dataclass
@@ -475,15 +526,12 @@ def run_backtest(
     eq_csv = out_dir / "equity_curve.csv"
     print(f"[bt] write equity {eq_csv}", flush=True)
     eq_df.to_csv(eq_csv, index=False)
+    monthly_path = out_dir / "monthly_returns.csv"
+    compute_monthly_returns(eq_csv, monthly_path)
 
     # 仮トレード（Buy&Hold）
     trades = trades_from_buyhold(df, capital)
     trades.to_csv(out_dir / "trades.csv", index=False)
-
-    # 月次損益＋トレード統計
-    mr = monthly_returns_from_equity(eq_df, trades_df=trades)
-    mr.to_csv(out_dir / "monthly_returns.csv", index=False)
-
 
     # メトリクス
     base = metrics_from_equity(eq_df["equity"])

@@ -3,6 +3,8 @@ import MetaTrader5 as MT5
 import pandas as pd
 from loguru import logger
 from typing import Optional, Dict, Any
+from typing import NamedTuple
+
 
 
 POSITION_COLUMNS = [
@@ -22,6 +24,10 @@ POSITION_COLUMNS = [
     "profit",
     "comment",
 ]
+
+class TickSpec(NamedTuple):
+    tick_size: float   # 1ティックの価格幅（例: 0.01 JPY）
+    tick_value: float  # 1ティック動いたときの損益（1ロットあたりの通貨）
 
 
 class MT5Client:
@@ -299,3 +305,33 @@ class MT5Client:
             )
 
         return pd.DataFrame(data, columns=POSITION_COLUMNS)
+
+    def get_equity(self) -> float:
+        """現在口座の有効証拠金（equity）を返す。"""
+        info = MT5.account_info()
+        if info is None:
+            raise RuntimeError("account_info() が None を返しました（MT5 接続を確認してください）")
+
+        return float(info.equity)
+
+    def get_tick_spec(self, symbol: str) -> TickSpec:
+        """
+        指定シンボルの tick_size / tick_value を返す。
+        - tick_size: 価格が 1 tick 動く幅
+        - tick_value: その 1 tick で 1 ロットあたりの損益
+        """
+        info = MT5.symbol_info(symbol)
+        if info is None:
+            raise RuntimeError(f"symbol_info({symbol!r}) が None を返しました（シンボル名を確認してください）")
+
+        # broker によっては trade_tick_size / trade_tick_value を使う場合もあります。
+        # ここでは point / trade_tick_value を使う想定です。
+        tick_size = float(getattr(info, "point", 0.0))
+        tick_value = float(getattr(info, "trade_tick_value", 0.0))
+
+        if tick_size <= 0:
+            raise RuntimeError(f"{symbol!r} の tick_size が 0 以下です: {tick_size}")
+        if tick_value <= 0:
+            raise RuntimeError(f"{symbol!r} の tick_value が 0 以下です: {tick_value}")
+
+        return TickSpec(tick_size=tick_size, tick_value=tick_value)

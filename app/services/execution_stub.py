@@ -487,6 +487,8 @@ class ExecutionStub:
 
         cur_adx = round(float(features.get("adx_14", 0.0)), 5)
         cur_atr_pct = round(float(features.get("atr_14", 0.0)), 8)
+        # ロット計算用：価格単位の ATR（特徴量 atr_14 と同じもの）
+        atr_for_lot = float(features.get("atr_14", 0.0))
 
         base_filters: Dict[str, Any] = {
             "spread": cur_spread,
@@ -497,6 +499,8 @@ class ExecutionStub:
             "atr_pct": cur_atr_pct,
             "min_atr_pct": min_atr_pct,
             "prob_threshold": prob_threshold,
+            # ログ用に、ロット計算で使う ATR も入れておく
+            "atr_for_lot": atr_for_lot,
         }
         if side_bias is not None:
             base_filters["side_bias"] = side_bias
@@ -780,6 +784,8 @@ class ExecutionStub:
             "prob": chosen_prob,
             "meta": chosen_side,
             "best_threshold": buy_threshold,
+            # ロット計算用 ATR（価格単位）
+            "atr_for_lot": float(atr_for_lot),
         }
 
         recent_ohlc = globals().get("get_recent_ohlc")
@@ -839,6 +845,7 @@ def evaluate_and_log_once() -> None:
         threshold_sell=sell_threshold,
         prob_threshold=best_threshold,
         side_bias=str(entry_cfg.get("side_bias", "auto") or "auto"),
+        trading_enabled=True,  # ★ dryrun 評価では常にトレードONにする
     )
     settings = trade_state.get_settings()
 
@@ -855,11 +862,18 @@ def evaluate_and_log_once() -> None:
         )
         return
 
-    if not mt5_client.initialize():
+    '''
+    try:
+        from app.core.mt5_client import MT5Client
+        client = MT5Client()
+        client.initialize()
+        client.login_account()
+    except Exception:
+        # ドライランなのでMT5につながらなくてもOK
         logger.bind(event="dryrun", ts=now_jst_iso()).warning(
-            {"mode": "dryrun", "enabled": True, "error": "mt5_init_failed"}
+            {"mode": "dryrun", "enabled": True, "error": "mt5_init_skipped"}
         )
-        return
+    '''
 
     try:
         spr_callable = getattr(market, "spread", None)
@@ -899,7 +913,53 @@ def evaluate_and_log_once() -> None:
             daily_loss_limit_jpy=float(cb_cfg.get("daily_loss_limit_jpy", 0.0)),
             cooldown_min=int(cb_cfg.get("cooldown_min", 30)),
         )
-        ai = AISvc(threshold=best_threshold)
+        #
+        # --- DryRun 用 AISvc：モデル読み込み失敗を回避する ---
+        try:
+            ai = AISvc(threshold=best_threshold)
+        except Exception:
+            print("[exec] AISvc model loading failed → using dummy model for dryrun")
+
+            class DummyProbOut:
+                def __init__(self, p_buy: float, p_sell: float, p_skip: float, meta: str = "dummy") -> None:
+                    # ExecutionStub や _build_decision_trace から参照される属性だけ持っておけばOK
+                    self.p_buy = float(p_buy)
+                    self.p_sell = float(p_sell)
+                    self.p_skip = float(p_skip)
+                    self.meta = meta
+                    self.model_name = "dummy"
+                    self.calibrator_name = "dummy"
+                    self.features_hash = "dummy"
+
+                def model_dump(self) -> dict:
+                    # 本物の ProbOut.model_dump() っぽい辞書を返す
+                    return {
+                        "p_buy": self.p_buy,
+                        "p_sell": self.p_sell,
+                        "p_skip": self.p_skip,
+                        "meta": self.meta,
+                        "model_name": self.model_name,
+                        "calibrator_name": self.calibrator_name,
+                        "features_hash": self.features_hash,
+                    }
+
+            class DummyAISvc:
+                def __init__(self, threshold: float) -> None:
+                    self.threshold = float(threshold)
+                    self.calibrator_name = "dummy"
+                    self.model_name = "dummy"
+
+                def predict(self, feats: dict) -> "DummyProbOut":
+                    # 適当な確率を返すダミーモデル
+                    return DummyProbOut(
+                        p_buy=0.33,
+                        p_sell=0.33,
+                        p_skip=0.34,
+                        meta="dummy",
+                    )
+
+            ai = DummyAISvc(threshold=best_threshold)
+        #
         print(f"[exec] AISvc model: {getattr(ai, 'model_name', 'unknown')} (threshold={best_threshold})")
         stub = ExecutionStub(cb=cb, ai=ai)
 
@@ -922,5 +982,10 @@ def evaluate_and_log_once() -> None:
         result = stub.on_tick(symbol, features, runtime_payload)
         _ = result
     finally:
-        mt5_client.shutdown()
+        try:
+            shutdown = getattr(mt5_client, "shutdown", None)
+            if callable(shutdown):
+                shutdown()
+        except Exception:
+            pass
 

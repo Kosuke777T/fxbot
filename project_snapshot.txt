@@ -1,7 +1,7 @@
 ############################################################
 # project_snapshot
 ############################################################
-generated_at: 2025-11-20 18:22:23
+generated_at: 2025-11-22 17:27:44
 project_root: D:\fxbot
 
 NOTE:
@@ -17,6 +17,7 @@ fxbot/
 .env.example (updated: 2025-11-20 17:32:02)
 .gitignore (updated: 2025-11-20 18:15:42)
 .importlinter.ini (updated: 2025-11-20 17:32:02)
+7C9B198C-ADA6-4308-A321-C13EA50E0707.jpg (updated: 2025-11-21 12:09:25)
 active_model.json (updated: 2025-11-20 17:32:02)
 Agent HQ 用「細分化版」.txt (updated: 2025-11-20 17:32:02)
 app/
@@ -26,7 +27,8 @@ app/
     data_finder.py (updated: 2025-11-20 17:32:02)
     logger.py (updated: 2025-11-20 17:32:02)
     market.py (updated: 2025-11-20 17:32:02)
-    mt5_client.py (updated: 2025-11-20 17:32:02)
+    mt5_client.py (updated: 2025-11-22 17:10:36)
+    strategy_profile.py (updated: 2025-11-22 16:53:04)
   gui/
     __init__.py (updated: 2025-11-20 17:32:02)
     ai_tab.py (updated: 2025-11-20 17:32:02)
@@ -58,14 +60,16 @@ app/
     orderbook_stub.py (updated: 2025-11-20 17:32:02)
     recent_kpi.py (updated: 2025-11-20 17:32:02)
     shap_service.py (updated: 2025-11-20 17:32:02)
-    trade_service.py (updated: 2025-11-20 17:32:02)
+    trade_service.py (updated: 2025-11-22 17:18:00)
     trade_state.py (updated: 2025-11-20 17:32:02)
     trailing.py (updated: 2025-11-20 17:32:02)
     trailing_hook.py (updated: 2025-11-20 17:32:02)
   strategies/
     __init__.py (updated: 2025-11-20 17:32:02)
     ai_strategy.py (updated: 2025-11-20 17:32:02)
-apply_order.py (updated: 2025-11-20 17:32:02)
+apply_order.py (updated: 2025-11-20 19:07:27)
+backtests/
+  michibiki_std/
 config/
   mt5_accounts.json (updated: 2025-11-20 17:32:02)
 configs/
@@ -89,6 +93,7 @@ core/
     fi_extractor.py (updated: 2025-11-20 17:32:02)
     registry.py (updated: 2025-11-20 17:32:02)
   position_guard.py (updated: 2025-11-20 17:32:02)
+  risk.py (updated: 2025-11-22 16:50:23)
   utils/
     __init__.py (updated: 2025-11-20 17:32:02)
     clock.py (updated: 2025-11-20 17:32:02)
@@ -96,15 +101,16 @@ core/
     runtime.py (updated: 2025-11-20 17:32:02)
     timeutil.py (updated: 2025-11-20 17:32:02)
 fxbot_path.py (updated: 2025-11-20 17:32:02)
-mypy.ini (updated: 2025-11-20 17:32:02)
+mypy.ini (updated: 2025-11-21 17:38:08)
 PROJECT_MAP.md (updated: 2025-11-20 17:32:02)
 project_snapshot-DESKTOP-KK77.txt (updated: 2025-11-20 17:32:02)
-project_snapshot.txt (updated: 2025-11-20 17:32:02)
-project_tree.txt (updated: 2025-11-20 17:32:02)
+project_snapshot.txt (updated: 2025-11-20 18:22:24)
+project_tree.txt (updated: 2025-11-22 17:20:34)
 pyproject.toml (updated: 2025-11-20 17:32:02)
 pytest.ini (updated: 2025-11-20 17:32:02)
 README.md (updated: 2025-11-20 17:32:02)
 requirements.txt (updated: 2025-11-20 17:32:02)
+ruff.toml (updated: 2025-11-21 17:38:08)
 runtime/
   metrics.json (updated: 2025-11-20 17:32:02)
   metrics_044ho80o.json (updated: 2025-11-20 17:32:02)
@@ -329,10 +335,13 @@ tmp_view.py (updated: 2025-11-20 17:32:03)
 To Doリスト.txt (updated: 2025-11-20 17:32:02)
 To Doリスト2.txt (updated: 2025-11-20 17:32:02)
 To Doリストv4.txt (updated: 2025-11-20 12:59:03)
+To Doリストv5.txt (updated: 2025-11-21 17:49:20)
+ToDoリスト Master版.txt (updated: 2025-11-22 16:57:13)
+ToDoリスト 下位版.txt (updated: 2025-11-21 18:10:53)
 tools/
   __init__.py (updated: 2025-11-20 17:32:03)
   backtest_equity_curve.py (updated: 2025-11-20 17:32:03)
-  backtest_run.py (updated: 2025-11-20 17:32:03)
+  backtest_run.py (updated: 2025-11-22 16:30:29)
   dump_feature_importance.py (updated: 2025-11-20 17:32:03)
   export_tree_clean.ps1 (updated: 2025-11-20 17:32:03)
   inspect_report.py (updated: 2025-11-20 17:32:03)
@@ -341,13 +350,17 @@ tools/
   train_scaler.py (updated: 2025-11-20 17:32:03)
 やるべきこと.txt (updated: 2025-11-20 17:32:03)
 フェーズA~Hまでの結果.txt (updated: 2025-11-20 17:32:03)
+ミチビキ FX 自動売買システム：仕様書 v4（正式版）.txt (updated: 2025-11-21 17:44:55)
 仕様の統合まとめ.docx (updated: 2025-11-20 17:32:03)
 仕様書.txt (updated: 2025-11-20 17:32:03)
 仕様書v3.txt (updated: 2025-11-20 12:58:23)
-仮想環境.txt (updated: 2025-11-20 17:52:57)
 作業6～8.txt (updated: 2025-11-20 17:32:03)
 作業9.txt (updated: 2025-11-20 17:32:03)
 備忘録.txt (updated: 2025-11-20 17:32:03)
+設定/
+  フォルダ構成.txt (updated: 2025-11-20 18:35:54)
+  仮.txt (updated: 2025-11-21 17:37:52)
+  仮想環境.txt (updated: 2025-11-20 17:52:57)
 質問.txt (updated: 2025-11-20 17:32:03)
 
 
@@ -822,12 +835,13 @@ def pips_to_price(symbol: str, pips: float) -> Optional[float]:
 
 === file: app/core/mt5_client.py ===
 
-# app/core/mt5_client.py
 import time
 import MetaTrader5 as MT5
 import pandas as pd
 from loguru import logger
 from typing import Optional, Dict, Any
+from typing import NamedTuple
+
 
 
 POSITION_COLUMNS = [
@@ -848,9 +862,13 @@ POSITION_COLUMNS = [
     "comment",
 ]
 
+class TickSpec(NamedTuple):
+    tick_size: float   # 1ティックの価格幅（例: 0.01 JPY）
+    tick_value: float  # 1ティック動いたときの損益（1ロットあたりの通貨）
+
 
 class MT5Client:
-    """MT5 発注・接続を扱う最小構成のラッパー"""
+    """MT5 発注・接続ラッパー（最小構成）"""
 
     def __init__(self, login: int, password: str, server: str, timeout: float = 5.0):
         self.login = login
@@ -864,12 +882,9 @@ class MT5Client:
     # 接続系
     # ------------------------
     def initialize(self) -> bool:
-        """
-        MT5 terminal connection only; login happens via login_account().
-        """
+        """MT5ターミナルの初期化（ログインは login_account()）"""
         logger.info("MT5 initialize() called...")
 
-        # timeout は渡さず、デフォルト挙動に任せる
         if not MT5.initialize():
             err = MT5.last_error()
             logger.error(f"MT5 initialize() failed: {err}")
@@ -881,9 +896,7 @@ class MT5Client:
         return True
 
     def login_account(self) -> bool:
-        """
-        Perform MT5 login using the configured credentials.
-        """
+        """設定されたログイン情報で MT5.login() を実行"""
         logger.info(
             f"MT5 login() called with login={self.login}, server={self.server}"
         )
@@ -902,6 +915,7 @@ class MT5Client:
         return True
 
     def shutdown(self):
+        """MT5 をシャットダウン"""
         logger.info("MT5 shutdown()")
         MT5.shutdown()
         self.connected = False
@@ -909,38 +923,55 @@ class MT5Client:
     # ------------------------
     # 発注
     # ------------------------
-    def order_send(self, symbol: str, order_type: str, lot: float,
-                   sl: Optional[float] = None,
-                   tp: Optional[float] = None,
-                   retries: int = 3) -> Optional[int]:
+    def order_send(
+        self,
+        symbol: str,
+        order_type: str,
+        lot: float,
+        sl: Optional[float] = None,
+        tp: Optional[float] = None,
+        retries: int = 3,
+    ) -> Optional[int]:
         """
-        成行発注�BUY/SELL�
-        order_type: "BUY" or "SELL"
-        戻り値: 成功した� order 番号�int��、失敗したら None
+        成行発注（BUY / SELL）
+
+        Parameters
+        ----------
+        symbol : str
+        order_type : "BUY" or "SELL"
+        lot : float
+        sl, tp : Optional[float]
+        retries : int
+
+        Returns
+        -------
+        Optional[int]
+            成功: チケット番号（int）
+            失敗: None
         """
 
         if order_type not in ("BUY", "SELL"):
             raise ValueError(f"order_type must be BUY/SELL: got {order_type}")
 
-        # 1) シンボル�報を取得して、見えな�場合� symbol_select する
+        # --- 1) シンボル情報をチェック ---
         info = MT5.symbol_info(symbol)
         if info is None:
-            logger.error(f"[order_send] symbol_info({symbol}) � None��シンボルが存在しな�可能性�")
+            logger.error(f"[order_send] symbol_info({symbol}) が None。シンボルが存在しない可能性")
             return None
 
         if not info.visible:
-            logger.info(f"[order_send] {symbol} が非表示なので symbol_select しま�")
+            logger.info(f"[order_send] {symbol} が非表示なので symbol_select() します")
             if not MT5.symbol_select(symbol, True):
-                logger.error(f"[order_send] symbol_select({symbol}, True) に失�")
+                logger.error(f"[order_send] symbol_select({symbol}, True) に失敗")
                 return None
 
-        # 2) �ィ�ク�報を取�
+        # --- 2) 最新ティック ---
         tick = MT5.symbol_info_tick(symbol)
         if tick is None:
-            logger.error(f"[order_send] symbol_info_tick({symbol}) � None��ティ�クが取得できなぼ")
+            logger.error(f"[order_send] symbol_info_tick({symbol}) が None。ティックが取得できない")
             return None
 
-        # MetaTrader5 の注�種別
+        # --- 3) 注文種別と価格 ---
         if order_type == "BUY":
             mt_type = MT5.ORDER_TYPE_BUY
             price = tick.ask
@@ -948,6 +979,7 @@ class MT5Client:
             mt_type = MT5.ORDER_TYPE_SELL
             price = tick.bid
 
+        # --- 4) 注文リクエスト ---
         request: Dict[str, Any] = {
             "action": MT5.TRADE_ACTION_DEAL,
             "symbol": symbol,
@@ -964,13 +996,18 @@ class MT5Client:
 
         last_error: Optional[tuple[int, str]] = None
 
+        # --- 5) リトライ付き order_send ---
         for attempt in range(1, retries + 1):
-            logger.info(f"[order_send] Try {attempt}/{retries}: {order_type} {lot} lot @ {price} {symbol}")
+            logger.info(
+                f"[order_send] Try {attempt}/{retries}: {order_type} {lot} lot @ {price} {symbol}"
+            )
+
             result = MT5.order_send(request)
 
             if result is None:
                 last_error = MT5.last_error()
                 logger.error(f"[order_send] result is None, last_error={last_error}")
+
             else:
                 logger.info(
                     "[order_send] retcode=%s, order=%s, deal=%s, comment=%s",
@@ -980,42 +1017,50 @@ class MT5Client:
                     getattr(result, "comment", None),
                 )
 
-                # 成功判定：�行なので DONE 系を主に見る
+                # 成行なので DONE = 成功
                 if result.retcode == MT5.TRADE_RETCODE_DONE:
                     ticket = int(result.order or result.deal or 0)
                     if ticket > 0:
                         logger.info(f"[order_send] 成功: ticket={ticket}")
                         return ticket
                     else:
-                        logger.warning(f"[order_send] DONE だ� ticket が取得できな�: result={result}")
+                        logger.warning(f"[order_send] DONE だが ticket が取得できない: {result}")
 
                 else:
-                    logger.warning(f"[order_send] 失� retcode={result.retcode}, 再試行するかも…")
+                    logger.warning(
+                        f"[order_send] 失敗 retcode={result.retcode}。再試行する場合があります"
+                    )
 
             if attempt < retries:
                 time.sleep(1.0)
 
         logger.error(f"[order_send] 全 {retries} 回リトライしても失敗。last_error={last_error}")
         return None
+
     # ------------------------
-    # ����
+    # 決済（クローズ）
     # ------------------------
     def close_position(self, ticket: int, symbol: str, retries: int = 3) -> bool:
-        """���s�N���[�Y"""
+        """指定チケットの成行クローズ"""
 
         pos = MT5.positions_get(ticket=ticket)
         if not pos:
-            logger.error(f"ticket={ticket} �̃|�W�V�����Ȃ�")
+            logger.error(f"ticket={ticket} のポジションが存在しません")
             return False
 
         position = pos[0]
         lot = position.volume
+
+        # position.type: 0=BUY, 1=SELL
         order_type = MT5.ORDER_TYPE_SELL if position.type == 0 else MT5.ORDER_TYPE_BUY
-        price = (
-            MT5.symbol_info_tick(symbol).bid
-            if order_type == MT5.ORDER_TYPE_SELL
-            else MT5.symbol_info_tick(symbol).ask
-        )
+
+        # クローズ価格
+        t = MT5.symbol_info_tick(symbol)
+        if t is None:
+            logger.error(f"[close_position] symbol_info_tick({symbol}) が None")
+            return False
+
+        price = t.bid if order_type == MT5.ORDER_TYPE_SELL else t.ask
 
         request = {
             "action": MT5.TRADE_ACTION_DEAL,
@@ -1035,25 +1080,23 @@ class MT5Client:
             result = MT5.order_send(request)
 
             if result and result.retcode == MT5.TRADE_RETCODE_DONE:
-                logger.info(f"�N���[�Y����: ticket={ticket}")
+                logger.info(f"クローズ成功: ticket={ticket}")
                 return True
 
             logger.error(
-                f"retcode={result.retcode if result else None}, "
-                f"err={MT5.last_error()}"
+                f"retcode={result.retcode if result else None}, err={MT5.last_error()}"
             )
             time.sleep(1.0)
 
-        logger.error("[close_position] �S���g���C���s")
+        logger.error("[close_position] 全リトライ失敗")
         return False
+
     # ------------------------
     # ポジション一覧
     # ------------------------
     def get_positions(self):
-        from MetaTrader5 import positions_get
-
         try:
-            pos = positions_get()
+            pos = MT5.positions_get()
             if pos is None:
                 self.logger.warning("positions_get() returned None")
                 return []
@@ -1074,7 +1117,6 @@ class MT5Client:
             rows = [p for p in rows if getattr(p, "symbol", None) == symbol]
 
         if not rows:
-            # 空でも列は固定して返す
             return pd.DataFrame(columns=POSITION_COLUMNS)
 
         data = []
@@ -1100,6 +1142,206 @@ class MT5Client:
             )
 
         return pd.DataFrame(data, columns=POSITION_COLUMNS)
+
+    def get_equity(self) -> float:
+        """現在口座の有効証拠金（equity）を返す。"""
+        info = MT5.account_info()
+        if info is None:
+            raise RuntimeError("account_info() が None を返しました（MT5 接続を確認してください）")
+
+        return float(info.equity)
+
+    def get_tick_spec(self, symbol: str) -> TickSpec:
+        """
+        指定シンボルの tick_size / tick_value を返す。
+        - tick_size: 価格が 1 tick 動く幅
+        - tick_value: その 1 tick で 1 ロットあたりの損益
+        """
+        info = MT5.symbol_info(symbol)
+        if info is None:
+            raise RuntimeError(f"symbol_info({symbol!r}) が None を返しました（シンボル名を確認してください）")
+
+        # broker によっては trade_tick_size / trade_tick_value を使う場合もあります。
+        # ここでは point / trade_tick_value を使う想定です。
+        tick_size = float(getattr(info, "point", 0.0))
+        tick_value = float(getattr(info, "trade_tick_value", 0.0))
+
+        if tick_size <= 0:
+            raise RuntimeError(f"{symbol!r} の tick_size が 0 以下です: {tick_size}")
+        if tick_value <= 0:
+            raise RuntimeError(f"{symbol!r} の tick_value が 0 以下です: {tick_value}")
+
+        return TickSpec(tick_size=tick_size, tick_value=tick_value)
+
+
+
+=== file: app/core/strategy_profile.py ===
+
+"""
+app.core.strategy_profile
+
+ミチビキの「戦略プロファイル」を一元管理するモジュール。
+
+- プロファイル ID (profile.name) は
+  - config
+  - backtests/{profile}/...
+  - JobScheduler のコマンド
+  などで共通して使うキーとする。
+
+まずは M-A2 対応として「michibiki_std」（ミチビキ標準プロファイル）だけを定義する。
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from core.risk import LotSizingResult, compute_lot_size_from_atr
+
+from pathlib import Path
+from typing import Dict
+
+
+@dataclass(frozen=True)
+class StrategyProfile:
+    """戦略プロファイル 1 件分の定義。
+
+    将来的には、ここに
+    - 使用するモデル名
+    - 特徴量セット名
+    - 追加フィルタ設定
+    などを足していく。
+    """
+
+    # プロファイル ID（フォルダ名 / 設定キーに使う）
+    name: str
+
+    # 人間が読む用の説明
+    description: str
+
+    # 取引対象
+    symbol: str  # 例: "USDJPY" / "USDJPY-"
+    timeframe: str  # 例: "M5", "M15"
+
+    # KPI 目標
+    target_monthly_return: float  # 例: 0.03 (= +3%)
+    max_monthly_dd: float  # 例: -0.20 (= -20%)
+
+    # ATR ベース戦略の主要パラメータ
+    atr_period: int
+    atr_mult_entry: float
+    atr_mult_sl: float
+
+    # Walk-Forward 窓
+    wf_train_months: int
+    wf_test_months: int
+
+    @property
+    def backtest_root(self) -> Path:
+        """バックテスト結果を置くルートフォルダを返す。
+
+        例:
+            backtests/michibiki_std
+        """
+        return Path("backtests") / self.name
+
+    @property
+    def monthly_returns_path(self) -> Path:
+        """monthly_returns.csv の標準パス。
+
+        M-A1 で決めた「backtests/{profile}/monthly_returns.csv」と整合させる。
+        """
+        return self.backtest_root / "monthly_returns.csv"
+
+    def compute_lot_size_from_atr(
+        self,
+        *,
+        equity: float,
+        atr: float,
+        tick_value: float,
+        tick_size: float,
+        expected_trades_per_month: int = 40,
+        worst_case_trades_for_dd: int = 10,
+        avg_r_multiple: float = 0.6,
+        min_lot: float = 0.01,
+        max_lot: float = 1.0,
+    ) -> LotSizingResult:
+        """
+        このプロファイルに設定された target_monthly_return / max_monthly_dd / atr_mult_sl を使用して
+        推奨ロットを計算するヘルパーメソッド。
+
+        Parameters
+        ----------
+        equity:
+            現在の口座残高 or 有効証拠金。
+        atr:
+            現在の ATR 値（価格単位）。
+        tick_value, tick_size:
+            MT5 の symbol_info(...).trade_tick_value / trade_tick_size 等から取得した値。
+        expected_trades_per_month, worst_case_trades_for_dd, avg_r_multiple, min_lot, max_lot:
+            ロット計算の前提パラメータ。必要なら外から上書き可能。
+
+        Returns
+        -------
+        LotSizingResult
+        """
+        return compute_lot_size_from_atr(
+            equity=equity,
+            atr=atr,
+            atr_mult_sl=self.atr_mult_sl,
+            target_monthly_return=self.target_monthly_return,
+            max_monthly_dd=self.max_monthly_dd,
+            tick_value=tick_value,
+            tick_size=tick_size,
+            expected_trades_per_month=expected_trades_per_month,
+            worst_case_trades_for_dd=worst_case_trades_for_dd,
+            avg_r_multiple=avg_r_multiple,
+            min_lot=min_lot,
+            max_lot=max_lot,
+        )
+
+
+# ==== ミチビキ標準プロファイル (M-A2) ======================================
+
+
+MICHIBIKI_STD = StrategyProfile(
+    name="michibiki_std",
+    description="ミチビキ標準プロファイル v1（USDJPY M5 / ATRベース / 月次3％目標）",
+    symbol="USDJPY",
+    timeframe="M5",
+    # KPI 目標
+    target_monthly_return=0.03,  # +3%/月を狙う
+    max_monthly_dd=-0.20,  # -20% 以内に収めたい
+    # ATR戦略パラメータ（暫定値：あとでWFOでチューニング）
+    atr_period=14,
+    atr_mult_entry=1.5,
+    atr_mult_sl=3.0,
+    # Walk-Forward 窓（12ヶ月訓練 -> 1ヶ月テスト を基本とする）
+    wf_train_months=12,
+    wf_test_months=1,
+)
+
+
+# 今後プロファイルを増やす場合はここに追加していく
+_PROFILES: Dict[str, StrategyProfile] = {
+    MICHIBIKI_STD.name: MICHIBIKI_STD,
+}
+
+
+def get_profile(name: str = "michibiki_std") -> StrategyProfile:
+    """プロファイル ID から StrategyProfile を取得する。
+
+    未定義の名前が来た場合は KeyError ではなく ValueError にして、
+    GUI や CLI でメッセージを出しやすくしておく。
+    """
+    try:
+        return _PROFILES[name]
+    except KeyError as exc:  # pragma: no cover - 単純なエラーパス
+        known = ", ".join(sorted(_PROFILES.keys()))
+        raise ValueError(f"未知のプロファイル名です: {name!r} (known: {known})") from exc
+
+
+def list_profiles() -> Dict[str, StrategyProfile]:
+    """定義済みプロファイル一覧を dict で返す（読み取り専用想定）。"""
+    return dict(_PROFILES)
 
 
 
@@ -7048,6 +7290,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, Dict, Iterable, Optional
+import logging
 
 from app.core import mt5_client
 from app.core.config_loader import load_config
@@ -7058,6 +7301,11 @@ from core.config import cfg
 from core.indicators import atr as _atr
 from core.position_guard import PositionGuard
 from core.utils.clock import now_jst
+
+from app.core.mt5_client import MT5Client, TickSpec
+from app.core.strategy_profile import StrategyProfile, get_profile
+from core.risk import LotSizingResult
+#from app.core.risk import LotSizingResult
 
 
 @dataclass
@@ -7090,7 +7338,15 @@ def snapshot_account() -> Optional[dict]:
 class TradeService:
     """Facade that coordinates guards, circuit breaker, and decision helpers."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        mt5_client: MT5Client | None = None,
+        profile: StrategyProfile | None = None,
+    ) -> None:
+        self._mt5 = mt5_client
+        self._profile = profile or get_profile()
+        self._last_lot_result: LotSizingResult | None = None
+        self._logger = logging.getLogger(__name__)
         self.pos_guard = PositionGuard()
         self.cb = CircuitBreaker()
         self._reconcile_interval = 15
@@ -7098,6 +7354,53 @@ class TradeService:
         self._last_reconcile = 0.0
         self.state = trade_state.get_runtime()
         self.reload()
+
+    def _compute_lot_for_entry(self, symbol: str, atr: float) -> LotSizingResult:
+        """
+        1トレードあたりのロット数を、現在の equity / ATR / tick 情報から計算する。
+
+        atr: エントリー直前の足で計算した ATR 値（価格単位）
+        """
+        if atr is None or atr <= 0:
+            # ATR が変な場合は、プロファイルのデフォルトロットにフォールバック
+            default_lot = getattr(self._profile, "default_lot", None)
+            if default_lot is None:
+                default_lot = float(self._config.trade.default_lot)  # プロジェクト側の設定名に合わせてください
+
+            self._logger.warning(
+                "ATR が無効 (atr=%s) のため、default_lot=%.2f を使用します。",
+                atr,
+                default_lot,
+            )
+            return LotSizingResult(
+                lot=default_lot,
+                capped_by_max_risk=False,
+                effective_risk_pct=None,
+                note="fallback_default_lot_due_to_invalid_atr",
+            )
+
+        equity = self._mt5.get_equity()
+        tick_spec: TickSpec = self._mt5.get_tick_spec(symbol)
+
+        result = self._profile.compute_lot_size_from_atr(
+            equity=equity,
+            atr=atr,
+            tick_size=tick_spec.tick_size,
+            tick_value=tick_spec.tick_value,
+        )
+
+        self._logger.info(
+            "ロット計算: equity=%.2f atr=%.5f tick_size=%.5f tick_value=%.5f -> lot=%.2f (capped=%s risk=%.3f)",
+            equity,
+            atr,
+            tick_spec.tick_size,
+            tick_spec.tick_value,
+            result.lot,
+            result.capped_by_max_risk,
+            (result.effective_risk_pct or 0.0),
+        )
+
+        return result
 
     # ------------------------------------------------------------------ #
     # Configuration & helpers
@@ -7173,6 +7476,85 @@ class TradeService:
 
     def can_trade(self) -> bool:
         return self.cb.can_trade()
+
+    def open_position(
+        self,
+        symbol: str,
+        direction: str,
+        sl: float | None = None,
+        tp: float | None = None,
+        *,
+        atr: float | None = None,
+        volume: float | None = None,
+        comment: str = "",
+    ) -> None:
+        """
+        エントリー用メソッド。
+
+        Parameters
+        ----------
+        symbol : str
+            通貨ペア。
+        direction : str
+            "buy" or "sell"。
+        sl : float | None
+            損切り価格。
+        tp : float | None
+            利確価格。
+        atr : float | None
+            エントリー直前の足で計算した ATR。
+        volume : float | None
+            ロット数。None の場合、atr + 口座情報から自動計算。
+        comment : str
+            MT5 オーダーコメント。
+        """
+        if self._mt5 is None:
+            raise RuntimeError("MT5 client is not configured on TradeService.")
+        if self._profile is None:
+            raise RuntimeError("Strategy profile is not configured on TradeService.")
+
+        side = direction.upper()
+        if side not in {"BUY", "SELL"}:
+            raise ValueError('direction must be "buy" or "sell"')
+
+        # --- ロット計算 ---
+        if volume is None:
+            if atr is None:
+                raise ValueError(
+                    "volume も atr も指定されていません。"
+                    "ATRベース自動ロット計算を使う場合は atr を渡してください。"
+                )
+
+            equity = float(self._mt5.get_equity())
+            tick_spec: TickSpec = self._mt5.get_tick_spec(symbol)
+
+            lot_result: LotSizingResult = self._profile.compute_lot_size_from_atr(
+                equity=equity,
+                atr=atr,
+                tick_size=tick_spec.tick_size,
+                tick_value=tick_spec.tick_value,
+            )
+
+            raw_volume = getattr(lot_result, "volume", None)
+            if raw_volume is None:
+                raw_volume = getattr(lot_result, "lot", None)
+            if raw_volume is None:
+                raise ValueError("LotSizingResult に lot/volume がありません。")
+
+            volume = float(raw_volume)
+            self._last_lot_result = lot_result
+        else:
+            # volume が明示されている場合は、それを優先
+            self._last_lot_result = None
+
+        self._mt5.order_send(
+            symbol=symbol,
+            order_type=side,
+            lot=float(volume),
+            sl=sl,
+            tp=tp,
+            comment=comment,
+        )
 
     def mark_order_inflight(self, order_id: str) -> None:
         self.pos_guard.mark_inflight(order_id)
@@ -8156,11 +8538,88 @@ def trades_from_signals(df_feat: pd.DataFrame, initial_capital: float, params=No
 === file: apply_order.py ===
 
 from pathlib import Path
-path=Path('app/core/mt5_client.py')
-text=path.read_text('utf-8')
-start=text.index('    # ------------------------\n    # ����\n    # ------------------------\n    def order_send')
-end=text.index('    # ------------------------\n    # ����', start+1)
-new= """    # ------------------------
+
+# ここに「完全に復元したい mt5_client.py の中身」をそのまま埋め込む
+NEW_MT5_CLIENT_SOURCE = """import time
+import MetaTrader5 as MT5
+import pandas as pd
+from loguru import logger
+from typing import Optional, Dict, Any
+
+
+POSITION_COLUMNS = [
+    "ticket",
+    "time",
+    "time_msc",
+    "time_update",
+    "time_update_msc",
+    "symbol",
+    "magic",
+    "volume",
+    "price_open",
+    "sl",
+    "tp",
+    "price_current",
+    "swap",
+    "profit",
+    "comment",
+]
+
+
+class MT5Client:
+    \"\"\"MT5 発注・接続ラッパー（最小構成）\"\"\"
+
+    def __init__(self, login: int, password: str, server: str, timeout: float = 5.0):
+        self.login = login
+        self.password = password
+        self.server = server
+        self.timeout = timeout
+        self.connected = False
+        self.logger = logger
+
+    # ------------------------
+    # 接続系
+    # ------------------------
+    def initialize(self) -> bool:
+        \"\"\"MT5ターミナルの初期化（ログインは login_account()）\"\"\"
+        logger.info("MT5 initialize() called...")
+
+        if not MT5.initialize():
+            err = MT5.last_error()
+            logger.error(f"MT5 initialize() failed: {err}")
+            self.connected = False
+            return False
+
+        logger.info("MT5 initialize() succeeded")
+        self.connected = True
+        return True
+
+    def login_account(self) -> bool:
+        \"\"\"設定されたログイン情報で MT5.login() を実行\"\"\"
+        logger.info(
+            f"MT5 login() called with login={self.login}, server={self.server}"
+        )
+
+        ok = MT5.login(
+            self.login,
+            password=self.password,
+            server=self.server,
+        )
+        if not ok:
+            err = MT5.last_error()
+            logger.error(f"MT5 login() failed: {err}")
+            return False
+
+        logger.info("MT5 login() succeeded")
+        return True
+
+    def shutdown(self):
+        \"\"\"MT5 をシャットダウン\"\"\"
+        logger.info("MT5 shutdown()")
+        MT5.shutdown()
+        self.connected = False
+
+    # ------------------------
     # 発注
     # ------------------------
     def order_send(
@@ -8172,109 +8631,227 @@ new= """    # ------------------------
         tp: Optional[float] = None,
         retries: int = 3,
     ) -> Optional[int]:
-        """
-        成行注文を送る簡易ラッパー。
+        \"\"\"成行発注（BUY / SELL）
 
-        order_type : \"BUY\" or \"SELL\"
-        lot        : ロット数
-        sl, tp     : 価格（None または 0 なら付けない）
-        戻り値     : 成功したら ticket (int)、失敗したら None
-        """
+        Parameters
+        ----------
+        symbol : str
+        order_type : "BUY" or "SELL"
+        lot : float
+        sl, tp : Optional[float]
+        retries : int
 
-        if order_type not in (\"BUY\", \"SELL\"):
-            raise ValueError(f\"order_type must be BUY/SELL: got {order_type}\")
+        Returns
+        -------
+        Optional[int]
+            成功: チケット番号（int）
+            失敗: None
+        \"\"\"
 
-        # 1) シンボル情報を取得して、見えない場合は symbol_select する
+        if order_type not in ("BUY", "SELL"):
+            raise ValueError(f"order_type must be BUY/SELL: got {order_type}")
+
+        # --- 1) シンボル情報をチェック ---
         info = MT5.symbol_info(symbol)
         if info is None:
-            logger.error(f\"[order_send] symbol_info({symbol}) が None。シンボルが存在しない可能性\")
+            logger.error(f"[order_send] symbol_info({symbol}) が None。シンボルが存在しない可能性")
             return None
 
         if not info.visible:
-            logger.info(f\"[order_send] {symbol} が非表示なので symbol_select します\")
+            logger.info(f"[order_send] {symbol} が非表示なので symbol_select() します")
             if not MT5.symbol_select(symbol, True):
-                logger.error(f\"[order_send] symbol_select({symbol}, True) に失敗\")
+                logger.error(f"[order_send] symbol_select({symbol}, True) に失敗")
                 return None
 
-        # 2) 現在ティック（Bid/Ask）を取得
+        # --- 2) 最新ティック ---
         tick = MT5.symbol_info_tick(symbol)
         if tick is None:
-            logger.error(f\"[order_send] symbol_info_tick({symbol}) が None。ティックが取得できない\")
+            logger.error(f"[order_send] symbol_info_tick({symbol}) が None。ティックが取得できない")
             return None
 
-        # 3) 成行価格と注文タイプを決定
-        if order_type == \"BUY\":
+        # --- 3) 注文種別と価格 ---
+        if order_type == "BUY":
             mt_type = MT5.ORDER_TYPE_BUY
-            price = float(tick.ask)
+            price = tick.ask
         else:
             mt_type = MT5.ORDER_TYPE_SELL
-            price = float(tick.bid)
+            price = tick.bid
 
-        # 4) 注文リクエストを組み立て
+        # --- 4) 注文リクエスト ---
         request: Dict[str, Any] = {
-            \"action\": MT5.TRADE_ACTION_DEAL,
-            \"symbol\": symbol,
-            \"volume\": float(lot),
-            \"type\": mt_type,
-            \"price\": price,
-            \"sl\": float(sl) if sl else 0.0,
-            \"tp\": float(tp) if tp else 0.0,
-            \"magic\": 123456,
-            \"comment\": \"fxbot_test_order\",
-            \"type_time\": MT5.ORDER_TIME_GTC,
-            \"type_filling\": MT5.ORDER_FILLING_FOK,
+            "action": MT5.TRADE_ACTION_DEAL,
+            "symbol": symbol,
+            "volume": float(lot),
+            "type": mt_type,
+            "price": float(price),
+            "sl": float(sl) if sl is not None else 0.0,
+            "tp": float(tp) if tp is not None else 0.0,
+            "magic": 123456,
+            "comment": "fxbot_test_order",
+            "type_time": MT5.ORDER_TIME_GTC,
+            "type_filling": MT5.ORDER_FILLING_FOK,
         }
 
         last_error: Optional[tuple[int, str]] = None
 
-        # 5) リトライ付きで order_send
+        # --- 5) リトライ付き order_send ---
         for attempt in range(1, retries + 1):
             logger.info(
-                \"[order_send] Try {}/{}: {} {} lot @ {} {}\",
-                attempt,
-                retries,
-                order_type,
-                lot,
-                price,
-                symbol,
+                f"[order_send] Try {attempt}/{retries}: {order_type} {lot} lot @ {price} {symbol}"
             )
+
             result = MT5.order_send(request)
 
             if result is None:
                 last_error = MT5.last_error()
-                logger.error(f\"[order_send] result is None, last_error={last_error}\")
+                logger.error(f"[order_send] result is None, last_error={last_error}")
+
             else:
                 logger.info(
-                    \"[order_send] retcode={}, order={}, deal={}, comment={}\",
-                    getattr(result, \"retcode\", None),
-                    getattr(result, \"order\", None),
-                    getattr(result, \"deal\", None),
-                    getattr(result, \"comment\", None),
+                    "[order_send] retcode=%s, order=%s, deal=%s, comment=%s",
+                    getattr(result, "retcode", None),
+                    getattr(result, "order", None),
+                    getattr(result, "deal", None),
+                    getattr(result, "comment", None),
                 )
 
-                # 成行なので DONE 系を成功判定とする
+                # 成行なので DONE = 成功
                 if result.retcode == MT5.TRADE_RETCODE_DONE:
                     ticket = int(result.order or result.deal or 0)
                     if ticket > 0:
-                        logger.info(f\"[order_send] 成功: ticket={ticket}\")
+                        logger.info(f"[order_send] 成功: ticket={ticket}")
                         return ticket
                     else:
-                        logger.warning(
-                            f\"[order_send] DONE だが ticket が取得できない: result={result}\"
-                        )
+                        logger.warning(f"[order_send] DONE だが ticket が取得できない: {result}")
+
                 else:
                     logger.warning(
-                        f\"[order_send] 失敗 retcode={result.retcode}。必要なら再試行…\"
+                        f"[order_send] 失敗 retcode={result.retcode}。再試行する場合があります"
                     )
 
             if attempt < retries:
                 time.sleep(1.0)
 
-        logger.error(f\"[order_send] 全 {retries} 回リトライしても失敗。last_error={last_error}\")
+        logger.error(f"[order_send] 全 {retries} 回リトライしても失敗。last_error={last_error}")
         return None
+
+    # ------------------------
+    # 決済（クローズ）
+    # ------------------------
+    def close_position(self, ticket: int, symbol: str, retries: int = 3) -> bool:
+        \"\"\"指定チケットの成行クローズ\"\"\"
+
+        pos = MT5.positions_get(ticket=ticket)
+        if not pos:
+            logger.error(f"ticket={ticket} のポジションが存在しません")
+            return False
+
+        position = pos[0]
+        lot = position.volume
+
+        # position.type: 0=BUY, 1=SELL
+        order_type = MT5.ORDER_TYPE_SELL if position.type == 0 else MT5.ORDER_TYPE_BUY
+
+        # クローズ価格
+        t = MT5.symbol_info_tick(symbol)
+        if t is None:
+            logger.error(f"[close_position] symbol_info_tick({symbol}) が None")
+            return False
+
+        price = t.bid if order_type == MT5.ORDER_TYPE_SELL else t.ask
+
+        request = {
+            "action": MT5.TRADE_ACTION_DEAL,
+            "symbol": symbol,
+            "volume": lot,
+            "type": order_type,
+            "position": ticket,
+            "price": price,
+            "magic": 123456,
+            "comment": "fxbot_test_close",
+            "type_time": MT5.ORDER_TIME_GTC,
+            "type_filling": MT5.ORDER_FILLING_FOK,
+        }
+
+        for attempt in range(1, retries + 1):
+            logger.info(f"[close_position] Try {attempt}: ticket={ticket}")
+            result = MT5.order_send(request)
+
+            if result and result.retcode == MT5.TRADE_RETCODE_DONE:
+                logger.info(f"クローズ成功: ticket={ticket}")
+                return True
+
+            logger.error(
+                f"retcode={result.retcode if result else None}, err={MT5.last_error()}"
+            )
+            time.sleep(1.0)
+
+        logger.error("[close_position] 全リトライ失敗")
+        return False
+
+    # ------------------------
+    # ポジション一覧
+    # ------------------------
+    def get_positions(self):
+        try:
+            pos = MT5.positions_get()
+            if pos is None:
+                self.logger.warning("positions_get() returned None")
+                return []
+            return list(pos)
+        except Exception as exc:
+            self.logger.exception(f"positions_get() failed: {exc}")
+            return []
+
+    def get_positions_by_symbol(self, symbol: str):
+        rows = self.get_positions()
+        out = [p for p in rows if getattr(p, "symbol", None) == symbol]
+        self.logger.info(f"get_positions_by_symbol: {symbol} count={len(out)}")
+        return out
+
+    def get_positions_df(self, symbol: Optional[str] = None):
+        rows = self.get_positions()
+        if symbol:
+            rows = [p for p in rows if getattr(p, "symbol", None) == symbol]
+
+        if not rows:
+            return pd.DataFrame(columns=POSITION_COLUMNS)
+
+        data = []
+        for p in rows:
+            data.append(
+                {
+                    "ticket": p.ticket,
+                    "time": p.time,
+                    "time_msc": p.time_msc,
+                    "time_update": p.time_update,
+                    "time_update_msc": p.time_update_msc,
+                    "symbol": p.symbol,
+                    "magic": p.magic,
+                    "volume": p.volume,
+                    "price_open": p.price_open,
+                    "sl": p.sl,
+                    "tp": p.tp,
+                    "price_current": p.price_current,
+                    "swap": p.swap,
+                    "profit": p.profit,
+                    "comment": p.comment,
+                }
+            )
+
+        return pd.DataFrame(data, columns=POSITION_COLUMNS)
 """
-text = text[:start] + new + text[end:]
-path.write_text(text, 'utf-8')
+
+
+def main() -> None:
+    """mt5_client.py を完全復元するワンショットスクリプト"""
+    path = Path("app/core/mt5_client.py")
+    path.write_text(NEW_MT5_CLIENT_SOURCE, encoding="utf-8")
+    print("mt5_client.py を NEW_MT5_CLIENT_SOURCE で上書きしました。")
+
+
+if __name__ == "__main__":
+    main()
 
 
 
@@ -9631,6 +10208,147 @@ def on_order_rejected_or_canceled(symbol: Optional[str] = None, ticket: Optional
 
 
 
+=== file: core/risk.py ===
+
+# core/risk.py
+from __future__ import annotations
+
+from dataclasses import dataclass
+from math import sqrt
+from typing import Optional
+
+
+@dataclass
+class LotSizingResult:
+    """
+    target_monthly_return / max_monthly_dd と ATR ストップから
+    「推奨ロット」と「月間想定ボラ」を計算した結果をまとめたデータクラス。
+    """
+
+    lot: float  # 実際に使うロット（min/max でクランプ済み）
+    per_trade_risk_pct: float  # 1トレードあたりのリスク（％）
+    est_monthly_volatility_pct: float  # 月間想定ボラ（ざっくり標準偏差イメージ％）
+    est_max_monthly_dd_pct: float  # 想定最大DD（％、max_monthly_dd に近い値になるよう設計）
+
+
+def compute_lot_size_from_atr(
+    *,
+    equity: float,
+    atr: float,
+    atr_mult_sl: float,
+    target_monthly_return: float,
+    max_monthly_dd: float,
+    tick_value: float,
+    tick_size: float,
+    expected_trades_per_month: int = 40,
+    worst_case_trades_for_dd: int = 10,
+    avg_r_multiple: float = 0.6,
+    min_lot: float = 0.01,
+    max_lot: float = 1.0,
+) -> LotSizingResult:
+    """
+    target_monthly_return / max_monthly_dd と ATR ストップから
+    自動ロットを計算するユーティリティ。
+
+    Parameters
+    ----------
+    equity:
+        現在の口座残高 or 有効証拠金（口座通貨）。
+    atr:
+        ATR 値（価格単位）。例: USDJPY なら 0.25 など。
+    atr_mult_sl:
+        ストップ幅の係数。SL 距離 = atr_mult_sl * atr。
+    target_monthly_return:
+        目標月次リターン (例: 0.03)。
+    max_monthly_dd:
+        許容最大月次 DD (例: -0.20)。符号付きでもよいが絶対値を使用する。
+    tick_value:
+        1ティック動いたときの損益（1 ロットあたり、口座通貨）。
+        MT5 の symbol_info(...).trade_tick_value を想定。
+    tick_size:
+        1ティックの価格幅。symbol_info(...).trade_tick_size を想定。
+    expected_trades_per_month:
+        月あたり想定トレード回数。
+    worst_case_trades_for_dd:
+        「この回数連続で負けたら max_dd に達する」とみなす回数。
+    avg_r_multiple:
+        1トレードあたりの平均 R（リスクリワード）。0.6 などの経験値。
+    min_lot, max_lot:
+        ロットの下限・上限（ブローカー仕様に合わせて調整）。
+
+    Returns
+    -------
+    LotSizingResult
+    """
+
+    if equity <= 0:
+        raise ValueError("equity は正の値である必要があります。")
+    if atr <= 0:
+        raise ValueError("atr は正の値である必要があります。")
+    if atr_mult_sl <= 0:
+        raise ValueError("atr_mult_sl は正の値である必要があります。")
+    if tick_value <= 0 or tick_size <= 0:
+        raise ValueError("tick_value / tick_size は正の値である必要があります。")
+    if expected_trades_per_month <= 0:
+        raise ValueError("expected_trades_per_month は正の整数である必要があります。")
+    if worst_case_trades_for_dd <= 0:
+        raise ValueError("worst_case_trades_for_dd は正の整数である必要があります。")
+    if avg_r_multiple <= 0:
+        raise ValueError("avg_r_multiple は正の値である必要があります。")
+
+    # DD は絶対値を使う（仕様書では -0.20 などになっている想定）
+    max_dd_abs = abs(max_monthly_dd)
+
+    # --- 1. DD 制約から見た 1トレードあたり許容リスク ---
+    risk_from_dd = max_dd_abs / float(worst_case_trades_for_dd)
+
+    # --- 2. 目標リターンから見た 1トレードあたり必要リスク ---
+    expected_return_per_trade = target_monthly_return / float(expected_trades_per_month)
+    risk_from_return = expected_return_per_trade / avg_r_multiple
+
+    # --- 3. 実際に使う 1トレードのリスク％ ---
+    # 安全側に振るため、DD 制約と 3% 目標のうち「小さい方」を採用する。
+    per_trade_risk_pct = min(risk_from_dd, risk_from_return)
+
+    # 念のため、極端な値をクランプ（0.01%〜10% の範囲に収める）
+    per_trade_risk_pct = max(0.0001, min(per_trade_risk_pct, 0.10))
+
+    # --- 4. ATR ストップから 1ロットあたりの損失額を計算 ---
+    # 1ポイントあたり損益（1 ロット）
+    value_per_point_per_lot = tick_value / tick_size
+
+    # ストップまでのポイント数
+    sl_points = (atr_mult_sl * atr) / tick_size
+
+    # 1ロットあたりの損失額（口座通貨）
+    risk_per_lot = sl_points * value_per_point_per_lot
+
+    if risk_per_lot <= 0:
+        raise ValueError("risk_per_lot が 0 以下です。tick_value / tick_size / atr の指定を確認してください。")
+
+    # --- 5. 口座残高からロットを逆算 ---
+    risk_per_trade_money = equity * per_trade_risk_pct
+    raw_lot = risk_per_trade_money / risk_per_lot
+
+    # ロットをクランプ（0.01〜max_lot）
+    lot = max(min_lot, min(raw_lot, max_lot))
+
+    # --- 6. 月間想定ボラと DD のざっくり推定 ---
+    # ガウシアンっぽい近似で、「標準偏差 ~ sqrt(N) * per_trade_risk_pct」と置く。
+    est_monthly_volatility_pct = per_trade_risk_pct * sqrt(float(expected_trades_per_month))
+
+    # 「worst_case_trades_for_dd 回負けたらこの DD」とみなす。
+    est_max_monthly_dd_pct = per_trade_risk_pct * float(worst_case_trades_for_dd)
+
+    return LotSizingResult(
+        lot=lot,
+        per_trade_risk_pct=per_trade_risk_pct,
+        est_monthly_volatility_pct=est_monthly_volatility_pct,
+        est_max_monthly_dd_pct=est_max_monthly_dd_pct,
+    )
+
+
+
 === file: core/utils/__init__.py ===
 
 # Core utils package initializer.
@@ -9841,324 +10559,1900 @@ def get_ohlcv_csv_path(
 
 [mypy]
 python_version = 3.13
+warn_unused_configs = True
+
+# 外部ライブラリ（MetaTrader5 など）の型定義がなくてもエラーにしない
 ignore_missing_imports = True
-disallow_untyped_defs = True
-check_untyped_defs = True
+
+# そこそこ厳しめだけど全壊はしないバランス
 no_implicit_optional = True
+warn_redundant_casts = True
 warn_unused_ignores = True
 warn_return_any = True
-pretty = True
-show_error_codes = True
+strict_equality = True
 
+# 将来的に app.* だけはちょっと厳しめにする
+[mypy-app.*]
+disallow_untyped_defs = True
+check_untyped_defs = True
+
+# scripts はユーティリティが多いので少し緩め
 [mypy-scripts.*]
 disallow_untyped_defs = False
 check_untyped_defs = False
-
-[mypy-tools.*]
-disallow_untyped_defs = False
-check_untyped_defs = False
-
-[mypy-app.gui.*]
-disallow_untyped_defs = False
-check_untyped_defs = False
-
-[mypy-MetaTrader5.*]
-ignore_missing_imports = True
-
-[mypy-pandas.*]
-ignore_missing_imports = True
-
-[mypy-yaml.*]
-ignore_missing_imports = True
-
-[mypy-joblib.*]
-ignore_missing_imports = True
-
-[mypy-sklearn.*]
-ignore_missing_imports = True
-
-[mypy-PyQt6.*]
-ignore_missing_imports = True
 
 
 
 === file: project_tree.txt ===
 
-.gitignore
-app
-app/__init__.py
-app/core
-app/core/config_loader.py
-app/core/logger.py
-app/core/market.py
-app/core/mt5_client.py
-app/data
-app/gui
-app/gui/__init__.py
-app/gui/ai_tab.py
-app/gui/backtest_tab.py
-app/gui/control_tab.py
-app/gui/dashboard_tab.py
-app/gui/dashboard_tab_qt.py
-app/gui/history_tab.py
-app/gui/main.py
-app/gui/widgets
-app/gui/widgets/feature_importance.py
-app/main_tk.py
-app/models
-app/services
-app/services/__init__.py
-app/services/ai_service.py
-app/services/circuit_breaker.py
-app/services/event_store.py
-app/services/execution_stub.py
-app/services/metrics.py
-app/services/mt5_service.py
-app/services/orderbook_stub.py
-app/services/trade_service.py
-app/services/trade_state.py
-app/services/trailing.py
-app/services/trailing_hook.py
-configs
-configs/.env.example
-configs/config copy.yaml
-configs/config.local.yaml
-configs/config.yaml
-core
-core/__init__.py
-core/ai
-core/ai/__init__.py
-core/ai/calibration.py
-core/ai/features.py
-core/ai/loader.py
-core/ai/service.py
-core/config.py
-core/indicators.py
-core/metrics
-core/metrics.py
-core/metrics/__init__.py
-core/metrics/fi_extractor.py
-core/metrics/registry.py
-core/position_guard.py
-core/utils
-core/utils/__init__.py
-core/utils/clock.py
-core/utils/hashing.py
-core/utils/runtime.py
-core/utils/timeutil.py
-data
-data/usdjpy
-data/usdjpy/USDJPY_M5_mt5.csv
-data/USDJPY_M5.csv
-data/USDJPY_M5_big.csv
-logs
-logs/app.log
-logs/backtest
-logs/backtest/equity_curve.csv
-logs/decisions
-logs/decisions/decisions_USDJPY.jsonl
-logs/events.jsonl
-logs/retrain
-logs/retrain/feat_importance_lk10_20251107_175557.csv
-logs/retrain/feat_importance_lk15_20251107_162055.csv
-logs/retrain/feat_importance_lk15_20251107_162243.csv
-logs/retrain/feat_importance_lk15_20251107_163007.csv
-logs/retrain/feat_importance_lk15_20251107_163044.csv
-logs/retrain/job_20251105_173052_251f5624.log
-logs/retrain/job_20251105_173113_df2776b1.log
-logs/retrain/job_20251105_174004_2dd5540f.log
-logs/retrain/job_20251105_174018_d4741638.log
-logs/retrain/job_20251105_175145_673a797f.log
-logs/retrain/job_20251105_180545_a53ced47.log
-logs/retrain/job_20251106_075546_f4036ef5.log
-logs/retrain/job_20251106_171821_5f3f029d.log
-logs/retrain/job_20251107_124035_a081c214.log
-logs/retrain/job_20251107_162053_b7252f19.log
-logs/retrain/job_20251107_163005_f87f9cc2.log
-logs/retrain/job_20251107_175555_4ab13e4d.log
-logs/retrain/report_1762327557.2895734.json
-logs/retrain/report_1762328795.2841146.json
-logs/retrain/report_1762329166.0924582.json
-logs/retrain/report_1762330372.625119.json
-logs/retrain/report_1762330422.048195.json
-logs/retrain/report_1762330462.918168.json
-logs/retrain/report_17623314611667528.json
-logs/retrain/report_17623314813159773.json
-logs/retrain/report_17623320128869925.json
-logs/retrain/report_17623320267762287.json
-logs/retrain/report_17623327167915437.json
-logs/retrain/report_17623335580532284.json
-logs/retrain/report_17623833702376008.json
-logs/retrain/report_17624171072965233.json
-logs/retrain/report_17624869548320115.json
-logs/retrain/report_17625000562076344.json
-logs/retrain/report_17625006073549628.json
-logs/retrain/report_1762505757473982.json
-logs/ui_events.jsonl
-logs/val_export_meta.json
-logs/val_p_buy_raw.npy
-logs/val_y_true.npy
-models
-models/_backup_20251105_174012
-models/_backup_20251105_174012/active_model.json
-models/_backup_20251105_174012/backup_1762331199.pkl
-models/_backup_20251105_174012/calib_isotonic.pkl
-models/_backup_20251105_174012/calib_platt.pkl
-models/_backup_20251105_174012/LightGBM_clf.classes.json
-models/_backup_20251105_174012/LightGBM_clf.features.json
-models/_backup_20251105_174012/LightGBM_clf.pkl
-models/_backup_20251105_174012/LightGBM_clf.version.json
-models/_backup_20251105_174026
-models/_backup_20251105_174026/active_model.json
-models/_backup_20251105_174026/backup_1762331199.pkl
-models/_backup_20251105_174026/calib_isotonic.pkl
-models/_backup_20251105_174026/calib_platt.pkl
-models/_backup_20251105_174026/LightGBM_clf.classes.json
-models/_backup_20251105_174026/LightGBM_clf.features.json
-models/_backup_20251105_174026/LightGBM_clf.pkl
-models/_backup_20251105_174026/LightGBM_clf.version.json
-models/_backup_20251105_174026/PROMOTE.json
-models/_backup_20251105_174026/VERSION.txt
-models/_backup_20251105_180558
-models/_backup_20251105_180558/active_model.json
-models/_backup_20251105_180558/backup_1762331199.pkl
-models/_backup_20251105_180558/calib_isotonic.pkl
-models/_backup_20251105_180558/calib_platt.pkl
-models/_backup_20251105_180558/LightGBM_clf.classes.json
-models/_backup_20251105_180558/LightGBM_clf.features.json
-models/_backup_20251105_180558/LightGBM_clf.pkl
-models/_backup_20251105_180558/LightGBM_clf.version.json
-models/_backup_20251105_180558/PROMOTE.json
-models/_backup_20251105_180558/VERSION.txt
-models/_backup_20251106_075609
-models/_backup_20251106_075609/active_model.json
-models/_backup_20251106_075609/backup_1762331199.pkl
-models/_backup_20251106_075609/backup_1762333581.pkl
-models/_backup_20251106_075609/calib_isotonic.pkl
-models/_backup_20251106_075609/calib_platt.pkl
-models/_backup_20251106_075609/LightGBM_clf.classes.json
-models/_backup_20251106_075609/LightGBM_clf.features.json
-models/_backup_20251106_075609/LightGBM_clf.pkl
-models/_backup_20251106_075609/LightGBM_clf.version.json
-models/_backup_20251106_075609/PROMOTE.json
-models/_backup_20251106_075609/VERSION.txt
-models/_backup_20251106_171826
-models/_backup_20251106_171826/active_model.json
-models/_backup_20251106_171826/backup_1762331199.pkl
-models/_backup_20251106_171826/backup_1762333581.pkl
-models/_backup_20251106_171826/backup_1762383513.pkl
-models/_backup_20251106_171826/calib_isotonic.pkl
-models/_backup_20251106_171826/calib_platt.pkl
-models/_backup_20251106_171826/LightGBM_clf.classes.json
-models/_backup_20251106_171826/LightGBM_clf.features.json
-models/_backup_20251106_171826/LightGBM_clf.pkl
-models/_backup_20251106_171826/LightGBM_clf.version.json
-models/_backup_20251106_171826/PROMOTE.json
-models/_backup_20251106_171826/VERSION.txt
-models/_backup_20251107_124234
-models/_backup_20251107_124234/active_model.json
-models/_backup_20251107_124234/backup_1762331199.pkl
-models/_backup_20251107_124234/backup_1762333581.pkl
-models/_backup_20251107_124234/backup_1762383513.pkl
-models/_backup_20251107_124234/backup_1762417953.pkl
-models/_backup_20251107_124234/calib_isotonic.pkl
-models/_backup_20251107_124234/calib_platt.pkl
-models/_backup_20251107_124234/LightGBM_clf.classes.json
-models/_backup_20251107_124234/LightGBM_clf.features.json
-models/_backup_20251107_124234/LightGBM_clf.pkl
-models/_backup_20251107_124234/LightGBM_clf.version.json
-models/_backup_20251107_124234/PROMOTE.json
-models/_backup_20251107_124234/VERSION.txt
-models/_backup_20251107_162055
-models/_backup_20251107_162055/active_model.json
-models/_backup_20251107_162055/backup_1762331199.pkl
-models/_backup_20251107_162055/backup_1762333581.pkl
-models/_backup_20251107_162055/backup_1762383513.pkl
-models/_backup_20251107_162055/backup_1762417953.pkl
-models/_backup_20251107_162055/calib_isotonic.pkl
-models/_backup_20251107_162055/calib_platt.pkl
-models/_backup_20251107_162055/LightGBM_clf.classes.json
-models/_backup_20251107_162055/LightGBM_clf.features.json
-models/_backup_20251107_162055/LightGBM_clf.pkl
-models/_backup_20251107_162055/LightGBM_clf.version.json
-models/_backup_20251107_162055/PROMOTE.json
-models/_backup_20251107_162055/VERSION.txt
-models/_backup_20251107_163007
-models/_backup_20251107_163007/active_model.json
-models/_backup_20251107_163007/backup_1762331199.pkl
-models/_backup_20251107_163007/backup_1762333581.pkl
-models/_backup_20251107_163007/backup_1762383513.pkl
-models/_backup_20251107_163007/backup_1762417953.pkl
-models/_backup_20251107_163007/calib_isotonic.pkl
-models/_backup_20251107_163007/calib_platt.pkl
-models/_backup_20251107_163007/LightGBM_clf.classes.json
-models/_backup_20251107_163007/LightGBM_clf.features.json
-models/_backup_20251107_163007/LightGBM_clf.pkl
-models/_backup_20251107_163007/LightGBM_clf.version.json
-models/_backup_20251107_163007/PROMOTE.json
-models/_backup_20251107_163007/VERSION.txt
-models/_staging
-models/_staging/calib_isotonic.pkl
-models/_staging/calib_platt.pkl
-models/_staging/LightGBM_clf.classes.json
-models/_staging/LightGBM_clf.features.json
-models/_staging/LightGBM_clf.pkl
-models/_staging/PROMOTE.json
-models/_staging/VERSION.txt
-models/active_model.json
-models/backup_1762331199.pkl
-models/backup_1762333581.pkl
-models/backup_1762383513.pkl
-models/backup_1762417953.pkl
-models/calib_isotonic.pkl
-models/calib_platt.pkl
-models/LightGBM_clf.classes.json
-models/LightGBM_clf.features.json
-models/LightGBM_clf.pkl
-models/LightGBM_clf.version.json
-models/PROMOTE.json
-models/VERSION.txt
-models_store
-notebooks
-PROJECT_MAP.md
-project_tree.txt
-README.md
-requirements.txt
-runtime
-runtime/metrics.json
-runtime/metrics_8iecfllz.json
-scripts
-scripts/cb_smoke.py
-scripts/diagnose_symbol.py
-scripts/dryrun_smoke.py
-scripts/export_mt5_history.py
-scripts/export_val_probs.py
-scripts/make_toy_model.py
-scripts/print_runtime.py
-scripts/promote_model.py
-scripts/register_weekly_task.ps1
-scripts/rollback_model.py
-scripts/selftest_order_flow.py
-scripts/sim_trailing.py
-scripts/swap_model.py
-scripts/train_calibrator.py
-scripts/verify_smoke.ps1
-scripts/walkforward_retrain.py
-scripts/walkforward_train.py
-scripts/weekly_wf.ps1
-tests
-To Doリスト.txt
-tools
-tools/backtest_equity_curve.py
-tools/dump_feature_importance.py
-tools/export_tree_clean.ps1
-tools/inspect_report.py
-フェーズA~Hまでの結果.txt
-やるべきこと.txt
-作業10.txt
-作業6～8.txt
-作業9.txt
-仕様の統合まとめ.docx
+fxbot/
+  .env.example
+  .gitignore
+  .importlinter.ini
+  7C9B198C-ADA6-4308-A321-C13EA50E0707.jpg
+  active_model.json
+  Agent HQ 用「細分化版」.txt
+  apply_order.py
+  fxbot_path.py
+  mypy.ini
+  PROJECT_MAP.md
+  project_snapshot-DESKTOP-KK77.txt
+  project_snapshot.txt
+  project_tree.txt
+  pyproject.toml
+  pytest.ini
+  README.md
+  requirements.txt
+  ruff.toml
+  setup_weekly_job.ps1
+  temp_equity_check.py
+  tmp_view.py
+  To Doリスト.txt
+  To Doリスト2.txt
+  To Doリストv4.txt
+  To Doリストv5.txt
+  ToDoリスト Master版.txt
+  ToDoリスト 下位版.txt
+  やるべきこと.txt
+  フェーズA~Hまでの結果.txt
+  ミチビキ FX 自動売買システム：仕様書 v4（正式版）.txt
+  仕様の統合まとめ.docx
+  仕様書.txt
+  仕様書v3.txt
+  作業6～8.txt
+  作業9.txt
+  備忘録.txt
+  質問.txt
+  .git/
+    COMMIT_EDITMSG
+    config
+    description
+    FETCH_HEAD
+    HEAD
+    index
+    ORIG_HEAD
+    packed-refs
+    hooks/
+      applypatch-msg.sample
+      commit-msg.sample
+      fsmonitor-watchman.sample
+      post-update.sample
+      pre-applypatch.sample
+      pre-commit.sample
+      pre-merge-commit.sample
+      pre-push.sample
+      pre-rebase.sample
+      pre-receive.sample
+      prepare-commit-msg.sample
+      push-to-checkout.sample
+      sendemail-validate.sample
+      update.sample
+    info/
+      exclude
+    logs/
+      HEAD
+      refs/
+        heads/
+          master
+        remotes/
+          origin/
+            HEAD
+            master
+    objects/
+      06/
+        425b3657b93fc01e1d8fbaff947aad746ee33c
+      08/
+        35fc00560ad9e7108594ec24d5becf1c126078
+      0b/
+        db24735e619c1a8577f981159e1c39f8751994
+      0f/
+        c114262374e3d672dadc6afa2b991e4f6c689b
+        ee13da1c3397fa33041e4a91031f702b56ecae
+      16/
+        a03a706eddf6ce5c7212b8058f8296390ed199
+      2d/
+        c2d9eb0861384aead82ee94b669ffecd7e6613
+      31/
+        feea61368deedca4bbd4a928698b3540cd5258
+      33/
+        fa6e9a3a910bdaceb1a320e0c44c70b178dbde
+      3a/
+        39953223bca508d41b067546c44eae33cc77d5
+      47/
+        b97783f66d735cbe7a3a7073a62a76080de3c7
+      48/
+        4dc31f9cac7be77b7b2f1a34fa1f4fe862f214
+      50/
+        62019735f64f9a539ad8ab097d24838f53d80f
+      57/
+        3db7466e3f7d157f70e6741b499f70f2da9d39
+      5c/
+        034b81e195bdd3e98a7ee73154a5622b8ce89a
+      5d/
+        f340f11dd1b171ab57f27ebe75fad47bc3f7f8
+      65/
+        480c84e085b24fda67fabdd48acec874947ecd
+      67/
+        278fb3e10eab5386539eaa7a29bdf86f306b2e
+      69/
+        36786aadd934f728a2c06b7a9521ac897eef84
+      6b/
+        cc773c80bcd22bc5b4207d5dc62145490477bb
+      77/
+        0ffb062b2463534f5ef6b777e7c48a871d28f0
+      78/
+        a4e99ab1f760126d1d7f5c41426478665ac392
+      7a/
+        a5ecac2b1de7ad5de88d9dc173bd4fe7f7457f
+      7c/
+        07fc1869e186866b741d9ee51f0a4b1f4b62c1
+      7e/
+        fc71bcff730e132162a1a4d73e181474d7aa02
+      82/
+        f7512b210a54ea81231e2e21be5177c8b8f0fd
+      85/
+        e5a61cffbb987edcfd2a1150bf7d5d0693fbd1
+      88/
+        4eebe2f269b80fe23b16d6dcfa66cffeda8853
+      97/
+        ecea0268d144e5a65b86bba34c977671169da6
+      a1/
+        765334d21dbbb3c76f58588bba42ee46539399
+      a7/
+        1c36872b306846e4e95ce758bca8e2f0b1a62e
+      b3/
+        acab41d43907963f5dafd4481848861fc9b9c7
+      b5/
+        05174fb161cc773fca7db77c1653b7fb487c3a
+        b178511621238433e50822db295c6d82b472cb
+      bf/
+        74d40947b88c5af841dfae36233c4d0d379e7e
+      c2/
+        5e861b5523e19f640926b8adbbd08c9e3a141d
+      cb/
+        1fd5f93257436256990a115132d7e4a8639110
+      d2/
+        7cd39775ed7be77cbec2eec12166b09ce3d54b
+      d7/
+        053cd4ac4136202519be5128077cc50dde2c08
+      d9/
+        1e6f2b6be49a6cfa32919c57cf0f012905203b
+      de/
+        5c51330c4457010905d380ebfc3f3456ffe2aa
+      e1/
+        50ca817673139fcd4d1cb7a1002270b09f4271
+      e4/
+        118c6879c6a728601f1bc3921389a2cb76c9b6
+      e5/
+        c7051fd249b54729e6e640631dd055d17f2583
+      ff/
+        096b06a36a656530caf87349ecf7dd797a11f2
+        717f39ea33ddadd68191d928e85a1480799419
+      info/
+      pack/
+        pack-9467dc01728b5d62cd5eb249c8846616378e21f3.idx
+        pack-9467dc01728b5d62cd5eb249c8846616378e21f3.pack
+        pack-9467dc01728b5d62cd5eb249c8846616378e21f3.rev
+    refs/
+      heads/
+        master
+      remotes/
+        origin/
+          HEAD
+          master
+      tags/
+  .mypy_cache/
+    .gitignore
+    CACHEDIR.TAG
+    missing_stubs
+    3.13/
+      @plugins_snapshot.json
+      abc.data.json
+      abc.meta.json
+      argparse.data.json
+      argparse.meta.json
+      array.data.json
+      array.meta.json
+      ast.data.json
+      ast.meta.json
+      atexit.data.json
+      atexit.meta.json
+      binascii.data.json
+      binascii.meta.json
+      builtins.data.json
+      builtins.meta.json
+      bz2.data.json
+      bz2.meta.json
+      codecs.data.json
+      codecs.meta.json
+      contextlib.data.json
+      contextlib.meta.json
+      contextvars.data.json
+      contextvars.meta.json
+      copy.data.json
+      copy.meta.json
+      copyreg.data.json
+      copyreg.meta.json
+      csv.data.json
+      csv.meta.json
+      dataclasses.data.json
+      dataclasses.meta.json
+      datetime.data.json
+      datetime.meta.json
+      decimal.data.json
+      decimal.meta.json
+      dis.data.json
+      dis.meta.json
+      enum.data.json
+      enum.meta.json
+      fractions.data.json
+      fractions.meta.json
+      functools.data.json
+      functools.meta.json
+      fxbot_path.data.json
+      fxbot_path.meta.json
+      genericpath.data.json
+      genericpath.meta.json
+      glob.data.json
+      glob.meta.json
+      gzip.data.json
+      gzip.meta.json
+      inspect.data.json
+      inspect.meta.json
+      io.data.json
+      io.meta.json
+      itertools.data.json
+      itertools.meta.json
+      math.data.json
+      math.meta.json
+      mmap.data.json
+      mmap.meta.json
+      ntpath.data.json
+      ntpath.meta.json
+      numbers.data.json
+      numbers.meta.json
+      opcode.data.json
+      opcode.meta.json
+      operator.data.json
+      operator.meta.json
+      pickle.data.json
+      pickle.meta.json
+      platform.data.json
+      platform.meta.json
+      posixpath.data.json
+      posixpath.meta.json
+      pprint.data.json
+      pprint.meta.json
+      queue.data.json
+      queue.meta.json
+      re.data.json
+      re.meta.json
+      selectors.data.json
+      selectors.meta.json
+      shlex.data.json
+      shlex.meta.json
+      shutil.data.json
+      shutil.meta.json
+      signal.data.json
+      signal.meta.json
+      socket.data.json
+      socket.meta.json
+      sre_compile.data.json
+      sre_compile.meta.json
+      sre_constants.data.json
+      sre_constants.meta.json
+      sre_parse.data.json
+      sre_parse.meta.json
+      ssl.data.json
+      ssl.meta.json
+      statistics.data.json
+      statistics.meta.json
+      struct.data.json
+      struct.meta.json
+      subprocess.data.json
+      subprocess.meta.json
+      tarfile.data.json
+      tarfile.meta.json
+      tempfile.data.json
+      tempfile.meta.json
+      textwrap.data.json
+      textwrap.meta.json
+      threading.data.json
+      threading.meta.json
+      time.data.json
+      time.meta.json
+      traceback.data.json
+      traceback.meta.json
+      types.data.json
+      types.meta.json
+      typing.data.json
+      typing.meta.json
+      typing_extensions.data.json
+      typing_extensions.meta.json
+      unicodedata.data.json
+      unicodedata.meta.json
+      uuid.data.json
+      uuid.meta.json
+      warnings.data.json
+      warnings.meta.json
+      weakref.data.json
+      weakref.meta.json
+      zipimport.data.json
+      zipimport.meta.json
+      zlib.data.json
+      zlib.meta.json
+      _ast.data.json
+      _ast.meta.json
+      _asyncio.data.json
+      _asyncio.meta.json
+      _bz2.data.json
+      _bz2.meta.json
+      _codecs.data.json
+      _codecs.meta.json
+      _collections_abc.data.json
+      _collections_abc.meta.json
+      _compression.data.json
+      _compression.meta.json
+      _contextvars.data.json
+      _contextvars.meta.json
+      _csv.data.json
+      _csv.meta.json
+      _ctypes.data.json
+      _ctypes.meta.json
+      _decimal.data.json
+      _decimal.meta.json
+      _frozen_importlib.data.json
+      _frozen_importlib.meta.json
+      _frozen_importlib_external.data.json
+      _frozen_importlib_external.meta.json
+      _io.data.json
+      _io.meta.json
+      _operator.data.json
+      _operator.meta.json
+      _pickle.data.json
+      _pickle.meta.json
+      _queue.data.json
+      _queue.meta.json
+      _sitebuiltins.data.json
+      _sitebuiltins.meta.json
+      _socket.data.json
+      _socket.meta.json
+      _ssl.data.json
+      _ssl.meta.json
+      _struct.data.json
+      _struct.meta.json
+      _thread.data.json
+      _thread.meta.json
+      _tkinter.data.json
+      _tkinter.meta.json
+      _warnings.data.json
+      _warnings.meta.json
+      _weakref.data.json
+      _weakref.meta.json
+      _weakrefset.data.json
+      _weakrefset.meta.json
+      _winapi.data.json
+      _winapi.meta.json
+      __future__.data.json
+      __future__.meta.json
+      app/
+        core.data.json
+        core.meta.json
+        __init__.data.json
+        __init__.meta.json
+        core/
+          config_loader.data.json
+          config_loader.meta.json
+          data_finder.data.json
+          data_finder.meta.json
+          market.data.json
+          market.meta.json
+        gui/
+          dashboard_tab_qt.data.json
+          dashboard_tab_qt.meta.json
+          widgets.data.json
+          widgets.meta.json
+          __init__.data.json
+          __init__.meta.json
+          widgets/
+            feature_importance.data.json
+            feature_importance.meta.json
+        services/
+          circuit_breaker.data.json
+          circuit_breaker.meta.json
+          data_guard.data.json
+          data_guard.meta.json
+          decision_log.data.json
+          decision_log.meta.json
+          event_store.data.json
+          event_store.meta.json
+          metrics.data.json
+          metrics.meta.json
+          mt5_account_store.data.json
+          mt5_account_store.meta.json
+          mt5_service.data.json
+          mt5_service.meta.json
+          orderbook_stub.data.json
+          orderbook_stub.meta.json
+          trade_state.data.json
+          trade_state.meta.json
+          trailing.data.json
+          trailing.meta.json
+          trailing_hook.data.json
+          trailing_hook.meta.json
+          __init__.data.json
+          __init__.meta.json
+        strategies/
+          __init__.data.json
+          __init__.meta.json
+      asyncio/
+        base_events.data.json
+        base_events.meta.json
+        base_futures.data.json
+        base_futures.meta.json
+        constants.data.json
+        constants.meta.json
+        coroutines.data.json
+        coroutines.meta.json
+        events.data.json
+        events.meta.json
+        exceptions.data.json
+        exceptions.meta.json
+        futures.data.json
+        futures.meta.json
+        locks.data.json
+        locks.meta.json
+        mixins.data.json
+        mixins.meta.json
+        proactor_events.data.json
+        proactor_events.meta.json
+        protocols.data.json
+        protocols.meta.json
+        queues.data.json
+        queues.meta.json
+        runners.data.json
+        runners.meta.json
+        selector_events.data.json
+        selector_events.meta.json
+        streams.data.json
+        streams.meta.json
+        subprocess.data.json
+        subprocess.meta.json
+        taskgroups.data.json
+        taskgroups.meta.json
+        tasks.data.json
+        tasks.meta.json
+        threads.data.json
+        threads.meta.json
+        timeouts.data.json
+        timeouts.meta.json
+        transports.data.json
+        transports.meta.json
+        unix_events.data.json
+        unix_events.meta.json
+        windows_events.data.json
+        windows_events.meta.json
+        windows_utils.data.json
+        windows_utils.meta.json
+        __init__.data.json
+        __init__.meta.json
+      collections/
+        abc.data.json
+        abc.meta.json
+        __init__.data.json
+        __init__.meta.json
+      concurrent/
+        __init__.data.json
+        __init__.meta.json
+        futures/
+          process.data.json
+          process.meta.json
+          thread.data.json
+          thread.meta.json
+          _base.data.json
+          _base.meta.json
+          __init__.data.json
+          __init__.meta.json
+      core/
+        config.data.json
+        config.meta.json
+        indicators.data.json
+        indicators.meta.json
+        position_guard.data.json
+        position_guard.meta.json
+        __init__.data.json
+        __init__.meta.json
+        ai/
+          __init__.data.json
+          __init__.meta.json
+        metrics/
+          registry.data.json
+          registry.meta.json
+          __init__.data.json
+          __init__.meta.json
+        utils/
+          clock.data.json
+          clock.meta.json
+          runtime.data.json
+          runtime.meta.json
+          timeutil.data.json
+          timeutil.meta.json
+          __init__.data.json
+          __init__.meta.json
+      ctypes/
+        _endian.data.json
+        _endian.meta.json
+        __init__.data.json
+        __init__.meta.json
+      cycler/
+        __init__.data.json
+        __init__.meta.json
+      email/
+        charset.data.json
+        charset.meta.json
+        contentmanager.data.json
+        contentmanager.meta.json
+        errors.data.json
+        errors.meta.json
+        header.data.json
+        header.meta.json
+        message.data.json
+        message.meta.json
+        policy.data.json
+        policy.meta.json
+        _policybase.data.json
+        _policybase.meta.json
+        __init__.data.json
+        __init__.meta.json
+      html/
+        entities.data.json
+        entities.meta.json
+        __init__.data.json
+        __init__.meta.json
+      importlib/
+        abc.data.json
+        abc.meta.json
+        machinery.data.json
+        machinery.meta.json
+        readers.data.json
+        readers.meta.json
+        util.data.json
+        util.meta.json
+        _abc.data.json
+        _abc.meta.json
+        _bootstrap.data.json
+        _bootstrap.meta.json
+        _bootstrap_external.data.json
+        _bootstrap_external.meta.json
+        __init__.data.json
+        __init__.meta.json
+        metadata/
+          _meta.data.json
+          _meta.meta.json
+          __init__.data.json
+          __init__.meta.json
+        resources/
+          abc.data.json
+          abc.meta.json
+          _common.data.json
+          _common.meta.json
+          _functional.data.json
+          _functional.meta.json
+          __init__.data.json
+          __init__.meta.json
+      json/
+        decoder.data.json
+        decoder.meta.json
+        encoder.data.json
+        encoder.meta.json
+        __init__.data.json
+        __init__.meta.json
+      lightgbm/
+        basic.data.json
+        basic.meta.json
+        callback.data.json
+        callback.meta.json
+        compat.data.json
+        compat.meta.json
+        dask.data.json
+        dask.meta.json
+        engine.data.json
+        engine.meta.json
+        libpath.data.json
+        libpath.meta.json
+        plotting.data.json
+        plotting.meta.json
+        sklearn.data.json
+        sklearn.meta.json
+        __init__.data.json
+        __init__.meta.json
+      logging/
+        __init__.data.json
+        __init__.meta.json
+      loguru/
+        __init__.data.json
+        __init__.meta.json
+      matplotlib/
+        artist.data.json
+        artist.meta.json
+        axis.data.json
+        axis.meta.json
+        backend_bases.data.json
+        backend_bases.meta.json
+        backend_managers.data.json
+        backend_managers.meta.json
+        backend_tools.data.json
+        backend_tools.meta.json
+        bezier.data.json
+        bezier.meta.json
+        cbook.data.json
+        cbook.meta.json
+        cm.data.json
+        cm.meta.json
+        collections.data.json
+        collections.meta.json
+        colorbar.data.json
+        colorbar.meta.json
+        colorizer.data.json
+        colorizer.meta.json
+        colors.data.json
+        colors.meta.json
+        container.data.json
+        container.meta.json
+        contour.data.json
+        contour.meta.json
+        dates.data.json
+        dates.meta.json
+        figure.data.json
+        figure.meta.json
+        font_manager.data.json
+        font_manager.meta.json
+        ft2font.data.json
+        ft2font.meta.json
+        gridspec.data.json
+        gridspec.meta.json
+        image.data.json
+        image.meta.json
+        inset.data.json
+        inset.meta.json
+        layout_engine.data.json
+        layout_engine.meta.json
+        legend.data.json
+        legend.meta.json
+        legend_handler.data.json
+        legend_handler.meta.json
+        lines.data.json
+        lines.meta.json
+        markers.data.json
+        markers.meta.json
+        mathtext.data.json
+        mathtext.meta.json
+        mlab.data.json
+        mlab.meta.json
+        offsetbox.data.json
+        offsetbox.meta.json
+        patches.data.json
+        patches.meta.json
+        path.data.json
+        path.meta.json
+        patheffects.data.json
+        patheffects.meta.json
+        quiver.data.json
+        quiver.meta.json
+        scale.data.json
+        scale.meta.json
+        spines.data.json
+        spines.meta.json
+        stackplot.data.json
+        stackplot.meta.json
+        streamplot.data.json
+        streamplot.meta.json
+        table.data.json
+        table.meta.json
+        texmanager.data.json
+        texmanager.meta.json
+        text.data.json
+        text.meta.json
+        textpath.data.json
+        textpath.meta.json
+        ticker.data.json
+        ticker.meta.json
+        transforms.data.json
+        transforms.meta.json
+        typing.data.json
+        typing.meta.json
+        units.data.json
+        units.meta.json
+        widgets.data.json
+        widgets.meta.json
+        _afm.data.json
+        _afm.meta.json
+        _enums.data.json
+        _enums.meta.json
+        _mathtext.data.json
+        _mathtext.meta.json
+        _mathtext_data.data.json
+        _mathtext_data.meta.json
+        _pylab_helpers.data.json
+        _pylab_helpers.meta.json
+        _tri.data.json
+        _tri.meta.json
+        __init__.data.json
+        __init__.meta.json
+        axes/
+          _axes.data.json
+          _axes.meta.json
+          _base.data.json
+          _base.meta.json
+          _secondary_axes.data.json
+          _secondary_axes.meta.json
+          __init__.data.json
+          __init__.meta.json
+        backends/
+          backend_agg.data.json
+          backend_agg.meta.json
+          backend_qt.data.json
+          backend_qt.meta.json
+          backend_qtagg.data.json
+          backend_qtagg.meta.json
+          qt_compat.data.json
+          qt_compat.meta.json
+          registry.data.json
+          registry.meta.json
+          _backend_agg.data.json
+          _backend_agg.meta.json
+          __init__.data.json
+          __init__.meta.json
+          qt_editor/
+            figureoptions.data.json
+            figureoptions.meta.json
+            _formlayout.data.json
+            _formlayout.meta.json
+            __init__.data.json
+            __init__.meta.json
+        projections/
+          geo.data.json
+          geo.meta.json
+          polar.data.json
+          polar.meta.json
+          __init__.data.json
+          __init__.meta.json
+        tri/
+          _triangulation.data.json
+          _triangulation.meta.json
+          _tricontour.data.json
+          _tricontour.meta.json
+          _trifinder.data.json
+          _trifinder.meta.json
+          _triinterpolate.data.json
+          _triinterpolate.meta.json
+          _tripcolor.data.json
+          _tripcolor.meta.json
+          _triplot.data.json
+          _triplot.meta.json
+          _trirefine.data.json
+          _trirefine.meta.json
+          _tritools.data.json
+          _tritools.meta.json
+          __init__.data.json
+          __init__.meta.json
+        _api/
+          deprecation.data.json
+          deprecation.meta.json
+          __init__.data.json
+          __init__.meta.json
+      multiprocessing/
+        connection.data.json
+        connection.meta.json
+        context.data.json
+        context.meta.json
+        managers.data.json
+        managers.meta.json
+        pool.data.json
+        pool.meta.json
+        popen_fork.data.json
+        popen_fork.meta.json
+        popen_forkserver.data.json
+        popen_forkserver.meta.json
+        popen_spawn_posix.data.json
+        popen_spawn_posix.meta.json
+        popen_spawn_win32.data.json
+        popen_spawn_win32.meta.json
+        process.data.json
+        process.meta.json
+        queues.data.json
+        queues.meta.json
+        reduction.data.json
+        reduction.meta.json
+        sharedctypes.data.json
+        sharedctypes.meta.json
+        shared_memory.data.json
+        shared_memory.meta.json
+        spawn.data.json
+        spawn.meta.json
+        synchronize.data.json
+        synchronize.meta.json
+        util.data.json
+        util.meta.json
+        __init__.data.json
+        __init__.meta.json
+      numpy/
+        dtypes.data.json
+        dtypes.meta.json
+        exceptions.data.json
+        exceptions.meta.json
+        matlib.data.json
+        matlib.meta.json
+        version.data.json
+        version.meta.json
+        _array_api_info.data.json
+        _array_api_info.meta.json
+        _expired_attrs_2_0.data.json
+        _expired_attrs_2_0.meta.json
+        _globals.data.json
+        _globals.meta.json
+        _pytesttester.data.json
+        _pytesttester.meta.json
+        __config__.data.json
+        __config__.meta.json
+        __init__.data.json
+        __init__.meta.json
+        char/
+          __init__.data.json
+          __init__.meta.json
+        core/
+          __init__.data.json
+          __init__.meta.json
+        ctypeslib/
+          _ctypeslib.data.json
+          _ctypeslib.meta.json
+          __init__.data.json
+          __init__.meta.json
+        f2py/
+          auxfuncs.data.json
+          auxfuncs.meta.json
+          cfuncs.data.json
+          cfuncs.meta.json
+          f2py2e.data.json
+          f2py2e.meta.json
+          __init__.data.json
+          __init__.meta.json
+          __version__.data.json
+          __version__.meta.json
+        fft/
+          _helper.data.json
+          _helper.meta.json
+          _pocketfft.data.json
+          _pocketfft.meta.json
+          __init__.data.json
+          __init__.meta.json
+        lib/
+          array_utils.data.json
+          array_utils.meta.json
+          format.data.json
+          format.meta.json
+          introspect.data.json
+          introspect.meta.json
+          mixins.data.json
+          mixins.meta.json
+          npyio.data.json
+          npyio.meta.json
+          scimath.data.json
+          scimath.meta.json
+          stride_tricks.data.json
+          stride_tricks.meta.json
+          _arraypad_impl.data.json
+          _arraypad_impl.meta.json
+          _arraysetops_impl.data.json
+          _arraysetops_impl.meta.json
+          _arrayterator_impl.data.json
+          _arrayterator_impl.meta.json
+          _array_utils_impl.data.json
+          _array_utils_impl.meta.json
+          _datasource.data.json
+          _datasource.meta.json
+          _format_impl.data.json
+          _format_impl.meta.json
+          _function_base_impl.data.json
+          _function_base_impl.meta.json
+          _histograms_impl.data.json
+          _histograms_impl.meta.json
+          _index_tricks_impl.data.json
+          _index_tricks_impl.meta.json
+          _iotools.data.json
+          _iotools.meta.json
+          _nanfunctions_impl.data.json
+          _nanfunctions_impl.meta.json
+          _npyio_impl.data.json
+          _npyio_impl.meta.json
+          _polynomial_impl.data.json
+          _polynomial_impl.meta.json
+          _scimath_impl.data.json
+          _scimath_impl.meta.json
+          _shape_base_impl.data.json
+          _shape_base_impl.meta.json
+          _stride_tricks_impl.data.json
+          _stride_tricks_impl.meta.json
+          _twodim_base_impl.data.json
+          _twodim_base_impl.meta.json
+          _type_check_impl.data.json
+          _type_check_impl.meta.json
+          _ufunclike_impl.data.json
+          _ufunclike_impl.meta.json
+          _utils_impl.data.json
+          _utils_impl.meta.json
+          _version.data.json
+          _version.meta.json
+          __init__.data.json
+          __init__.meta.json
+        linalg/
+          linalg.data.json
+          linalg.meta.json
+          _linalg.data.json
+          _linalg.meta.json
+          _umath_linalg.data.json
+          _umath_linalg.meta.json
+          __init__.data.json
+          __init__.meta.json
+        ma/
+          core.data.json
+          core.meta.json
+          extras.data.json
+          extras.meta.json
+          mrecords.data.json
+          mrecords.meta.json
+          __init__.data.json
+          __init__.meta.json
+        matrixlib/
+          defmatrix.data.json
+          defmatrix.meta.json
+          __init__.data.json
+          __init__.meta.json
+        polynomial/
+          chebyshev.data.json
+          chebyshev.meta.json
+          hermite.data.json
+          hermite.meta.json
+          hermite_e.data.json
+          hermite_e.meta.json
+          laguerre.data.json
+          laguerre.meta.json
+          legendre.data.json
+          legendre.meta.json
+          polynomial.data.json
+          polynomial.meta.json
+          polyutils.data.json
+          polyutils.meta.json
+          _polybase.data.json
+          _polybase.meta.json
+          _polytypes.data.json
+          _polytypes.meta.json
+          __init__.data.json
+          __init__.meta.json
+        random/
+          bit_generator.data.json
+          bit_generator.meta.json
+          mtrand.data.json
+          mtrand.meta.json
+          _generator.data.json
+          _generator.meta.json
+          _mt19937.data.json
+          _mt19937.meta.json
+          _pcg64.data.json
+          _pcg64.meta.json
+          _philox.data.json
+          _philox.meta.json
+          _sfc64.data.json
+          _sfc64.meta.json
+          __init__.data.json
+          __init__.meta.json
+        rec/
+          __init__.data.json
+          __init__.meta.json
+        strings/
+          __init__.data.json
+          __init__.meta.json
+        testing/
+          overrides.data.json
+          overrides.meta.json
+          __init__.data.json
+          __init__.meta.json
+          _private/
+            utils.data.json
+            utils.meta.json
+            __init__.data.json
+            __init__.meta.json
+        typing/
+          __init__.data.json
+          __init__.meta.json
+        _core/
+          arrayprint.data.json
+          arrayprint.meta.json
+          defchararray.data.json
+          defchararray.meta.json
+          einsumfunc.data.json
+          einsumfunc.meta.json
+          fromnumeric.data.json
+          fromnumeric.meta.json
+          function_base.data.json
+          function_base.meta.json
+          multiarray.data.json
+          multiarray.meta.json
+          numeric.data.json
+          numeric.meta.json
+          numerictypes.data.json
+          numerictypes.meta.json
+          records.data.json
+          records.meta.json
+          shape_base.data.json
+          shape_base.meta.json
+          strings.data.json
+          strings.meta.json
+          _asarray.data.json
+          _asarray.meta.json
+          _internal.data.json
+          _internal.meta.json
+          _type_aliases.data.json
+          _type_aliases.meta.json
+          _ufunc_config.data.json
+          _ufunc_config.meta.json
+          __init__.data.json
+          __init__.meta.json
+        _typing/
+          _add_docstring.data.json
+          _add_docstring.meta.json
+          _array_like.data.json
+          _array_like.meta.json
+          _char_codes.data.json
+          _char_codes.meta.json
+          _dtype_like.data.json
+          _dtype_like.meta.json
+          _extended_precision.data.json
+          _extended_precision.meta.json
+          _nbit.data.json
+          _nbit.meta.json
+          _nbit_base.data.json
+          _nbit_base.meta.json
+          _nested_sequence.data.json
+          _nested_sequence.meta.json
+          _scalars.data.json
+          _scalars.meta.json
+          _shape.data.json
+          _shape.meta.json
+          _ufunc.data.json
+          _ufunc.meta.json
+          __init__.data.json
+          __init__.meta.json
+      os/
+        path.data.json
+        path.meta.json
+        __init__.data.json
+        __init__.meta.json
+      packaging/
+        version.data.json
+        version.meta.json
+        _structures.data.json
+        _structures.meta.json
+        __init__.data.json
+        __init__.meta.json
+      pathlib/
+        __init__.data.json
+        __init__.meta.json
+      PIL/
+        ExifTags.data.json
+        ExifTags.meta.json
+        GimpGradientFile.data.json
+        GimpGradientFile.meta.json
+        GimpPaletteFile.data.json
+        GimpPaletteFile.meta.json
+        Image.data.json
+        Image.meta.json
+        ImageCms.data.json
+        ImageCms.meta.json
+        ImageColor.data.json
+        ImageColor.meta.json
+        ImageFile.data.json
+        ImageFile.meta.json
+        ImageFilter.data.json
+        ImageFilter.meta.json
+        ImageMode.data.json
+        ImageMode.meta.json
+        ImageOps.data.json
+        ImageOps.meta.json
+        ImagePalette.data.json
+        ImagePalette.meta.json
+        ImageQt.data.json
+        ImageQt.meta.json
+        ImageShow.data.json
+        ImageShow.meta.json
+        PaletteFile.data.json
+        PaletteFile.meta.json
+        TiffImagePlugin.data.json
+        TiffImagePlugin.meta.json
+        TiffTags.data.json
+        TiffTags.meta.json
+        _binary.data.json
+        _binary.meta.json
+        _deprecate.data.json
+        _deprecate.meta.json
+        _imaging.data.json
+        _imaging.meta.json
+        _imagingcms.data.json
+        _imagingcms.meta.json
+        _typing.data.json
+        _typing.meta.json
+        _util.data.json
+        _util.meta.json
+        _version.data.json
+        _version.meta.json
+        __init__.data.json
+        __init__.meta.json
+      pyexpat/
+        errors.data.json
+        errors.meta.json
+        model.data.json
+        model.meta.json
+        __init__.data.json
+        __init__.meta.json
+      pyparsing/
+        actions.data.json
+        actions.meta.json
+        common.data.json
+        common.meta.json
+        core.data.json
+        core.meta.json
+        exceptions.data.json
+        exceptions.meta.json
+        helpers.data.json
+        helpers.meta.json
+        results.data.json
+        results.meta.json
+        testing.data.json
+        testing.meta.json
+        unicode.data.json
+        unicode.meta.json
+        util.data.json
+        util.meta.json
+        __init__.data.json
+        __init__.meta.json
+        diagram/
+          __init__.data.json
+          __init__.meta.json
+      PyQt6/
+        QtCore.data.json
+        QtCore.meta.json
+        QtGui.data.json
+        QtGui.meta.json
+        QtWidgets.data.json
+        QtWidgets.meta.json
+        sip.data.json
+        sip.meta.json
+        __init__.data.json
+        __init__.meta.json
+      string/
+        __init__.data.json
+        __init__.meta.json
+      sys/
+        _monitoring.data.json
+        _monitoring.meta.json
+        __init__.data.json
+        __init__.meta.json
+      tkinter/
+        constants.data.json
+        constants.meta.json
+        font.data.json
+        font.meta.json
+        ttk.data.json
+        ttk.meta.json
+        __init__.data.json
+        __init__.meta.json
+      unittest/
+        async_case.data.json
+        async_case.meta.json
+        case.data.json
+        case.meta.json
+        loader.data.json
+        loader.meta.json
+        main.data.json
+        main.meta.json
+        mock.data.json
+        mock.meta.json
+        result.data.json
+        result.meta.json
+        runner.data.json
+        runner.meta.json
+        signals.data.json
+        signals.meta.json
+        suite.data.json
+        suite.meta.json
+        _log.data.json
+        _log.meta.json
+        __init__.data.json
+        __init__.meta.json
+      urllib/
+        parse.data.json
+        parse.meta.json
+        __init__.data.json
+        __init__.meta.json
+      xgboost/
+        callback.data.json
+        callback.meta.json
+        collective.data.json
+        collective.meta.json
+        compat.data.json
+        compat.meta.json
+        config.data.json
+        config.meta.json
+        core.data.json
+        core.meta.json
+        data.data.json
+        data.meta.json
+        libpath.data.json
+        libpath.meta.json
+        plotting.data.json
+        plotting.meta.json
+        sklearn.data.json
+        sklearn.meta.json
+        tracker.data.json
+        tracker.meta.json
+        training.data.json
+        training.meta.json
+        _data_utils.data.json
+        _data_utils.meta.json
+        _typing.data.json
+        _typing.meta.json
+        __init__.data.json
+        __init__.meta.json
+      xml/
+        __init__.data.json
+        __init__.meta.json
+        etree/
+          ElementTree.data.json
+          ElementTree.meta.json
+          __init__.data.json
+          __init__.meta.json
+        parsers/
+          __init__.data.json
+          __init__.meta.json
+          expat/
+            __init__.data.json
+            __init__.meta.json
+      zipfile/
+        __init__.data.json
+        __init__.meta.json
+        _path/
+          __init__.data.json
+          __init__.meta.json
+      zoneinfo/
+        _common.data.json
+        _common.meta.json
+        _tzpath.data.json
+        _tzpath.meta.json
+        __init__.data.json
+        __init__.meta.json
+      _typeshed/
+        importlib.data.json
+        importlib.meta.json
+        __init__.data.json
+        __init__.meta.json
+  .ruff_cache/
+    .gitignore
+    CACHEDIR.TAG
+    0.14.5/
+      12600658311990167276
+      16257144851545386692
+      17965227139474717685
+      1875680279843845063
+      4652391773985594464
+      5620828212296045680
+      6443226264972188389
+      7095227949590206593
+  .vscode/
+    settings.json
+  app/
+    main_tk.py
+    __init__.py
+    core/
+      config_loader.py
+      data_finder.py
+      logger.py
+      market.py
+      mt5_client.py
+      strategy_profile.py
+      __pycache__/
+        mt5_client.cpython-313.pyc
+        strategy_profile.cpython-313.pyc
+    gui/
+      ai_tab.py
+      backtest_tab.py
+      control_tab.py
+      dashboard_tab.py
+      dashboard_tab_qt.py
+      history_tab.py
+      main.py
+      settings_tab.py
+      __init__.py
+      widgets/
+        feature_importance.py
+        shap_bar.py
+    services/
+      aisvc_loader.py
+      ai_service.py
+      circuit_breaker.py
+      data_guard.py
+      decision_log.py
+      event_store.py
+      execution_stub.py
+      feature_importance.py
+      metrics.py
+      mt5_account_store.py
+      mt5_selftest.py
+      mt5_service.py
+      orderbook_stub.py
+      recent_kpi.py
+      shap_service.py
+      trade_service.py
+      trade_state.py
+      trailing.py
+      trailing_hook.py
+      __init__.py
+    strategies/
+      ai_strategy.py
+      __init__.py
+      __pycache__/
+        ai_strategy.cpython-313.pyc
+        __init__.cpython-313.pyc
+    __pycache__/
+      __init__.cpython-313.pyc
+  backtests/
+    michibiki_std/
+  config/
+    mt5_accounts.json
+  configs/
+    .env.example
+    config copy.yaml
+    config.local.yaml
+    config.yaml
+  core/
+    config.py
+    indicators.py
+    metrics.py
+    position_guard.py
+    risk.py
+    __init__.py
+    ai/
+      calibration.py
+      features.py
+      loader.py
+      service.py
+      __init__.py
+    metrics/
+      fi_extractor.py
+      registry.py
+      __init__.py
+    utils/
+      clock.py
+      hashing.py
+      runtime.py
+      timeutil.py
+      __init__.py
+    __pycache__/
+      risk.cpython-313.pyc
+      __init__.cpython-313.pyc
+  data/
+    USDJPY_H1.csv
+    USDJPY_M15.csv
+    USDJPY_M5.csv
+    USDJPY/
+      features_for_shap.csv
+      ohlcv/
+        USDJPY_H1.csv
+        USDJPY_M15-DESKTOP-KK77.csv
+        USDJPY_M15.csv
+        USDJPY_M5-DESKTOP-KK77.csv
+        USDJPY_M5.csv
+    仮/
+      USDJPY_M5.csv
+      USDJPY_M5_big.csv
+      usdjpy/
+        USDJPY_M5_mt5.csv
+  logs/
+    app-DESKTOP-KK77.log
+    app.log
+    events.jsonl
+    ui_events.jsonl
+    val_export_meta.json
+    val_p_buy_raw.npy
+    val_y_true.npy
+    weekly_retrain_20251113.log
+    weekly_retrain_20251116.log
+    weekly_retrain_20251117.log
+    backtest/
+      equity_curve.csv
+      USDJPY/
+        M15/
+          equity_curve.csv
+          metrics.json
+        M5/
+          equity_curve.csv
+          equity_test.csv
+          equity_train.csv
+          metrics.json
+          metrics_wfo.json
+          monthly_returns.csv
+          monthly_returns_test.csv
+          monthly_returns_train.csv
+          signals_test.csv
+          signals_train.csv
+          trades.csv
+          trades_test.csv
+          trades_train.csv
+          backtest_2024-01-01_to_2024-12-31/
+            equity_curve.csv
+            equity_test.csv
+            equity_train.csv
+            metrics.json
+            metrics_wfo.json
+            monthly_returns.csv
+            monthly_returns_test.csv
+            monthly_returns_train.csv
+            trades.csv
+            trades_test.csv
+            trades_train.csv
+          backtest_2024-01-01_to_2025-11-16/
+            equity_curve.csv
+            equity_test.csv
+            equity_train.csv
+            metrics.json
+            metrics_wfo.json
+            monthly_returns.csv
+            monthly_returns_test.csv
+            monthly_returns_train.csv
+            trades.csv
+            trades_test.csv
+            trades_train.csv
+          backtest_2024-01-01_to_2025-11-17/
+            equity_curve.csv
+            equity_test.csv
+            equity_train.csv
+            metrics.json
+            metrics_wfo.json
+            monthly_returns.csv
+            monthly_returns_test.csv
+            monthly_returns_train.csv
+            trades.csv
+            trades_test.csv
+            trades_train.csv
+          backtest_2024-07-01_to_2024-12-31/
+            equity_curve.csv
+            equity_test.csv
+            equity_train.csv
+            metrics.json
+            metrics_wfo.json
+            monthly_returns.csv
+            monthly_returns_test.csv
+            monthly_returns_train.csv
+            trades.csv
+            trades_test.csv
+            trades_train.csv
+          backtest_2024-11-07_to_2024-12-31/
+            equity_curve.csv
+            equity_test.csv
+            equity_train.csv
+            metrics.json
+            metrics_wfo.json
+            monthly_returns.csv
+            monthly_returns_test.csv
+            monthly_returns_train.csv
+            trades.csv
+            trades_test.csv
+            trades_train.csv
+          backtest_2025-05-15_to_2025-11-15/
+            equity_curve.csv
+            metrics.json
+            monthly_returns.csv
+            trades.csv
+          backtest_2025-06-21_to_2025-11-15/
+            equity_curve.csv
+            metrics.json
+            monthly_returns.csv
+            trades.csv
+          backtest_2025-10-15_to_2025-11-15/
+            equity_curve.csv
+            metrics.json
+            monthly_returns.csv
+            trades.csv
+          backtest_ALL_to_ALL/
+            equity_curve.csv
+            equity_test.csv
+            equity_train.csv
+            metrics.json
+            metrics_wfo.json
+            monthly_returns.csv
+            monthly_returns_test.csv
+            monthly_returns_train.csv
+            trades.csv
+            trades_test.csv
+            trades_train.csv
+    decisions/
+      decisions_USDJPY.jsonl
+    reports/
+      retrain_report_20251113_0914.json
+    retrain/
+      equity_test_1763292931.csv
+      equity_test_1763370025.csv
+      equity_train_1763292931.csv
+      equity_train_1763370025.csv
+      feat_importance_lk10_20251107_175557.csv
+      feat_importance_lk15_20251107_162055.csv
+      feat_importance_lk15_20251107_162243.csv
+      feat_importance_lk15_20251107_163007.csv
+      feat_importance_lk15_20251107_163044.csv
+      job_20251105_173052_251f5624.log
+      job_20251105_173113_df2776b1.log
+      job_20251105_174004_2dd5540f.log
+      job_20251105_174018_d4741638.log
+      job_20251105_175145_673a797f.log
+      job_20251105_180545_a53ced47.log
+      job_20251106_075546_f4036ef5.log
+      job_20251106_171821_5f3f029d.log
+      job_20251107_124035_a081c214.log
+      job_20251107_162053_b7252f19.log
+      job_20251107_163005_f87f9cc2.log
+      job_20251107_175555_4ab13e4d.log
+      report_1762327557.2895734.json
+      report_1762328795.2841146.json
+      report_1762329166.0924582.json
+      report_1762330372.625119.json
+      report_1762330422.048195.json
+      report_1762330462.918168.json
+      report_17623314611667528.json
+      report_17623314813159773.json
+      report_17623320128869925.json
+      report_17623320267762287.json
+      report_17623327167915437.json
+      report_17623335580532284.json
+      report_17623833702376008.json
+      report_17624171072965233.json
+      report_17624869548320115.json
+      report_17625000562076344.json
+      report_17625006073549628.json
+      report_1762505757473982.json
+      report_1763292931.json
+      report_1763370025.json
+      weekly_retrain_20251113_091458.log
+  models/
+    active_model.json
+    LightGBM_clf.classes.json
+    LightGBM_clf.features.json
+    LightGBM_clf.txt
+    LightGBM_clf.version.json
+    LightGBM_clf_20251108_183507.meta.json
+    LightGBM_clf_20251109_151424.meta.json
+    LightGBM_clf_20251113_020721.pkl.meta.json
+    LightGBM_clf_20251113_021127.pkl.meta.json
+    LightGBM_clf_20251113_154952.meta.json
+    LightGBM_clf_20251113_155649.meta.json
+    LightGBM_clf_20251114_064505.meta.json
+    LightGBM_clf_20251116_112204.pkl.meta.json
+    LightGBM_clf_20251117_090029.pkl.meta.json
+    LightGBM_info.json
+    PROMOTE.json
+    VERSION.txt
+    _backup_20251105_174012/
+      active_model.json
+      LightGBM_clf.classes.json
+      LightGBM_clf.features.json
+      LightGBM_clf.version.json
+    _backup_20251105_174026/
+      active_model.json
+      LightGBM_clf.classes.json
+      LightGBM_clf.features.json
+      LightGBM_clf.version.json
+      PROMOTE.json
+      VERSION.txt
+    _backup_20251105_180558/
+      active_model.json
+      LightGBM_clf.classes.json
+      LightGBM_clf.features.json
+      LightGBM_clf.version.json
+      PROMOTE.json
+      VERSION.txt
+    _backup_20251106_075609/
+      active_model.json
+      LightGBM_clf.classes.json
+      LightGBM_clf.features.json
+      LightGBM_clf.version.json
+      PROMOTE.json
+      VERSION.txt
+    _backup_20251106_171826/
+      active_model.json
+      LightGBM_clf.classes.json
+      LightGBM_clf.features.json
+      LightGBM_clf.version.json
+      PROMOTE.json
+      VERSION.txt
+    _backup_20251107_124234/
+      active_model.json
+      LightGBM_clf.classes.json
+      LightGBM_clf.features.json
+      LightGBM_clf.version.json
+      PROMOTE.json
+      VERSION.txt
+    _backup_20251107_162055/
+      active_model.json
+      LightGBM_clf.classes.json
+      LightGBM_clf.features.json
+      LightGBM_clf.version.json
+      PROMOTE.json
+      VERSION.txt
+    _backup_20251107_163007/
+      active_model.json
+      LightGBM_clf.classes.json
+      LightGBM_clf.features.json
+      LightGBM_clf.version.json
+      PROMOTE.json
+      VERSION.txt
+    _staging/
+      LightGBM_clf.classes.json
+      LightGBM_clf.features.json
+      PROMOTE.json
+      VERSION.txt
+  runtime/
+    metrics.json
+    metrics_044ho80o.json
+    metrics_04i6g_bm.json
+    metrics_08lb8guj.json
+    metrics_0fdsym9v.json
+    metrics_0ks5iv74.json
+    metrics_0m3pzxsa.json
+    metrics_0s0y1mq_.json
+    metrics_0so3t4e4.json
+    metrics_0t6las4q.json
+    metrics_13d1atob.json
+    metrics_1ce8in0z.json
+    metrics_1f8wcifb.json
+    metrics_1nqq6c9g.json
+    metrics_1y_j88c6.json
+    metrics_1_r7f8xe.json
+    metrics_2b5irl55.json
+    metrics_2llsmgld.json
+    metrics_2wh_r543.json
+    metrics_32ej_3qs.json
+    metrics_384xt0qj.json
+    metrics_3op0smhm.json
+    metrics_3pck01qi.json
+    metrics_3pw7kppo.json
+    metrics_3w4e28bl.json
+    metrics_3wwdl7sf.json
+    metrics_3xjcntun.json
+    metrics_3_z7j5dq.json
+    metrics_4fx6u97k.json
+    metrics_4jkcw838.json
+    metrics_4jwlaw79.json
+    metrics_4sqd0ccq.json
+    metrics_4u83ovxn.json
+    metrics_51fzibz0.json
+    metrics_56tbpp98.json
+    metrics_5c1keku_.json
+    metrics_5_uus6ny.json
+    metrics_681i8dz0.json
+    metrics_6g2ygykl.json
+    metrics_6jx0f61y.json
+    metrics_6mv45wka.json
+    metrics_6n99dteb.json
+    metrics_6oizo1ba.json
+    metrics_6u8fjy4e.json
+    metrics_751tqi7x.json
+    metrics_78ji6p4u.json
+    metrics_7bbmsyvw.json
+    metrics_7caerxlw.json
+    metrics_7pcppci4.json
+    metrics_7upf8_is.json
+    metrics_7wtig7zq.json
+    metrics_7yx4f9p_.json
+    metrics_8i0ku3__.json
+    metrics_8iecfllz.json
+    metrics_8s427o_h.json
+    metrics_8t5wcv0v.json
+    metrics_8wbixgeh.json
+    metrics_9clf0tik.json
+    metrics_9wqc4wjf.json
+    metrics_9y2xjt1a.json
+    metrics_a4qsce4c.json
+    metrics_abcuwh_8.json
+    metrics_aen0sw0t.json
+    metrics_avlwot5z.json
+    metrics_a_jw5ekj.json
+    metrics_beh8fq83.json
+    metrics_bkm4j_2_.json
+    metrics_bmocgusp.json
+    metrics_bsejl6ul.json
+    metrics_b_e39daa.json
+    metrics_c19f7jhr.json
+    metrics_c6dlu7j3.json
+    metrics_c7srgc6l.json
+    metrics_cfvm2vuv.json
+    metrics_cs6cyrr4.json
+    metrics_ctdk6hr_.json
+    metrics_d0zio68n.json
+    metrics_d2fneb6c.json
+    metrics_d83v0qrg.json
+    metrics_d_7cu4co.json
+    metrics_e55ccqf4.json
+    metrics_efewdoso.json
+    metrics_es10kbkj.json
+    metrics_exyc2aoi.json
+    metrics_f4ba8yj0.json
+    metrics_fusrtchw.json
+    metrics_fvkjx3i3.json
+    metrics_fwgrd7ek.json
+    metrics_fx59gkw6.json
+    metrics_gctnecas.json
+    metrics_gdrsfom2.json
+    metrics_gh0exqfy.json
+    metrics_gn3r368k.json
+    metrics_gre0l2vv.json
+    metrics_gu2jj4x6.json
+    metrics_gy7yzni_.json
+    metrics_h2ke1que.json
+    metrics_h2zbzsi6.json
+    metrics_i5pwbdy8.json
+    metrics_i9ixee1p.json
+    metrics_iegm05ma.json
+    metrics_jeul60z4.json
+    metrics_jldkp6oj.json
+    metrics_joyqy1yz.json
+    metrics_k452r_bd.json
+    metrics_keyuq093.json
+    metrics_kijozz54.json
+    metrics_l0nrt8ax.json
+    metrics_l4qkqhvl.json
+    metrics_l9a3g7f_.json
+    metrics_lg3z_ojj.json
+    metrics_lij48idf.json
+    metrics_mfx0u92s.json
+    metrics_ml129ig1.json
+    metrics_mziwmuji.json
+    metrics_mzkihnhl.json
+    metrics_n92kltdx.json
+    metrics_naa4pb8_.json
+    metrics_o0bwp99t.json
+    metrics_oe0gx0ow.json
+    metrics_og6_x57t.json
+    metrics_okatezba.json
+    metrics_olwp427j.json
+    metrics_oy5jty8q.json
+    metrics_pbfm5_s8.json
+    metrics_pguw1jt8.json
+    metrics_q1mfycvq.json
+    metrics_q32vexb9.json
+    metrics_qd9sdimy.json
+    metrics_qmjxkoxo.json
+    metrics_qygbv_em.json
+    metrics_r1diayz3.json
+    metrics_r1oyukcw.json
+    metrics_r2iljktq.json
+    metrics_r4cxpbus.json
+    metrics_ri5kzye8.json
+    metrics_smrtxq4q.json
+    metrics_sunrm50l.json
+    metrics_szni51cl.json
+    metrics_szy5o819.json
+    metrics_s_yeu75a.json
+    metrics_t09rkk69.json
+    metrics_tnyuui1p.json
+    metrics_tvk5w34y.json
+    metrics_u85k0bty.json
+    metrics_ue987r_m.json
+    metrics_ugsv8j1h.json
+    metrics_uhoep47z.json
+    metrics_uiqkfigp.json
+    metrics_ujl1qfgc.json
+    metrics_v30su220.json
+    metrics_v372j6bp.json
+    metrics_vd8t6g2k.json
+    metrics_vi859rsu.json
+    metrics_vlx06rwe.json
+    metrics_vm46jhw3.json
+    metrics_vzimyuwy.json
+    metrics_w88v4g45.json
+    metrics_wcsasy33.json
+    metrics_x7rwrpb_.json
+    metrics_xbjh179p.json
+    metrics_xcr4m91b.json
+    metrics_xcyd97h5.json
+    metrics_xe7x_sje.json
+    metrics_xjeelk50.json
+    metrics_xqnkdh58.json
+    metrics_xuw93ulk.json
+    metrics_xxx7__b9.json
+    metrics_y1mt7hlm.json
+    metrics_y5_m62os.json
+    metrics_yehnyu4c.json
+    metrics_yuncl873.json
+    metrics_yv04iu3_.json
+    metrics_z4d75mrh.json
+    metrics_zn9wzer_.json
+    metrics_zrz0v00o.json
+    metrics_zskuik5i.json
+    metrics__7n81rbm.json
+    metrics__9tk6o8d.json
+    metrics__cx1yvq5.json
+    metrics__g0tzwco.json
+    metrics__g6j76yc.json
+    metrics__l9umv1h.json
+    metrics__nrd_y1k.json
+    metrics__rjbfcpd.json
+    metrics__s4hfi2b.json
+    metrics__tv_40i0.json
+    metrics__vtagxy_.json
+    metrics___1o6ki2.json
+    trade_state.json
+  scripts/
+    cb_smoke.py
+    diagnose_symbol.py
+    dryrun_smoke.py
+    export_mt5_history.py
+    export_val_probs.py
+    make_csv_from_mt5.py
+    make_project_snapshot.py
+    make_toy_model.py
+    mt5_export_csv.py
+    mt5_smoke.py
+    print_runtime.py
+    promote_model.py
+    register_weekly_task.ps1
+    rollback_model.py
+    selftest_mt5.py
+    selftest_order_flow.py
+    sim_trailing.py
+    swap_model.py
+    train_calibrator.py
+    verify_smoke.ps1
+    walkforward_retrain.py
+    walkforward_train.py
+    weekly_retrain.py
+    weekly_wf.ps1
+  tests/
+    test_sanity.py
+  tools/
+    backtest_equity_curve.py
+    backtest_run.py
+    dump_feature_importance.py
+    export_tree_clean.ps1
+    inspect_report.py
+    list_wfo_reports.py
+    train_lightgbm.py
+    train_scaler.py
+    __init__.py
+    __pycache__/
+      backtest_run.cpython-313.pyc
+      __init__.cpython-313.pyc
+  設定/
+    フォルダ構成.txt
+    仮.txt
+    仮想環境.txt
 
 
 
@@ -10439,6 +12733,42 @@ tzdata==2025.2
 virtualenv==20.35.4
 win32_setctime==1.2.0
 xgboost==3.1.1
+
+
+
+=== file: ruff.toml ===
+
+line-length = 88
+target-version = "py311"
+
+# .venv や結果フォルダはリンティング対象外
+extend-exclude = [
+    ".venv",
+    "backtests",
+    "models",
+    "logs",
+    "dist",
+    "build",
+]
+
+[lint]
+# ベーシックな lint + バグ検出 + import 整理 + 近代化 + シンプル化
+select = [
+    "E",  # pycodestyle (PEP8)
+    "F",  # pyflakes
+    "W",  # 一般的な警告
+    "B",  # flake8-bugbear（バグになりそうなパターン）
+    "I",  # isort（import 並べ替え）
+    "UP", # pyupgrade（最新構文へ）
+    "SIM" # flake8-simplify（書き方の簡略化）
+]
+
+# 行長は black に任せるので E501 は無視
+ignore = ["E501"]
+
+[lint.isort]
+known-first-party = ["app"]
+combine-as-imports = true
 
 
 
@@ -16182,6 +18512,624 @@ scripts/legacy/ 等に移動し、「開発時の参考用」と明記。
 ドキュメント類からも Task Scheduler 依存の記述を削除または「非推奨」と明記。
 
 
+=== file: To Doリストv5.txt ===
+
+ミチビキ ToDoリスト v4（正式版）
+
+（仕様書 v4 に完全準拠）
+
+
+ミチビキ v4 の ToDo は A/B/C/D の4ブロック に整理されます。
+順番は “安全運用 → UI → スケジューラ → ランキング” の流れに最適化。
+
+A：3％KPIに必要なAI・バックテスト基盤（コア）
+
+ミチビキの “性能そのもの” を規定する基礎パート。
+既存の A1〜A7 を v4 向けに調整して再構成したもの。
+
+A1：バックテスト結果に必ず monthly_returns.csv を出力
+
+全てのストラテジー/全期間で月次リターンを出力することを保証
+
+Expert のランキング機能の基礎データになる
+
+A2：基準ストラテジー（WFO + ATR 仕様）を1つ確定
+
+「ミチビキ標準設定」＝Pro/Expertのデモ動作で利用するモデル
+
+AIタブのKPI計算の標準化にも使う
+
+A3：月次目標（3％）を利用するロット＆リスク管理ロジック
+
+target_monthly_return
+
+max_monthly_dd
+
+monthly_vol_target
+
+これら 3パラメータでロット公式を自動調整
+
+A4：AIタブの “月次3％ダッシュボード” を完成
+
+KPI：今月損益％ / PF / DD / 連勝/連敗
+
+モデル情報：AUC / Logloss / バージョン
+
+月次リターン折れ線（Expertで拡張）
+
+Pro：FI20 / SHAP3
+
+Expert：FI全件 / SHAP20
+
+A5：バックテスト診断AI（時間帯 × 相場タイプ）v0
+
+Pro：簡易診断（時間帯/相場）
+
+Expert：連敗区間・DD直前特徴・異常点抽出・勝率高い相場特徴など
+
+A6：MT5発注ラッパーの完成 ＋ 1ヶ月デモ運用ログ
+
+MT5Clientの安定化
+
+発注テスト（デモ）を1ヶ月運用して挙動確認
+
+A7：本番運用チェックリスト（docs/production_checklist.md）
+
+本口座移行前の確認点をまとめる
+
+B：日本語UI化 & エディション制御（v4対応）
+
+仕様書 v4 の中核である “Free/Basic/Pro/Expert/Master” を機能的に実装する領域。
+
+B1：日本語UIフル対応
+
+全タブの日本語化（設定/AI/ランキング/ログ/スケジューラ）
+
+文字化け修正（UTF-8 BOMなし）
+
+ログメッセージも日本語中心に統一
+
+B2：EditionGuard（エディション制御クラス）
+
+各 edition が以下を制御：
+
+接続可能口座（デモのみ / 本口座OK）
+
+ロット上限
+
+AIタブ表示（KPIのみ / FI / SHAP）
+
+スケジューラ編集可否
+
+ランキング送信可否
+
+フィルタ設定（簡易 / 複合）
+
+B3：ランキング機能 v0（ローカルモックサーバ）
+
+RankingService の実装
+
+local JSON で mock サーバとして動作
+
+エディション別のランキングテーブル
+
+Free：閲覧のみ
+
+Basic：送信可
+
+Pro：Pro専用ランキング
+
+Expert：複合スコア（Return×DD×PF）表示
+
+B4：ミチビキ用 UI の最終調整
+
+ランキングタブ
+
+AIタブのタブ化（KPI / FI / SHAP / 診断）
+
+スケジューラ設定画面
+
+C：内蔵 JobScheduler（タスクスケジューラ不要化）
+
+ミチビキ v4 最大の変更点。
+Windowsタスクスケジューラは使わずミチビキ内で完結。
+
+C1：JobScheduler（常駐スレッド）基礎クラス
+
+30〜60秒間隔で時刻チェック
+
+ジョブの last_run_at を持ち二重実行防止
+
+実行履歴を logs/scheduler.log に記録
+
+C2：config.scheduler.yaml を正式採用
+
+edition_min
+
+weekday/hour/minute
+
+command
+
+Basic では ON/OFF だけ編集可
+
+C3：GUIのスケジューラ編集UI
+
+Free：表示のみ
+Basic：ON/OFFのみ
+Pro：1つジョブ編集可能
+Expert：複数ジョブ、連鎖（再学習→診断→整理）
+
+C4：週次再学習の実働テスト
+
+2分後などのテスト時刻を設定し、
+→ python -m scripts.walkforward_retrain が実際に起動することを確認
+
+C5：旧Windowsタスクスケジューラスクリプトの廃止
+
+scripts/legacy に移動し “非推奨” と明記
+
+D：エディション別のバックテスト・フィルタ設定
+
+ミチビキ v4 追加分。運用モジュールの深い設定。
+
+D1：Proフィルタ
+
+時間帯フィルタ（使える）
+
+ATRオン/オフ
+
+簡易フィルタ UI
+
+D2：Expertフィルタ
+
+複合フィルタ（ATR×ボラ×時間帯×トレンド）
+
+連敗回避モード
+
+自動プロファイル切替
+
+戦略のボラ帯最適化
+
+D3：フィルタのバックテスト反映
+
+backtests/{profile}/analyze.json に各フィルタ条件を保存
+
+E：販売準備（UI・ライセンス・バージョン表示）
+
+これはミチビキとして必要になる “製品化” 領域。
+
+E1：ライセンス認証（簡易版）
+
+edition の切替をファイル/キー/APIで行う
+
+E2：アプリの About 画面
+
+ミチビキのロゴ
+
+バージョン番号
+
+edition 表示
+
+更新ログリンク
+
+E3：インストーラ準備（最終段階）
+
+Windows 用の配布形式（PyInstaller または Briefcase）
+
+ディレクトリ構成の凍結
+
+🔥 全体の進行順（推奨）
+
+A：月次3％の基礎（AI/バックテスト/MT5）
+
+B：日本語UI ＋ エディション制御
+
+C：内蔵スケジューラ
+
+D：Expert向け高度設定
+
+E：販売準備（ライセンス/インストーラ）
+
+
+=== file: ToDoリスト Master版.txt ===
+
+ToDoリスト Master版（全部入り＋下位版を作りやすい構造）
+
+Master版は「Expert の全部＋開発者用ツール＋制限なし」です。
+ここを基準にして、後から EditionGuard でロックをかけて Free〜Expert に落としていきます。
+
+M-A：3％KPIとバックテスト基盤（Masterでも共通の“心臓部”）
+
+M-A1：バックテスト monthly_returns.csv の標準化
+
+すべてのバックテスト結果が
+backtests/{profile}/monthly_returns.csv を必ず出すように統一。
+
+CSVのカラム仕様を固定（年月、リターン％、DD％など）。
+
+将来のランキング・AIタブ・診断AIがこの形式を前提に動くようにする。
+完了
+
+M-A2：基準ストラテジー（ミチビキ標準プロファイル）の確定
+
+WFO＋ATRベースで「とりあえず3％を狙える」設定を1つ決める。
+
+そのプロファイルを Master/Expert のデフォルトにする。
+完了
+
+M-A3：target_monthly_return / max_monthly_dd を使うロット計算ロジック
+
+config.yaml 等に
+
+target_monthly_return（例: 0.03）
+
+max_monthly_dd（例: -0.20）
+
+を持たせ、これを元に lot サイズや SLO（損切りレベル）の目安を出すユーティリティを実装。
+
+後の下位版ではこのロット計算の「パラメータ編集」を制限するだけにする想定。
+
+M-A4：AIタブ “月次3％ダッシュボード” の完成［一部完了］
+
+すでに：
+
+KPI表示、FI、SHAPタブ、SHAP Top3 のウィジェットは実装済み。
+
+Masterで追加すること：
+
+月次リターンのグラフ（折れ線または棒）
+
+今月のリターン vs 目標3％の表示
+
+モデル指標（Logloss/AUC/バージョン）表示
+
+Expert/Master用に「FI全件」「SHAP Top20」を表示可能にすること
+（Pro の制限は後で EditionGuard 側でかける前提）
+
+M-A5：バックテスト診断AI（Master/Expert版フル）
+
+v0（時間帯 × 相場タイプ）の診断は ToDo v4 A5 ベース。
+
+Master ではさらに：
+
+DD直前区間の特徴抽出
+
+連勝区間の特徴
+
+勝率が高い相場条件の抽出
+
+損益曲線の異常点検出
+
+簡易の「来週の条件シナリオ」出力
+
+実装先：app.services.diagnosis_service 的なサービス層を想定
+
+M-A6：MT5発注ラッパー＋自己診断スクリプト［APIはほぼ完了・運用フェーズへ］
+
+MT5Client: initialize / login / order_send / close_position / get_positions 系は既に実装・自己テスト済み。
+
+Master側では：
+
+自己診断スクリプト（selftest）のログ形式を本番想定に揃える
+
+決定ログ（logs/decisions_*.jsonl）との連携（いつ・どの戦略で・どれくらいの期待値で発注したか）
+
+M-A7：本番移行チェックリスト（docs/production_checklist.md）
+
+Master開発者用に、
+
+回線・VPS
+
+MT5の設定（自動売買許可、証拠金チェック）
+
+スケジューラの挙動確認
+
+ログローテーション確認
+
+などのチェック項目を文書化。
+
+M-B：フィルタ＆ストラテジー制御（Expert/Masterの「勝率直結部分」）
+
+M-B1：Pro用簡易フィルタとExpert用複合フィルタの共通基盤クラス
+
+1つのフィルタエンジン（例：StrategyFilterEngine）で
+
+時間帯
+
+ATR
+
+ボラ（σ）
+
+トレンド強度
+
+を扱えるように設計。
+
+Pro/Expert/Free等の差は「どのパラメータを設定可能にするか」で後から制限。
+
+M-B2：連敗回避モード
+
+最近のNトレードから連敗数・損失額を見てエントリーを一時停止。
+
+パラメータとして
+
+最大連敗数
+
+再開するための条件（時間・勝ちトレード数）
+
+を持たせる。
+
+下位版では「設定UIを隠す・固定値にする」方向で制限可能なようにする。
+
+M-B3：勝率高いプロファイルの自動切替
+
+monthly_returns / 直近Xトレードなどから「今一番調子の良いプロファイル」を選び、
+
+Master/Expertでは自動切替ON/OFF可能
+
+下位版では手動のみ、などで制御できるようにしておく。
+
+M-B4：ボラティリティ帯ごとの戦略最適化
+
+ボラ指標（ATRや標準偏差）で
+
+低ボラ
+
+中ボラ
+
+高ボラ
+
+の3レジームに分け、それぞれで使うフィルタ or プロファイルを切替できるようにする。
+
+M-C：JobScheduler（Master版フル機能）
+
+仕様書 v4 の JobScheduler 要求を フルで実装 しておき、
+下位版は「ジョブ数・種類・編集可否」で絞る方針。
+
+M-C1：JobScheduler 基礎クラス（バックグラウンドスレッド）
+
+既存 ToDo v4 C1 と同じだが、最初から複数ジョブ・連鎖を考慮した設計にする。
+
+jobs は config.scheduler.yaml + ランタイム編集を想定。
+
+last_run_at を内部管理し、重複起動防止。
+
+M-C2：ジョブ型の定義（Master版）
+
+再学習＋Walk-Forward
+
+バックテスト診断レポート生成
+
+ログ圧縮・バックアップ
+
+将来拡張用に「任意コマンド」も許可。
+
+下位版では「使える job_type を制限する」だけで済むようにする。
+
+M-C3：config.scheduler.yaml の採用
+
+edition_min なども含めた形式で設定ファイルを確定。
+
+MasterではGUIからすべて編集可。
+
+下位版では EditionGuard が編集可否を決める形にする。
+
+M-C4：GUI スケジューラ設定タブ（Masterモード）
+
+全ジョブの一覧、次回実行予定時刻、前回実行結果。
+
+ジョブ追加・編集・削除・連鎖設定。
+
+実行履歴ビュー（logs/scheduler.log の簡易ビュー）。
+
+M-C5：旧Windows タスクスケジューラ系スクリプトの整理［あとでやるマークでもOK］
+
+scripts/legacy/ に移動して「開発時の参考用」と明記。
+
+M-D：ランキング機能＋Master専用設定
+
+M-D1：RankingService（クライアント側）の本実装
+
+ToDo v4 B3 の「ローカルモック」を発展させ、
+
+ローカルJSONを「デフォルト」
+
+HTTP API（サーバ実装前提）のためのインターフェースも用意。
+
+M-D2：Master専用ランキング設定UI
+
+サーバURL
+
+APIキー
+
+テスト送信ボタン
+
+ランキングデータの再取得／キャッシュクリアなど
+
+M-D3：ランキングタブ（Master表示モード）
+
+エディション別のタブ or コンボ（Basic/Pro/Expert）。
+
+自分の成績＋過去履歴＋上位ランキング。
+
+マスターでは「モックと本番サーバの切替ボタン」も用意。
+
+M-E：日本語UI・ログ・開発者向けツール
+
+M-E1：日本語UI完全チェック ［一部完了・要総仕上げ］
+
+全タブ・全ダイアログの日本語ラベル統一。
+
+用語（最大ドローダウン、利益率、PF 等）を仕様書 v4 に揃える。
+
+M-E2：ログメッセージの整理
+
+日本語＋簡易英語併記、UTF-8統一。
+
+Master向けにログレベルや出力先（ファイル分割）も設定可能に。
+
+M-E3：Master専用「開発ツール」タブ（任意）
+
+バックテスト一括実行ボタン
+
+モデル比較
+
+SHAPや診断AIのテスト実行
+
+ここは完全に開発者向けなので UI は簡易でもOK。
+
+
+
+=== file: ToDoリスト 下位版.txt ===
+
+ToDoリスト 下位版（Free / Basic / Pro / Expert を Master から削る作業）
+
+ここからは「Master が全部動く前提」で、EditionGuard と機能制限をかけていくためのタスクリストです。
+
+L-A：EditionGuard 実装
+
+L-A1：EditionGuard クラス
+
+edition: str（"free/basic/pro/expert/master"）を受け取り、
+
+口座種別（demo only? real ok?）
+
+ロット上限
+
+スケジューラ最大ジョブ数
+
+診断AIレベル（なし / v0 / full）
+
+ランキング送信可否
+
+フィルタ設定レベル（なし / 簡易 / 複合）
+
+などを返す。
+
+L-A2：設定ファイル or ライセンス情報との連携
+
+config.edition.yaml やライセンスチェックAPIを想定。
+
+とりあえずはローカル設定で edition を切替できるようにして、後からライセンスサーバに繋げる前提。
+
+L-B：エディション別機能ロック（サービス層）
+
+L-B1：MT5接続制限
+
+Free：デモ口座のみ
+
+Basic以上：本口座も許可
+
+実装：MT5Client初期化前に EditionGuard に問い合わせる。
+
+L-B2：AIタブの制限
+
+Free：KPIのみ、FI/SHAP/診断は非表示。
+
+Basic：KPI＋月次リターン簡易表示のみ。
+
+Pro：FI Top20、SHAP Top3、診断AI v0。
+
+Expert：FI全件、SHAP Top20、診断AIフル。
+
+L-B3：フィルタ機能の制限
+
+Free/Basic：フィルタUI非表示 or 最低限。
+
+Pro：時間帯＋ATRオンオフのみ。
+
+Expert：M-B系の全部。
+
+L-C：スケジューラのエディション別制限
+
+L-C1：JobScheduler × EditionGuard 連携
+
+Free：表示のみ／内部的には scheduler.enabled=False 固定。
+
+Basic：週1再学習のみ、ON/OFFのみ。
+
+Pro：1ジョブのみ、job_type は「再学習」か「診断」のどちらか。
+
+Expert：Masterと同等の複数ジョブ・連鎖。
+
+L-C2：スケジューラUI制御
+
+ボタン disable / hidden の切り替え。
+
+編集できないフィールドにはロックアイコン＋ツールチップで説明。
+
+L-D：ランキング機能のエディション別制限
+
+L-D1：送信可否＋スコア内容の制限
+
+Free：閲覧のみ（送信ボタン非表示）。
+
+Basic：Basicランキングへ送信可。表示内容はリターン中心。
+
+Pro：Pro専用ランキング、表示はリターン％のみ。
+
+Expert：複合スコア（リターン×DD×PF）、自動送信 ON/OFF。
+
+L-D2：ランキングタブUI調整
+
+Edition ごとにラベルや説明文を変える（「あなたのプランでは○○まで使えます」など）。
+
+L-E：日本語UI・コピーの調整（“商品としての顔” 部分）
+
+L-E1：エディション別の説明テキスト
+
+各タブに「このエディションではここまで使えます」の一言ヘルプ。
+
+特に Pro→Expert へのアップグレード動機を強調する文言を用意。
+
+L-E2：About 画面に edition 表示
+
+「ミチビキ Free」「ミチビキ Expert」などを明示。
+
+アップグレード案内ページへのリンク（将来の販売サイトURL）。
+
+L-F：エディション別テスト・チェックリスト
+
+L-F1：Free版チェック
+
+デモのみ接続
+
+スケジューラOFF固定
+
+ランキング送信不可
+
+AIタブがKPIのみ
+
+L-F2：Basic版チェック
+
+本口座接続可
+
+週1再学習ON/OFFのみ
+
+Basicランキング送信OK
+
+AIタブ簡易表示
+
+L-F3：Pro版チェック
+
+複数プロファイル動作
+
+FI Top20 / SHAP3
+
+スケジューラ1ジョブ制限
+
+Proランキング（リターンのみ）
+
+L-F4：Expert版チェック
+
+複合フィルタ
+
+連敗回避＋自動プロファイル切替
+
+スケジューラ複数ジョブ＋連鎖
+
+Expert複合スコアランキング
+
+
 === file: tools/__init__.py ===
 
 
@@ -16338,7 +19286,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
 
 # --- プロジェクトルートを sys.path に追加してから app.* を import する ---
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -16355,6 +19302,58 @@ from app.strategies.ai_strategy import (
 LOG_DIR = PROJECT_ROOT / "logs" / "backtest"
 
 # === equity utils ===
+
+# === monthly_returns.csv を生成するユーティリティ ===
+import pandas as pd
+
+
+def compute_monthly_returns(equity_csv_path: str, out_path: str):
+    df = pd.read_csv(equity_csv_path)
+
+    if "timestamp" not in df.columns and "time" in df.columns:
+        df = df.rename(columns={"time": "timestamp"})
+
+    # 必須カラムチェック：timestamp, equity
+    if not {"timestamp", "equity"}.issubset(df.columns):
+        raise ValueError("equity_curve.csv に必要なカラムがありません (timestamp, equity)")
+
+    # timestamp → datetime 変換
+    df["timestamp"] = pd.to_datetime(df["timestamp"])
+
+    # 月末の equity を集計
+    df["year"] = df["timestamp"].dt.year
+    df["month"] = df["timestamp"].dt.month
+
+    # 月初値を取得
+    first = df.groupby(["year", "month"])["equity"].first()
+    last = df.groupby(["year", "month"])["equity"].last()
+
+    # リターン計算
+    monthly_return = (last - first) / first * 100
+
+    # 同時に月次DDも計算する（peak-to-trough）
+    def calc_dd(sub):
+        peak = sub["equity"].cummax()
+        dd = (sub["equity"] - peak) / peak * 100
+        return dd.min()
+
+    dd_rows = []
+    for (y, m), sub in df.groupby(["year", "month"]):
+        dd_rows.append({
+            "year": y,
+            "month": m,
+            "dd_pct": calc_dd(sub)
+        })
+    dd_df = pd.DataFrame(dd_rows).set_index(["year", "month"])
+
+    out = pd.DataFrame({
+        "return_pct": monthly_return,
+    }).join(dd_df)
+
+    out = out.reset_index().sort_values(["year", "month"])
+    out.to_csv(out_path, index=False)
+
+    print(f"[bt] write monthly {out_path}")
 
 
 @dataclass
@@ -16557,14 +19556,130 @@ def metrics_from_equity(eq: pd.Series) -> dict:
     }
 
 
-def monthly_returns_from_equity(eq_df: pd.DataFrame) -> pd.DataFrame:
+def monthly_returns_from_equity(
+    eq_df: pd.DataFrame,
+    trades_df: pd.DataFrame | None = None,
+) -> pd.DataFrame:
+    """
+    エクイティ曲線（eq_df）とトレード一覧（trades_df）から、
+    月次のリターン・DD・トレード統計をまとめた DataFrame を返す。
+
+    返り値カラム:
+        year, month, return_pct, dd_pct, trades, win_rate, pf
+    """
+    if eq_df is None or eq_df.empty:
+        return pd.DataFrame(
+            columns=[
+                "year",
+                "month",
+                "return_pct",
+                "dd_pct",
+                "trades",
+                "win_rate",
+                "pf",
+            ]
+        )
+
     df = eq_df.copy()
-    df = df.set_index(pd.to_datetime(df["time"]))
-    m = df["equity"].resample("ME").last().pct_change().dropna()
-    out = m.to_frame(name="m_return")
+    df["time"] = pd.to_datetime(df["time"])
+    df = df.sort_values("time")
+    df = df.set_index("time")
+
+    # --- 月次のリターン（％） ---
+    monthly_last = df["equity"].resample("ME").last()
+    monthly_first = df["equity"].resample("ME").first()
+
+    # 0割り防止
+    ret_raw = (monthly_last / monthly_first).replace([np.inf, -np.inf], np.nan) - 1.0
+    return_pct = (ret_raw * 100.0).rename("return_pct")  # ％に変換
+
+    # --- 月次の最大ドローダウン（％） ---
+    def _month_dd(equity: pd.Series) -> float:
+        if equity.empty:
+            return 0.0
+        dd = (equity / equity.cummax() - 1.0).min()
+        return float(dd * 100.0)  # ％に変換（-5.4 なら -5.4%）
+
+    dd_pct = df["equity"].resample("ME").apply(_month_dd).rename("dd_pct")
+
+    # ベースとなる DataFrame（year/month 作成）
+    out = pd.concat([return_pct, dd_pct], axis=1).dropna(how="all")
+    if out.empty:
+        return pd.DataFrame(
+            columns=[
+                "year",
+                "month",
+                "return_pct",
+                "dd_pct",
+                "trades",
+                "win_rate",
+                "pf",
+            ]
+        )
+
+    out.index = pd.to_datetime(out.index)
     out["year"] = out.index.year
     out["month"] = out.index.month
-    return out.reset_index(drop=True)
+
+    # デフォルト値（トレード統計は 0 で初期化）
+    out["trades"] = 0
+    out["win_rate"] = 0.0
+    out["pf"] = 0.0
+
+    # --- トレード統計（月次） ---
+    if trades_df is not None and not trades_df.empty and "exit_time" in trades_df.columns:
+        td = trades_df.copy()
+        td["exit_time"] = pd.to_datetime(td["exit_time"])
+        td = td.dropna(subset=["exit_time"])
+
+        if "pnl" in td.columns:
+            td["pnl"] = pd.to_numeric(td["pnl"], errors="coerce").fillna(0.0)
+
+            rows = []
+            for (y, m), g in td.groupby([td["exit_time"].dt.year, td["exit_time"].dt.month]):
+                pnl = g["pnl"].astype(float)
+                n_tr = int(len(pnl))
+                if n_tr == 0:
+                    continue
+                win_mask = pnl > 0
+                win_rate = float(win_mask.mean() * 100.0)
+
+                sum_win = float(pnl[win_mask].sum())
+                sum_loss_abs = float((-pnl[~win_mask]).clip(lower=0).sum())
+
+                if sum_loss_abs > 0:
+                    pf = float(sum_win / sum_loss_abs)
+                elif sum_win > 0:
+                    pf = float("inf")
+                else:
+                    pf = 0.0
+
+                rows.append(
+                    {
+                        "year": int(y),
+                        "month": int(m),
+                        "trades": n_tr,
+                        "win_rate": win_rate,
+                        "pf": pf,
+                    }
+                )
+
+            if rows:
+                stats = pd.DataFrame(rows)
+                out = out.merge(stats, on=["year", "month"], how="left", suffixes=("", "_t"))
+
+                # 欠損を初期値で埋める
+                out["trades"] = out["trades_t"].fillna(out["trades"]).astype(int)
+                out["win_rate"] = out["win_rate_t"].fillna(out["win_rate"])
+                out["pf"] = out["pf_t"].fillna(out["pf"])
+
+                # 一時列を削除
+                out = out.drop(columns=[c for c in out.columns if c.endswith("_t")])
+
+    # カラム順を最終仕様に揃える
+    out = out[["year", "month", "return_pct", "dd_pct", "trades", "win_rate", "pf"]]
+    out = out.reset_index(drop=True)
+    return out
 
 
 def trades_from_buyhold(df: pd.DataFrame, capital: float) -> pd.DataFrame:
@@ -16689,10 +19804,8 @@ def run_backtest(
     eq_csv = out_dir / "equity_curve.csv"
     print(f"[bt] write equity {eq_csv}", flush=True)
     eq_df.to_csv(eq_csv, index=False)
-
-    # 月次損益
-    mr = monthly_returns_from_equity(eq_df)
-    mr.to_csv(out_dir / "monthly_returns.csv", index=False)
+    monthly_path = out_dir / "monthly_returns.csv"
+    compute_monthly_returns(eq_csv, monthly_path)
 
     # 仮トレード（Buy&Hold）
     trades = trades_from_buyhold(df, capital)
@@ -16790,8 +19903,10 @@ def run_wfo(
         eq_df.to_csv(p, index=False)
         trades.to_csv(out_dir / f"trades_{name}.csv", index=False)
 
-        mr = monthly_returns_from_equity(eq_df)
+        # 月次損益＋トレード統計
+        mr = monthly_returns_from_equity(eq_df, trades_df=trades)
         mr.to_csv(out_dir / f"monthly_returns_{name}.csv", index=False)
+
         m = metrics_from_equity(eq_df["equity"])
         m.update(trade_metrics(trades))
         return m
@@ -17653,6 +20768,281 @@ ENTRY を増やすためには一時的に entry.prob_threshold を 0.49 へ下�
 
 
 
+=== file: ミチビキ FX 自動売買システム：仕様書 v4（正式版）.txt ===
+
+ミチビキ FX 自動売買システム：仕様書 v4（正式版）
+
+2025 / Windows版（PyQt6 GUI）
+
+0. 目的・ターゲット
+■ 目的
+
+MT5（MetaTrader5）を用い、
+「月間＋3％前後のリターンを目指す」AI自動売買システムを構築する。
+
+・月間3%は義務ではなく KPI（目標値）
+・最大ドローダウンは -15〜-20％以内 を安全圏とする
+・Walk-Forward 再学習、特徴量可視化、ランキングなどの分析基盤を内蔵する
+
+ミチビキは
+裁量 → 半自動 → 自動
+へ移行したい個人トレーダー向けの「運用支援ソフト」。
+
+■ ターゲットユーザー
+
+・Windows (10/11)
+・日本語環境
+・MT5ユーザー
+・初心者〜上級者まで
+・AI分析＋自動売買に興味がある人
+
+1. 全体アーキテクチャ
+
+3レイヤ構造で設計する。
+
+1) GUI 層（app.gui）
+
+・PyQt6 ベース
+・メイン画面、AIタブ、ランキングタブ、スケジューラ設定、ログビューアを含む
+
+2) サービス層（app.services）
+
+・AIサービス（AISvc）
+・KPI計算
+・Feature Importance / SHAP
+・JobScheduler（内蔵スケジューラ）
+・RankingService
+・ログ出力
+
+3) コア層（app.core）
+
+・MT5ラッパー
+・戦略ロジック
+・バックテストエンジン
+・データローダ
+・モデル管理
+
+2. 実行形態
+● GUIアプリとして起動（通常モード）
+● 将来的に「タスクトレイ常駐モード」へ拡張可能
+3. データ構造（共通フォルダ）
+config/                 設定ファイル  
+models/                 学習済みモデル  
+logs/                   ログ、決定ログ  
+backtests/{profile}/    バックテスト結果  
+
+4. エディション構成（v4）
+
+v3の構造に基づきつつ、Pro→Expertの差を強化して Expert ユーザー比率を最大化するよう最適化。
+
+■ 共通ルール
+
+・実行ファイルは全エディション共通
+・機能差は edition: free/basic/pro/expert/master フラグで制御
+・ライセンス認証または設定ファイルで決定
+
+◆ 各エディション詳細（v4）
+🔥 Free（無料版）
+目的
+
+お試し用。ユーザーを入り口に誘導する。
+
+機能
+
+・デモ口座のみ
+・自動売買：可能（ロット制限）
+・AIタブ：KPIのみ（勝率、今月損益％、PF 等）
+・Feature Importance / SHAP：非表示
+・ランキング：閲覧のみ（送信不可）
+・スケジューラ：画面表示のみ（設定不可／OFF固定）
+
+🔥 Basic（有料ライト版）
+用途
+
+初心者向けの本口座運用。
+
+月額想定：2,480円前後
+機能
+
+・本口座対応
+・単一プロファイルのみ
+・ランキング送信（Basicテーブル）
+・AIタブ：
+　- KPI
+　- 月間リターン簡易表示
+・スケジューラ：
+　- 週1再学習（曜日・時刻は固定）
+　- ON/OFFのみ可能
+・FI/SHAP：表示なし
+
+🔥 Pro（中級者版：便利だが“あと少し足りない”設計）
+月額想定：6,480円前後
+コンセプト
+
+SHAP / 分析が使えるが、「勝率に直結する深い設定」が不足するように意図的に設計
+
+機能
+
+・複数プロファイルに対応
+・Feature Importance：Top20
+・SHAP：Top3 まで
+・スケジューラ：
+　- 同時に 1 ジョブのみ
+　- 再学習 or 診断レポート のどちらか
+・ランキング：
+　- Pro専用ランキング
+　- リターン％のみ
+・フィルタ：
+　- 時間帯フィルタ
+　- ATRの単純しきい値（オンオフ）
+・バックテスト診断AI：
+　- 時間帯 × 相場タイプの基本分析のみ
+
+→ 十分に使えるが “Expertが欲しくなる” 位置付け
+
+🔥 Expert（最上位版：勝率に直結する全機能を装備）
+月額想定：8,980円前後
+
+（Proとの差を2,500円以内にするのが心理的に重要）
+
+コンセプト
+
+“勝率向上に関わる設定はすべてExpertに集約”
+ユーザーが最も選ぶ階層を意図的に作る。
+
+機能
+
+・複合フィルタ（ATR × ボラ × 時間帯 × トレンド強度）
+・連敗回避モード
+・勝率高いプロファイルの自動切り替え
+・Feature Importance：全件
+・SHAP：Top20（または全体）
+・バックテスト診断AI（完全版）：
+　- DD直前の特徴
+- 連勝区間特徴
+- 勝率上昇の相場条件抽出
+- 損益曲線の異常点の検出
+・スケジューラ：
+- 複数ジョブ（再学習＋診断＋ログ整理など）
+- 自動ジョブ連鎖
+- 月次自動運用テンプレ
+・ランキング：
+- Expert専用複合スコア（リターン×DD×PF）
+- 過去履歴の完全同期
+- 自動送信 ON/OFF 可能
+
+→ 実運用者のほぼ全員が選ぶ階層（狙い通り Expert 5割に寄る）
+
+🔥 Master（開発者版）
+
+一般販売なし。
+全機能解放。
+ランキングサーバ設定、APIキー、検証用ツールすべて使用可能。
+
+5. JobScheduler（内蔵スケジューラ）
+■ 基本仕様
+
+・Windowsタスクスケジューラは使用しない
+・アプリ内で
+　- 時刻管理
+　- ジョブ管理
+　- 実行履歴
+　を完結させる
+
+■ v4エディション差分
+Free
+
+・表示のみ／機能は無効
+
+Basic
+
+・週1再学習（固定時刻）
+・ON/OFFのみ
+
+Pro
+
+・ジョブを1つだけ登録可能
+・再学習 OR 診断AI のどちらかのみ選択可
+・詳細ログなし（簡易ログ）
+
+Expert
+
+・複数ジョブ
+・ジョブ連鎖（例：再学習→診断→最適プロファイル切替）
+・詳細ログ
+・毎週／毎日／月末処理が可能
+・ログ圧縮、バックアップもジョブ化できる
+
+6. AIタブ（KPI / Feature Importance / SHAP / 診断）
+■ Pro
+
+・KPI
+・FI Top20
+・SHAP Top3
+・基本診断（時間帯×相場タイプ）
+
+■ Expert
+
+・KPI
+・FI 全件
+・SHAP Top20
+・高度診断
+　- DD直前特性
+- 連勝区間
+- 勝率高い相場特徴
+- 損益曲線の異常点
+- 来週の簡易予測（Expert限定）
+
+7. フィルタ設定
+■ Pro
+
+・時間帯フィルタ
+・ATR オンオフ
+・簡易フィルタのみ
+
+■ Expert
+
+・複合フィルタ（ATR × ボラ × 時間帯 × トレンド）
+・連敗回避
+・勝率高いプロファイル自動切替
+・ボラ帯ごとの戦略最適化
+
+8. ランキング（任意機能）
+■ Basic
+
+・Basicランキング送信
+・閲覧可
+
+■ Pro
+
+・Proランキング
+・リターン％のみ
+・手動送信
+
+■ Expert
+
+・Expert複合スコア
+・過去履歴がサーバに保存
+・自動送信ON/OFF
+・複合スコア（リターン×DD×PF）
+
+9. 日本語仕様
+
+・UI・メッセージはすべて日本語
+・ログは日本語＋簡易英語併記
+・文字コード UTF-8（BOMなし）
+
+10. 付録：推奨価格モデル（v4）
+Basic：2,480円/月  
+Pro：6,480円/月  
+Expert：8,980円/月  
+初期費用（買い切り）：9,800〜29,800円  
+
+
+※ProとExpertの差を小さくすることで
+　Expert比率を約50%に誘導できる。
+
+
 === file: 仕様書.txt ===
 
 仕様の統合まとめ（＋実戦で効く追記）
@@ -18211,11 +21601,6 @@ Freeは閲覧のみ、Basic以上で送信ボタン有効。
 
 
 
-=== file: 仮想環境.txt ===
-
-D:\venv\fxbot-pca\.venv\Scripts\Activate.ps1
-
-
 === file: 作業6～8.txt ===
 
 作業6 結果
@@ -18530,6 +21915,190 @@ PS D:\macht\OneDrive\fxbot> Get-Content logs\decisions\decisions_*.jsonl | Selec
 
 make_csv_from_mt5.py
 python -m scripts.make_csv_from_mt5 --layout per-symbol
+
+
+=== file: 設定/フォルダ構成.txt ===
+
+# ==== フォルダツリー作成スクリプト ====
+# 出力: project_tree.txt
+# フォルダ: D:\fxbot（必要なら書き換え）
+
+$root = "D:\fxbot"
+$output = "project_tree.txt"
+
+function Write-Tree {
+    param(
+        [System.IO.DirectoryInfo]$Dir,
+        [int]$Level
+    )
+
+    $indent = " " * ($Level * 2)
+    Add-Content -Path $output -Value ("{0}{1}/" -f $indent, $Dir.Name)
+
+    # ファイル一覧
+    foreach ($file in $Dir.GetFiles()) {
+        Add-Content -Path $output -Value ("{0}  {1}" -f $indent, $file.Name)
+    }
+
+    # サブディレクトリを再帰処理
+    foreach ($sub in $Dir.GetDirectories()) {
+        Write-Tree -Dir $sub -Level ($Level + 1)
+    }
+}
+
+# 既存ファイルがあれば削除
+if (Test-Path $output) {
+    Remove-Item $output
+}
+
+# 実行
+Write-Tree -Dir (Get-Item $root) -Level 0
+
+Write-Host "フォルダツリーを project_tree.txt に保存しました。"
+
+
+=== file: 設定/仮.txt ===
+
+# PowerShell 7 用：ruff.toml / mypy.ini / .vscode/settings.json をまとめて作成
+cd D:\fxbot
+
+$code = @'
+from pathlib import Path
+
+# ==== 前提：ここでのカレントディレクトリが D:\fxbot ====
+root = Path.cwd()
+print(f"[INFO] working dir = {root}")
+
+# -------------------------------
+# ruff.toml の中身
+# -------------------------------
+ruff_toml = r"""
+line-length = 88
+target-version = "py311"
+
+# .venv や結果フォルダはリンティング対象外
+extend-exclude = [
+    ".venv",
+    "backtests",
+    "models",
+    "logs",
+    "dist",
+    "build",
+]
+
+[lint]
+# ベーシックな lint + バグ検出 + import 整理 + 近代化 + シンプル化
+select = [
+    "E",  # pycodestyle (PEP8)
+    "F",  # pyflakes
+    "W",  # 一般的な警告
+    "B",  # flake8-bugbear（バグになりそうなパターン）
+    "I",  # isort（import 並べ替え）
+    "UP", # pyupgrade（最新構文へ）
+    "SIM" # flake8-simplify（書き方の簡略化）
+]
+
+# 行長は black に任せるので E501 は無視
+ignore = ["E501"]
+
+[lint.isort]
+known-first-party = ["app"]
+combine-as-imports = true
+"""
+
+# -------------------------------
+# mypy.ini の中身
+# -------------------------------
+mypy_ini = r"""
+[mypy]
+python_version = 3.13
+warn_unused_configs = True
+
+# 外部ライブラリ（MetaTrader5 など）の型定義がなくてもエラーにしない
+ignore_missing_imports = True
+
+# そこそこ厳しめだけど全壊はしないバランス
+no_implicit_optional = True
+warn_redundant_casts = True
+warn_unused_ignores = True
+warn_return_any = True
+strict_equality = True
+
+# 将来的に app.* だけはちょっと厳しめにする
+[mypy-app.*]
+disallow_untyped_defs = True
+check_untyped_defs = True
+
+# scripts はユーティリティが多いので少し緩め
+[mypy-scripts.*]
+disallow_untyped_defs = False
+check_untyped_defs = False
+"""
+
+# -------------------------------
+# VSCode の .vscode/settings.json
+# -------------------------------
+settings_json = r"""
+{
+  // ==== Python インタプリタ（.venv） ====
+  "python.defaultInterpreterPath": "D:\\fxbot\\.venv\\Scripts\\python.exe",
+
+  // 行末・末尾改行の整理（Git 用）
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+
+  // 全体として保存時フォーマットを有効化
+  "editor.formatOnSave": true,
+
+  // Python ファイルだけの設定
+  "[python]": {
+    // フォーマッタは Black 担当
+    "editor.defaultFormatter": "ms-python.black-formatter",
+    // 保存時に Ruff の fix / import 並べ替えを走らせる
+    "editor.codeActionsOnSave": {
+      "source.fixAll": "explicit",
+      "source.organizeImports": "explicit"
+    }
+  },
+
+  // 旧 Python 拡張の linter は使わない（Ruff に一本化）
+  "python.linting.enabled": false,
+
+  // Ruff VSCode 拡張の挙動
+  "ruff.enable": true,
+  "ruff.run": "onSave",
+
+  // Mypy 拡張を入れている場合だけ有効になる設定（なければ無視される）
+  "mypy-type-checker.args": [
+    "--config-file",
+    "${workspaceFolder}/mypy.ini"
+  ]
+}
+"""
+
+# ==== ファイル出力 ====
+# ruff.toml
+( root / "ruff.toml" ).write_text(ruff_toml.lstrip(), encoding="utf-8")
+print("[OK] ruff.toml を作成しました。")
+
+# mypy.ini
+( root / "mypy.ini" ).write_text(mypy_ini.lstrip(), encoding="utf-8")
+print("[OK] mypy.ini を作成しました。")
+
+# .vscode/settings.json
+vscode_dir = root / ".vscode"
+vscode_dir.mkdir(exist_ok=True)
+( vscode_dir / "settings.json" ).write_text(settings_json.lstrip(), encoding="utf-8")
+print("[OK] .vscode/settings.json を作成しました。")
+'@
+
+python -c "$code"
+
+
+
+=== file: 設定/仮想環境.txt ===
+
+D:\venv\fxbot-pca\.venv\Scripts\Activate.ps1
 
 
 === file: 質問.txt ===

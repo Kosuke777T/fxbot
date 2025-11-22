@@ -13,12 +13,14 @@ backtests/{profile}/monthly_returns.csv を必ず出すように統一。
 CSVのカラム仕様を固定（年月、リターン％、DD％など）。
 
 将来のランキング・AIタブ・診断AIがこの形式を前提に動くようにする。
+完了
 
 M-A2：基準ストラテジー（ミチビキ標準プロファイル）の確定
 
 WFO＋ATRベースで「とりあえず3％を狙える」設定を1つ決める。
 
 そのプロファイルを Master/Expert のデフォルトにする。
+完了
 
 M-A3：target_monthly_return / max_monthly_dd を使うロット計算ロジック
 

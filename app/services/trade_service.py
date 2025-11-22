@@ -4,6 +4,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, Dict, Iterable, Optional
+import logging
 
 from app.core import mt5_client
 from app.core.config_loader import load_config
@@ -14,6 +15,11 @@ from core.config import cfg
 from core.indicators import atr as _atr
 from core.position_guard import PositionGuard
 from core.utils.clock import now_jst
+
+from app.core.mt5_client import MT5Client, TickSpec
+from app.core.strategy_profile import StrategyProfile, get_profile
+from core.risk import LotSizingResult
+#from app.core.risk import LotSizingResult
 
 
 @dataclass
@@ -46,7 +52,15 @@ def snapshot_account() -> Optional[dict]:
 class TradeService:
     """Facade that coordinates guards, circuit breaker, and decision helpers."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        mt5_client: MT5Client | None = None,
+        profile: StrategyProfile | None = None,
+    ) -> None:
+        self._mt5 = mt5_client
+        self._profile = profile or get_profile()
+        self._last_lot_result: LotSizingResult | None = None
+        self._logger = logging.getLogger(__name__)
         self.pos_guard = PositionGuard()
         self.cb = CircuitBreaker()
         self._reconcile_interval = 15
@@ -54,6 +68,53 @@ class TradeService:
         self._last_reconcile = 0.0
         self.state = trade_state.get_runtime()
         self.reload()
+
+    def _compute_lot_for_entry(self, symbol: str, atr: float) -> LotSizingResult:
+        """
+        1トレードあたりのロット数を、現在の equity / ATR / tick 情報から計算する。
+
+        atr: エントリー直前の足で計算した ATR 値（価格単位）
+        """
+        if atr is None or atr <= 0:
+            # ATR が変な場合は、プロファイルのデフォルトロットにフォールバック
+            default_lot = getattr(self._profile, "default_lot", None)
+            if default_lot is None:
+                default_lot = float(self._config.trade.default_lot)  # プロジェクト側の設定名に合わせてください
+
+            self._logger.warning(
+                "ATR が無効 (atr=%s) のため、default_lot=%.2f を使用します。",
+                atr,
+                default_lot,
+            )
+            return LotSizingResult(
+                lot=default_lot,
+                capped_by_max_risk=False,
+                effective_risk_pct=None,
+                note="fallback_default_lot_due_to_invalid_atr",
+            )
+
+        equity = self._mt5.get_equity()
+        tick_spec: TickSpec = self._mt5.get_tick_spec(symbol)
+
+        result = self._profile.compute_lot_size_from_atr(
+            equity=equity,
+            atr=atr,
+            tick_size=tick_spec.tick_size,
+            tick_value=tick_spec.tick_value,
+        )
+
+        self._logger.info(
+            "ロット計算: equity=%.2f atr=%.5f tick_size=%.5f tick_value=%.5f -> lot=%.2f (capped=%s risk=%.3f)",
+            equity,
+            atr,
+            tick_spec.tick_size,
+            tick_spec.tick_value,
+            result.lot,
+            result.capped_by_max_risk,
+            (result.effective_risk_pct or 0.0),
+        )
+
+        return result
 
     # ------------------------------------------------------------------ #
     # Configuration & helpers
@@ -129,6 +190,85 @@ class TradeService:
 
     def can_trade(self) -> bool:
         return self.cb.can_trade()
+
+    def open_position(
+        self,
+        symbol: str,
+        direction: str,
+        sl: float | None = None,
+        tp: float | None = None,
+        *,
+        atr: float | None = None,
+        volume: float | None = None,
+        comment: str = "",
+    ) -> None:
+        """
+        エントリー用メソッド。
+
+        Parameters
+        ----------
+        symbol : str
+            通貨ペア。
+        direction : str
+            "buy" or "sell"。
+        sl : float | None
+            損切り価格。
+        tp : float | None
+            利確価格。
+        atr : float | None
+            エントリー直前の足で計算した ATR。
+        volume : float | None
+            ロット数。None の場合、atr + 口座情報から自動計算。
+        comment : str
+            MT5 オーダーコメント。
+        """
+        if self._mt5 is None:
+            raise RuntimeError("MT5 client is not configured on TradeService.")
+        if self._profile is None:
+            raise RuntimeError("Strategy profile is not configured on TradeService.")
+
+        side = direction.upper()
+        if side not in {"BUY", "SELL"}:
+            raise ValueError('direction must be "buy" or "sell"')
+
+        # --- ロット計算 ---
+        if volume is None:
+            if atr is None:
+                raise ValueError(
+                    "volume も atr も指定されていません。"
+                    "ATRベース自動ロット計算を使う場合は atr を渡してください。"
+                )
+
+            equity = float(self._mt5.get_equity())
+            tick_spec: TickSpec = self._mt5.get_tick_spec(symbol)
+
+            lot_result: LotSizingResult = self._profile.compute_lot_size_from_atr(
+                equity=equity,
+                atr=atr,
+                tick_size=tick_spec.tick_size,
+                tick_value=tick_spec.tick_value,
+            )
+
+            raw_volume = getattr(lot_result, "volume", None)
+            if raw_volume is None:
+                raw_volume = getattr(lot_result, "lot", None)
+            if raw_volume is None:
+                raise ValueError("LotSizingResult に lot/volume がありません。")
+
+            volume = float(raw_volume)
+            self._last_lot_result = lot_result
+        else:
+            # volume が明示されている場合は、それを優先
+            self._last_lot_result = None
+
+        self._mt5.order_send(
+            symbol=symbol,
+            order_type=side,
+            lot=float(volume),
+            sl=sl,
+            tp=tp,
+            comment=comment,
+        )
 
     def mark_order_inflight(self, order_id: str) -> None:
         self.pos_guard.mark_inflight(order_id)
