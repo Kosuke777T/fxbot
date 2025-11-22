@@ -1,1 +1,5 @@
+デスクトップパソコン
 D:\venv\fxbot-pca\.venv\Scripts\Activate.ps1
+
+ノートパソコン
+D:\venv\fxbot-pcb\.venv\Scripts\Activate.ps1
