@@ -1,0 +1,134 @@
+# PowerShell 7 用：ruff.toml / mypy.ini / .vscode/settings.json をまとめて作成
+cd D:\fxbot
+
+$code = @'
+from pathlib import Path
+
+# ==== 前提：ここでのカレントディレクトリが D:\fxbot ====
+root = Path.cwd()
+print(f"[INFO] working dir = {root}")
+
+# -------------------------------
+# ruff.toml の中身
+# -------------------------------
+ruff_toml = r"""
+line-length = 88
+target-version = "py311"
+
+# .venv や結果フォルダはリンティング対象外
+extend-exclude = [
+    ".venv",
+    "backtests",
+    "models",
+    "logs",
+    "dist",
+    "build",
+]
+
+[lint]
+# ベーシックな lint + バグ検出 + import 整理 + 近代化 + シンプル化
+select = [
+    "E",  # pycodestyle (PEP8)
+    "F",  # pyflakes
+    "W",  # 一般的な警告
+    "B",  # flake8-bugbear（バグになりそうなパターン）
+    "I",  # isort（import 並べ替え）
+    "UP", # pyupgrade（最新構文へ）
+    "SIM" # flake8-simplify（書き方の簡略化）
+]
+
+# 行長は black に任せるので E501 は無視
+ignore = ["E501"]
+
+[lint.isort]
+known-first-party = ["app"]
+combine-as-imports = true
+"""
+
+# -------------------------------
+# mypy.ini の中身
+# -------------------------------
+mypy_ini = r"""
+[mypy]
+python_version = 3.13
+warn_unused_configs = True
+
+# 外部ライブラリ（MetaTrader5 など）の型定義がなくてもエラーにしない
+ignore_missing_imports = True
+
+# そこそこ厳しめだけど全壊はしないバランス
+no_implicit_optional = True
+warn_redundant_casts = True
+warn_unused_ignores = True
+warn_return_any = True
+strict_equality = True
+
+# 将来的に app.* だけはちょっと厳しめにする
+[mypy-app.*]
+disallow_untyped_defs = True
+check_untyped_defs = True
+
+# scripts はユーティリティが多いので少し緩め
+[mypy-scripts.*]
+disallow_untyped_defs = False
+check_untyped_defs = False
+"""
+
+# -------------------------------
+# VSCode の .vscode/settings.json
+# -------------------------------
+settings_json = r"""
+{
+  // ==== Python インタプリタ（.venv） ====
+  "python.defaultInterpreterPath": "D:\\fxbot\\.venv\\Scripts\\python.exe",
+
+  // 行末・末尾改行の整理（Git 用）
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+
+  // 全体として保存時フォーマットを有効化
+  "editor.formatOnSave": true,
+
+  // Python ファイルだけの設定
+  "[python]": {
+    // フォーマッタは Black 担当
+    "editor.defaultFormatter": "ms-python.black-formatter",
+    // 保存時に Ruff の fix / import 並べ替えを走らせる
+    "editor.codeActionsOnSave": {
+      "source.fixAll": "explicit",
+      "source.organizeImports": "explicit"
+    }
+  },
+
+  // 旧 Python 拡張の linter は使わない（Ruff に一本化）
+  "python.linting.enabled": false,
+
+  // Ruff VSCode 拡張の挙動
+  "ruff.enable": true,
+  "ruff.run": "onSave",
+
+  // Mypy 拡張を入れている場合だけ有効になる設定（なければ無視される）
+  "mypy-type-checker.args": [
+    "--config-file",
+    "${workspaceFolder}/mypy.ini"
+  ]
+}
+"""
+
+# ==== ファイル出力 ====
+# ruff.toml
+( root / "ruff.toml" ).write_text(ruff_toml.lstrip(), encoding="utf-8")
+print("[OK] ruff.toml を作成しました。")
+
+# mypy.ini
+( root / "mypy.ini" ).write_text(mypy_ini.lstrip(), encoding="utf-8")
+print("[OK] mypy.ini を作成しました。")
+
+# .vscode/settings.json
+vscode_dir = root / ".vscode"
+vscode_dir.mkdir(exist_ok=True)
+( vscode_dir / "settings.json" ).write_text(settings_json.lstrip(), encoding="utf-8")
+print("[OK] .vscode/settings.json を作成しました。")
+'@
+
+python -c "$code"

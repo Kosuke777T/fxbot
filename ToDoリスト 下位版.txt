@@ -1,0 +1,147 @@
+ToDoリスト 下位版（Free / Basic / Pro / Expert を Master から削る作業）
+
+ここからは「Master が全部動く前提」で、EditionGuard と機能制限をかけていくためのタスクリストです。
+
+L-A：EditionGuard 実装
+
+L-A1：EditionGuard クラス
+
+edition: str（"free/basic/pro/expert/master"）を受け取り、
+
+口座種別（demo only? real ok?）
+
+ロット上限
+
+スケジューラ最大ジョブ数
+
+診断AIレベル（なし / v0 / full）
+
+ランキング送信可否
+
+フィルタ設定レベル（なし / 簡易 / 複合）
+
+などを返す。
+
+L-A2：設定ファイル or ライセンス情報との連携
+
+config.edition.yaml やライセンスチェックAPIを想定。
+
+とりあえずはローカル設定で edition を切替できるようにして、後からライセンスサーバに繋げる前提。
+
+L-B：エディション別機能ロック（サービス層）
+
+L-B1：MT5接続制限
+
+Free：デモ口座のみ
+
+Basic以上：本口座も許可
+
+実装：MT5Client初期化前に EditionGuard に問い合わせる。
+
+L-B2：AIタブの制限
+
+Free：KPIのみ、FI/SHAP/診断は非表示。
+
+Basic：KPI＋月次リターン簡易表示のみ。
+
+Pro：FI Top20、SHAP Top3、診断AI v0。
+
+Expert：FI全件、SHAP Top20、診断AIフル。
+
+L-B3：フィルタ機能の制限
+
+Free/Basic：フィルタUI非表示 or 最低限。
+
+Pro：時間帯＋ATRオンオフのみ。
+
+Expert：M-B系の全部。
+
+L-C：スケジューラのエディション別制限
+
+L-C1：JobScheduler × EditionGuard 連携
+
+Free：表示のみ／内部的には scheduler.enabled=False 固定。
+
+Basic：週1再学習のみ、ON/OFFのみ。
+
+Pro：1ジョブのみ、job_type は「再学習」か「診断」のどちらか。
+
+Expert：Masterと同等の複数ジョブ・連鎖。
+
+L-C2：スケジューラUI制御
+
+ボタン disable / hidden の切り替え。
+
+編集できないフィールドにはロックアイコン＋ツールチップで説明。
+
+L-D：ランキング機能のエディション別制限
+
+L-D1：送信可否＋スコア内容の制限
+
+Free：閲覧のみ（送信ボタン非表示）。
+
+Basic：Basicランキングへ送信可。表示内容はリターン中心。
+
+Pro：Pro専用ランキング、表示はリターン％のみ。
+
+Expert：複合スコア（リターン×DD×PF）、自動送信 ON/OFF。
+
+L-D2：ランキングタブUI調整
+
+Edition ごとにラベルや説明文を変える（「あなたのプランでは○○まで使えます」など）。
+
+L-E：日本語UI・コピーの調整（“商品としての顔” 部分）
+
+L-E1：エディション別の説明テキスト
+
+各タブに「このエディションではここまで使えます」の一言ヘルプ。
+
+特に Pro→Expert へのアップグレード動機を強調する文言を用意。
+
+L-E2：About 画面に edition 表示
+
+「ミチビキ Free」「ミチビキ Expert」などを明示。
+
+アップグレード案内ページへのリンク（将来の販売サイトURL）。
+
+L-F：エディション別テスト・チェックリスト
+
+L-F1：Free版チェック
+
+デモのみ接続
+
+スケジューラOFF固定
+
+ランキング送信不可
+
+AIタブがKPIのみ
+
+L-F2：Basic版チェック
+
+本口座接続可
+
+週1再学習ON/OFFのみ
+
+Basicランキング送信OK
+
+AIタブ簡易表示
+
+L-F3：Pro版チェック
+
+複数プロファイル動作
+
+FI Top20 / SHAP3
+
+スケジューラ1ジョブ制限
+
+Proランキング（リターンのみ）
+
+L-F4：Expert版チェック
+
+複合フィルタ
+
+連敗回避＋自動プロファイル切替
+
+スケジューラ複数ジョブ＋連鎖
+
+Expert複合スコアランキング

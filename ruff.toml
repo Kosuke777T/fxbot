@@ -1,0 +1,31 @@
+line-length = 88
+target-version = "py311"
+
+# .venv や結果フォルダはリンティング対象外
+extend-exclude = [
+    ".venv",
+    "backtests",
+    "models",
+    "logs",
+    "dist",
+    "build",
+]
+
+[lint]
+# ベーシックな lint + バグ検出 + import 整理 + 近代化 + シンプル化
+select = [
+    "E",  # pycodestyle (PEP8)
+    "F",  # pyflakes
+    "W",  # 一般的な警告
+    "B",  # flake8-bugbear（バグになりそうなパターン）
+    "I",  # isort（import 並べ替え）
+    "UP", # pyupgrade（最新構文へ）
+    "SIM" # flake8-simplify（書き方の簡略化）
+]
+
+# 行長は black に任せるので E501 は無視
+ignore = ["E501"]
+
+[lint.isort]
+known-first-party = ["app"]
+combine-as-imports = true

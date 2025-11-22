@@ -227,14 +227,130 @@ def metrics_from_equity(eq: pd.Series) -> dict:
     }
 
 
-def monthly_returns_from_equity(eq_df: pd.DataFrame) -> pd.DataFrame:
+def monthly_returns_from_equity(
+    eq_df: pd.DataFrame,
+    trades_df: pd.DataFrame | None = None,
+) -> pd.DataFrame:
+    """
+    エクイティ曲線（eq_df）とトレード一覧（trades_df）から、
+    月次のリターン・DD・トレード統計をまとめた DataFrame を返す。
+
+    返り値カラム:
+        year, month, return_pct, dd_pct, trades, win_rate, pf
+    """
+    if eq_df is None or eq_df.empty:
+        return pd.DataFrame(
+            columns=[
+                "year",
+                "month",
+                "return_pct",
+                "dd_pct",
+                "trades",
+                "win_rate",
+                "pf",
+            ]
+        )
+
     df = eq_df.copy()
-    df = df.set_index(pd.to_datetime(df["time"]))
-    m = df["equity"].resample("ME").last().pct_change().dropna()
-    out = m.to_frame(name="m_return")
+    df["time"] = pd.to_datetime(df["time"])
+    df = df.sort_values("time")
+    df = df.set_index("time")
+
+    # --- 月次のリターン（％） ---
+    monthly_last = df["equity"].resample("ME").last()
+    monthly_first = df["equity"].resample("ME").first()
+
+    # 0割り防止
+    ret_raw = (monthly_last / monthly_first).replace([np.inf, -np.inf], np.nan) - 1.0
+    return_pct = (ret_raw * 100.0).rename("return_pct")  # ％に変換
+
+    # --- 月次の最大ドローダウン（％） ---
+    def _month_dd(equity: pd.Series) -> float:
+        if equity.empty:
+            return 0.0
+        dd = (equity / equity.cummax() - 1.0).min()
+        return float(dd * 100.0)  # ％に変換（-5.4 なら -5.4%）
+
+    dd_pct = df["equity"].resample("ME").apply(_month_dd).rename("dd_pct")
+
+    # ベースとなる DataFrame（year/month 作成）
+    out = pd.concat([return_pct, dd_pct], axis=1).dropna(how="all")
+    if out.empty:
+        return pd.DataFrame(
+            columns=[
+                "year",
+                "month",
+                "return_pct",
+                "dd_pct",
+                "trades",
+                "win_rate",
+                "pf",
+            ]
+        )
+
+    out.index = pd.to_datetime(out.index)
     out["year"] = out.index.year
     out["month"] = out.index.month
-    return out.reset_index(drop=True)
+
+    # デフォルト値（トレード統計は 0 で初期化）
+    out["trades"] = 0
+    out["win_rate"] = 0.0
+    out["pf"] = 0.0
+
+    # --- トレード統計（月次） ---
+    if trades_df is not None and not trades_df.empty and "exit_time" in trades_df.columns:
+        td = trades_df.copy()
+        td["exit_time"] = pd.to_datetime(td["exit_time"])
+        td = td.dropna(subset=["exit_time"])
+
+        if "pnl" in td.columns:
+            td["pnl"] = pd.to_numeric(td["pnl"], errors="coerce").fillna(0.0)
+
+            rows = []
+            for (y, m), g in td.groupby([td["exit_time"].dt.year, td["exit_time"].dt.month]):
+                pnl = g["pnl"].astype(float)
+                n_tr = int(len(pnl))
+                if n_tr == 0:
+                    continue
+                win_mask = pnl > 0
+                win_rate = float(win_mask.mean() * 100.0)
+
+                sum_win = float(pnl[win_mask].sum())
+                sum_loss_abs = float((-pnl[~win_mask]).clip(lower=0).sum())
+
+                if sum_loss_abs > 0:
+                    pf = float(sum_win / sum_loss_abs)
+                elif sum_win > 0:
+                    pf = float("inf")
+                else:
+                    pf = 0.0
+
+                rows.append(
+                    {
+                        "year": int(y),
+                        "month": int(m),
+                        "trades": n_tr,
+                        "win_rate": win_rate,
+                        "pf": pf,
+                    }
+                )
+
+            if rows:
+                stats = pd.DataFrame(rows)
+                out = out.merge(stats, on=["year", "month"], how="left", suffixes=("", "_t"))
+
+                # 欠損を初期値で埋める
+                out["trades"] = out["trades_t"].fillna(out["trades"]).astype(int)
+                out["win_rate"] = out["win_rate_t"].fillna(out["win_rate"])
+                out["pf"] = out["pf_t"].fillna(out["pf"])
+
+                # 一時列を削除
+                out = out.drop(columns=[c for c in out.columns if c.endswith("_t")])
+
+    # カラム順を最終仕様に揃える
+    out = out[["year", "month", "return_pct", "dd_pct", "trades", "win_rate", "pf"]]
+    out = out.reset_index(drop=True)
+    return out
 
 
 def trades_from_buyhold(df: pd.DataFrame, capital: float) -> pd.DataFrame:
@@ -360,13 +476,14 @@ def run_backtest(
     print(f"[bt] write equity {eq_csv}", flush=True)
     eq_df.to_csv(eq_csv, index=False)
 
-    # 月次損益
-    mr = monthly_returns_from_equity(eq_df)
-    mr.to_csv(out_dir / "monthly_returns.csv", index=False)
-
     # 仮トレード（Buy&Hold）
     trades = trades_from_buyhold(df, capital)
     trades.to_csv(out_dir / "trades.csv", index=False)
+
+    # 月次損益＋トレード統計
+    mr = monthly_returns_from_equity(eq_df, trades_df=trades)
+    mr.to_csv(out_dir / "monthly_returns.csv", index=False)
+
 
     # メトリクス
     base = metrics_from_equity(eq_df["equity"])
@@ -460,8 +577,10 @@ def run_wfo(
         eq_df.to_csv(p, index=False)
         trades.to_csv(out_dir / f"trades_{name}.csv", index=False)
 
-        mr = monthly_returns_from_equity(eq_df)
+        # 月次損益＋トレード統計
+        mr = monthly_returns_from_equity(eq_df, trades_df=trades)
         mr.to_csv(out_dir / f"monthly_returns_{name}.csv", index=False)
+
         m = metrics_from_equity(eq_df["equity"])
         m.update(trade_metrics(trades))
         return m
