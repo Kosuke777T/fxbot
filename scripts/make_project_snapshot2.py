@@ -40,17 +40,6 @@ EXCLUDE_DIR_NAMES = {
 # 中身を書き出す対象の拡張子
 INCLUDE_EXTENSIONS = {
     ".py",
-    ".txt",
-    ".md",
-    ".rst",
-    ".yaml",
-    ".yml",
-    ".ini",
-    ".toml",
-    ".json",
-    ".ps1",
-    ".bat",
-    ".sh",
 }
 
 # ファイルサイズの上限（バイト）。これを超えると中身はスキップしてヘッダだけ書く
@@ -117,6 +106,8 @@ def make_tree_text(root: Path) -> str:
             lines.append(f"{indent}{name}/")
         else:
             # ファイル（最終更新日時を付ける）
+            if p.suffix.lower() != ".py":
+                continue
             try:
                 mtime = datetime.fromtimestamp(p.stat().st_mtime)
                 mtime_str = mtime.strftime("%Y-%m-%d %H:%M:%S")

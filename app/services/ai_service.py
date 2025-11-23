@@ -231,3 +231,102 @@ class AISvc:
         self._shap_cache_ts = now
 
         return df_result
+
+    def get_live_probs(self, symbol: str) -> dict[str, float]:
+        """
+        Live 用：execution_stub と同じ特徴量パイプラインを使って
+        確率と atr_for_lot を返す簡易版。
+        """
+        from app.core import market
+        from app.core.config_loader import load_config
+        from app.services.execution_stub import _collect_features
+
+        # tick が取れない場合は素直に全部 SKIP に倒す
+        try:
+            tick = market.tick(symbol)
+        except Exception:
+            tick = None
+
+        if not tick:
+            return {
+                "p_buy": 0.0,
+                "p_sell": 0.0,
+                "p_skip": 1.0,
+                "atr_for_lot": 0.0,
+            }
+
+        # 設定から base_features を取得（execution_stub と揃える）
+        try:
+            cfg = load_config()
+        except Exception:
+            cfg = {}
+
+        ai_cfg = cfg.get("ai", {}) if isinstance(cfg, dict) else {}
+        base_features = tuple(ai_cfg.get("features", {}).get("base", []))
+
+        # spread を market から取得（なければ 0.0）
+        try:
+            spr_callable = getattr(market, "spread", None)
+            spread_pips = spr_callable(symbol) if callable(spr_callable) else 0.0
+        except Exception:
+            spread_pips = 0.0
+
+        # 現在のオープンポジション数は、とりあえず 0 として扱う
+        open_positions = 0
+
+        # execution_stub と同じダミー特徴量生成ロジックを使う
+        features = _collect_features(
+            symbol,
+            base_features,
+            tick,
+            spread_pips,
+            open_positions,
+        )
+
+        # モデルで確率予測
+        prob = self.predict(features)
+
+        # ロット計算用 ATR（price 単位）＝特徴量 atr_14 と同じもの
+        atr_for_lot = float(features.get("atr_14", 0.0))
+
+        return {
+            "p_buy": float(prob.p_buy),
+            "p_sell": float(prob.p_sell),
+            "p_skip": float(prob.p_skip),
+            "atr_for_lot": atr_for_lot,
+        }
+
+
+    def build_decision_from_probs(self, probs: dict, symbol: str) -> dict:
+        """
+        Live 用：execution_stub の ENTRY/SKIP 判定を最小限で再現。
+        ATR や threshold は設定ファイルを参照する。
+        """
+        from app.core.config_loader import load_config
+        cfg = load_config()
+        thr = float(cfg.get("entry", {}).get("prob_threshold", 0.5))
+
+        p_buy = probs["p_buy"]
+        p_sell = probs["p_sell"]
+
+        # SKIP 条件
+        if p_buy < thr and p_sell < thr:
+            return {"action": "SKIP", "reason": "ai_threshold"}
+
+        # どちらを選ぶか
+        if p_buy >= p_sell:
+            side = "BUY"
+            prob = p_buy
+        else:
+            side = "SELL"
+            prob = p_sell
+
+        return {
+            "action": "ENTRY",
+            "signal": {
+                "side": side,
+                "atr_for_lot": probs.get("atr_for_lot"),
+                "prob": prob,
+            },
+            "reason": "entry_ok",
+        }

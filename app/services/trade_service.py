@@ -191,80 +191,62 @@ class TradeService:
     def can_trade(self) -> bool:
         return self.cb.can_trade()
 
+
     def open_position(
         self,
         symbol: str,
-        direction: str,
+        side: str,
+        lot: float | None = None,
+        atr: float | None = None,
         sl: float | None = None,
         tp: float | None = None,
-        *,
-        atr: float | None = None,
-        volume: float | None = None,
         comment: str = "",
     ) -> None:
         """
-        エントリー用メソッド。
-
-        Parameters
-        ----------
-        symbol : str
-            通貨ペア。
-        direction : str
-            "buy" or "sell"。
-        sl : float | None
-            損切り価格。
-        tp : float | None
-            利確価格。
-        atr : float | None
-            エントリー直前の足で計算した ATR。
-        volume : float | None
-            ロット数。None の場合、atr + 口座情報から自動計算。
-        comment : str
-            MT5 オーダーコメント。
+        MT5 への発注。ATR を元に lot 計算を優先し、なければ ATR なしのフォールバック lot で送信。
         """
         if self._mt5 is None:
             raise RuntimeError("MT5 client is not configured on TradeService.")
         if self._profile is None:
             raise RuntimeError("Strategy profile is not configured on TradeService.")
 
-        side = direction.upper()
-        if side not in {"BUY", "SELL"}:
-            raise ValueError('direction must be "buy" or "sell"')
+        side_up = side.upper()
+        if side_up not in {"BUY", "SELL"}:
+            raise ValueError('side must be "buy" or "sell"')
 
-        # --- ロット計算 ---
-        if volume is None:
-            if atr is None:
-                raise ValueError(
-                    "volume も atr も指定されていません。"
-                    "ATRベース自動ロット計算を使う場合は atr を渡してください。"
-                )
+        equity = float(self._mt5.get_equity())
+        tick_spec: TickSpec = self._mt5.get_tick_spec(symbol)
 
-            equity = float(self._mt5.get_equity())
-            tick_spec: TickSpec = self._mt5.get_tick_spec(symbol)
+        lot_result: LotSizingResult | None = None
+        lot_val = lot
 
-            lot_result: LotSizingResult = self._profile.compute_lot_size_from_atr(
+        # ATR が指定されていて lot が決まっていない場合は ATR ベースで計算
+        if (lot_val is None or lot_val == 0) and atr is not None and atr > 0:
+            lot_result = self._profile.compute_lot_size_from_atr(
                 equity=equity,
                 atr=atr,
                 tick_size=tick_spec.tick_size,
                 tick_value=tick_spec.tick_value,
             )
-
-            raw_volume = getattr(lot_result, "volume", None)
+            raw_volume = getattr(lot_result, "lot", None)
             if raw_volume is None:
-                raw_volume = getattr(lot_result, "lot", None)
-            if raw_volume is None:
-                raise ValueError("LotSizingResult に lot/volume がありません。")
+                raw_volume = getattr(lot_result, "volume", None)
+            if raw_volume is not None:
+                lot_val = float(raw_volume)
 
-            volume = float(raw_volume)
-            self._last_lot_result = lot_result
-        else:
-            # volume が明示されている場合は、それを優先
-            self._last_lot_result = None
+        # フォールバック: ATR が無い/0 のときはデフォルト lot を使う
+        if lot_val is None or lot_val <= 0:
+            default_lot = getattr(self._profile, "default_lot", None)
+            if default_lot is None:
+                default_lot = float((cfg.get("trade", {}) or {}).get("default_lot", 0.01))
+            lot_val = float(default_lot)
+
+        self._last_lot_result = lot_result
 
         self._mt5.order_send(
             symbol=symbol,
-            order_type=side,
-            lot=float(volume),
+            order_type=side_up,
+            lot=float(lot_val),
             sl=sl,
             tp=tp,
             comment=comment,
@@ -319,6 +301,81 @@ class TradeService:
 # Module-level helpers (backwards compatibility)
 # ------------------------------------------------------------------ #
 SERVICE = TradeService()
+
+
+def execute_decision(
+    decision: Dict[str, Any],
+    *,
+    symbol: Optional[str] = None,
+    service: Optional[TradeService] = None,
+) -> None:
+    """
+    Live 用のヘルパ:
+    decision dict から TradeService.open_position(...) を呼び出す。
+
+    期待する decision 形式の例::
+        {
+            "action": "ENTRY",
+            "reason": "entry_ok",
+            "signal": {
+                "side": "BUY",
+                "atr_for_lot": 0.0042,
+                ...
+            },
+            "dec": {...},
+        }
+
+    - action != "ENTRY" の場合は何もしない
+    - side や symbol が足りなければ何もしない
+    - atr_for_lot はそのまま open_position(atr=...) に渡す
+      （lot=None として渡し、TradeService 側で ATR ベースのロット計算を使う）
+    """
+    if not isinstance(decision, dict):
+        # "SKIP" などの str が来た場合は黙って終了
+        return
+
+    action = decision.get("action")
+    if action != "ENTRY":
+        # エントリー以外（SKIP/BLOCKED/TRAIL_UPDATE）はここでは何もしない
+        return
+
+    signal = decision.get("signal") or {}
+    if not isinstance(signal, dict):
+        return
+
+    side = signal.get("side")
+    if not side:
+        # どっちに建てるか不明なら何もしない
+        return
+
+    atr_for_lot = signal.get("atr_for_lot")
+
+    svc = service or SERVICE
+
+    # symbol が指定されていなければ設定ファイルから拾う（なければ何もしない）
+    sym = symbol
+    if not sym:
+        try:
+            from app.core.config_loader import load_config  # 遅延 import
+            cfg = load_config()
+            runtime_cfg = cfg.get("runtime", {}) if isinstance(cfg, dict) else {}
+            sym = runtime_cfg.get("symbol")
+        except Exception:
+            sym = None
+
+    if not sym:
+        # シンボルが決まらない場合はエントリーしない
+        return
+
+    # lot=None + atr=atr_for_lot で呼び出し
+    # open_position 側で StrategyProfile.compute_lot_size_from_atr を使って
+    # ATR ベースの自動ロット計算が走る（既に実装済み）
+    svc.open_position(
+        symbol=str(sym),
+        side=str(side),
+        lot=None,
+        atr=float(atr_for_lot) if atr_for_lot is not None else None,
+    )
 
 
 def can_open_new_position(symbol: Optional[str] = None) -> bool:

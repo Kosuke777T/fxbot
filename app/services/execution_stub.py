@@ -517,7 +517,12 @@ class ExecutionStub:
         grace_active = trade_service.post_fill_grace_active()
         base_filters["post_fill_grace"] = grace_active
 
-        def _emit(decision: Dict[str, Any], filters_ctx: Dict[str, Any], level: str = "info") -> None:
+        def _emit(decision: Any, filters_ctx: Dict[str, Any], level: str = "info") -> None:
+            # decision が str ("SKIP" など) の場合は dict として扱わずに抜ける
+            if not isinstance(decision, dict):
+                print("decision は dict ではありません:", decision)
+                return
+
             action = decision.get("action")
             reason = decision.get("reason")
 
@@ -784,8 +789,6 @@ class ExecutionStub:
             "prob": chosen_prob,
             "meta": chosen_side,
             "best_threshold": buy_threshold,
-            # ロット計算用 ATR（価格単位）
-            "atr_for_lot": float(atr_for_lot),
         }
 
         recent_ohlc = globals().get("get_recent_ohlc")
@@ -812,6 +815,9 @@ class ExecutionStub:
                     exit_plan = exit_builder(symbol, ohlc_tail)
 
         signal["exit_plan"] = exit_plan or {"mode": "none"}
+        # ロット計算用 ATR をシグナルにも載せて Live 側で参照できるようにする
+        if atr_for_lot is not None:
+            signal["atr_for_lot"] = float(atr_for_lot)
 
         _register_trailing_state(symbol, signal, tick_dict)
 

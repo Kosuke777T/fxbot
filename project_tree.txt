@@ -4,7 +4,6 @@ fxbot/
   .importlinter.ini
   7C9B198C-ADA6-4308-A321-C13EA50E0707.jpg
   active_model.json
-  Agent HQ 用「細分化版」.txt
   apply_order.py
   fxbot_path.py
   mypy.ini
@@ -20,22 +19,6 @@ fxbot/
   setup_weekly_job.ps1
   temp_equity_check.py
   tmp_view.py
-  To Doリスト.txt
-  To Doリスト2.txt
-  To Doリストv4.txt
-  To Doリストv5.txt
-  ToDoリスト Master版.txt
-  ToDoリスト 下位版.txt
-  やるべきこと.txt
-  フェーズA~Hまでの結果.txt
-  ミチビキ FX 自動売買システム：仕様書 v4（正式版）.txt
-  仕様の統合まとめ.docx
-  仕様書.txt
-  仕様書v3.txt
-  作業6～8.txt
-  作業9.txt
-  備忘録.txt
-  質問.txt
   .git/
     COMMIT_EDITMSG
     config
@@ -72,100 +55,54 @@ fxbot/
             HEAD
             master
     objects/
+      04/
+        cf182a5e9db45b2fc070d0e2a4b86d0c7c8bf9
       06/
-        425b3657b93fc01e1d8fbaff947aad746ee33c
-      08/
-        35fc00560ad9e7108594ec24d5becf1c126078
-      0b/
-        db24735e619c1a8577f981159e1c39f8751994
-      0f/
-        c114262374e3d672dadc6afa2b991e4f6c689b
-        ee13da1c3397fa33041e4a91031f702b56ecae
-      16/
-        a03a706eddf6ce5c7212b8058f8296390ed199
-      2d/
-        c2d9eb0861384aead82ee94b669ffecd7e6613
-      31/
-        feea61368deedca4bbd4a928698b3540cd5258
-      33/
-        fa6e9a3a910bdaceb1a320e0c44c70b178dbde
-      3a/
-        39953223bca508d41b067546c44eae33cc77d5
-      47/
-        b97783f66d735cbe7a3a7073a62a76080de3c7
-      48/
-        4dc31f9cac7be77b7b2f1a34fa1f4fe862f214
-      50/
-        62019735f64f9a539ad8ab097d24838f53d80f
-      57/
-        3db7466e3f7d157f70e6741b499f70f2da9d39
-      5c/
-        034b81e195bdd3e98a7ee73154a5622b8ce89a
-      5d/
-        f340f11dd1b171ab57f27ebe75fad47bc3f7f8
-      65/
-        480c84e085b24fda67fabdd48acec874947ecd
-      67/
-        278fb3e10eab5386539eaa7a29bdf86f306b2e
-      69/
-        36786aadd934f728a2c06b7a9521ac897eef84
-      6b/
-        cc773c80bcd22bc5b4207d5dc62145490477bb
-      77/
-        0ffb062b2463534f5ef6b777e7c48a871d28f0
-      78/
-        a4e99ab1f760126d1d7f5c41426478665ac392
-      7a/
-        a5ecac2b1de7ad5de88d9dc173bd4fe7f7457f
-      7c/
-        07fc1869e186866b741d9ee51f0a4b1f4b62c1
-      7e/
-        fc71bcff730e132162a1a4d73e181474d7aa02
-      82/
-        f7512b210a54ea81231e2e21be5177c8b8f0fd
-      85/
-        e5a61cffbb987edcfd2a1150bf7d5d0693fbd1
-      88/
-        4eebe2f269b80fe23b16d6dcfa66cffeda8853
-      97/
-        ecea0268d144e5a65b86bba34c977671169da6
-      a1/
-        765334d21dbbb3c76f58588bba42ee46539399
-      a7/
-        1c36872b306846e4e95ce758bca8e2f0b1a62e
-      b3/
-        acab41d43907963f5dafd4481848861fc9b9c7
-      b5/
-        05174fb161cc773fca7db77c1653b7fb487c3a
-        b178511621238433e50822db295c6d82b472cb
-      bf/
-        74d40947b88c5af841dfae36233c4d0d379e7e
-      c2/
-        5e861b5523e19f640926b8adbbd08c9e3a141d
-      cb/
-        1fd5f93257436256990a115132d7e4a8639110
-      d2/
-        7cd39775ed7be77cbec2eec12166b09ce3d54b
-      d7/
-        053cd4ac4136202519be5128077cc50dde2c08
-      d9/
-        1e6f2b6be49a6cfa32919c57cf0f012905203b
-      de/
-        5c51330c4457010905d380ebfc3f3456ffe2aa
-      e1/
-        50ca817673139fcd4d1cb7a1002270b09f4271
-      e4/
-        118c6879c6a728601f1bc3921389a2cb76c9b6
-      e5/
-        c7051fd249b54729e6e640631dd055d17f2583
-      ff/
-        096b06a36a656530caf87349ecf7dd797a11f2
-        717f39ea33ddadd68191d928e85a1480799419
+        e82f2af35fd14fd5f24db6c5b9c2b946ad1525
+      0d/
+        d184ac95ae81e31c2f82477ab6f38c3fa6a2e7
+      1f/
+        820f84dcbaeee5464a53af5796cba0c4878bb4
+      37/
+        7c9e4eb4735bccfcdf9e72189041d85271b107
+      43/
+        e829fb769084614f62e7df24d00bd1a9a006e4
+      49/
+        2ea8ea63d3f3433558bb7a6107298f9a6e10d1
+      4e/
+        c7a48a54f03b3776dd9b97e548d0ffe3e87c4d
+      6f/
+        4709d7c67df34b2eae7eead85129a44e939390
+      8c/
+        4dc3091720fee68a86a9de82bb618ef2b0e0a6
+      8e/
+        20954a1bd8ba125c5ecb70eea2854a11115bcc
+      90/
+        dcb47559c7272d41e2c2865face1adbe1f9965
+      99/
+        39bb2ce3e21bd75c2ad2e9cdd5d473293e6ee1
+        55011d3884cc628c6e93d6202281344ea44ae7
+      9d/
+        3a27ed6e770afb1a7c4a0a5e4de3725530a30d
+      a3/
+        74348e0488ef9f9d5ba8f1ac8d98519ba3a25c
+      b0/
+        0d13bbab828f4ae0051b2682698d422e2f5eea
+      b7/
+        77a59cc5d62069a37cadc847fb6e7429daad63
+      da/
+        d01a9d00ad37bf6d21df27603873d4661cc150
+      dd/
+        3e3e39b34e5e9827d7f1dc67b89f3b7995f006
+      e7/
+        31c7745aa0d6e460775d532510bea8d28500a4
+      f8/
+        771f8078c3e7ee360cc4007eca24f17d550bc4
       info/
       pack/
-        pack-9467dc01728b5d62cd5eb249c8846616378e21f3.idx
-        pack-9467dc01728b5d62cd5eb249c8846616378e21f3.pack
-        pack-9467dc01728b5d62cd5eb249c8846616378e21f3.rev
+        pack-e5ca9c57eb71271086dae31b3101c17c6af114a5.idx
+        pack-e5ca9c57eb71271086dae31b3101c17c6af114a5.pack
+        pack-e5ca9c57eb71271086dae31b3101c17c6af114a5.rev
     refs/
       heads/
         master
@@ -174,1114 +111,6 @@ fxbot/
           HEAD
           master
       tags/
-  .mypy_cache/
-    .gitignore
-    CACHEDIR.TAG
-    missing_stubs
-    3.13/
-      @plugins_snapshot.json
-      abc.data.json
-      abc.meta.json
-      argparse.data.json
-      argparse.meta.json
-      array.data.json
-      array.meta.json
-      ast.data.json
-      ast.meta.json
-      atexit.data.json
-      atexit.meta.json
-      binascii.data.json
-      binascii.meta.json
-      builtins.data.json
-      builtins.meta.json
-      bz2.data.json
-      bz2.meta.json
-      codecs.data.json
-      codecs.meta.json
-      contextlib.data.json
-      contextlib.meta.json
-      contextvars.data.json
-      contextvars.meta.json
-      copy.data.json
-      copy.meta.json
-      copyreg.data.json
-      copyreg.meta.json
-      csv.data.json
-      csv.meta.json
-      dataclasses.data.json
-      dataclasses.meta.json
-      datetime.data.json
-      datetime.meta.json
-      decimal.data.json
-      decimal.meta.json
-      dis.data.json
-      dis.meta.json
-      enum.data.json
-      enum.meta.json
-      fractions.data.json
-      fractions.meta.json
-      functools.data.json
-      functools.meta.json
-      fxbot_path.data.json
-      fxbot_path.meta.json
-      genericpath.data.json
-      genericpath.meta.json
-      glob.data.json
-      glob.meta.json
-      gzip.data.json
-      gzip.meta.json
-      inspect.data.json
-      inspect.meta.json
-      io.data.json
-      io.meta.json
-      itertools.data.json
-      itertools.meta.json
-      math.data.json
-      math.meta.json
-      mmap.data.json
-      mmap.meta.json
-      ntpath.data.json
-      ntpath.meta.json
-      numbers.data.json
-      numbers.meta.json
-      opcode.data.json
-      opcode.meta.json
-      operator.data.json
-      operator.meta.json
-      pickle.data.json
-      pickle.meta.json
-      platform.data.json
-      platform.meta.json
-      posixpath.data.json
-      posixpath.meta.json
-      pprint.data.json
-      pprint.meta.json
-      queue.data.json
-      queue.meta.json
-      re.data.json
-      re.meta.json
-      selectors.data.json
-      selectors.meta.json
-      shlex.data.json
-      shlex.meta.json
-      shutil.data.json
-      shutil.meta.json
-      signal.data.json
-      signal.meta.json
-      socket.data.json
-      socket.meta.json
-      sre_compile.data.json
-      sre_compile.meta.json
-      sre_constants.data.json
-      sre_constants.meta.json
-      sre_parse.data.json
-      sre_parse.meta.json
-      ssl.data.json
-      ssl.meta.json
-      statistics.data.json
-      statistics.meta.json
-      struct.data.json
-      struct.meta.json
-      subprocess.data.json
-      subprocess.meta.json
-      tarfile.data.json
-      tarfile.meta.json
-      tempfile.data.json
-      tempfile.meta.json
-      textwrap.data.json
-      textwrap.meta.json
-      threading.data.json
-      threading.meta.json
-      time.data.json
-      time.meta.json
-      traceback.data.json
-      traceback.meta.json
-      types.data.json
-      types.meta.json
-      typing.data.json
-      typing.meta.json
-      typing_extensions.data.json
-      typing_extensions.meta.json
-      unicodedata.data.json
-      unicodedata.meta.json
-      uuid.data.json
-      uuid.meta.json
-      warnings.data.json
-      warnings.meta.json
-      weakref.data.json
-      weakref.meta.json
-      zipimport.data.json
-      zipimport.meta.json
-      zlib.data.json
-      zlib.meta.json
-      _ast.data.json
-      _ast.meta.json
-      _asyncio.data.json
-      _asyncio.meta.json
-      _bz2.data.json
-      _bz2.meta.json
-      _codecs.data.json
-      _codecs.meta.json
-      _collections_abc.data.json
-      _collections_abc.meta.json
-      _compression.data.json
-      _compression.meta.json
-      _contextvars.data.json
-      _contextvars.meta.json
-      _csv.data.json
-      _csv.meta.json
-      _ctypes.data.json
-      _ctypes.meta.json
-      _decimal.data.json
-      _decimal.meta.json
-      _frozen_importlib.data.json
-      _frozen_importlib.meta.json
-      _frozen_importlib_external.data.json
-      _frozen_importlib_external.meta.json
-      _io.data.json
-      _io.meta.json
-      _operator.data.json
-      _operator.meta.json
-      _pickle.data.json
-      _pickle.meta.json
-      _queue.data.json
-      _queue.meta.json
-      _sitebuiltins.data.json
-      _sitebuiltins.meta.json
-      _socket.data.json
-      _socket.meta.json
-      _ssl.data.json
-      _ssl.meta.json
-      _struct.data.json
-      _struct.meta.json
-      _thread.data.json
-      _thread.meta.json
-      _tkinter.data.json
-      _tkinter.meta.json
-      _warnings.data.json
-      _warnings.meta.json
-      _weakref.data.json
-      _weakref.meta.json
-      _weakrefset.data.json
-      _weakrefset.meta.json
-      _winapi.data.json
-      _winapi.meta.json
-      __future__.data.json
-      __future__.meta.json
-      app/
-        core.data.json
-        core.meta.json
-        __init__.data.json
-        __init__.meta.json
-        core/
-          config_loader.data.json
-          config_loader.meta.json
-          data_finder.data.json
-          data_finder.meta.json
-          market.data.json
-          market.meta.json
-        gui/
-          dashboard_tab_qt.data.json
-          dashboard_tab_qt.meta.json
-          widgets.data.json
-          widgets.meta.json
-          __init__.data.json
-          __init__.meta.json
-          widgets/
-            feature_importance.data.json
-            feature_importance.meta.json
-        services/
-          circuit_breaker.data.json
-          circuit_breaker.meta.json
-          data_guard.data.json
-          data_guard.meta.json
-          decision_log.data.json
-          decision_log.meta.json
-          event_store.data.json
-          event_store.meta.json
-          metrics.data.json
-          metrics.meta.json
-          mt5_account_store.data.json
-          mt5_account_store.meta.json
-          mt5_service.data.json
-          mt5_service.meta.json
-          orderbook_stub.data.json
-          orderbook_stub.meta.json
-          trade_state.data.json
-          trade_state.meta.json
-          trailing.data.json
-          trailing.meta.json
-          trailing_hook.data.json
-          trailing_hook.meta.json
-          __init__.data.json
-          __init__.meta.json
-        strategies/
-          __init__.data.json
-          __init__.meta.json
-      asyncio/
-        base_events.data.json
-        base_events.meta.json
-        base_futures.data.json
-        base_futures.meta.json
-        constants.data.json
-        constants.meta.json
-        coroutines.data.json
-        coroutines.meta.json
-        events.data.json
-        events.meta.json
-        exceptions.data.json
-        exceptions.meta.json
-        futures.data.json
-        futures.meta.json
-        locks.data.json
-        locks.meta.json
-        mixins.data.json
-        mixins.meta.json
-        proactor_events.data.json
-        proactor_events.meta.json
-        protocols.data.json
-        protocols.meta.json
-        queues.data.json
-        queues.meta.json
-        runners.data.json
-        runners.meta.json
-        selector_events.data.json
-        selector_events.meta.json
-        streams.data.json
-        streams.meta.json
-        subprocess.data.json
-        subprocess.meta.json
-        taskgroups.data.json
-        taskgroups.meta.json
-        tasks.data.json
-        tasks.meta.json
-        threads.data.json
-        threads.meta.json
-        timeouts.data.json
-        timeouts.meta.json
-        transports.data.json
-        transports.meta.json
-        unix_events.data.json
-        unix_events.meta.json
-        windows_events.data.json
-        windows_events.meta.json
-        windows_utils.data.json
-        windows_utils.meta.json
-        __init__.data.json
-        __init__.meta.json
-      collections/
-        abc.data.json
-        abc.meta.json
-        __init__.data.json
-        __init__.meta.json
-      concurrent/
-        __init__.data.json
-        __init__.meta.json
-        futures/
-          process.data.json
-          process.meta.json
-          thread.data.json
-          thread.meta.json
-          _base.data.json
-          _base.meta.json
-          __init__.data.json
-          __init__.meta.json
-      core/
-        config.data.json
-        config.meta.json
-        indicators.data.json
-        indicators.meta.json
-        position_guard.data.json
-        position_guard.meta.json
-        __init__.data.json
-        __init__.meta.json
-        ai/
-          __init__.data.json
-          __init__.meta.json
-        metrics/
-          registry.data.json
-          registry.meta.json
-          __init__.data.json
-          __init__.meta.json
-        utils/
-          clock.data.json
-          clock.meta.json
-          runtime.data.json
-          runtime.meta.json
-          timeutil.data.json
-          timeutil.meta.json
-          __init__.data.json
-          __init__.meta.json
-      ctypes/
-        _endian.data.json
-        _endian.meta.json
-        __init__.data.json
-        __init__.meta.json
-      cycler/
-        __init__.data.json
-        __init__.meta.json
-      email/
-        charset.data.json
-        charset.meta.json
-        contentmanager.data.json
-        contentmanager.meta.json
-        errors.data.json
-        errors.meta.json
-        header.data.json
-        header.meta.json
-        message.data.json
-        message.meta.json
-        policy.data.json
-        policy.meta.json
-        _policybase.data.json
-        _policybase.meta.json
-        __init__.data.json
-        __init__.meta.json
-      html/
-        entities.data.json
-        entities.meta.json
-        __init__.data.json
-        __init__.meta.json
-      importlib/
-        abc.data.json
-        abc.meta.json
-        machinery.data.json
-        machinery.meta.json
-        readers.data.json
-        readers.meta.json
-        util.data.json
-        util.meta.json
-        _abc.data.json
-        _abc.meta.json
-        _bootstrap.data.json
-        _bootstrap.meta.json
-        _bootstrap_external.data.json
-        _bootstrap_external.meta.json
-        __init__.data.json
-        __init__.meta.json
-        metadata/
-          _meta.data.json
-          _meta.meta.json
-          __init__.data.json
-          __init__.meta.json
-        resources/
-          abc.data.json
-          abc.meta.json
-          _common.data.json
-          _common.meta.json
-          _functional.data.json
-          _functional.meta.json
-          __init__.data.json
-          __init__.meta.json
-      json/
-        decoder.data.json
-        decoder.meta.json
-        encoder.data.json
-        encoder.meta.json
-        __init__.data.json
-        __init__.meta.json
-      lightgbm/
-        basic.data.json
-        basic.meta.json
-        callback.data.json
-        callback.meta.json
-        compat.data.json
-        compat.meta.json
-        dask.data.json
-        dask.meta.json
-        engine.data.json
-        engine.meta.json
-        libpath.data.json
-        libpath.meta.json
-        plotting.data.json
-        plotting.meta.json
-        sklearn.data.json
-        sklearn.meta.json
-        __init__.data.json
-        __init__.meta.json
-      logging/
-        __init__.data.json
-        __init__.meta.json
-      loguru/
-        __init__.data.json
-        __init__.meta.json
-      matplotlib/
-        artist.data.json
-        artist.meta.json
-        axis.data.json
-        axis.meta.json
-        backend_bases.data.json
-        backend_bases.meta.json
-        backend_managers.data.json
-        backend_managers.meta.json
-        backend_tools.data.json
-        backend_tools.meta.json
-        bezier.data.json
-        bezier.meta.json
-        cbook.data.json
-        cbook.meta.json
-        cm.data.json
-        cm.meta.json
-        collections.data.json
-        collections.meta.json
-        colorbar.data.json
-        colorbar.meta.json
-        colorizer.data.json
-        colorizer.meta.json
-        colors.data.json
-        colors.meta.json
-        container.data.json
-        container.meta.json
-        contour.data.json
-        contour.meta.json
-        dates.data.json
-        dates.meta.json
-        figure.data.json
-        figure.meta.json
-        font_manager.data.json
-        font_manager.meta.json
-        ft2font.data.json
-        ft2font.meta.json
-        gridspec.data.json
-        gridspec.meta.json
-        image.data.json
-        image.meta.json
-        inset.data.json
-        inset.meta.json
-        layout_engine.data.json
-        layout_engine.meta.json
-        legend.data.json
-        legend.meta.json
-        legend_handler.data.json
-        legend_handler.meta.json
-        lines.data.json
-        lines.meta.json
-        markers.data.json
-        markers.meta.json
-        mathtext.data.json
-        mathtext.meta.json
-        mlab.data.json
-        mlab.meta.json
-        offsetbox.data.json
-        offsetbox.meta.json
-        patches.data.json
-        patches.meta.json
-        path.data.json
-        path.meta.json
-        patheffects.data.json
-        patheffects.meta.json
-        quiver.data.json
-        quiver.meta.json
-        scale.data.json
-        scale.meta.json
-        spines.data.json
-        spines.meta.json
-        stackplot.data.json
-        stackplot.meta.json
-        streamplot.data.json
-        streamplot.meta.json
-        table.data.json
-        table.meta.json
-        texmanager.data.json
-        texmanager.meta.json
-        text.data.json
-        text.meta.json
-        textpath.data.json
-        textpath.meta.json
-        ticker.data.json
-        ticker.meta.json
-        transforms.data.json
-        transforms.meta.json
-        typing.data.json
-        typing.meta.json
-        units.data.json
-        units.meta.json
-        widgets.data.json
-        widgets.meta.json
-        _afm.data.json
-        _afm.meta.json
-        _enums.data.json
-        _enums.meta.json
-        _mathtext.data.json
-        _mathtext.meta.json
-        _mathtext_data.data.json
-        _mathtext_data.meta.json
-        _pylab_helpers.data.json
-        _pylab_helpers.meta.json
-        _tri.data.json
-        _tri.meta.json
-        __init__.data.json
-        __init__.meta.json
-        axes/
-          _axes.data.json
-          _axes.meta.json
-          _base.data.json
-          _base.meta.json
-          _secondary_axes.data.json
-          _secondary_axes.meta.json
-          __init__.data.json
-          __init__.meta.json
-        backends/
-          backend_agg.data.json
-          backend_agg.meta.json
-          backend_qt.data.json
-          backend_qt.meta.json
-          backend_qtagg.data.json
-          backend_qtagg.meta.json
-          qt_compat.data.json
-          qt_compat.meta.json
-          registry.data.json
-          registry.meta.json
-          _backend_agg.data.json
-          _backend_agg.meta.json
-          __init__.data.json
-          __init__.meta.json
-          qt_editor/
-            figureoptions.data.json
-            figureoptions.meta.json
-            _formlayout.data.json
-            _formlayout.meta.json
-            __init__.data.json
-            __init__.meta.json
-        projections/
-          geo.data.json
-          geo.meta.json
-          polar.data.json
-          polar.meta.json
-          __init__.data.json
-          __init__.meta.json
-        tri/
-          _triangulation.data.json
-          _triangulation.meta.json
-          _tricontour.data.json
-          _tricontour.meta.json
-          _trifinder.data.json
-          _trifinder.meta.json
-          _triinterpolate.data.json
-          _triinterpolate.meta.json
-          _tripcolor.data.json
-          _tripcolor.meta.json
-          _triplot.data.json
-          _triplot.meta.json
-          _trirefine.data.json
-          _trirefine.meta.json
-          _tritools.data.json
-          _tritools.meta.json
-          __init__.data.json
-          __init__.meta.json
-        _api/
-          deprecation.data.json
-          deprecation.meta.json
-          __init__.data.json
-          __init__.meta.json
-      multiprocessing/
-        connection.data.json
-        connection.meta.json
-        context.data.json
-        context.meta.json
-        managers.data.json
-        managers.meta.json
-        pool.data.json
-        pool.meta.json
-        popen_fork.data.json
-        popen_fork.meta.json
-        popen_forkserver.data.json
-        popen_forkserver.meta.json
-        popen_spawn_posix.data.json
-        popen_spawn_posix.meta.json
-        popen_spawn_win32.data.json
-        popen_spawn_win32.meta.json
-        process.data.json
-        process.meta.json
-        queues.data.json
-        queues.meta.json
-        reduction.data.json
-        reduction.meta.json
-        sharedctypes.data.json
-        sharedctypes.meta.json
-        shared_memory.data.json
-        shared_memory.meta.json
-        spawn.data.json
-        spawn.meta.json
-        synchronize.data.json
-        synchronize.meta.json
-        util.data.json
-        util.meta.json
-        __init__.data.json
-        __init__.meta.json
-      numpy/
-        dtypes.data.json
-        dtypes.meta.json
-        exceptions.data.json
-        exceptions.meta.json
-        matlib.data.json
-        matlib.meta.json
-        version.data.json
-        version.meta.json
-        _array_api_info.data.json
-        _array_api_info.meta.json
-        _expired_attrs_2_0.data.json
-        _expired_attrs_2_0.meta.json
-        _globals.data.json
-        _globals.meta.json
-        _pytesttester.data.json
-        _pytesttester.meta.json
-        __config__.data.json
-        __config__.meta.json
-        __init__.data.json
-        __init__.meta.json
-        char/
-          __init__.data.json
-          __init__.meta.json
-        core/
-          __init__.data.json
-          __init__.meta.json
-        ctypeslib/
-          _ctypeslib.data.json
-          _ctypeslib.meta.json
-          __init__.data.json
-          __init__.meta.json
-        f2py/
-          auxfuncs.data.json
-          auxfuncs.meta.json
-          cfuncs.data.json
-          cfuncs.meta.json
-          f2py2e.data.json
-          f2py2e.meta.json
-          __init__.data.json
-          __init__.meta.json
-          __version__.data.json
-          __version__.meta.json
-        fft/
-          _helper.data.json
-          _helper.meta.json
-          _pocketfft.data.json
-          _pocketfft.meta.json
-          __init__.data.json
-          __init__.meta.json
-        lib/
-          array_utils.data.json
-          array_utils.meta.json
-          format.data.json
-          format.meta.json
-          introspect.data.json
-          introspect.meta.json
-          mixins.data.json
-          mixins.meta.json
-          npyio.data.json
-          npyio.meta.json
-          scimath.data.json
-          scimath.meta.json
-          stride_tricks.data.json
-          stride_tricks.meta.json
-          _arraypad_impl.data.json
-          _arraypad_impl.meta.json
-          _arraysetops_impl.data.json
-          _arraysetops_impl.meta.json
-          _arrayterator_impl.data.json
-          _arrayterator_impl.meta.json
-          _array_utils_impl.data.json
-          _array_utils_impl.meta.json
-          _datasource.data.json
-          _datasource.meta.json
-          _format_impl.data.json
-          _format_impl.meta.json
-          _function_base_impl.data.json
-          _function_base_impl.meta.json
-          _histograms_impl.data.json
-          _histograms_impl.meta.json
-          _index_tricks_impl.data.json
-          _index_tricks_impl.meta.json
-          _iotools.data.json
-          _iotools.meta.json
-          _nanfunctions_impl.data.json
-          _nanfunctions_impl.meta.json
-          _npyio_impl.data.json
-          _npyio_impl.meta.json
-          _polynomial_impl.data.json
-          _polynomial_impl.meta.json
-          _scimath_impl.data.json
-          _scimath_impl.meta.json
-          _shape_base_impl.data.json
-          _shape_base_impl.meta.json
-          _stride_tricks_impl.data.json
-          _stride_tricks_impl.meta.json
-          _twodim_base_impl.data.json
-          _twodim_base_impl.meta.json
-          _type_check_impl.data.json
-          _type_check_impl.meta.json
-          _ufunclike_impl.data.json
-          _ufunclike_impl.meta.json
-          _utils_impl.data.json
-          _utils_impl.meta.json
-          _version.data.json
-          _version.meta.json
-          __init__.data.json
-          __init__.meta.json
-        linalg/
-          linalg.data.json
-          linalg.meta.json
-          _linalg.data.json
-          _linalg.meta.json
-          _umath_linalg.data.json
-          _umath_linalg.meta.json
-          __init__.data.json
-          __init__.meta.json
-        ma/
-          core.data.json
-          core.meta.json
-          extras.data.json
-          extras.meta.json
-          mrecords.data.json
-          mrecords.meta.json
-          __init__.data.json
-          __init__.meta.json
-        matrixlib/
-          defmatrix.data.json
-          defmatrix.meta.json
-          __init__.data.json
-          __init__.meta.json
-        polynomial/
-          chebyshev.data.json
-          chebyshev.meta.json
-          hermite.data.json
-          hermite.meta.json
-          hermite_e.data.json
-          hermite_e.meta.json
-          laguerre.data.json
-          laguerre.meta.json
-          legendre.data.json
-          legendre.meta.json
-          polynomial.data.json
-          polynomial.meta.json
-          polyutils.data.json
-          polyutils.meta.json
-          _polybase.data.json
-          _polybase.meta.json
-          _polytypes.data.json
-          _polytypes.meta.json
-          __init__.data.json
-          __init__.meta.json
-        random/
-          bit_generator.data.json
-          bit_generator.meta.json
-          mtrand.data.json
-          mtrand.meta.json
-          _generator.data.json
-          _generator.meta.json
-          _mt19937.data.json
-          _mt19937.meta.json
-          _pcg64.data.json
-          _pcg64.meta.json
-          _philox.data.json
-          _philox.meta.json
-          _sfc64.data.json
-          _sfc64.meta.json
-          __init__.data.json
-          __init__.meta.json
-        rec/
-          __init__.data.json
-          __init__.meta.json
-        strings/
-          __init__.data.json
-          __init__.meta.json
-        testing/
-          overrides.data.json
-          overrides.meta.json
-          __init__.data.json
-          __init__.meta.json
-          _private/
-            utils.data.json
-            utils.meta.json
-            __init__.data.json
-            __init__.meta.json
-        typing/
-          __init__.data.json
-          __init__.meta.json
-        _core/
-          arrayprint.data.json
-          arrayprint.meta.json
-          defchararray.data.json
-          defchararray.meta.json
-          einsumfunc.data.json
-          einsumfunc.meta.json
-          fromnumeric.data.json
-          fromnumeric.meta.json
-          function_base.data.json
-          function_base.meta.json
-          multiarray.data.json
-          multiarray.meta.json
-          numeric.data.json
-          numeric.meta.json
-          numerictypes.data.json
-          numerictypes.meta.json
-          records.data.json
-          records.meta.json
-          shape_base.data.json
-          shape_base.meta.json
-          strings.data.json
-          strings.meta.json
-          _asarray.data.json
-          _asarray.meta.json
-          _internal.data.json
-          _internal.meta.json
-          _type_aliases.data.json
-          _type_aliases.meta.json
-          _ufunc_config.data.json
-          _ufunc_config.meta.json
-          __init__.data.json
-          __init__.meta.json
-        _typing/
-          _add_docstring.data.json
-          _add_docstring.meta.json
-          _array_like.data.json
-          _array_like.meta.json
-          _char_codes.data.json
-          _char_codes.meta.json
-          _dtype_like.data.json
-          _dtype_like.meta.json
-          _extended_precision.data.json
-          _extended_precision.meta.json
-          _nbit.data.json
-          _nbit.meta.json
-          _nbit_base.data.json
-          _nbit_base.meta.json
-          _nested_sequence.data.json
-          _nested_sequence.meta.json
-          _scalars.data.json
-          _scalars.meta.json
-          _shape.data.json
-          _shape.meta.json
-          _ufunc.data.json
-          _ufunc.meta.json
-          __init__.data.json
-          __init__.meta.json
-      os/
-        path.data.json
-        path.meta.json
-        __init__.data.json
-        __init__.meta.json
-      packaging/
-        version.data.json
-        version.meta.json
-        _structures.data.json
-        _structures.meta.json
-        __init__.data.json
-        __init__.meta.json
-      pathlib/
-        __init__.data.json
-        __init__.meta.json
-      PIL/
-        ExifTags.data.json
-        ExifTags.meta.json
-        GimpGradientFile.data.json
-        GimpGradientFile.meta.json
-        GimpPaletteFile.data.json
-        GimpPaletteFile.meta.json
-        Image.data.json
-        Image.meta.json
-        ImageCms.data.json
-        ImageCms.meta.json
-        ImageColor.data.json
-        ImageColor.meta.json
-        ImageFile.data.json
-        ImageFile.meta.json
-        ImageFilter.data.json
-        ImageFilter.meta.json
-        ImageMode.data.json
-        ImageMode.meta.json
-        ImageOps.data.json
-        ImageOps.meta.json
-        ImagePalette.data.json
-        ImagePalette.meta.json
-        ImageQt.data.json
-        ImageQt.meta.json
-        ImageShow.data.json
-        ImageShow.meta.json
-        PaletteFile.data.json
-        PaletteFile.meta.json
-        TiffImagePlugin.data.json
-        TiffImagePlugin.meta.json
-        TiffTags.data.json
-        TiffTags.meta.json
-        _binary.data.json
-        _binary.meta.json
-        _deprecate.data.json
-        _deprecate.meta.json
-        _imaging.data.json
-        _imaging.meta.json
-        _imagingcms.data.json
-        _imagingcms.meta.json
-        _typing.data.json
-        _typing.meta.json
-        _util.data.json
-        _util.meta.json
-        _version.data.json
-        _version.meta.json
-        __init__.data.json
-        __init__.meta.json
-      pyexpat/
-        errors.data.json
-        errors.meta.json
-        model.data.json
-        model.meta.json
-        __init__.data.json
-        __init__.meta.json
-      pyparsing/
-        actions.data.json
-        actions.meta.json
-        common.data.json
-        common.meta.json
-        core.data.json
-        core.meta.json
-        exceptions.data.json
-        exceptions.meta.json
-        helpers.data.json
-        helpers.meta.json
-        results.data.json
-        results.meta.json
-        testing.data.json
-        testing.meta.json
-        unicode.data.json
-        unicode.meta.json
-        util.data.json
-        util.meta.json
-        __init__.data.json
-        __init__.meta.json
-        diagram/
-          __init__.data.json
-          __init__.meta.json
-      PyQt6/
-        QtCore.data.json
-        QtCore.meta.json
-        QtGui.data.json
-        QtGui.meta.json
-        QtWidgets.data.json
-        QtWidgets.meta.json
-        sip.data.json
-        sip.meta.json
-        __init__.data.json
-        __init__.meta.json
-      string/
-        __init__.data.json
-        __init__.meta.json
-      sys/
-        _monitoring.data.json
-        _monitoring.meta.json
-        __init__.data.json
-        __init__.meta.json
-      tkinter/
-        constants.data.json
-        constants.meta.json
-        font.data.json
-        font.meta.json
-        ttk.data.json
-        ttk.meta.json
-        __init__.data.json
-        __init__.meta.json
-      unittest/
-        async_case.data.json
-        async_case.meta.json
-        case.data.json
-        case.meta.json
-        loader.data.json
-        loader.meta.json
-        main.data.json
-        main.meta.json
-        mock.data.json
-        mock.meta.json
-        result.data.json
-        result.meta.json
-        runner.data.json
-        runner.meta.json
-        signals.data.json
-        signals.meta.json
-        suite.data.json
-        suite.meta.json
-        _log.data.json
-        _log.meta.json
-        __init__.data.json
-        __init__.meta.json
-      urllib/
-        parse.data.json
-        parse.meta.json
-        __init__.data.json
-        __init__.meta.json
-      xgboost/
-        callback.data.json
-        callback.meta.json
-        collective.data.json
-        collective.meta.json
-        compat.data.json
-        compat.meta.json
-        config.data.json
-        config.meta.json
-        core.data.json
-        core.meta.json
-        data.data.json
-        data.meta.json
-        libpath.data.json
-        libpath.meta.json
-        plotting.data.json
-        plotting.meta.json
-        sklearn.data.json
-        sklearn.meta.json
-        tracker.data.json
-        tracker.meta.json
-        training.data.json
-        training.meta.json
-        _data_utils.data.json
-        _data_utils.meta.json
-        _typing.data.json
-        _typing.meta.json
-        __init__.data.json
-        __init__.meta.json
-      xml/
-        __init__.data.json
-        __init__.meta.json
-        etree/
-          ElementTree.data.json
-          ElementTree.meta.json
-          __init__.data.json
-          __init__.meta.json
-        parsers/
-          __init__.data.json
-          __init__.meta.json
-          expat/
-            __init__.data.json
-            __init__.meta.json
-      zipfile/
-        __init__.data.json
-        __init__.meta.json
-        _path/
-          __init__.data.json
-          __init__.meta.json
-      zoneinfo/
-        _common.data.json
-        _common.meta.json
-        _tzpath.data.json
-        _tzpath.meta.json
-        __init__.data.json
-        __init__.meta.json
-      _typeshed/
-        importlib.data.json
-        importlib.meta.json
-        __init__.data.json
-        __init__.meta.json
-  .ruff_cache/
-    .gitignore
-    CACHEDIR.TAG
-    0.14.5/
-      12600658311990167276
-      16257144851545386692
-      17965227139474717685
-      1875680279843845063
-      4652391773985594464
-      5620828212296045680
-      6443226264972188389
-      7095227949590206593
-  .vscode/
-    settings.json
   app/
     main_tk.py
     __init__.py
@@ -1293,6 +122,8 @@ fxbot/
       mt5_client.py
       strategy_profile.py
       __pycache__/
+        config_loader.cpython-313.pyc
+        market.cpython-313.pyc
         mt5_client.cpython-313.pyc
         strategy_profile.cpython-313.pyc
     gui/
@@ -1329,16 +160,23 @@ fxbot/
       trailing.py
       trailing_hook.py
       __init__.py
+      __pycache__/
+        circuit_breaker.cpython-313.pyc
+        event_store.cpython-313.pyc
+        execution_stub.cpython-313.pyc
+        metrics.cpython-313.pyc
+        mt5_service.cpython-313.pyc
+        orderbook_stub.cpython-313.pyc
+        trade_service.cpython-313.pyc
+        trade_state.cpython-313.pyc
+        trailing.cpython-313.pyc
+        trailing_hook.cpython-313.pyc
+        __init__.cpython-313.pyc
     strategies/
       ai_strategy.py
       __init__.py
-      __pycache__/
-        ai_strategy.cpython-313.pyc
-        __init__.cpython-313.pyc
     __pycache__/
       __init__.cpython-313.pyc
-  backtests/
-    michibiki_std/
   config/
     mt5_accounts.json
   configs/
@@ -1359,17 +197,32 @@ fxbot/
       loader.py
       service.py
       __init__.py
+      __pycache__/
+        loader.cpython-313.pyc
+        service.cpython-313.pyc
+        __init__.cpython-313.pyc
     metrics/
       fi_extractor.py
       registry.py
       __init__.py
+      __pycache__/
+        registry.cpython-313.pyc
+        __init__.cpython-313.pyc
     utils/
       clock.py
       hashing.py
       runtime.py
       timeutil.py
       __init__.py
+      __pycache__/
+        clock.cpython-313.pyc
+        runtime.cpython-313.pyc
+        timeutil.cpython-313.pyc
+        __init__.cpython-313.pyc
     __pycache__/
+      config.cpython-313.pyc
+      indicators.cpython-313.pyc
+      position_guard.cpython-313.pyc
       risk.cpython-313.pyc
       __init__.cpython-313.pyc
   data/
@@ -1497,16 +350,9 @@ fxbot/
             trades.csv
           backtest_ALL_to_ALL/
             equity_curve.csv
-            equity_test.csv
-            equity_train.csv
             metrics.json
-            metrics_wfo.json
             monthly_returns.csv
-            monthly_returns_test.csv
-            monthly_returns_train.csv
             trades.csv
-            trades_test.csv
-            trades_train.csv
     decisions/
       decisions_USDJPY.jsonl
     reports/
@@ -1705,6 +551,7 @@ fxbot/
     metrics_c19f7jhr.json
     metrics_c6dlu7j3.json
     metrics_c7srgc6l.json
+    metrics_c8vn4_xo.json
     metrics_cfvm2vuv.json
     metrics_cs6cyrr4.json
     metrics_ctdk6hr_.json
@@ -1724,12 +571,14 @@ fxbot/
     metrics_gctnecas.json
     metrics_gdrsfom2.json
     metrics_gh0exqfy.json
+    metrics_gkox137u.json
     metrics_gn3r368k.json
     metrics_gre0l2vv.json
     metrics_gu2jj4x6.json
     metrics_gy7yzni_.json
     metrics_h2ke1que.json
     metrics_h2zbzsi6.json
+    metrics_i2q0tor6.json
     metrics_i5pwbdy8.json
     metrics_i9ixee1p.json
     metrics_iegm05ma.json
@@ -1744,6 +593,7 @@ fxbot/
     metrics_l9a3g7f_.json
     metrics_lg3z_ojj.json
     metrics_lij48idf.json
+    metrics_m5xkpcn1.json
     metrics_mfx0u92s.json
     metrics_ml129ig1.json
     metrics_mziwmuji.json
@@ -1768,12 +618,14 @@ fxbot/
     metrics_r2iljktq.json
     metrics_r4cxpbus.json
     metrics_ri5kzye8.json
+    metrics_s0g6aqij.json
     metrics_smrtxq4q.json
     metrics_sunrm50l.json
     metrics_szni51cl.json
     metrics_szy5o819.json
     metrics_s_yeu75a.json
     metrics_t09rkk69.json
+    metrics_tka4z8jk.json
     metrics_tnyuui1p.json
     metrics_tvk5w34y.json
     metrics_u85k0bty.json
@@ -1805,6 +657,7 @@ fxbot/
     metrics_yehnyu4c.json
     metrics_yuncl873.json
     metrics_yv04iu3_.json
+    metrics_z21kpif1.json
     metrics_z4d75mrh.json
     metrics_zn9wzer_.json
     metrics_zrz0v00o.json
@@ -1830,6 +683,7 @@ fxbot/
     export_val_probs.py
     make_csv_from_mt5.py
     make_project_snapshot.py
+    make_project_snapshot2.py
     make_toy_model.py
     mt5_export_csv.py
     mt5_smoke.py
@@ -1859,10 +713,24 @@ fxbot/
     train_lightgbm.py
     train_scaler.py
     __init__.py
-    __pycache__/
-      backtest_run.cpython-313.pyc
-      __init__.cpython-313.pyc
   設定/
+    Agent HQ 用「細分化版」.txt
+    To Doリスト.txt
+    To Doリスト2.txt
+    To Doリストv4.txt
+    To Doリストv5.txt
+    ToDoリスト Master版.txt
+    ToDoリスト 下位版.txt
+    やるべきこと.txt
+    フェーズA~Hまでの結果.txt
     フォルダ構成.txt
+    ミチビキ FX 自動売買システム：仕様書 v4（正式版）.txt
+    仕様の統合まとめ.docx
+    仕様書.txt
+    仕様書v3.txt
     仮.txt
     仮想環境.txt
+    作業6～8.txt
+    作業9.txt
+    備忘録.txt
+    質問.txt
