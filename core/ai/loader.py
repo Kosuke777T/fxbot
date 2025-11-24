@@ -96,34 +96,79 @@ class LGBBundle:
     ready: bool = True
 
 # ------------------------------------------------------------
-# 校正付きラッパ（※単一定義・predict_probaあり）
+# 校正付きラッパ（Booster / clf 両対応版）
 # ------------------------------------------------------------
 class _CalibratedWrapper:
-    """Thin wrapper that applies optional calibration to predict_proba outputs."""
+    """
+    base_model:
+        - 通常: sklearn 系の clf (predict_proba を持つ)
+        - 古いモデル: LightGBM Booster (predict のみ)
+    calibrator:
+        - None なら何もしない
+        - transform / predict_proba を持っていればそれを適用
+    """
 
     def __init__(self, base_model: Any, calibrator: Any, model_name: str = "(unknown)") -> None:
         self.base_model = base_model
         self.calibrator = calibrator
         self.model_name = model_name
         self.calibrator_name = getattr(calibrator, "method", "none") if calibrator else "none"
+        # AISvc 側から埋められる（feature_order）
         self.expected_features: Optional[list[str]] = None
 
     def __getattr__(self, item: str) -> Any:
+        # その他の属性は元モデルに委譲
         return getattr(self.base_model, item)
+
+    def _raw_p1_from_model(self, X_arr: np.ndarray) -> FloatArray:
+        """
+        モデルから「クラス1の確率 or スコア」を 1次元配列で取り出す。
+
+        - predict_proba があれば、それを優先
+        - なければ predict をそのまま確率扱い（Booster想定）
+        """
+        # 1) 通常パス: predict_proba
+        if hasattr(self.base_model, "predict_proba"):
+            raw = self.base_model.predict_proba(X_arr)
+            raw = np.asarray(raw, dtype=float)
+
+            # (n, ) or (n, 1) or (n, 2) などを全部 1次元に落とす
+            if raw.ndim == 1:
+                p1 = raw.reshape(-1)
+            elif raw.ndim == 2:
+                if raw.shape[1] == 1:
+                    p1 = raw[:, 0]
+                else:
+                    # 2列以上ある場合は「最後の列」を陽線クラスとして扱う
+                    p1 = raw[:, -1]
+            else:
+                raise ValueError(f"unexpected predict_proba shape: {raw.shape}")
+            return p1
+
+        # 2) フォールバック: predict のみ
+        if hasattr(self.base_model, "predict"):
+            raw = self.base_model.predict(X_arr)
+            p1 = np.asarray(raw, dtype=float).reshape(-1)
+            return p1
+
+        raise AttributeError("base_model has neither predict_proba nor predict")
 
     def predict_proba(self, X: Any) -> FloatArray:
         X_arr = np.asarray(X, dtype=float)
-        raw = self.base_model.predict_proba(X_arr)
-        raw_arr = np.asarray(raw, dtype=float)
-        calibrated = _apply_calibration(self.calibrator, raw_arr)
-        return np.asarray(calibrated, dtype=float)
 
-    @property
-    def classes_(self) -> NDArray[np.int_]:
-        base_classes = getattr(self.base_model, "classes_", None)
-        if base_classes is None:
-            return np.asarray([0, 1], dtype=int)
-        return np.asarray(base_classes, dtype=int)
+        # モデルから生の p1 を取得
+        p1 = self._raw_p1_from_model(X_arr)
+
+        # 校正器があれば適用（vector → (n,1) → (n,1) → vector）
+        p1_2d = p1.reshape(-1, 1)
+        p1_cal = _apply_calibration(self.calibrator, p1_2d).reshape(-1)
+
+        # 数値安全のためクリップ
+        p1_cal = np.clip(p1_cal, 1e-6, 1.0 - 1e-6)
+        p0 = 1.0 - p1_cal
+
+        # shape: (n, 2) [クラス0, クラス1]
+        return np.stack([p0, p1_cal], axis=1)
 
 def _read_json(path: str) -> Dict[str, Any]:
     with open(path, "r", encoding="utf-8") as fh:
@@ -159,17 +204,20 @@ def _maybe_load_calibrator_from_meta(meta: Dict[str, Any]) -> Any:
 # ------------------------------------------------------------
 # パブリックAPI：モデルローダ
 # ------------------------------------------------------------
+
 def load_lgb_clf(model_path: str | None = None, *, meta_path: str | None = None) -> Any:
     model_file = model_path or "models/LightGBM_clf.pkl"
     base_model = _load_pickle_or_joblib(model_file)
+
     # ★ここを追加：保存物が dict/ラッパでも推定器本体を取り出す
     try:
         # ModelWrapper を一時的に使って「中身の推定器」を取り出す
-        _tmp = ModelWrapper(base_model)        # ← 既に同ファイル内で定義済みクラス
-        base_model = _tmp.base_model           # ← predict_proba を持つはず
+        _tmp = ModelWrapper(base_model)
+        base_model = _tmp.base_model  # predict_proba / predict を持つ本体
     except Exception:
         # 失敗してもそのまま進める（あとで _CalibratedWrapper でまた拾う）
         pass
+
     meta: Dict[str, Any] = {}
     if meta_path and Path(meta_path).is_file():
         try:
@@ -183,6 +231,18 @@ def load_lgb_clf(model_path: str | None = None, *, meta_path: str | None = None)
             print(f"[core.ai.loader][warn] active meta read failed: {exc}")
             meta = {}
 
+    # ★追加：active_model.json の feature_order / features を不足分としてマージ
+    try:
+        active_meta = _load_active_meta()
+    except Exception as exc:
+        print(f"[core.ai.loader][warn] active meta merge failed: {exc}")
+        active_meta = {}
+
+    for key in ("feature_order", "features"):
+        if not meta.get(key) and active_meta.get(key):
+            meta[key] = active_meta[key]
+
+    # 旧仕様 {"calibration": {...}} → 新仕様 calibrator_path へ
     if "calibration" in meta and "calibrator_path" not in meta:
         calib_meta = meta.get("calibration") or {}
         meta["calibrator_path"] = calib_meta.get("path")
@@ -196,9 +256,7 @@ def load_lgb_clf(model_path: str | None = None, *, meta_path: str | None = None)
 
     return wrapper
 
-# ------------------------------------------------------------
-# ユーティリティ
-# ------------------------------------------------------------
+
 def build_feature_vector(features: dict, order: list[str]) -> pd.DataFrame:
     row = [features.get(k, 0.0) for k in order]
     return pd.DataFrame([row], columns=order)

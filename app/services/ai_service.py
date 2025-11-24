@@ -3,8 +3,11 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 import time
 
+import numpy as np
 import pandas as pd
 from loguru import logger
+
+from core.ai.loader import _load_active_meta
 
 from app.services.feature_importance import compute_feature_importance
 from app.services.shap_service import (
@@ -32,7 +35,72 @@ class AISvc:
         self._shap_cache_ts: float = 0.0
 
         self.expected_features: Optional[list[str]] = None
+
+        # ★ここを追加：起動時に一度だけ active_model.json と同期
+        self._sync_expected_features()
         # ... （既存の初期化）
+
+    def _normalize_features_for_model(self, feats: "Mapping[str, float]") -> "dict[str, float]":
+        """
+        モデルの expected_features に合わせて特徴量を揃える。
+        - expected_features が設定されていれば、その順番・その列だけに揃える
+        - 足りない列は 0.0 で補完する
+        - expected_features が None/空なら、そのまま dict(feats) を返す
+        """
+        from collections.abc import Mapping
+
+        if not isinstance(feats, Mapping):
+            # 万一 Series や list などが来た時のガード
+            feats = dict(feats)
+
+        if not self.expected_features:
+            return dict(feats)
+
+        normalized: dict[str, float] = {}
+        for name in self.expected_features:
+            value = feats.get(name, 0.0)
+            # float に変換しておく（np.array にそのまま突っ込めるように）
+            try:
+                normalized[name] = float(value)
+            except (TypeError, ValueError):
+                normalized[name] = 0.0
+        return normalized
+
+
+    def _sync_expected_features(self) -> None:
+        """
+        active_model.json / モデル本体から expected_features を
+        self.expected_features に一度だけコピーする。
+        """
+        # すでに設定済みなら何もしない
+        if self.expected_features:
+            return
+
+        # 1) モデルオブジェクト側に expected_features があれば優先して使う
+        for model in self.models.values():
+            exp = getattr(model, "expected_features", None)
+            if exp:
+                # list, tuple, np.ndarray などを list に揃える
+                self.expected_features = list(exp)
+                logger.info(
+                    f"[AISvc] expected_features synced from model ({len(self.expected_features)} cols)"
+                )
+                return
+
+        # 2) fallback: active_model.json を直接読む
+        try:
+            meta = _load_active_meta()
+        except Exception as exc:
+            logger.warning(f"[AISvc] failed to load active meta for expected_features: {exc}")
+            return
+
+        seq = meta.get("feature_order") or meta.get("features")
+        if isinstance(seq, (list, tuple)) and seq:
+            self.expected_features = list(seq)
+            logger.info(
+                f"[AISvc] expected_features loaded from active_model.json ({len(self.expected_features)} cols)"
+            )
+
 
     # ... （既存のメソッド： load_models(), predict(), など）
 
@@ -241,13 +309,25 @@ class AISvc:
         from app.core.config_loader import load_config
         from app.services.execution_stub import _collect_features
 
+        # ★ まず expected_features を active_model.json と同期しておく
+        self._sync_expected_features()
+
         # tick が取れない場合は素直に全部 SKIP に倒す
         try:
             tick = market.tick(symbol)
-        except Exception:
+        except Exception as e:
+            logger.warning(
+                "[AISvc.get_live_probs] tick取得に失敗: symbol={symbol} error={err}",
+                symbol=symbol,
+                err=e,
+            )
             tick = None
 
         if not tick:
+            logger.warning(
+                "[AISvc.get_live_probs] tickが取得できないため AIスキップ: symbol={symbol}",
+                symbol=symbol,
+            )
             return {
                 "p_buy": 0.0,
                 "p_sell": 0.0,
@@ -266,7 +346,7 @@ class AISvc:
 
         # spread を market から取得（なければ 0.0）
         try:
-            spr_callable = getattr(market, "spread", None)
+            spr_callable = getattr(market, "spread_pips", None)
             spread_pips = spr_callable(symbol) if callable(spr_callable) else 0.0
         except Exception:
             spread_pips = 0.0
@@ -274,7 +354,7 @@ class AISvc:
         # 現在のオープンポジション数は、とりあえず 0 として扱う
         open_positions = 0
 
-        # execution_stub と同じダミー特徴量生成ロジックを使う
+        # execution_stub と同じロジックで特徴量を収集
         features = _collect_features(
             symbol,
             base_features,
@@ -283,11 +363,23 @@ class AISvc:
             open_positions,
         )
 
-        # モデルで確率予測
-        prob = self.predict(features)
+        # モデル入力向けに列を揃える
+        model_feats = self._normalize_features_for_model(features)
 
-        # ロット計算用 ATR（price 単位）＝特徴量 atr_14 と同じもの
-        atr_for_lot = float(features.get("atr_14", 0.0))
+        # expected_features があればその順でベクトル化
+        if self.expected_features:
+            vec = [model_feats[name] for name in self.expected_features]
+        else:
+            vec = list(model_feats.values())
+
+        arr = np.array([vec], dtype=float)
+
+        # 予測
+        prob = self.predict(arr)
+
+        # ロット計算用 ATR（price 単位）に必要な atr_14 と揃えておく
+        atr_for_lot = float(model_feats.get("atr_14", 0.0))
+
 
         return {
             "p_buy": float(prob.p_buy),

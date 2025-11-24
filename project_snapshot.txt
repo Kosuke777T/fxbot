@@ -1,7 +1,7 @@
 ############################################################
 # project_snapshot
 ############################################################
-generated_at: 2025-11-23 19:01:28
+generated_at: 2025-11-24 17:28:31
 project_root: D:\fxbot
 
 NOTE:
@@ -39,13 +39,13 @@ app/
   main_tk.py (updated: 2025-11-23 07:59:35)
   services/
     __init__.py (updated: 2025-11-23 07:59:35)
-    ai_service.py (updated: 2025-11-23 07:59:35)
+    ai_service.py (updated: 2025-11-23 21:09:14)
     aisvc_loader.py (updated: 2025-11-23 07:59:35)
     circuit_breaker.py (updated: 2025-11-23 07:59:35)
     data_guard.py (updated: 2025-11-23 07:59:35)
     decision_log.py (updated: 2025-11-23 07:59:35)
     event_store.py (updated: 2025-11-23 07:59:35)
-    execution_stub.py (updated: 2025-11-23 18:55:36)
+    execution_stub.py (updated: 2025-11-23 20:16:07)
     feature_importance.py (updated: 2025-11-23 07:59:35)
     metrics.py (updated: 2025-11-23 07:59:35)
     mt5_account_store.py (updated: 2025-11-23 07:59:35)
@@ -54,7 +54,7 @@ app/
     orderbook_stub.py (updated: 2025-11-23 07:59:35)
     recent_kpi.py (updated: 2025-11-23 07:59:35)
     shap_service.py (updated: 2025-11-23 07:59:35)
-    trade_service.py (updated: 2025-11-23 07:59:35)
+    trade_service.py (updated: 2025-11-23 20:49:59)
     trade_state.py (updated: 2025-11-23 07:59:35)
     trailing.py (updated: 2025-11-23 07:59:35)
     trailing_hook.py (updated: 2025-11-23 07:59:35)
@@ -70,7 +70,7 @@ core/
     __init__.py (updated: 2025-11-23 07:59:35)
     calibration.py (updated: 2025-11-23 07:59:35)
     features.py (updated: 2025-11-23 07:59:35)
-    loader.py (updated: 2025-11-23 07:59:35)
+    loader.py (updated: 2025-11-24 17:20:14)
     service.py (updated: 2025-11-23 07:59:35)
   config.py (updated: 2025-11-23 07:59:35)
   indicators.py (updated: 2025-11-23 07:59:35)
@@ -95,6 +95,7 @@ scripts/
   dryrun_smoke.py (updated: 2025-11-23 07:59:35)
   export_mt5_history.py (updated: 2025-11-23 07:59:35)
   export_val_probs.py (updated: 2025-11-23 07:59:35)
+  live_runner.py (updated: 2025-11-23 21:26:06)
   make_csv_from_mt5.py (updated: 2025-11-23 07:59:35)
   make_project_snapshot.py (updated: 2025-11-23 17:53:12)
   make_project_snapshot2.py (updated: 2025-11-23 18:36:49)
@@ -3988,6 +3989,105 @@ class AISvc:
 
         return df_result
 
+    def get_live_probs(self, symbol: str) -> dict[str, float]:
+        """
+        Live 用：execution_stub と同じ特徴量パイプラインを使って
+        確率と atr_for_lot を返す簡易版。
+        """
+        from app.core import market
+        from app.core.config_loader import load_config
+        from app.services.execution_stub import _collect_features
+
+        # tick が取れない場合は素直に全部 SKIP に倒す
+        try:
+            tick = market.tick(symbol)
+        except Exception:
+            tick = None
+
+        if not tick:
+            return {
+                "p_buy": 0.0,
+                "p_sell": 0.0,
+                "p_skip": 1.0,
+                "atr_for_lot": 0.0,
+            }
+
+        # 設定から base_features を取得（execution_stub と揃える）
+        try:
+            cfg = load_config()
+        except Exception:
+            cfg = {}
+
+        ai_cfg = cfg.get("ai", {}) if isinstance(cfg, dict) else {}
+        base_features = tuple(ai_cfg.get("features", {}).get("base", []))
+
+        # spread を market から取得（なければ 0.0）
+        try:
+            spr_callable = getattr(market, "spread", None)
+            spread_pips = spr_callable(symbol) if callable(spr_callable) else 0.0
+        except Exception:
+            spread_pips = 0.0
+
+        # 現在のオープンポジション数は、とりあえず 0 として扱う
+        open_positions = 0
+
+        # execution_stub と同じダミー特徴量生成ロジックを使う
+        features = _collect_features(
+            symbol,
+            base_features,
+            tick,
+            spread_pips,
+            open_positions,
+        )
+
+        # モデルで確率予測
+        prob = self.predict(features)
+
+        # ロット計算用 ATR（price 単位）＝特徴量 atr_14 と同じもの
+        atr_for_lot = float(features.get("atr_14", 0.0))
+
+        return {
+            "p_buy": float(prob.p_buy),
+            "p_sell": float(prob.p_sell),
+            "p_skip": float(prob.p_skip),
+            "atr_for_lot": atr_for_lot,
+        }
+
+
+    def build_decision_from_probs(self, probs: dict, symbol: str) -> dict:
+        """
+        Live 用：execution_stub の ENTRY/SKIP 判定を最小限で再現。
+        ATR や threshold は設定ファイルを参照する。
+        """
+        from app.core.config_loader import load_config
+        cfg = load_config()
+        thr = float(cfg.get("entry", {}).get("prob_threshold", 0.5))
+
+        p_buy = probs["p_buy"]
+        p_sell = probs["p_sell"]
+
+        # SKIP 条件
+        if p_buy < thr and p_sell < thr:
+            return {"action": "SKIP", "reason": "ai_threshold"}
+
+        # どちらを選ぶか
+        if p_buy >= p_sell:
+            side = "BUY"
+            prob = p_buy
+        else:
+            side = "SELL"
+            prob = p_sell
+
+        return {
+            "action": "ENTRY",
+            "signal": {
+                "side": side,
+                "atr_for_lot": probs.get("atr_for_lot"),
+                "prob": prob,
+            },
+            "reason": "entry_ok",
+        }
+
 
 
 === file: app/services/aisvc_loader.py ===
@@ -5009,7 +5109,12 @@ class ExecutionStub:
         grace_active = trade_service.post_fill_grace_active()
         base_filters["post_fill_grace"] = grace_active
 
-        def _emit(decision: Dict[str, Any], filters_ctx: Dict[str, Any], level: str = "info") -> None:
+        def _emit(decision: Any, filters_ctx: Dict[str, Any], level: str = "info") -> None:
+            # decision が str ("SKIP" など) の場合は dict として扱わずに抜ける
+            if not isinstance(decision, dict):
+                print("decision は dict ではありません:", decision)
+                return
+
             action = decision.get("action")
             reason = decision.get("reason")
 
@@ -7010,80 +7115,62 @@ class TradeService:
     def can_trade(self) -> bool:
         return self.cb.can_trade()
 
+
     def open_position(
         self,
         symbol: str,
-        direction: str,
+        side: str,
+        lot: float | None = None,
+        atr: float | None = None,
         sl: float | None = None,
         tp: float | None = None,
-        *,
-        atr: float | None = None,
-        volume: float | None = None,
         comment: str = "",
     ) -> None:
         """
-        エントリー用メソッド。
-
-        Parameters
-        ----------
-        symbol : str
-            通貨ペア。
-        direction : str
-            "buy" or "sell"。
-        sl : float | None
-            損切り価格。
-        tp : float | None
-            利確価格。
-        atr : float | None
-            エントリー直前の足で計算した ATR。
-        volume : float | None
-            ロット数。None の場合、atr + 口座情報から自動計算。
-        comment : str
-            MT5 オーダーコメント。
+        MT5 への発注。ATR を元に lot 計算を優先し、なければ ATR なしのフォールバック lot で送信。
         """
         if self._mt5 is None:
             raise RuntimeError("MT5 client is not configured on TradeService.")
         if self._profile is None:
             raise RuntimeError("Strategy profile is not configured on TradeService.")
 
-        side = direction.upper()
-        if side not in {"BUY", "SELL"}:
-            raise ValueError('direction must be "buy" or "sell"')
+        side_up = side.upper()
+        if side_up not in {"BUY", "SELL"}:
+            raise ValueError('side must be "buy" or "sell"')
 
-        # --- ロット計算 ---
-        if volume is None:
-            if atr is None:
-                raise ValueError(
-                    "volume も atr も指定されていません。"
-                    "ATRベース自動ロット計算を使う場合は atr を渡してください。"
-                )
+        equity = float(self._mt5.get_equity())
+        tick_spec: TickSpec = self._mt5.get_tick_spec(symbol)
 
-            equity = float(self._mt5.get_equity())
-            tick_spec: TickSpec = self._mt5.get_tick_spec(symbol)
+        lot_result: LotSizingResult | None = None
+        lot_val = lot
 
-            lot_result: LotSizingResult = self._profile.compute_lot_size_from_atr(
+        # ATR が指定されていて lot が決まっていない場合は ATR ベースで計算
+        if (lot_val is None or lot_val == 0) and atr is not None and atr > 0:
+            lot_result = self._profile.compute_lot_size_from_atr(
                 equity=equity,
                 atr=atr,
                 tick_size=tick_spec.tick_size,
                 tick_value=tick_spec.tick_value,
             )
-
-            raw_volume = getattr(lot_result, "volume", None)
+            raw_volume = getattr(lot_result, "lot", None)
             if raw_volume is None:
-                raw_volume = getattr(lot_result, "lot", None)
-            if raw_volume is None:
-                raise ValueError("LotSizingResult に lot/volume がありません。")
+                raw_volume = getattr(lot_result, "volume", None)
+            if raw_volume is not None:
+                lot_val = float(raw_volume)
 
-            volume = float(raw_volume)
-            self._last_lot_result = lot_result
-        else:
-            # volume が明示されている場合は、それを優先
-            self._last_lot_result = None
+        # フォールバック: ATR が無い/0 のときはデフォルト lot を使う
+        if lot_val is None or lot_val <= 0:
+            default_lot = getattr(self._profile, "default_lot", None)
+            if default_lot is None:
+                default_lot = float((cfg.get("trade", {}) or {}).get("default_lot", 0.01))
+            lot_val = float(default_lot)
+
+        self._last_lot_result = lot_result
 
         self._mt5.order_send(
             symbol=symbol,
-            order_type=side,
-            lot=float(volume),
+            order_type=side_up,
+            lot=float(lot_val),
             sl=sl,
             tp=tp,
             comment=comment,
@@ -7138,6 +7225,81 @@ class TradeService:
 # Module-level helpers (backwards compatibility)
 # ------------------------------------------------------------------ #
 SERVICE = TradeService()
+
+
+def execute_decision(
+    decision: Dict[str, Any],
+    *,
+    symbol: Optional[str] = None,
+    service: Optional[TradeService] = None,
+) -> None:
+    """
+    Live 用のヘルパ:
+    decision dict から TradeService.open_position(...) を呼び出す。
+
+    期待する decision 形式の例::
+        {
+            "action": "ENTRY",
+            "reason": "entry_ok",
+            "signal": {
+                "side": "BUY",
+                "atr_for_lot": 0.0042,
+                ...
+            },
+            "dec": {...},
+        }
+
+    - action != "ENTRY" の場合は何もしない
+    - side や symbol が足りなければ何もしない
+    - atr_for_lot はそのまま open_position(atr=...) に渡す
+      （lot=None として渡し、TradeService 側で ATR ベースのロット計算を使う）
+    """
+    if not isinstance(decision, dict):
+        # "SKIP" などの str が来た場合は黙って終了
+        return
+
+    action = decision.get("action")
+    if action != "ENTRY":
+        # エントリー以外（SKIP/BLOCKED/TRAIL_UPDATE）はここでは何もしない
+        return
+
+    signal = decision.get("signal") or {}
+    if not isinstance(signal, dict):
+        return
+
+    side = signal.get("side")
+    if not side:
+        # どっちに建てるか不明なら何もしない
+        return
+
+    atr_for_lot = signal.get("atr_for_lot")
+
+    svc = service or SERVICE
+
+    # symbol が指定されていなければ設定ファイルから拾う（なければ何もしない）
+    sym = symbol
+    if not sym:
+        try:
+            from app.core.config_loader import load_config  # 遅延 import
+            cfg = load_config()
+            runtime_cfg = cfg.get("runtime", {}) if isinstance(cfg, dict) else {}
+            sym = runtime_cfg.get("symbol")
+        except Exception:
+            sym = None
+
+    if not sym:
+        # シンボルが決まらない場合はエントリーしない
+        return
+
+    # lot=None + atr=atr_for_lot で呼び出し
+    # open_position 側で StrategyProfile.compute_lot_size_from_atr を使って
+    # ATR ベースの自動ロット計算が走る（既に実装済み）
+    svc.open_position(
+        symbol=str(sym),
+        side=str(side),
+        lot=None,
+        atr=float(atr_for_lot) if atr_for_lot is not None else None,
+    )
 
 
 def can_open_new_position(symbol: Optional[str] = None) -> bool:
@@ -8758,34 +8920,79 @@ class LGBBundle:
     ready: bool = True
 
 # ------------------------------------------------------------
-# 校正付きラッパ（※単一定義・predict_probaあり）
+# 校正付きラッパ（Booster / clf 両対応版）
 # ------------------------------------------------------------
 class _CalibratedWrapper:
-    """Thin wrapper that applies optional calibration to predict_proba outputs."""
+    """
+    base_model:
+        - 通常: sklearn 系の clf (predict_proba を持つ)
+        - 古いモデル: LightGBM Booster (predict のみ)
+    calibrator:
+        - None なら何もしない
+        - transform / predict_proba を持っていればそれを適用
+    """
 
     def __init__(self, base_model: Any, calibrator: Any, model_name: str = "(unknown)") -> None:
         self.base_model = base_model
         self.calibrator = calibrator
         self.model_name = model_name
         self.calibrator_name = getattr(calibrator, "method", "none") if calibrator else "none"
+        # AISvc 側から埋められる（feature_order）
         self.expected_features: Optional[list[str]] = None
 
     def __getattr__(self, item: str) -> Any:
+        # その他の属性は元モデルに委譲
         return getattr(self.base_model, item)
+
+    def _raw_p1_from_model(self, X_arr: np.ndarray) -> FloatArray:
+        """
+        モデルから「クラス1の確率 or スコア」を 1次元配列で取り出す。
+
+        - predict_proba があれば、それを優先
+        - なければ predict をそのまま確率扱い（Booster想定）
+        """
+        # 1) 通常パス: predict_proba
+        if hasattr(self.base_model, "predict_proba"):
+            raw = self.base_model.predict_proba(X_arr)
+            raw = np.asarray(raw, dtype=float)
+
+            # (n, ) or (n, 1) or (n, 2) などを全部 1次元に落とす
+            if raw.ndim == 1:
+                p1 = raw.reshape(-1)
+            elif raw.ndim == 2:
+                if raw.shape[1] == 1:
+                    p1 = raw[:, 0]
+                else:
+                    # 2列以上ある場合は「最後の列」を陽線クラスとして扱う
+                    p1 = raw[:, -1]
+            else:
+                raise ValueError(f"unexpected predict_proba shape: {raw.shape}")
+            return p1
+
+        # 2) フォールバック: predict のみ
+        if hasattr(self.base_model, "predict"):
+            raw = self.base_model.predict(X_arr)
+            p1 = np.asarray(raw, dtype=float).reshape(-1)
+            return p1
+
+        raise AttributeError("base_model has neither predict_proba nor predict")
 
     def predict_proba(self, X: Any) -> FloatArray:
         X_arr = np.asarray(X, dtype=float)
-        raw = self.base_model.predict_proba(X_arr)
-        raw_arr = np.asarray(raw, dtype=float)
-        calibrated = _apply_calibration(self.calibrator, raw_arr)
-        return np.asarray(calibrated, dtype=float)
 
-    @property
-    def classes_(self) -> NDArray[np.int_]:
-        base_classes = getattr(self.base_model, "classes_", None)
-        if base_classes is None:
-            return np.asarray([0, 1], dtype=int)
-        return np.asarray(base_classes, dtype=int)
+        # モデルから生の p1 を取得
+        p1 = self._raw_p1_from_model(X_arr)
+
+        # 校正器があれば適用（vector → (n,1) → (n,1) → vector）
+        p1_2d = p1.reshape(-1, 1)
+        p1_cal = _apply_calibration(self.calibrator, p1_2d).reshape(-1)
+
+        # 数値安全のためクリップ
+        p1_cal = np.clip(p1_cal, 1e-6, 1.0 - 1e-6)
+        p0 = 1.0 - p1_cal
+
+        # shape: (n, 2) [クラス0, クラス1]
+        return np.stack([p0, p1_cal], axis=1)
 
 def _read_json(path: str) -> Dict[str, Any]:
     with open(path, "r", encoding="utf-8") as fh:
@@ -8821,17 +9028,20 @@ def _maybe_load_calibrator_from_meta(meta: Dict[str, Any]) -> Any:
 # ------------------------------------------------------------
 # パブリックAPI：モデルローダ
 # ------------------------------------------------------------
+
 def load_lgb_clf(model_path: str | None = None, *, meta_path: str | None = None) -> Any:
     model_file = model_path or "models/LightGBM_clf.pkl"
     base_model = _load_pickle_or_joblib(model_file)
+
     # ★ここを追加：保存物が dict/ラッパでも推定器本体を取り出す
     try:
         # ModelWrapper を一時的に使って「中身の推定器」を取り出す
-        _tmp = ModelWrapper(base_model)        # ← 既に同ファイル内で定義済みクラス
-        base_model = _tmp.base_model           # ← predict_proba を持つはず
+        _tmp = ModelWrapper(base_model)
+        base_model = _tmp.base_model  # predict_proba / predict を持つ本体
     except Exception:
         # 失敗してもそのまま進める（あとで _CalibratedWrapper でまた拾う）
         pass
+
     meta: Dict[str, Any] = {}
     if meta_path and Path(meta_path).is_file():
         try:
@@ -8845,6 +9055,18 @@ def load_lgb_clf(model_path: str | None = None, *, meta_path: str | None = None)
             print(f"[core.ai.loader][warn] active meta read failed: {exc}")
             meta = {}
 
+    # ★追加：active_model.json の feature_order / features を不足分としてマージ
+    try:
+        active_meta = _load_active_meta()
+    except Exception as exc:
+        print(f"[core.ai.loader][warn] active meta merge failed: {exc}")
+        active_meta = {}
+
+    for key in ("feature_order", "features"):
+        if not meta.get(key) and active_meta.get(key):
+            meta[key] = active_meta[key]
+
+    # 旧仕様 {"calibration": {...}} → 新仕様 calibrator_path へ
     if "calibration" in meta and "calibrator_path" not in meta:
         calib_meta = meta.get("calibration") or {}
         meta["calibrator_path"] = calib_meta.get("path")
@@ -8858,9 +9080,7 @@ def load_lgb_clf(model_path: str | None = None, *, meta_path: str | None = None)
 
     return wrapper
 
-# ------------------------------------------------------------
-# ユーティリティ
-# ------------------------------------------------------------
+
 def build_feature_vector(features: dict, order: list[str]) -> pd.DataFrame:
     row = [features.get(k, 0.0) for k in order]
     return pd.DataFrame([row], columns=order)
@@ -10370,6 +10590,48 @@ def main() -> None:
     logger.info(f"wrote: {OUT_PBUY} ({len(p_buy_raw)}), {OUT_Y} ({len(y_true)}), api={use_proba}")
 
 #
+if __name__ == "__main__":
+    main()
+
+
+
+=== file: scripts/live_runner.py ===
+
+# scripts/live_runner.py
+from __future__ import annotations
+
+from pathlib import Path
+import sys
+import time
+from typing import Any, Dict
+
+# --- プロジェクトルート(fxbot/)を sys.path に追加 ---
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from app.services.ai_service import AISvc
+from app.services.trade_service import execute_decision
+from app.core.config_loader import load_config
+
+def main() -> None:
+    cfg = load_config()
+    symbol = cfg.get("runtime", {}).get("symbol", "USDJPY")
+
+    ai = AISvc()
+
+    print("=== Live runner started ===")
+    while True:
+        # → AISvc が自動で MT5 チャートから特徴量を取る前提（既存の get_live_features があるなら置き換える）
+        probs = ai.get_live_probs(symbol)
+        print("tick → probs:", probs)
+        decision = ai.build_decision_from_probs(probs, symbol=symbol)
+        print("decision →", decision)
+        # ATR は execution_stub 互換の decision の中に入っている
+        execute_decision(decision, symbol=symbol)
+
+        time.sleep(1.0)  # 1秒間隔でループ（適宜調整）
+
 if __name__ == "__main__":
     main()
 

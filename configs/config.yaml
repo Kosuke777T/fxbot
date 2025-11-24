@@ -70,14 +70,15 @@ ai:
   - name: lgbm_cls
   features:
     base:
+    - ret_1
+    - ret_5
     - ema_5
     - ema_20
+    - ema_ratio
     - rsi_14
     - atr_14
-    - adx_14
-    - bbp
+    - range
     - vol_chg
-    - wick_ratio
   retrain:
     schedule_cron: sat 03:00
 filters:

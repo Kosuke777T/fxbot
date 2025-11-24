@@ -393,6 +393,7 @@ def _build_decision_trace(
     trace["exit_plan"] = exit_plan or {"mode": "none"}
     return trace
 
+##
 def _collect_features(
     symbol: str,
     base_features: Tuple[str, ...],
@@ -400,6 +401,12 @@ def _collect_features(
     spread_pips: Optional[float],
     open_positions: int,
 ) -> Dict[str, float]:
+    """
+    Live 用の軽量なフィーチャ生成。
+    - 学習時の 9 列（ret_1, ret_5, ema_5, ema_20, ema_ratio, rsi_14, atr_14, range, vol_chg）
+      を中心に、設定された base_features だけ埋める。
+    - 本来は OHLCV の履歴から計算するべきだが、ここでは tick/spread からの簡易版。
+    """
     bid, ask = tick if tick else (None, None)
     mid = (float(bid) + float(ask)) / 2 if bid is not None and ask is not None else 0.0
     spr = float(spread_pips) if spread_pips is not None else 0.0
@@ -409,27 +416,55 @@ def _collect_features(
         features["bias"] = 1.0
         return features
 
+    # 簡易な値（将来的に core.ai.features と揃えるならここを書き換える）
+    ret_1_val = 0.0
+    ret_5_val = 0.0
+    ema_5_val = mid
+    ema_20_val = mid
+    if ema_20_val != 0.0:
+        ema_ratio_val = ema_5_val / ema_20_val
+    else:
+        ema_ratio_val = 0.0
+    rsi_14_val = 50.0
+    atr_14_val = spr
+    range_val = spr
+    vol_chg_val = float(open_positions)
+
     for name in base_features:
-        if name == "ema_5":
-            features[name] = mid
+        # --- モデルの 9 列 ---
+        if name == "ret_1":
+            features[name] = ret_1_val
+        elif name == "ret_5":
+            features[name] = ret_5_val
+        elif name == "ema_5":
+            features[name] = ema_5_val
         elif name == "ema_20":
-            features[name] = mid
+            features[name] = ema_20_val
+        elif name == "ema_ratio":
+            features[name] = ema_ratio_val
         elif name == "rsi_14":
-            features[name] = 50.0
+            features[name] = rsi_14_val
         elif name == "atr_14":
-            features[name] = spr
+            features[name] = atr_14_val
+        elif name == "range":
+            features[name] = range_val
+        elif name == "vol_chg":
+            features[name] = vol_chg_val
+
+        # --- 旧仕様の互換用（config 側で消してもいいが、残しても無害） ---
         elif name == "adx_14":
             features[name] = 20.0 + min(20.0, spr * 5.0)
         elif name == "bbp":
             features[name] = 0.5 if spr == 0 else max(0.0, min(1.0, spr / 5.0))
-        elif name == "vol_chg":
-            features[name] = float(open_positions)
         elif name == "wick_ratio":
             features[name] = 0.5
+
         else:
             features[name] = 0.0
+
     return features
 
+##
 
 @dataclass
 class ExecutionStub:
