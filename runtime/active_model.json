@@ -1,0 +1,6 @@
+{
+  "path": "models/LightGBM_clf_20251117_090029.pkl",
+  "model_name": "LightGBM_clf",
+  "version": 1763370029.885401,
+  "best_threshold": 0.45
+}
