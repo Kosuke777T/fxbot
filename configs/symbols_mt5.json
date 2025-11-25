@@ -1,0 +1,316 @@
+{
+  "broker_server": "GaitameFinest-Demo",
+  "login": 22004581,
+  "symbols": [
+    {
+      "name": "AUDCAD-",
+      "pair": "AUDCAD",
+      "visible": true,
+      "select": true,
+      "trade_mode": 4,
+      "digits": 5,
+      "point": 1e-05,
+      "description": "Australian Dollar vs Canadian Dollar"
+    },
+    {
+      "name": "AUDCHF-",
+      "pair": "AUDCHF",
+      "visible": true,
+      "select": true,
+      "trade_mode": 4,
+      "digits": 5,
+      "point": 1e-05,
+      "description": "Australian Dollar vs Swiss Franc"
+    },
+    {
+      "name": "AUDJPY-",
+      "pair": "AUDJPY",
+      "visible": true,
+      "select": true,
+      "trade_mode": 4,
+      "digits": 3,
+      "point": 0.001,
+      "description": "Australian Dollar vs Japanese Yen"
+    },
+    {
+      "name": "AUDNZD-",
+      "pair": "AUDNZD",
+      "visible": true,
+      "select": true,
+      "trade_mode": 4,
+      "digits": 5,
+      "point": 1e-05,
+      "description": "Australian Dollar vs New Zealand Dollar"
+    },
+    {
+      "name": "CADJPY-",
+      "pair": "CADJPY",
+      "visible": true,
+      "select": true,
+      "trade_mode": 4,
+      "digits": 3,
+      "point": 0.001,
+      "description": "Canadian Dollar vs Japanese Yen"
+    },
+    {
+      "name": "CHFJPY-",
+      "pair": "CHFJPY",
+      "visible": true,
+      "select": true,
+      "trade_mode": 4,
+      "digits": 3,
+      "point": 0.001,
+      "description": "Swiss Franc vs Japanese Yen"
+    },
+    {
+      "name": "EURAUD-",
+      "pair": "EURAUD",
+      "visible": true,
+      "select": true,
+      "trade_mode": 4,
+      "digits": 5,
+      "point": 1e-05,
+      "description": "Euro vs Australian Dollar"
+    },
+    {
+      "name": "EURCAD-",
+      "pair": "EURCAD",
+      "visible": true,
+      "select": true,
+      "trade_mode": 4,
+      "digits": 5,
+      "point": 1e-05,
+      "description": "Euro vs Canadian Dollar"
+    },
+    {
+      "name": "EURCHF-",
+      "pair": "EURCHF",
+      "visible": true,
+      "select": true,
+      "trade_mode": 4,
+      "digits": 5,
+      "point": 1e-05,
+      "description": "Euro vs Swiss Franc"
+    },
+    {
+      "name": "EURGBP-",
+      "pair": "EURGBP",
+      "visible": true,
+      "select": true,
+      "trade_mode": 4,
+      "digits": 5,
+      "point": 1e-05,
+      "description": "Euro vs Great Britain Pound "
+    },
+    {
+      "name": "EURJPY-",
+      "pair": "EURJPY",
+      "visible": false,
+      "select": false,
+      "trade_mode": 4,
+      "digits": 3,
+      "point": 0.001,
+      "description": "Euro vs Japanese Yen"
+    },
+    {
+      "name": "EURNZD-",
+      "pair": "EURNZD",
+      "visible": false,
+      "select": false,
+      "trade_mode": 4,
+      "digits": 5,
+      "point": 1e-05,
+      "description": "Euro vs New Zealand Dollar"
+    },
+    {
+      "name": "EURUSD-",
+      "pair": "EURUSD",
+      "visible": false,
+      "select": false,
+      "trade_mode": 4,
+      "digits": 5,
+      "point": 1e-05,
+      "description": "Euro vs US Dollar"
+    },
+    {
+      "name": "GBPAUD-",
+      "pair": "GBPAUD",
+      "visible": false,
+      "select": false,
+      "trade_mode": 4,
+      "digits": 5,
+      "point": 1e-05,
+      "description": "Great Britain Pound vs Australian Dollar"
+    },
+    {
+      "name": "GBPCAD-",
+      "pair": "GBPCAD",
+      "visible": false,
+      "select": false,
+      "trade_mode": 4,
+      "digits": 5,
+      "point": 1e-05,
+      "description": "Great Britain Pound vs Canadian Dollar"
+    },
+    {
+      "name": "GBPCHF-",
+      "pair": "GBPCHF",
+      "visible": false,
+      "select": false,
+      "trade_mode": 4,
+      "digits": 5,
+      "point": 1e-05,
+      "description": "Great Britain Pound vs Swiss Franc"
+    },
+    {
+      "name": "GBPJPY-",
+      "pair": "GBPJPY",
+      "visible": false,
+      "select": true,
+      "trade_mode": 4,
+      "digits": 3,
+      "point": 0.001,
+      "description": "Great Britain Pound vs Japanese Yen"
+    },
+    {
+      "name": "GBPNZD-",
+      "pair": "GBPNZD",
+      "visible": false,
+      "select": false,
+      "trade_mode": 4,
+      "digits": 5,
+      "point": 1e-05,
+      "description": "Great Britan Pound vs New Zealand Dollar"
+    },
+    {
+      "name": "GBPUSD-",
+      "pair": "GBPUSD",
+      "visible": false,
+      "select": true,
+      "trade_mode": 4,
+      "digits": 5,
+      "point": 1e-05,
+      "description": "Great Britain Pound vs US Dollar"
+    },
+    {
+      "name": "NZDCAD-",
+      "pair": "NZDCAD",
+      "visible": false,
+      "select": false,
+      "trade_mode": 4,
+      "digits": 5,
+      "point": 1e-05,
+      "description": "New Zealand Dollar vs Canadian Dollar"
+    },
+    {
+      "name": "NZDJPY-",
+      "pair": "NZDJPY",
+      "visible": false,
+      "select": true,
+      "trade_mode": 4,
+      "digits": 3,
+      "point": 0.001,
+      "description": "New Zealand Dollar vs Japanise Yen"
+    },
+    {
+      "name": "NZDUSD-",
+      "pair": "NZDUSD",
+      "visible": false,
+      "select": true,
+      "trade_mode": 4,
+      "digits": 5,
+      "point": 1e-05,
+      "description": "New Zealand Dollar vs US Dollar"
+    },
+    {
+      "name": "USDCAD-",
+      "pair": "USDCAD",
+      "visible": false,
+      "select": false,
+      "trade_mode": 4,
+      "digits": 5,
+      "point": 1e-05,
+      "description": "US Dollar vs Canadian Dollar"
+    },
+    {
+      "name": "USDJPY-",
+      "pair": "USDJPY",
+      "visible": true,
+      "select": true,
+      "trade_mode": 4,
+      "digits": 3,
+      "point": 0.001,
+      "description": "US Dollar vs Japanese Yen"
+    },
+    {
+      "name": "AUDUSD-",
+      "pair": "AUDUSD",
+      "visible": false,
+      "select": false,
+      "trade_mode": 4,
+      "digits": 5,
+      "point": 1e-05,
+      "description": "Australian Dollar vs US Dollar"
+    },
+    {
+      "name": "USDCHF-",
+      "pair": "USDCHF",
+      "visible": false,
+      "select": false,
+      "trade_mode": 4,
+      "digits": 5,
+      "point": 1e-05,
+      "description": "US Dollar vs Swiss Franc"
+    },
+    {
+      "name": "CADCHF-",
+      "pair": "CADCHF",
+      "visible": false,
+      "select": false,
+      "trade_mode": 4,
+      "digits": 5,
+      "point": 1e-05,
+      "description": "Canadian Dollar vs Swiss Franc"
+    },
+    {
+      "name": "NZDCHF-",
+      "pair": "NZDCHF",
+      "visible": false,
+      "select": false,
+      "trade_mode": 4,
+      "digits": 5,
+      "point": 1e-05,
+      "description": "New Zealand Dollar vs Swiss Franc"
+    }
+  ],
+  "preferred": {
+    "AUDCAD": "AUDCAD-",
+    "AUDCHF": "AUDCHF-",
+    "AUDJPY": "AUDJPY-",
+    "AUDNZD": "AUDNZD-",
+    "CADJPY": "CADJPY-",
+    "CHFJPY": "CHFJPY-",
+    "EURAUD": "EURAUD-",
+    "EURCAD": "EURCAD-",
+    "EURCHF": "EURCHF-",
+    "EURGBP": "EURGBP-",
+    "EURJPY": "EURJPY-",
+    "EURNZD": "EURNZD-",
+    "EURUSD": "EURUSD-",
+    "GBPAUD": "GBPAUD-",
+    "GBPCAD": "GBPCAD-",
+    "GBPCHF": "GBPCHF-",
+    "GBPJPY": "GBPJPY-",
+    "GBPNZD": "GBPNZD-",
+    "GBPUSD": "GBPUSD-",
+    "NZDCAD": "NZDCAD-",
+    "NZDJPY": "NZDJPY-",
+    "NZDUSD": "NZDUSD-",
+    "USDCAD": "USDCAD-",
+    "USDJPY": "USDJPY-",
+    "AUDUSD": "AUDUSD-",
+    "USDCHF": "USDCHF-",
+    "CADCHF": "CADCHF-",
+    "NZDCHF": "NZDCHF-"
+  }
+}

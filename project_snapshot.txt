@@ -1,7 +1,7 @@
 ############################################################
 # project_snapshot
 ############################################################
-generated_at: 2025-11-24 17:28:31
+generated_at: 2025-11-25 18:21:04
 project_root: D:\fxbot
 
 NOTE:
@@ -15,117 +15,123 @@ NOTE:
 
 fxbot/
 app/
-  __init__.py (updated: 2025-11-23 07:59:35)
+  __init__.py (updated: 2025-11-20 17:32:02)
   core/
-    config_loader.py (updated: 2025-11-23 07:59:35)
-    data_finder.py (updated: 2025-11-23 07:59:35)
-    logger.py (updated: 2025-11-23 07:59:35)
-    market.py (updated: 2025-11-23 07:59:35)
-    mt5_client.py (updated: 2025-11-23 07:59:35)
-    strategy_profile.py (updated: 2025-11-23 07:59:35)
+    config_loader.py (updated: 2025-11-20 17:32:02)
+    data_finder.py (updated: 2025-11-20 17:32:02)
+    logger.py (updated: 2025-11-20 17:32:02)
+    market.py (updated: 2025-11-25 07:59:09)
+    mt5_client.py (updated: 2025-11-22 17:10:36)
+    strategy_profile.py (updated: 2025-11-25 18:09:08)
+    symbol_map.py (updated: 2025-11-25 10:55:29)
   gui/
-    __init__.py (updated: 2025-11-23 07:59:35)
-    ai_tab.py (updated: 2025-11-23 07:59:35)
-    backtest_tab.py (updated: 2025-11-23 07:59:35)
-    control_tab.py (updated: 2025-11-23 07:59:35)
-    dashboard_tab.py (updated: 2025-11-23 07:59:35)
-    dashboard_tab_qt.py (updated: 2025-11-23 07:59:35)
-    history_tab.py (updated: 2025-11-23 07:59:35)
-    main.py (updated: 2025-11-23 07:59:35)
-    settings_tab.py (updated: 2025-11-23 07:59:35)
+    __init__.py (updated: 2025-11-20 17:32:02)
+    ai_tab.py (updated: 2025-11-20 17:32:02)
+    backtest_tab.py (updated: 2025-11-20 17:32:02)
+    control_tab.py (updated: 2025-11-20 17:32:02)
+    dashboard_tab.py (updated: 2025-11-20 17:32:02)
+    dashboard_tab_qt.py (updated: 2025-11-20 17:32:02)
+    history_tab.py (updated: 2025-11-20 17:32:02)
+    main.py (updated: 2025-11-20 17:32:02)
+    settings_tab.py (updated: 2025-11-20 17:32:02)
     widgets/
-      feature_importance.py (updated: 2025-11-23 07:59:35)
-      shap_bar.py (updated: 2025-11-23 07:59:35)
-  main_tk.py (updated: 2025-11-23 07:59:35)
+      feature_importance.py (updated: 2025-11-20 17:32:02)
+      shap_bar.py (updated: 2025-11-20 17:32:02)
+  main_tk.py (updated: 2025-11-20 17:32:02)
   services/
-    __init__.py (updated: 2025-11-23 07:59:35)
-    ai_service.py (updated: 2025-11-23 21:09:14)
-    aisvc_loader.py (updated: 2025-11-23 07:59:35)
-    circuit_breaker.py (updated: 2025-11-23 07:59:35)
-    data_guard.py (updated: 2025-11-23 07:59:35)
-    decision_log.py (updated: 2025-11-23 07:59:35)
-    event_store.py (updated: 2025-11-23 07:59:35)
-    execution_stub.py (updated: 2025-11-23 20:16:07)
-    feature_importance.py (updated: 2025-11-23 07:59:35)
-    metrics.py (updated: 2025-11-23 07:59:35)
-    mt5_account_store.py (updated: 2025-11-23 07:59:35)
-    mt5_selftest.py (updated: 2025-11-23 07:59:35)
-    mt5_service.py (updated: 2025-11-23 07:59:35)
-    orderbook_stub.py (updated: 2025-11-23 07:59:35)
-    recent_kpi.py (updated: 2025-11-23 07:59:35)
-    shap_service.py (updated: 2025-11-23 07:59:35)
-    trade_service.py (updated: 2025-11-23 20:49:59)
-    trade_state.py (updated: 2025-11-23 07:59:35)
-    trailing.py (updated: 2025-11-23 07:59:35)
-    trailing_hook.py (updated: 2025-11-23 07:59:35)
+    __init__.py (updated: 2025-11-20 17:32:02)
+    ai_service.py (updated: 2025-11-25 11:11:17)
+    aisvc_loader.py (updated: 2025-11-20 17:32:02)
+    circuit_breaker.py (updated: 2025-11-20 17:32:02)
+    data_guard.py (updated: 2025-11-20 17:32:02)
+    decision_log.py (updated: 2025-11-20 17:32:02)
+    event_store.py (updated: 2025-11-20 17:32:02)
+    execution_stub.py (updated: 2025-11-25 15:48:22)
+    feature_importance.py (updated: 2025-11-20 17:32:02)
+    metrics.py (updated: 2025-11-20 17:32:02)
+    mt5_account_store.py (updated: 2025-11-20 17:32:02)
+    mt5_selftest.py (updated: 2025-11-20 17:32:02)
+    mt5_service.py (updated: 2025-11-20 17:32:02)
+    orderbook_stub.py (updated: 2025-11-20 17:32:02)
+    recent_kpi.py (updated: 2025-11-20 17:32:02)
+    shap_service.py (updated: 2025-11-20 17:32:02)
+    trade_service.py (updated: 2025-11-24 07:56:36)
+    trade_state.py (updated: 2025-11-20 17:32:02)
+    trailing.py (updated: 2025-11-20 17:32:02)
+    trailing_hook.py (updated: 2025-11-20 17:32:02)
   strategies/
-    __init__.py (updated: 2025-11-23 07:59:35)
-    ai_strategy.py (updated: 2025-11-23 07:59:35)
-apply_order.py (updated: 2025-11-23 07:59:35)
+    __init__.py (updated: 2025-11-20 17:32:02)
+    ai_strategy.py (updated: 2025-11-20 17:32:02)
+apply_order.py (updated: 2025-11-20 19:07:27)
+backtests/
+  michibiki_std/
 config/
 configs/
 core/
-  __init__.py (updated: 2025-11-23 07:59:35)
+  __init__.py (updated: 2025-11-20 17:32:02)
   ai/
-    __init__.py (updated: 2025-11-23 07:59:35)
-    calibration.py (updated: 2025-11-23 07:59:35)
-    features.py (updated: 2025-11-23 07:59:35)
-    loader.py (updated: 2025-11-24 17:20:14)
-    service.py (updated: 2025-11-23 07:59:35)
-  config.py (updated: 2025-11-23 07:59:35)
-  indicators.py (updated: 2025-11-23 07:59:35)
+    __init__.py (updated: 2025-11-20 17:32:02)
+    calibration.py (updated: 2025-11-20 17:32:02)
+    features.py (updated: 2025-11-20 17:32:02)
+    loader.py (updated: 2025-11-25 07:59:09)
+    service.py (updated: 2025-11-20 17:32:02)
+  config.py (updated: 2025-11-20 17:32:02)
+  indicators.py (updated: 2025-11-20 17:32:02)
   metrics/
-  metrics.py (updated: 2025-11-23 07:59:35)
-    __init__.py (updated: 2025-11-23 07:59:35)
-    fi_extractor.py (updated: 2025-11-23 07:59:35)
-    registry.py (updated: 2025-11-23 07:59:35)
-  position_guard.py (updated: 2025-11-23 07:59:35)
-  risk.py (updated: 2025-11-23 07:59:35)
+  metrics.py (updated: 2025-11-20 17:32:02)
+    __init__.py (updated: 2025-11-20 17:32:02)
+    fi_extractor.py (updated: 2025-11-20 17:32:02)
+    registry.py (updated: 2025-11-20 17:32:02)
+  position_guard.py (updated: 2025-11-20 17:32:02)
+  risk.py (updated: 2025-11-25 15:57:35)
   utils/
-    __init__.py (updated: 2025-11-23 07:59:35)
-    clock.py (updated: 2025-11-23 07:59:35)
-    hashing.py (updated: 2025-11-23 07:59:35)
-    runtime.py (updated: 2025-11-23 07:59:35)
-    timeutil.py (updated: 2025-11-23 07:59:35)
-fxbot_path.py (updated: 2025-11-23 07:59:35)
+    __init__.py (updated: 2025-11-20 17:32:02)
+    clock.py (updated: 2025-11-20 17:32:02)
+    hashing.py (updated: 2025-11-20 17:32:02)
+    runtime.py (updated: 2025-11-20 17:32:02)
+    timeutil.py (updated: 2025-11-20 17:32:02)
+fxbot_path.py (updated: 2025-11-20 17:32:02)
 runtime/
 scripts/
-  cb_smoke.py (updated: 2025-11-23 07:59:35)
-  diagnose_symbol.py (updated: 2025-11-23 07:59:35)
-  dryrun_smoke.py (updated: 2025-11-23 07:59:35)
-  export_mt5_history.py (updated: 2025-11-23 07:59:35)
-  export_val_probs.py (updated: 2025-11-23 07:59:35)
-  live_runner.py (updated: 2025-11-23 21:26:06)
-  make_csv_from_mt5.py (updated: 2025-11-23 07:59:35)
-  make_project_snapshot.py (updated: 2025-11-23 17:53:12)
-  make_project_snapshot2.py (updated: 2025-11-23 18:36:49)
-  make_toy_model.py (updated: 2025-11-23 07:59:35)
-  mt5_export_csv.py (updated: 2025-11-23 07:59:35)
-  mt5_smoke.py (updated: 2025-11-23 07:59:35)
-  print_runtime.py (updated: 2025-11-23 07:59:35)
-  promote_model.py (updated: 2025-11-23 07:59:35)
-  rollback_model.py (updated: 2025-11-23 07:59:35)
-  selftest_mt5.py (updated: 2025-11-23 07:59:35)
-  selftest_order_flow.py (updated: 2025-11-23 07:59:35)
-  sim_trailing.py (updated: 2025-11-23 07:59:35)
-  swap_model.py (updated: 2025-11-23 07:59:35)
-  train_calibrator.py (updated: 2025-11-23 07:59:35)
-  walkforward_retrain.py (updated: 2025-11-23 07:59:35)
-  walkforward_train.py (updated: 2025-11-23 07:59:35)
-  weekly_retrain.py (updated: 2025-11-23 07:59:35)
-temp_equity_check.py (updated: 2025-11-23 07:59:35)
+  cb_smoke.py (updated: 2025-11-20 17:32:02)
+  diagnose_symbol.py (updated: 2025-11-20 17:32:02)
+  discover_symbols.py (updated: 2025-11-25 10:52:47)
+  dryrun_smoke.py (updated: 2025-11-20 17:32:02)
+  export_mt5_history.py (updated: 2025-11-20 17:32:02)
+  export_val_probs.py (updated: 2025-11-20 17:32:02)
+  live_runner.py (updated: 2025-11-24 07:56:36)
+  lot_diagnose.py (updated: 2025-11-25 17:52:30)
+  lot_info_debug.py (updated: 2025-11-25 17:29:36)
+  make_csv_from_mt5.py (updated: 2025-11-20 17:32:02)
+  make_project_snapshot.py (updated: 2025-11-24 07:56:36)
+  make_project_snapshot2.py (updated: 2025-11-24 07:56:36)
+  make_toy_model.py (updated: 2025-11-20 17:32:02)
+  mt5_export_csv.py (updated: 2025-11-20 17:32:02)
+  mt5_smoke.py (updated: 2025-11-20 17:32:02)
+  print_runtime.py (updated: 2025-11-20 17:32:02)
+  promote_model.py (updated: 2025-11-20 17:32:02)
+  rollback_model.py (updated: 2025-11-20 17:32:02)
+  selftest_mt5.py (updated: 2025-11-20 17:32:02)
+  selftest_order_flow.py (updated: 2025-11-20 17:32:02)
+  sim_trailing.py (updated: 2025-11-20 17:32:02)
+  swap_model.py (updated: 2025-11-20 17:32:02)
+  train_calibrator.py (updated: 2025-11-20 17:32:02)
+  walkforward_retrain.py (updated: 2025-11-20 17:32:02)
+  walkforward_train.py (updated: 2025-11-20 17:32:02)
+  weekly_retrain.py (updated: 2025-11-20 17:32:03)
+temp_equity_check.py (updated: 2025-11-20 17:32:03)
 tests/
-  test_sanity.py (updated: 2025-11-23 07:59:35)
-tmp_view.py (updated: 2025-11-23 07:59:35)
+  test_sanity.py (updated: 2025-11-20 17:32:03)
+tmp_view.py (updated: 2025-11-20 17:32:03)
 tools/
-  __init__.py (updated: 2025-11-23 07:59:35)
-  backtest_equity_curve.py (updated: 2025-11-23 07:59:35)
-  backtest_run.py (updated: 2025-11-23 07:59:35)
-  dump_feature_importance.py (updated: 2025-11-23 07:59:35)
-  inspect_report.py (updated: 2025-11-23 07:59:35)
-  list_wfo_reports.py (updated: 2025-11-23 07:59:35)
-  train_lightgbm.py (updated: 2025-11-23 07:59:35)
-  train_scaler.py (updated: 2025-11-23 07:59:35)
+  __init__.py (updated: 2025-11-20 17:32:03)
+  backtest_equity_curve.py (updated: 2025-11-20 17:32:03)
+  backtest_run.py (updated: 2025-11-22 16:30:29)
+  dump_feature_importance.py (updated: 2025-11-20 17:32:03)
+  inspect_report.py (updated: 2025-11-20 17:32:03)
+  list_wfo_reports.py (updated: 2025-11-20 17:32:03)
+  train_lightgbm.py (updated: 2025-11-20 17:32:03)
+  train_scaler.py (updated: 2025-11-20 17:32:03)
 
 
 ========================================
@@ -250,12 +256,15 @@ setup()
 === file: app/core/market.py ===
 
 import MetaTrader5 as mt5
-from typing import Any, Optional, Tuple
+from typing import Any, Optional, Tuple, Dict
 
 
 def _pip_from_symbol_info(si: Any) -> float:
     # 例: USDJPY なら point=0.001 → pip=0.01（= point*10）
     return float(si.point) * 10.0 if si and si.point else 0.0
+
+# シンボルごとの「最後に取得できた tick(bid, ask)」をキャッシュする
+_last_ticks: Dict[str, Tuple[float, float]] = {}
 
 def select_symbol(symbol: str) -> bool:
     si = mt5.symbol_info(symbol)
@@ -267,30 +276,57 @@ def select_symbol(symbol: str) -> bool:
     return True
 
 def spread_pips(symbol: str) -> Optional[float]:
+    """
+    現在のスプレッドを pips 単位で返す。
+    - まず market.tick()（キャッシュ付き）から計算を試みる
+    - それでもダメなら symbol_info ベースのフォールバック
+    """
     if not select_symbol(symbol):
         return None
+
     si = mt5.symbol_info(symbol)
-    tick = mt5.symbol_info_tick(symbol)
     pip = _pip_from_symbol_info(si)
-    if tick and pip > 0:
-        return (float(tick.ask) - float(tick.bid)) / pip
-    if si and pip > 0 and si.ask and si.bid:
+    if pip <= 0:
+        return None
+
+    # 1) tick()（キャッシュ付き）から計算
+    t = tick(symbol)
+    if t is not None:
+        bid, ask = t
+        return (ask - bid) / pip
+
+    # 2) symbol_info からのフォールバック
+    if si and si.ask and si.bid:
         return (float(si.ask) - float(si.bid)) / pip
-    if si and pip > 0 and si.spread:
+
+    if si and si.spread:
         try:
             return (float(si.spread) * float(si.point)) / pip
         except Exception:
             pass
+
     return None
 
 def tick(symbol: str) -> Optional[Tuple[float, float]]:
-    """(bid, ask) を返す。取得失敗で None。"""
+    """
+    (bid, ask) を返す。
+    - 最新 tick が取れればキャッシュを更新して返す
+    - MT5 側が一時的に None を返しても、前回のキャッシュがあればそれで復旧する
+    """
     if not select_symbol(symbol):
+        # シンボルが扱えない場合は、キャッシュも返さない
         return None
+
+    # 最新 tick を MT5 から取得
     t = mt5.symbol_info_tick(symbol)
-    if t is None:
-        return None
-    return float(t.bid), float(t.ask)
+    if t is not None and getattr(t, 'bid', 0.0) and getattr(t, 'ask', 0.0):
+        v = float(t.bid), float(t.ask)
+        _last_ticks[symbol] = v
+        return v
+
+    # MT5 が None を返した場合や 0 レートの場合でも、
+    # 過去のキャッシュがあればそれを返す（None からの復旧）
+    return _last_ticks.get(symbol)
 
 def pips_to_price(symbol: str, pips: float) -> Optional[float]:
     if not select_symbol(symbol):
@@ -776,7 +812,7 @@ MICHIBIKI_STD = StrategyProfile(
     symbol="USDJPY",
     timeframe="M5",
     # KPI 目標
-    target_monthly_return=0.03,  # +3%/月を狙う
+    target_monthly_return=0.06,  # +3%/月を狙う
     max_monthly_dd=-0.20,  # -20% 以内に収めたい
     # ATR戦略パラメータ（暫定値：あとでWFOでチューニング）
     atr_period=14,
@@ -810,6 +846,46 @@ def get_profile(name: str = "michibiki_std") -> StrategyProfile:
 def list_profiles() -> Dict[str, StrategyProfile]:
     """定義済みプロファイル一覧を dict で返す（読み取り専用想定）。"""
     return dict(_PROFILES)
+
+
+
+=== file: app/core/symbol_map.py ===
+
+# app/core/symbol_map.py
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Dict
+
+_SYMBOL_MAP_PATH = Path("configs") / "symbols_mt5.json"
+_CACHE: Dict[str, str] | None = None
+
+
+def _load_preferred_map() -> Dict[str, str]:
+    global _CACHE
+    if _CACHE is not None:
+        return _CACHE
+
+    if not _SYMBOL_MAP_PATH.exists():
+        _CACHE = {}
+        return _CACHE
+
+    data = json.loads(_SYMBOL_MAP_PATH.read_text(encoding="utf-8"))
+    preferred = data.get("preferred", {}) or {}
+    # キーも値も str にそろえる
+    _CACHE = {str(k): str(v) for k, v in preferred.items()}
+    return _CACHE
+
+
+def resolve_symbol(pair: str) -> str:
+    """
+    'USDJPY' のような論理ペア名を、実際のMT5シンボル名に解決する。
+    マップに無ければ、そのまま返す（後方互換用）。
+    """
+    mapping = _load_preferred_map()
+    return mapping.get(pair, pair)
 
 
 
@@ -3760,8 +3836,12 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 import time
 
+import numpy as np
 import pandas as pd
 from loguru import logger
+import joblib
+
+from core.ai.loader import _load_active_meta
 
 from app.services.feature_importance import compute_feature_importance
 from app.services.shap_service import (
@@ -3789,9 +3869,189 @@ class AISvc:
         self._shap_cache_ts: float = 0.0
 
         self.expected_features: Optional[list[str]] = None
+
+        # ★ここを追加：起動時に一度だけ active_model.json と同期
+        self._sync_expected_features()
         # ... （既存の初期化）
 
-    # ... （既存のメソッド： load_models(), predict(), など）
+    def _normalize_features_for_model(self, feats: "Mapping[str, float]") -> "dict[str, float]":
+        """
+        モデルの expected_features に合わせて特徴量を揃える。
+        - expected_features が設定されていれば、その順番・その列だけに揃える
+        - 足りない列は 0.0 で補完する
+        - expected_features が None/空なら、そのまま dict(feats) を返す
+        """
+        from collections.abc import Mapping
+
+        if not isinstance(feats, Mapping):
+            # 万一 Series や list などが来た時のガード
+            feats = dict(feats)
+
+        if not self.expected_features:
+            return dict(feats)
+
+        normalized: dict[str, float] = {}
+        for name in self.expected_features:
+            value = feats.get(name, 0.0)
+            # float に変換しておく（np.array にそのまま突っ込めるように）
+            try:
+                normalized[name] = float(value)
+            except (TypeError, ValueError):
+                normalized[name] = 0.0
+        return normalized
+
+
+    def _sync_expected_features(self) -> None:
+        """
+        active_model.json / モデル本体から expected_features を
+        self.expected_features に一度だけコピーする。
+        """
+        # すでに設定済みなら何もしない
+        if self.expected_features:
+            return
+
+        # 1) モデルオブジェクト側に expected_features があれば優先して使う
+        for model in self.models.values():
+            exp = getattr(model, "expected_features", None)
+            if exp:
+                # list, tuple, np.ndarray などを list に揃える
+                self.expected_features = list(exp)
+                logger.info(
+                    f"[AISvc] expected_features synced from model ({len(self.expected_features)} cols)"
+                )
+                return
+
+        # 2) fallback: active_model.json を直接読む
+        try:
+            meta = _load_active_meta()
+        except Exception as exc:
+            logger.warning(f"[AISvc] failed to load active meta for expected_features: {exc}")
+            return
+
+        seq = meta.get("feature_order") or meta.get("features")
+        if isinstance(seq, (list, tuple)) and seq:
+            self.expected_features = list(seq)
+            logger.info(
+                f"[AISvc] expected_features loaded from active_model.json ({len(self.expected_features)} cols)"
+            )
+
+    # ここから追加 ------------------------------------------------------------
+    class ProbOut:
+        """
+        AISvc 内部で使うだけのシンプルな入出力コンテナ。
+        get_live_probs() では dict に変換するので、外部から直接触ることは想定していない。
+        """
+        def __init__(self, p_buy: float, p_sell: float, p_skip: float = 0.0) -> None:
+            self.p_buy = float(p_buy)
+            self.p_sell = float(p_sell)
+            self.p_skip = float(p_skip)
+
+    def _ensure_model_loaded(self) -> None:
+        """
+        self.models に推論用モデルが未ロードなら、active_model.json を見てロードする。
+        - models/<file> を joblib.load で読み込む想定
+        - 1つ目のモデルを LightGBM と見なして使う
+        """
+        if self.models:
+            # すでに何かしらモデルが入っていれば何もしない
+            return
+
+        try:
+            meta = _load_active_meta()
+        except Exception as exc:
+            logger.error("[AISvc] active model meta の読み込みに失敗: {err}", err=exc)
+            return
+
+        fname = meta.get("file")
+        if not fname:
+            logger.error("[AISvc] active_model.json に 'file' がありません")
+            return
+
+        model_path = Path("models") / fname
+        if not model_path.exists():
+            logger.error("[AISvc] モデルファイルが見つかりません: {path}", path=model_path.as_posix())
+            return
+
+        try:
+            model = joblib.load(model_path)
+        except Exception as exc:
+            logger.error("[AISvc] モデルのロードに失敗: path={path} err={err}",
+                         path=model_path.as_posix(), err=exc)
+            return
+
+        # とりあえず 'lgbm' というキーで登録（SHAP などから参照される）
+        self.models["lgbm"] = model
+        logger.info("[AISvc] モデルをロード: key='lgbm', type={typ}",
+                    typ=type(model).__name__)
+
+        # モデル側が feature_name / expected_features を持っていて、
+        # まだ expected_features がセットされていなければ同期しておく
+        if not self.expected_features:
+            exp = getattr(model, "expected_features", None)
+            if exp:
+                self.expected_features = list(exp)
+                logger.info(
+                    "[AISvc] expected_features synced from model ({n} cols)",
+                    n=len(self.expected_features),
+                )
+            else:
+                # LightGBM Booster なら feature_name() で列名が取れることが多い
+                feat_names = None
+                try:
+                    feat_names = model.feature_name()
+                except Exception:
+                    feat_names = None
+
+                if feat_names:
+                    self.expected_features = list(feat_names)
+                    logger.info(
+                        "[AISvc] expected_features synced from model.feature_name() ({n} cols)",
+                        n=len(self.expected_features),
+                    )
+
+    def predict(self, X: np.ndarray) -> "AISvc.ProbOut":
+        """
+        単一サンプルの特徴量ベクトル X (shape: [1, n_features]) を受け取り、
+        p_buy / p_sell / p_skip を返す。
+        - LightGBM Booster なら model.predict(X) が陽線クラスの確率を返す前提
+        - sklearn 互換なら predict_proba を優先
+        """
+        self._ensure_model_loaded()
+
+        if not self.models:
+            # モデルが 1つもない場合は安全側に全スキップ
+            logger.error("[AISvc.predict] モデルがロードされていません。全スキップを返します。")
+            return AISvc.ProbOut(0.0, 0.0, 1.0)
+
+        # ひとまず最初のモデルを使う（現状 1 モデル想定）
+        model = next(iter(self.models.values()))
+
+        try:
+            # sklearn 互換モデルの場合
+            if hasattr(model, "predict_proba"):
+                proba = model.predict_proba(X)
+                proba = np.asarray(proba)
+                if proba.ndim == 2 and proba.shape[1] >= 2:
+                    p_buy = float(proba[0, 1])
+                else:
+                    p_buy = float(proba[0])
+            else:
+                # LightGBM Booster など: predict がそのまま「陽線クラスの確率」を返す前提
+                y_pred = model.predict(X)
+                y_pred = np.asarray(y_pred)
+                p_buy = float(y_pred[0])
+        except Exception as exc:
+            logger.error("[AISvc.predict] 推論に失敗: {err}", err=exc)
+            return AISvc.ProbOut(0.0, 0.0, 1.0)
+
+        # 0〜1 にクリップしておく
+        p_buy = max(0.0, min(1.0, p_buy))
+        p_sell = 1.0 - p_buy
+        p_skip = 0.0
+
+        return AISvc.ProbOut(p_buy, p_sell, p_skip)
+    # ここまで追加 ------------------------------------------------------------
+
 
     def get_feature_importance(
         self,
@@ -3998,13 +4258,25 @@ class AISvc:
         from app.core.config_loader import load_config
         from app.services.execution_stub import _collect_features
 
+        # ★ まず expected_features を active_model.json と同期しておく
+        self._sync_expected_features()
+
         # tick が取れない場合は素直に全部 SKIP に倒す
         try:
             tick = market.tick(symbol)
-        except Exception:
+        except Exception as e:
+            logger.warning(
+                "[AISvc.get_live_probs] tick取得に失敗: symbol={symbol} error={err}",
+                symbol=symbol,
+                err=e,
+            )
             tick = None
 
         if not tick:
+            logger.warning(
+                "[AISvc.get_live_probs] tickが取得できないため AIスキップ: symbol={symbol}",
+                symbol=symbol,
+            )
             return {
                 "p_buy": 0.0,
                 "p_sell": 0.0,
@@ -4023,7 +4295,7 @@ class AISvc:
 
         # spread を market から取得（なければ 0.0）
         try:
-            spr_callable = getattr(market, "spread", None)
+            spr_callable = getattr(market, "spread_pips", None)
             spread_pips = spr_callable(symbol) if callable(spr_callable) else 0.0
         except Exception:
             spread_pips = 0.0
@@ -4031,7 +4303,7 @@ class AISvc:
         # 現在のオープンポジション数は、とりあえず 0 として扱う
         open_positions = 0
 
-        # execution_stub と同じダミー特徴量生成ロジックを使う
+        # execution_stub と同じロジックで特徴量を収集
         features = _collect_features(
             symbol,
             base_features,
@@ -4040,11 +4312,23 @@ class AISvc:
             open_positions,
         )
 
-        # モデルで確率予測
-        prob = self.predict(features)
+        # モデル入力向けに列を揃える
+        model_feats = self._normalize_features_for_model(features)
 
-        # ロット計算用 ATR（price 単位）＝特徴量 atr_14 と同じもの
-        atr_for_lot = float(features.get("atr_14", 0.0))
+        # expected_features があればその順でベクトル化
+        if self.expected_features:
+            vec = [model_feats[name] for name in self.expected_features]
+        else:
+            vec = list(model_feats.values())
+
+        arr = np.array([vec], dtype=float)
+
+        # 予測
+        prob = self.predict(arr)
+
+        # ロット計算用 ATR（price 単位）に必要な atr_14 と揃えておく
+        atr_for_lot = float(model_feats.get("atr_14", 0.0))
+
 
         return {
             "p_buy": float(prob.p_buy),
@@ -4598,7 +4882,7 @@ import re
 import statistics
 from collections import deque, defaultdict
 from datetime import datetime
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Any, DefaultDict, Dict, Optional, Tuple
 from zoneinfo import ZoneInfo
 from pathlib import Path
@@ -4606,6 +4890,8 @@ from pathlib import Path
 from loguru import logger
 
 from app.core import market, mt5_client
+from app.core.mt5_client import MT5Client
+from app.core.strategy_profile import get_profile
 from app.core.config_loader import load_config
 from app.services import circuit_breaker, trade_service, trade_state
 from app.services.orderbook_stub import orderbook
@@ -4981,10 +5267,21 @@ def _build_decision_trace(
     }
     if isinstance(decision, dict):
         trace["decision_detail"] = decision
-    exit_plan = decision.get("signal", {}).get("exit_plan") if isinstance(decision, dict) else None
+
+        # --- ロット情報があればトップレベルにもコピー -----------------
+        if "lot" in decision:
+            trace["lot"] = decision.get("lot")
+        if "lot_info" in decision:
+            trace["lot_info"] = decision.get("lot_info")
+
+        exit_plan = decision.get("signal", {}).get("exit_plan")
+    else:
+        exit_plan = None
+
     trace["exit_plan"] = exit_plan or {"mode": "none"}
     return trace
 
+##
 def _collect_features(
     symbol: str,
     base_features: Tuple[str, ...],
@@ -4992,6 +5289,12 @@ def _collect_features(
     spread_pips: Optional[float],
     open_positions: int,
 ) -> Dict[str, float]:
+    """
+    Live 用の軽量なフィーチャ生成。
+    - 学習時の 9 列（ret_1, ret_5, ema_5, ema_20, ema_ratio, rsi_14, atr_14, range, vol_chg）
+      を中心に、設定された base_features だけ埋める。
+    - 本来は OHLCV の履歴から計算するべきだが、ここでは tick/spread からの簡易版。
+    """
     bid, ask = tick if tick else (None, None)
     mid = (float(bid) + float(ask)) / 2 if bid is not None and ask is not None else 0.0
     spr = float(spread_pips) if spread_pips is not None else 0.0
@@ -5001,27 +5304,55 @@ def _collect_features(
         features["bias"] = 1.0
         return features
 
+    # 簡易な値（将来的に core.ai.features と揃えるならここを書き換える）
+    ret_1_val = 0.0
+    ret_5_val = 0.0
+    ema_5_val = mid
+    ema_20_val = mid
+    if ema_20_val != 0.0:
+        ema_ratio_val = ema_5_val / ema_20_val
+    else:
+        ema_ratio_val = 0.0
+    rsi_14_val = 50.0
+    atr_14_val = spr
+    range_val = spr
+    vol_chg_val = float(open_positions)
+
     for name in base_features:
-        if name == "ema_5":
-            features[name] = mid
+        # --- モデルの 9 列 ---
+        if name == "ret_1":
+            features[name] = ret_1_val
+        elif name == "ret_5":
+            features[name] = ret_5_val
+        elif name == "ema_5":
+            features[name] = ema_5_val
         elif name == "ema_20":
-            features[name] = mid
+            features[name] = ema_20_val
+        elif name == "ema_ratio":
+            features[name] = ema_ratio_val
         elif name == "rsi_14":
-            features[name] = 50.0
+            features[name] = rsi_14_val
         elif name == "atr_14":
-            features[name] = spr
+            features[name] = atr_14_val
+        elif name == "range":
+            features[name] = range_val
+        elif name == "vol_chg":
+            features[name] = vol_chg_val
+
+        # --- 旧仕様の互換用（config 側で消してもいいが、残しても無害） ---
         elif name == "adx_14":
             features[name] = 20.0 + min(20.0, spr * 5.0)
         elif name == "bbp":
             features[name] = 0.5 if spr == 0 else max(0.0, min(1.0, spr / 5.0))
-        elif name == "vol_chg":
-            features[name] = float(open_positions)
         elif name == "wick_ratio":
             features[name] = 0.5
+
         else:
             features[name] = 0.0
+
     return features
 
+##
 
 @dataclass
 class ExecutionStub:
@@ -5416,12 +5747,48 @@ class ExecutionStub:
         trade_service.mark_filled_now()
         filters_ctx = dict(base_filters)
         filters_ctx["blocked"] = None
+        # --- ロット計算挿入ブロック ----------------------
+        profile = get_profile("michibiki_std")
+
+        # ATR は signal 内に格納済み
+        atr_val = float(signal.get("atr_for_lot", 0.0))
+
+        try:
+            client = MT5Client()
+            client.initialize()
+            equity = client.get_equity()
+            tspec = client.get_tick_spec(symbol)
+            tick_size = tspec.tick_size
+            tick_value = tspec.tick_value
+        except Exception:
+            equity = 1_000_000.0
+            tick_size = 0.01
+            tick_value = 100.0
+
+        lot_result = profile.compute_lot_size_from_atr(
+            equity=float(equity),
+            atr=float(atr_val),
+            tick_size=float(tick_size),
+            tick_value=float(tick_value),
+        )
+        # ---------------------------------------------------
+        # --- ロット情報（LotSizingResult）があれば dict 化する -----------------
+        lot_info = None
+        try:
+            # M-A3-5 で導入した LotSizingResult を想定
+            # dataclasses.asdict(...) で全フィールドを辞書に展開する
+            lot_info = asdict(lot_result)  # type: ignore[name-defined]
+        except NameError:
+            # まだ lot_result が導入されていない場合は何もしない
+            lot_info = None
         decision_payload = {
             "action": "ENTRY",
             "reason": decision_info.get("reason","entry_ok"),
             "ai_meta": ai_out.meta,
             "signal": signal,
             "dec": decision_info,
+            "lot": (lot_info.get("lot") if isinstance(lot_info, dict) else None),
+            "lot_info": lot_info,
         }
         _emit(decision_payload, filters_ctx, level="info")
         return {"blocked": False, "ai": ai_out, "cb": cb_status, "ts": ts, "decision": decision_payload}
@@ -5504,6 +5871,8 @@ def evaluate_and_log_once() -> None:
 
         base_features = tuple(ai_cfg.get("features", {}).get("base", []))
         features = _collect_features(symbol, base_features, tick, spr, open_cnt)
+        # ★ dryrun 用：ATR を固定値に強制
+        features["atr_14"] = 0.02   # 例: 2銭相当
 
         cb_cfg = cfg.get("circuit_breaker", {}) if isinstance(cfg, dict) else {}
         cb = circuit_breaker.CircuitBreaker(
@@ -5570,9 +5939,12 @@ def evaluate_and_log_once() -> None:
             "spread_pips": spr,
             "open_positions": open_cnt,
             "ai_threshold": stub.ai.threshold,
-            "min_adx": min_adx,
-            "disable_adx_gate": disable_adx_gate,
-            "min_atr_pct": min_atr_pct,
+            # dryrun 用に ADX ゲートを無効化
+            "min_adx": 0.0,
+            "disable_adx_gate": True,
+            # ★ dryrun 用：ATR が 0 にならないよう最低値を入れる
+            "min_atr_pct": 0.0003,   # 任意。0.0002〜0.001 の範囲なら何でも良い。
+            #"min_atr_pct": min_atr_pct,
             "tick": tick,
             "side_bias": settings.side_bias,
         }
@@ -9722,10 +10094,23 @@ class LotSizingResult:
     「推奨ロット」と「月間想定ボラ」を計算した結果をまとめたデータクラス。
     """
 
+    # 既存フィールド（そのまま）
     lot: float  # 実際に使うロット（min/max でクランプ済み）
     per_trade_risk_pct: float  # 1トレードあたりのリスク（％）
     est_monthly_volatility_pct: float  # 月間想定ボラ（ざっくり標準偏差イメージ％）
     est_max_monthly_dd_pct: float  # 想定最大DD（％、max_monthly_dd に近い値になるよう設計）
+
+    # 追加フィールド（オプション扱い）
+    equity: float | None = None      # ロット計算に使った口座残高
+    atr: float | None = None         # ロット計算に使った ATR 値
+
+    # リスク関連（％と金額）
+    risk_pct: float | None = None    # トレード1回あたりのリスク率
+    risk_jpy: float | None = None    # 想定リスク額（円）
+    risk_amount: float | None = None # 将来通貨単位変えたくなったときの余地。現状 risk_jpy と同じ。
+
+    # 将来用：エントリー価格と損切り価格から計算して入れる「穴」
+    sl_price: float | None = None
 
 
 def compute_lot_size_from_atr(
@@ -9837,11 +10222,23 @@ def compute_lot_size_from_atr(
     # 「worst_case_trades_for_dd 回負けたらこの DD」とみなす。
     est_max_monthly_dd_pct = per_trade_risk_pct * float(worst_case_trades_for_dd)
 
+    # --- 追加：リスク関連を LotSizingResult に埋め込む ----------------
+    risk_pct = float(per_trade_risk_pct)
+    risk_jpy = float(equity) * risk_pct if equity is not None else None
+
     return LotSizingResult(
         lot=lot,
         per_trade_risk_pct=per_trade_risk_pct,
         est_monthly_volatility_pct=est_monthly_volatility_pct,
         est_max_monthly_dd_pct=est_max_monthly_dd_pct,
+
+        # ここから追加フィールド
+        equity=float(equity),
+        atr=float(atr),
+        risk_pct=risk_pct,
+        risk_jpy=risk_jpy,
+        risk_amount=risk_jpy,
+        sl_price=None,  # ここでは SL 価格が分からないので、将来用の穴だけ開けておく
     )
 
 
@@ -10098,6 +10495,117 @@ def main() -> None:
             print(f"- {s.name}  (select={s.select}, bid={s.bid}, ask={s.ask}, point={s.point})")
     finally:
         mt5.shutdown()
+
+
+if __name__ == "__main__":
+    main()
+
+
+
+=== file: scripts/discover_symbols.py ===
+
+# scripts/discover_symbols.py
+
+from __future__ import annotations
+
+import json
+import re
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+import MetaTrader5 as mt5
+
+
+OUTPUT_PATH = Path("configs") / "symbols_mt5.json"
+
+
+def _guess_pair(name: str) -> Optional[str]:
+    """
+    シンボル名から通貨ペア6文字 (例: 'USDJPY') を推定する。
+    先頭6文字が [A-Z]{6} ならそれを採用。
+    USDJPY.r / USDJPYmicro などを想定。
+    """
+    m = re.match(r"^([A-Z]{6})", name)
+    if not m:
+        return None
+    return m.group(1)
+
+
+def main() -> None:
+    print("=== MT5 initialize ===")
+    if not mt5.initialize():
+        print("MT5 init failed:", mt5.last_error())
+        return
+
+    try:
+        account = mt5.account_info()
+        print("account:", account)
+
+        print("=== symbols_get() ===")
+        symbols = mt5.symbols_get()
+        print("total symbols:", len(symbols))
+
+        rows: List[Dict[str, Any]] = []
+        # pair ごとに「どのシンボルを優先するか」を決めるための情報
+        # pair -> {"symbol": str, "score": int}
+        preferred_raw: Dict[str, Dict[str, Any]] = {}
+
+        for s in symbols:
+            name = s.name
+
+            # trade_mode == 0 は取引不可のことが多いので除外
+            trade_mode = int(getattr(s, "trade_mode", 0))
+            if trade_mode == 0:
+                continue
+
+            pair = _guess_pair(name)
+            if not pair:
+                continue
+
+            visible = bool(getattr(s, "visible", False))
+            selected = bool(getattr(s, "select", False))
+            digits = int(getattr(s, "digits", 0))
+            point = float(getattr(s, "point", 0.0))
+            description = str(getattr(s, "description", ""))
+
+            row = {
+                "name": name,
+                "pair": pair,
+                "visible": visible,
+                "select": selected,
+                "trade_mode": trade_mode,
+                "digits": digits,
+                "point": point,
+                "description": description,
+            }
+            rows.append(row)
+
+            # 優先度スコア: visible + select が高いほど優先
+            score = (1 if visible else 0) + (1 if selected else 0)
+
+            prev = preferred_raw.get(pair)
+            if prev is None or score > prev["score"]:
+                preferred_raw[pair] = {"symbol": name, "score": score}
+
+        preferred = {pair: v["symbol"] for pair, v in preferred_raw.items()}
+
+        data = {
+            "broker_server": getattr(account, "server", ""),
+            "login": int(getattr(account, "login", 0)),
+            "symbols": rows,
+            "preferred": preferred,
+        }
+
+        OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+        OUTPUT_PATH.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+
+        print()
+        print(f"written: {OUTPUT_PATH}")
+        print(f"pairs discovered: {len(preferred)}")
+
+    finally:
+        mt5.shutdown()
+        print("=== MT5 shutdown ===")
 
 
 if __name__ == "__main__":
@@ -10631,6 +11139,299 @@ def main() -> None:
         execute_decision(decision, symbol=symbol)
 
         time.sleep(1.0)  # 1秒間隔でループ（適宜調整）
+
+if __name__ == "__main__":
+    main()
+
+
+
+=== file: scripts/lot_diagnose.py ===
+
+# scripts/lot_diagnose.py
+
+from app.core.strategy_profile import get_profile
+from app.core.mt5_client import TickSpec
+
+def diagnose(profile_name: str = "michibiki_std"):
+    profile = get_profile(profile_name)
+
+    print("=== StrategyProfile ===")
+    print("name       :", profile.name)
+    print("target_ret :", profile.target_monthly_return)
+    print("max_monthDD:", profile.max_monthly_dd)
+    print("ATR SL mult:", profile.atr_mult_sl)
+    print()
+
+    # 仮のMT5前提データ（実際はTradeServiceで取得）
+    equity = 1_000_000.0
+    tick_spec = TickSpec(0.01, 100.0)  # 1ティック0.01円、損益100円
+
+    atr_list = [0.05, 0.10, 0.20, 0.40, 0.80]
+
+    print("=== ロット診断テーブル ===")
+    for atr in atr_list:
+        result = profile.compute_lot_size_from_atr(
+            equity=equity,
+            atr=atr,
+            tick_size=tick_spec.tick_size,
+            tick_value=tick_spec.tick_value,
+            # ★ テスト用に min_lot をかなり小さくする
+            min_lot=0.0001,
+            max_lot=10.0,
+        )
+
+        # sl_price が None の場合もあるのでガードする
+        sl_price = getattr(result, "sl_price", None)
+        if sl_price is not None:
+            sl_pips = sl_price / tick_spec.tick_size
+            sl_str = f"{sl_pips:6.1f}"
+        else:
+            sl_str = "  n/a "
+
+        # LotSizingResult の中身も一応表示（dataclass ならフィールドが全部出る）
+        print(result)
+
+        print(
+            f"ATR={atr:5.2f} | lot={result.lot:10.6f} | "
+            f"risk_pct={result.risk_pct*100:5.2f}% | sl_pips={sl_str}"
+        )
+
+def main():
+    diagnose()
+
+if __name__ == "__main__":
+    main()
+
+
+
+=== file: scripts/lot_info_debug.py ===
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import matplotlib.pyplot as plt
+import pandas as pd
+
+from app.services.execution_stub import LOG_DIR
+
+
+def load_lot_records() -> pd.DataFrame:
+    """
+    LOG_DIR/decisions_*.jsonl から lot_info を集めて DataFrame にする。
+    - lot_info が無い行（SKIP など）はスキップ
+    - decision.lot_info と top-level lot_info の両方に対応
+    """
+    print(f"[info] LOG_DIR = {LOG_DIR}")
+
+    files = sorted(LOG_DIR.glob("decisions_*.jsonl"))
+    if not files:
+        print(f"[warn] no decisions_*.jsonl found in {LOG_DIR}")
+        return pd.DataFrame()
+
+    rows: list[dict] = []
+
+    for path in files:
+        # ファイル名からシンボル候補（例: decisions_USDJPY.jsonl -> USDJPY）
+        default_symbol = path.stem.replace("decisions_", "")
+        print(f"[info] reading {path.name}")
+
+        with path.open(encoding="utf-8") as f:
+            for line_no, line in enumerate(f, start=1):
+                line = line.strip()
+                if not line:
+                    continue
+
+                try:
+                    rec = json.loads(line)
+                except json.JSONDecodeError as e:
+                    print(f"[warn] JSON decode error in {path.name}:{line_no}: {e}")
+                    continue
+
+                # --- lot_info を探す -----------------------------------
+                decision = rec.get("decision")
+                lot_info = None
+
+                if isinstance(decision, dict):
+                    lot_info = decision.get("lot_info")
+
+                if lot_info is None and "lot_info" in rec:
+                    # 念のため top-level lot_info も見る
+                    lot_info = rec["lot_info"]
+
+                if not isinstance(lot_info, dict):
+                    # ロット計算していないレコード（SKIP など）は飛ばす
+                    continue
+
+                lot = lot_info.get("lot")
+                if lot is None:
+                    # ロットが無ければ意味がないのでスキップ
+                    continue
+
+                # --- タイムスタンプ候補をいくつか見る -----------------
+                ts = (
+                    rec.get("ts")
+                    or rec.get("timestamp")
+                    or rec.get("time")
+                    or lot_info.get("ts")
+                )
+
+                # シンボルも rec / lot_info / ファイル名の順で探す
+                symbol = (
+                    rec.get("symbol")
+                    or lot_info.get("symbol")
+                    or default_symbol
+                )
+
+                side = (
+                    lot_info.get("side")
+                    if isinstance(lot_info, dict)
+                    else None
+                )
+
+                rows.append(
+                    {
+                        "ts": ts,
+                        "symbol": symbol,
+                        "side": side,
+                        "lot": float(lot),
+                        "equity": lot_info.get("equity"),
+                        "atr": lot_info.get("atr"),
+                        "risk_pct": lot_info.get("risk_pct"),
+                        "sl_pips": lot_info.get("sl_pips"),
+                    }
+                )
+
+    if not rows:
+        print("[warn] no lot_info entries found in decisions logs.")
+        return pd.DataFrame()
+
+    df = pd.DataFrame(rows)
+
+    # ts を datetime に変換（失敗したら NaT）
+    if "ts" in df.columns:
+        df["ts"] = pd.to_datetime(df["ts"], errors="coerce")
+
+    return df
+
+
+def print_summary(df: pd.DataFrame) -> None:
+    """
+    ロット情報のざっくりサマリを出力。
+    """
+    print("=== lot_info summary ===")
+    print(f"rows: {len(df)}")
+    print()
+
+    if "symbol" not in df.columns or df["symbol"].isna().all():
+        print("[warn] symbol column is empty, skip symbol-wise summary.")
+        return
+
+    by_symbol = df.groupby("symbol")["lot"]
+    summary = by_symbol.agg(["count", "mean", "min", "max"]).sort_index()
+    print("--- lot size by symbol ---")
+    print(summary)
+    print()
+
+    # サイド別件数
+    if "side" in df.columns and df["side"].notna().any():
+        print("--- trade count by symbol × side ---")
+        pivot = (
+            df.pivot_table(
+                index="symbol",
+                columns="side",
+                values="lot",
+                aggfunc="count",
+            )
+            .fillna(0)
+            .astype(int)
+        )
+        print(pivot)
+        print()
+
+    # 分位点（0.1, 0.5, 0.9）
+    quant = by_symbol.quantile([0.1, 0.5, 0.9]).unstack()
+    print("--- lot quantiles by symbol (0.1, 0.5, 0.9) ---")
+    print(quant)
+    print()
+
+
+def plot_lot_timeseries(df: pd.DataFrame) -> None:
+    """
+    シンボルごとのロット推移を PNG で保存。
+    """
+    if df.empty:
+        return
+
+    outdir = LOG_DIR / "lot_debug"
+    outdir.mkdir(exist_ok=True)
+
+    for symbol, g in df.groupby("symbol"):
+        g = g.sort_values("ts")
+
+        if "ts" in g.columns and g["ts"].notna().any():
+            x = g["ts"]
+            xlabel = "time"
+        else:
+            x = range(len(g))
+            xlabel = "index"
+
+        plt.figure()
+        plt.plot(x, g["lot"], marker="o")
+        plt.xlabel(xlabel)
+        plt.ylabel("lot")
+        plt.title(f"lot size over time ({symbol})")
+        plt.tight_layout()
+
+        out_path = outdir / f"lot_timeseries_{symbol}.png"
+        plt.savefig(out_path)
+        plt.close()
+        print(f"[saved] {out_path}")
+
+
+def plot_lot_vs_atr(df: pd.DataFrame) -> None:
+    """
+    ATR と lot の関係を散布図で保存（シンボルごと）。
+    """
+    if "atr" not in df.columns:
+        return
+
+    outdir = LOG_DIR / "lot_debug"
+    outdir.mkdir(exist_ok=True)
+
+    for symbol, g in df.groupby("symbol"):
+        gg = g.dropna(subset=["atr"])
+        if gg.empty:
+            continue
+
+        plt.figure()
+        plt.scatter(gg["atr"], gg["lot"])
+        plt.xlabel("ATR")
+        plt.ylabel("lot")
+        plt.title(f"lot vs ATR ({symbol})")
+        plt.tight_layout()
+
+        out_path = outdir / f"lot_vs_atr_{symbol}.png"
+        plt.savefig(out_path)
+        plt.close()
+        print(f"[saved] {out_path}")
+
+
+def main() -> None:
+    df = load_lot_records()
+    if df.empty:
+        print("[info] no data to summarize.")
+        return
+
+    print("=== head ===")
+    print(df.head())
+    print()
+
+    print_summary(df)
+    plot_lot_timeseries(df)
+    plot_lot_vs_atr(df)
+
 
 if __name__ == "__main__":
     main()

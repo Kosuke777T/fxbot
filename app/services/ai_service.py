@@ -6,6 +6,7 @@ import time
 import numpy as np
 import pandas as pd
 from loguru import logger
+import joblib
 
 from core.ai.loader import _load_active_meta
 
@@ -101,8 +102,139 @@ class AISvc:
                 f"[AISvc] expected_features loaded from active_model.json ({len(self.expected_features)} cols)"
             )
 
+    # ここから追加 ------------------------------------------------------------
+    class ProbOut:
+        """
+        AISvc 内部で使うだけのシンプルな入出力コンテナ。
+        get_live_probs() では dict に変換するので、外部から直接触ることは想定していない。
+        """
+        def __init__(self, p_buy: float, p_sell: float, p_skip: float = 0.0) -> None:
+            self.p_buy = float(p_buy)
+            self.p_sell = float(p_sell)
+            self.p_skip = float(p_skip)
 
-    # ... （既存のメソッド： load_models(), predict(), など）
+    def _ensure_model_loaded(self) -> None:
+        """
+        self.models に推論用モデルが未ロードなら、active_model.json を見てロードする。
+        - models/<file> を joblib.load で読み込む想定
+        - 1つ目のモデルを LightGBM と見なして使う
+        """
+        if self.models:
+            # すでに何かしらモデルが入っていれば何もしない
+            return
+
+        try:
+            meta = _load_active_meta()
+        except Exception as exc:
+            logger.error("[AISvc] active model meta の読み込みに失敗: {err}", err=exc)
+            return
+
+        fname = meta.get("file")
+        if not fname:
+            logger.error("[AISvc] active_model.json に 'file' がありません")
+            return
+
+        model_path = Path("models") / fname
+        if not model_path.exists():
+            logger.error("[AISvc] モデルファイルが見つかりません: {path}", path=model_path.as_posix())
+            return
+
+        try:
+            model = joblib.load(model_path)
+        except Exception as exc:
+            logger.error("[AISvc] モデルのロードに失敗: path={path} err={err}",
+                         path=model_path.as_posix(), err=exc)
+            return
+
+        # とりあえず 'lgbm' というキーで登録（SHAP などから参照される）
+        self.models["lgbm"] = model
+        logger.info("[AISvc] モデルをロード: key='lgbm', type={typ}",
+                    typ=type(model).__name__)
+
+        # モデル側が feature_name / expected_features を持っていて、
+        # まだ expected_features がセットされていなければ同期しておく
+        if not self.expected_features:
+            exp = getattr(model, "expected_features", None)
+            if exp:
+                self.expected_features = list(exp)
+                logger.info(
+                    "[AISvc] expected_features synced from model ({n} cols)",
+                    n=len(self.expected_features),
+                )
+            else:
+                # LightGBM Booster なら feature_name() で列名が取れることが多い
+                feat_names = None
+                try:
+                    feat_names = model.feature_name()
+                except Exception:
+                    feat_names = None
+
+                if feat_names:
+                    self.expected_features = list(feat_names)
+                    logger.info(
+                        "[AISvc] expected_features synced from model.feature_name() ({n} cols)",
+                        n=len(self.expected_features),
+                    )
+
+    def predict(self, X: np.ndarray) -> "AISvc.ProbOut":
+        """
+        単一サンプルの特徴量ベクトル X (shape: [1, n_features]) を受け取り、
+        p_buy / p_sell / p_skip を返す。
+        - LightGBM Booster なら model.predict(X) が陽線クラスの確率を返す前提
+        - sklearn 互換なら predict_proba を優先
+        """
+        self._ensure_model_loaded()
+
+        # --- デバッグ: モデル入力の shape と1行目をログに出す ---
+        try:
+            row_preview = None
+            if hasattr(X, "__getitem__"):
+                # X[0] が numpy 配列や list のことを想定
+                row0 = X[0]
+                # numpy でも list でも .tolist() が使えるようにする
+                row_preview = getattr(row0, "tolist", lambda: row0)()
+            logger.info(
+                "[AISvc.predict] X.shape={shape}, X[0]={row}",
+                shape=getattr(X, "shape", None),
+                row=row_preview,
+            )
+        except Exception as e:
+            logger.warning("[AISvc.predict] debug logging failed: {err}", err=e)
+
+        if not self.models:
+            # モデルが 1つもない場合は安全側に全スキップ
+            logger.error("[AISvc.predict] モデルがロードされていません。全スキップを返します。")
+            return AISvc.ProbOut(0.0, 0.0, 1.0)
+
+        # ひとまず最初のモデルを使う（現状 1 モデル想定）
+        model = next(iter(self.models.values()))
+
+        try:
+            # sklearn 互換モデルの場合
+            if hasattr(model, "predict_proba"):
+                proba = model.predict_proba(X)
+                proba = np.asarray(proba)
+                if proba.ndim == 2 and proba.shape[1] >= 2:
+                    p_buy = float(proba[0, 1])
+                else:
+                    p_buy = float(proba[0])
+            else:
+                # LightGBM Booster など: predict がそのまま「陽線クラスの確率」を返す前提
+                y_pred = model.predict(X)
+                y_pred = np.asarray(y_pred)
+                p_buy = float(y_pred[0])
+        except Exception as exc:
+            logger.error("[AISvc.predict] 推論に失敗: {err}", err=exc)
+            return AISvc.ProbOut(0.0, 0.0, 1.0)
+
+        # 0〜1 にクリップしておく
+        p_buy = max(0.0, min(1.0, p_buy))
+        p_sell = 1.0 - p_buy
+        p_skip = 0.0
+
+        return AISvc.ProbOut(p_buy, p_sell, p_skip)
+    # ここまで追加 ------------------------------------------------------------
+
 
     def get_feature_importance(
         self,
@@ -371,6 +503,23 @@ class AISvc:
             vec = [model_feats[name] for name in self.expected_features]
         else:
             vec = list(model_feats.values())
+
+        # --- デバッグ: 特徴量 dict & 並び替え後ベクトルをログ出力 ---
+        try:
+            import json
+            logger.info(
+                "[AISvc.get_live_probs] model_feats(normalized)={payload}",
+                payload=json.dumps(model_feats, ensure_ascii=False),
+            )
+            logger.info(
+                "[AISvc.get_live_probs] input vec (ordered)={vec}",
+                vec=vec,
+            )
+        except Exception as e:
+            logger.warning(
+                "[AISvc.get_live_probs] failed to dump debug input: {err}",
+                err=e,
+            )
 
         arr = np.array([vec], dtype=float)
 

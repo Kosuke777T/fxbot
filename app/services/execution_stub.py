@@ -6,7 +6,7 @@ import re
 import statistics
 from collections import deque, defaultdict
 from datetime import datetime
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Any, DefaultDict, Dict, Optional, Tuple
 from zoneinfo import ZoneInfo
 from pathlib import Path
@@ -14,6 +14,8 @@ from pathlib import Path
 from loguru import logger
 
 from app.core import market, mt5_client
+from app.core.mt5_client import MT5Client
+from app.core.strategy_profile import get_profile
 from app.core.config_loader import load_config
 from app.services import circuit_breaker, trade_service, trade_state
 from app.services.orderbook_stub import orderbook
@@ -389,7 +391,17 @@ def _build_decision_trace(
     }
     if isinstance(decision, dict):
         trace["decision_detail"] = decision
-    exit_plan = decision.get("signal", {}).get("exit_plan") if isinstance(decision, dict) else None
+
+        # --- ロット情報があればトップレベルにもコピー -----------------
+        if "lot" in decision:
+            trace["lot"] = decision.get("lot")
+        if "lot_info" in decision:
+            trace["lot_info"] = decision.get("lot_info")
+
+        exit_plan = decision.get("signal", {}).get("exit_plan")
+    else:
+        exit_plan = None
+
     trace["exit_plan"] = exit_plan or {"mode": "none"}
     return trace
 
@@ -859,12 +871,48 @@ class ExecutionStub:
         trade_service.mark_filled_now()
         filters_ctx = dict(base_filters)
         filters_ctx["blocked"] = None
+        # --- ロット計算挿入ブロック ----------------------
+        profile = get_profile("michibiki_std")
+
+        # ATR は signal 内に格納済み
+        atr_val = float(signal.get("atr_for_lot", 0.0))
+
+        try:
+            client = MT5Client()
+            client.initialize()
+            equity = client.get_equity()
+            tspec = client.get_tick_spec(symbol)
+            tick_size = tspec.tick_size
+            tick_value = tspec.tick_value
+        except Exception:
+            equity = 1_000_000.0
+            tick_size = 0.01
+            tick_value = 100.0
+
+        lot_result = profile.compute_lot_size_from_atr(
+            equity=float(equity),
+            atr=float(atr_val),
+            tick_size=float(tick_size),
+            tick_value=float(tick_value),
+        )
+        # ---------------------------------------------------
+        # --- ロット情報（LotSizingResult）があれば dict 化する -----------------
+        lot_info = None
+        try:
+            # M-A3-5 で導入した LotSizingResult を想定
+            # dataclasses.asdict(...) で全フィールドを辞書に展開する
+            lot_info = asdict(lot_result)  # type: ignore[name-defined]
+        except NameError:
+            # まだ lot_result が導入されていない場合は何もしない
+            lot_info = None
         decision_payload = {
             "action": "ENTRY",
             "reason": decision_info.get("reason","entry_ok"),
             "ai_meta": ai_out.meta,
             "signal": signal,
             "dec": decision_info,
+            "lot": (lot_info.get("lot") if isinstance(lot_info, dict) else None),
+            "lot_info": lot_info,
         }
         _emit(decision_payload, filters_ctx, level="info")
         return {"blocked": False, "ai": ai_out, "cb": cb_status, "ts": ts, "decision": decision_payload}
@@ -947,6 +995,8 @@ def evaluate_and_log_once() -> None:
 
         base_features = tuple(ai_cfg.get("features", {}).get("base", []))
         features = _collect_features(symbol, base_features, tick, spr, open_cnt)
+        # ★ dryrun 用：ATR を固定値に強制
+        features["atr_14"] = 0.02   # 例: 2銭相当
 
         cb_cfg = cfg.get("circuit_breaker", {}) if isinstance(cfg, dict) else {}
         cb = circuit_breaker.CircuitBreaker(
@@ -1013,9 +1063,12 @@ def evaluate_and_log_once() -> None:
             "spread_pips": spr,
             "open_positions": open_cnt,
             "ai_threshold": stub.ai.threshold,
-            "min_adx": min_adx,
-            "disable_adx_gate": disable_adx_gate,
-            "min_atr_pct": min_atr_pct,
+            # dryrun 用に ADX ゲートを無効化
+            "min_adx": 0.0,
+            "disable_adx_gate": True,
+            # ★ dryrun 用：ATR が 0 にならないよう最低値を入れる
+            "min_atr_pct": 0.0003,   # 任意。0.0002〜0.001 の範囲なら何でも良い。
+            #"min_atr_pct": min_atr_pct,
             "tick": tick,
             "side_bias": settings.side_bias,
         }
