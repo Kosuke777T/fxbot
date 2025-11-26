@@ -16,11 +16,13 @@ from loguru import logger
 from app.core import market, mt5_client
 from app.core.mt5_client import MT5Client
 from app.core.strategy_profile import get_profile
+from core.risk import LotSizingResult
 from app.core.config_loader import load_config
 from app.services import circuit_breaker, trade_service, trade_state
 from app.services.orderbook_stub import orderbook
 from app.services.trailing import AtrTrailer, TrailConfig, TrailState
 from app.services.trailing_hook import apply_trailing_update
+from app.services.trade_service import TradeService
 from core import position_guard
 from core.ai.service import AISvc, ProbOut
 from core.metrics import METRICS
@@ -516,6 +518,7 @@ class ExecutionStub:
         ai_out = self.ai.predict(features)
 
         tick_dict = _tick_to_dict(runtime_cfg.get("tick"))
+        trade_svc = getattr(trade_service, "SERVICE", None)
 
         spread_limit = float(runtime_cfg.get("spread_limit_pips", 1.5))
         min_adx = float(runtime_cfg.get("min_adx", 15.0))
@@ -895,16 +898,32 @@ class ExecutionStub:
             tick_size=float(tick_size),
             tick_value=float(tick_value),
         )
+        # TradeService 側にもロット計算結果を保持しておく
+        if isinstance(trade_svc, TradeService):
+            try:
+                trade_svc.last_lot_result = lot_result
+                if hasattr(trade_svc, "_last_lot_result"):
+                    trade_svc._last_lot_result = lot_result  # type: ignore[attr-defined]
+            except Exception:
+                pass
         # ---------------------------------------------------
-        # --- ロット情報（LotSizingResult）があれば dict 化する -----------------
+        # --- ���b�g���iLotSizingResult�j������� dict ������ -----------------
         lot_info = None
-        try:
-            # M-A3-5 で導入した LotSizingResult を想定
-            # dataclasses.asdict(...) で全フィールドを辞書に展開する
-            lot_info = asdict(lot_result)  # type: ignore[name-defined]
-        except NameError:
-            # まだ lot_result が導入されていない場合は何もしない
-            lot_info = None
+        lot_info_source = None
+        if isinstance(trade_svc, TradeService):
+            lot_info_source = getattr(trade_svc, "last_lot_result", None)
+        if lot_info_source is None:
+            lot_info_source = lot_result
+
+        if lot_info_source is not None:
+            try:
+                if isinstance(lot_info_source, LotSizingResult) and hasattr(lot_info_source, "to_dict"):
+                    lot_info = lot_info_source.to_dict()  # type: ignore[attr-defined]
+                else:
+                    lot_info = asdict(lot_info_source)  # type: ignore[arg-type]
+            except Exception as exc:
+                print(f"[warn] failed to serialize lot_result: {exc!r}")
+                lot_info = None
         decision_payload = {
             "action": "ENTRY",
             "reason": decision_info.get("reason","entry_ok"),
@@ -1082,4 +1101,3 @@ def evaluate_and_log_once() -> None:
                 shutdown()
         except Exception:
             pass
-

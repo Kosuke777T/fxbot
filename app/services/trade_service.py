@@ -18,7 +18,7 @@ from core.utils.clock import now_jst
 
 from app.core.mt5_client import MT5Client, TickSpec
 from app.core.strategy_profile import StrategyProfile, get_profile
-from core.risk import LotSizingResult
+from core.risk import LotSizingResult, compute_lot_scaler_from_backtest
 #from app.core.risk import LotSizingResult
 
 
@@ -60,14 +60,81 @@ class TradeService:
         self._mt5 = mt5_client
         self._profile = profile or get_profile()
         self._last_lot_result: LotSizingResult | None = None
+        # 直近の LotSizingResult を公開用に保持
+        self.last_lot_result: LotSizingResult | None = None
         self._logger = logging.getLogger(__name__)
         self.pos_guard = PositionGuard()
         self.cb = CircuitBreaker()
         self._reconcile_interval = 15
         self._desync_fix = True
         self._last_reconcile = 0.0
+
+        # --- バックテスト由来ロットスケーラー --------------------------
+        # 月次リターン / DD の安定度に応じてロットを倍率調整する係数。
+        # compute_lot_scaler_from_backtest(...) で計算し、ここでキャッシュする。
+        self._lot_scaler: float = 1.0
+        self._lot_scaler_last_updated: float = 0.0
+        # 何秒ごとに CSV を再読込するか（ここでは 1時間に1回）
+        self._lot_scaler_ttl_sec: float = 3600.0
+
         self.state = trade_state.get_runtime()
         self.reload()
+
+    def _get_lot_scaler(self) -> float:
+        """
+        バックテスト（月次リターン / 最大DD）から計算したロット補正係数を返す。
+
+        - monthly_returns.csv がなければ 1.0 にフォールバック
+        - 計算結果がおかしければ 1.0 にフォールバック
+        - 高頻度で CSV を読まないよう、一定時間キャッシュする
+        """
+        now = time.time()
+        # キャッシュが有効ならそのまま返す
+        if (
+            self._lot_scaler_last_updated > 0.0
+            and (now - self._lot_scaler_last_updated) < self._lot_scaler_ttl_sec
+        ):
+            return self._lot_scaler
+
+        path = self._profile.monthly_returns_path
+        scaler = 1.0
+
+        try:
+            # ここでは core.risk.compute_lot_scaler_from_backtest のインターフェースを
+            #   compute_lot_scaler_from_backtest(
+            #       monthly_returns_csv: str,
+            #       target_monthly_return: float,
+            #       max_monthly_dd: float,
+            #   ) -> float
+            # という前提で呼び出しています。
+            scaler = float(
+                compute_lot_scaler_from_backtest(
+                    monthly_returns_csv=str(path),
+                    target_monthly_return=self._profile.target_monthly_return,
+                    max_monthly_dd=self._profile.max_monthly_dd,
+                )
+            )
+            # NaN や 0 以下は無効扱い
+            if not (scaler > 0.0):
+                raise ValueError(f"invalid scaler <= 0: {scaler}")
+        except Exception as e:
+            self._logger.warning(
+                "compute_lot_scaler_from_backtest 失敗のため scaler=1.0 で継続: %s",
+                e,
+            )
+            scaler = 1.0
+
+        self._lot_scaler = scaler
+        self._lot_scaler_last_updated = now
+
+        self._logger.info(
+            "Backtest lot scaler 更新: path=%s target_ret=%.3f max_dd=%.3f -> scaler=%.3f",
+            path,
+            self._profile.target_monthly_return,
+            self._profile.max_monthly_dd,
+            scaler,
+        )
+        return scaler
 
     def _compute_lot_for_entry(self, symbol: str, atr: float) -> LotSizingResult:
         """
@@ -75,24 +142,28 @@ class TradeService:
 
         atr: エントリー直前の足で計算した ATR 値（価格単位）
         """
+        # --- ATR が変なときは default_lot にフォールバック ----------------
         if atr is None or atr <= 0:
-            # ATR が変な場合は、プロファイルのデフォルトロットにフォールバック
             default_lot = getattr(self._profile, "default_lot", None)
             if default_lot is None:
-                default_lot = float(self._config.trade.default_lot)  # プロジェクト側の設定名に合わせてください
+                default_lot = float(self._config.trade.default_lot)
 
             self._logger.warning(
                 "ATR が無効 (atr=%s) のため、default_lot=%.2f を使用します。",
                 atr,
                 default_lot,
             )
-            return LotSizingResult(
+            res = LotSizingResult(
                 lot=default_lot,
                 capped_by_max_risk=False,
                 effective_risk_pct=None,
                 note="fallback_default_lot_due_to_invalid_atr",
             )
+            self._last_lot_result = res
+            self.last_lot_result = res
+            return res
 
+        # --- ベースロットを StrategyProfile から計算 -----------------------
         equity = self._mt5.get_equity()
         tick_spec: TickSpec = self._mt5.get_tick_spec(symbol)
 
@@ -103,18 +174,64 @@ class TradeService:
             tick_value=tick_spec.tick_value,
         )
 
+        base_lot = float(result.lot)
+
         self._logger.info(
-            "ロット計算: equity=%.2f atr=%.5f tick_size=%.5f tick_value=%.5f -> lot=%.2f (capped=%s risk=%.3f)",
+            "ロット計算(base): equity=%.2f atr=%.5f tick_size=%.5f tick_value=%.5f -> lot=%.2f (capped=%s risk=%.3f)",
             equity,
             atr,
             tick_spec.tick_size,
             tick_spec.tick_value,
-            result.lot,
-            result.capped_by_max_risk,
-            (result.effective_risk_pct or 0.0),
+            base_lot,
+            getattr(result, "capped_by_max_risk", None),
+            float(getattr(result, "effective_risk_pct", 0.0) or 0.0),
         )
 
+        # --- バックテスト由来のロット補正係数を適用 -------------------------
+        scaler = self._get_lot_scaler()
+        if scaler > 0.0 and scaler != 1.0 and base_lot > 0.0:
+            # スケーラー適用前の lot を使って倍率を求める
+            scaled_lot = base_lot * scaler
+
+            # 安全のため物理的な最小/最大ロットでクランプ
+            min_lot = 0.01
+            max_lot = 1.00
+            scaled_lot = max(min_lot, min(max_lot, scaled_lot))
+
+            # 小数第2位で丸め
+            scaled_lot = float(f"{scaled_lot:.2f}")
+
+            if scaled_lot != base_lot:
+                factor = scaled_lot / base_lot
+
+                # LotSizingResult の関連フィールドも線形にスケーリングする
+                # （定義されていないフィールドは無視）
+                for field in (
+                    "lot",
+                    "per_trade_risk_pct",
+                    "est_monthly_volatility_pct",
+                    "est_max_monthly_dd_pct",
+                    "effective_risk_pct",
+                ):
+                    if hasattr(result, field):
+                        val = getattr(result, field)
+                        if val is not None:
+                            setattr(result, field, float(val) * factor)
+
+                self._logger.info(
+                    "Backtest lot scaler 適用: base_lot=%.3f scaler=%.3f -> adjusted_lot=%.3f (factor=%.3f)",
+                    base_lot,
+                    scaler,
+                    scaled_lot,
+                    factor,
+                )
+        else:
+            self._logger.info("Backtest lot scaler=%.3f (ロット変更なし)", scaler)
+
+        self._last_lot_result = result
+        self.last_lot_result = result
         return result
+
 
     # ------------------------------------------------------------------ #
     # Configuration & helpers
@@ -242,6 +359,7 @@ class TradeService:
             lot_val = float(default_lot)
 
         self._last_lot_result = lot_result
+        self.last_lot_result = lot_result
 
         self._mt5.order_send(
             symbol=symbol,

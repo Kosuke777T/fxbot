@@ -198,6 +198,123 @@ def compute_kpi_from_trades(
         best_loss_streak=best_loss_streak,
     )
 
+# === M-A3-5 step23: KPI 統合ロジック ===
+
+import json
+from pathlib import Path
+import pandas as pd
+from datetime import datetime
+
+
+class KPIService:
+    """
+    月次KPI（今月の損益％、最大月次DD、月次リターン系列）を一括で返すサービス。
+    GUI側は get_kpi(profile) だけ呼べば良い。
+    """
+
+    def __init__(self, root: str | Path = None) -> None:
+        self.root = Path(root) if root else Path.cwd()
+
+    def _find_latest_monthly_returns(self, profile: str) -> Path | None:
+        """
+        backtests/{profile}/**/monthly_returns.csv を探索し、最新の1つを返す。
+        """
+        base = self.root / "logs" / "backtest" / "USDJPY"  # TODO: symbol固定 → 後で改善
+        candidates = list(base.rglob("monthly_returns.csv"))
+        if not candidates:
+            return None
+        return max(candidates, key=lambda p: p.stat().st_mtime)
+
+    def _load_monthly_returns(self, path: Path) -> pd.DataFrame:
+        df = pd.read_csv(path)
+        # "year","month","ret_pct","dd_pct" 形式を期待
+        return df
+
+    def _load_runtime_metrics(self) -> dict:
+        """
+        runtime/metrics.json を読み、今月の実運用損益を加算する。
+        """
+        path = self.root / "runtime" / "metrics.json"
+        if not path.exists():
+            return {}
+        try:
+            with path.open("r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+
+    def get_kpi(self, profile: str = "default") -> dict:
+        """
+        GUI側が使うメインAPI
+        - 今月のリターン（backtest＋live）
+        - 最大月次DD
+        - 月次リターンの全系列
+        """
+        out = {
+            "monthly_returns": [],
+            "current_month_return_pct": 0.0,
+            "max_monthly_dd_pct": 0.0,
+        }
+
+        # 1. 最新の monthly_returns.csv を探す
+        path = self._find_latest_monthly_returns(profile)
+        if path is None or not path.exists():
+            return out
+
+        df = self._load_monthly_returns(path)
+        # 生データはそのまま返しておく（GUI側で柔軟に解釈できるように）
+        out["monthly_returns"] = df.to_dict(orient="records")
+
+        # 2. 最大月次DD（カラム名の揺れに対応）
+        dd_col = None
+        for cand in ["dd_pct", "dd", "max_dd_pct", "max_dd"]:
+            if cand in df.columns:
+                dd_col = cand
+                break
+
+        if dd_col is not None:
+            try:
+                out["max_monthly_dd_pct"] = float(df[dd_col].min())
+            except Exception:
+                # 変な値が入っていても落ちないようにする
+                pass
+
+        # 3. 今月のバックテストリターン
+        now = datetime.now()
+
+        # year/month が無い場合は「全体の最新行」として扱う
+        if "year" in df.columns and "month" in df.columns:
+            row = df[(df["year"] == now.year) & (df["month"] == now.month)]
+        else:
+            # 一応「最後の1件」を月次代表として扱う
+            row = df.tail(1)
+
+        # リターンカラムの候補を順に探す
+        ret_col = None
+        for cand in ["ret_pct", "ret", "return_pct", "monthly_ret_pct"]:
+            if cand in df.columns:
+                ret_col = cand
+                break
+
+        if ret_col is not None and len(row):
+            try:
+                # 今月分が複数行あれば平均しても良いが、とりあえず先頭を採用
+                bt_ret = float(row[ret_col].iloc[0])
+            except Exception:
+                bt_ret = 0.0
+        else:
+            bt_ret = 0.0
+
+        # 4. runtime/metrics.json の値を加算（ライブ損益）
+        rt = self._load_runtime_metrics()
+        try:
+            live_ret = float(rt.get("monthly_return_pct", 0.0))
+        except Exception:
+            live_ret = 0.0
+
+        out["current_month_return_pct"] = bt_ret + live_ret
+        return out
+
 
 def compute_recent_kpi_from_decisions(
     limit: Optional[int] = None,

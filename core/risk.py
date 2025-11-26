@@ -1,7 +1,7 @@
 # core/risk.py
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from math import sqrt
 from typing import Optional
 
@@ -30,6 +30,17 @@ class LotSizingResult:
 
     # 将来用：エントリー価格と損切り価格から計算して入れる「穴」
     sl_price: float | None = None
+
+    def to_dict(self) -> dict[str, float | None]:
+        """
+        decisions ログや GUI に載せやすいように dataclass を dict へ変換する。
+        浮動小数は軽く丸めてログ肥大を防ぐ。
+        """
+        d = asdict(self)
+        for k, v in d.items():
+            if isinstance(v, float):
+                d[k] = round(v, 8)
+        return d
 
 
 # ----------------------------------------------------------------------
