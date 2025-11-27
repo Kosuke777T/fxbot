@@ -129,7 +129,7 @@ MICHIBIKI_STD = StrategyProfile(
     symbol="USDJPY",
     timeframe="M5",
     # KPI 目標
-    target_monthly_return=0.06,  # +3%/月を狙う
+    target_monthly_return=0.03,  # +3%/月を狙う
     max_monthly_dd=-0.20,  # -20% 以内に収めたい
     # ATR戦略パラメータ（暫定値：あとでWFOでチューニング）
     atr_period=14,

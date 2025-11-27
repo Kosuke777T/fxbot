@@ -6,6 +6,7 @@ fxbot/
   active_model.json
   apply_order.py
   fxbot_path.py
+  matplotlibrc
   mypy.ini
   PROJECT_MAP.md
   project_snapshot.txt
@@ -54,6 +55,10 @@ fxbot/
             HEAD
             master
     objects/
+      00/
+        c1de11818fb058438f6c18a20d81e2cf9b2a15
+      01/
+        8b1b86df949ac504d2c1e5d1c29d280722f0c5
       02/
         3a7a31d36f472c216665eaee255976275f8c62
         c29a40ef7791664f8c5d4c03c84ed6d645e7cc
@@ -65,70 +70,129 @@ fxbot/
         425b3657b93fc01e1d8fbaff947aad746ee33c
         cb9b8f1bfd093ef4a06648aa7749bc054cad17
         e82f2af35fd14fd5f24db6c5b9c2b946ad1525
+        fd7e47d09bf2db250cc0f65d73c991e76b8ad9
       08/
         35fc00560ad9e7108594ec24d5becf1c126078
       09/
+        5c5b7d49b4aa5d9258d88e0682c80683421d63
         be58859267f829df7e791d12676057148b59d8
+        f0137252f05541ae7eca1e51fdc455591fc733
       0b/
+        0d5116cfcf02bdb48673b5474e0c7b84fd7dc5
         db24735e619c1a8577f981159e1c39f8751994
       0c/
         b2fcaac4f7b04c8c05661332b27cfc12eb990a
       0d/
         a6550dcb484be338c3634120a31e4dff7dbf31
+      0e/
+        4b96caeb8bb7095f5803cd899752c6075c5a60
+        8320c2294414658141661b5d6c0dc490af5745
+        f034479e32c093fa6dff366ef4fdd26341858b
       0f/
         c114262374e3d672dadc6afa2b991e4f6c689b
         ee13da1c3397fa33041e4a91031f702b56ecae
       11/
         850c6cb45065d5b650a4e73e63c57df3a20f0e
+      12/
+        82c9c4dc3278b0a670412e67c3e8d8235db024
       14/
+        623c35a54d48725ea4d43f97743350f867cbe0
+        652bb5052da8a2e0bd34f64946b7d338f212fe
         977c4bed7df9fb29fa738295d1c2384df8539c
       15/
         134dbbf3cff247694bbdb5e30c8702ff4e0919
       16/
         a03a706eddf6ce5c7212b8058f8296390ed199
+        fef4888bb6a86d94bf9c49b0819defca90c65d
+      1b/
+        1f172e215e616f2200c98c14f93efb55bf1674
+        20bb992e6d74d143903fe2bbfab5bf3766e10e
+        5496c735e5303b28d34d1a094be96436f81c92
       1c/
         600d12d36e4a4c39fea73ed76be0fba5d44acc
         6538785655b7d91e4269a16b1f6f05ecad677c
         9139f2047fc016005013ac6d5847e9b3df254e
+        d637223c5a36041eae907dc99c4d563e20dff8
+      1e/
+        829c9919546d8483033d833f31a374d23e55f7
       1f/
         820f84dcbaeee5464a53af5796cba0c4878bb4
       21/
         18214132308a4e59d988b90c7237400a29969e
         5c301ceca66cd9a3bf5f4e5b385a4744c652ae
+      22/
+        e47e8e867ab81d3c47953e5b433232f86b8547
       25/
         859f3cadb99521b25c2fbabd6ce2eb5a164f05
+      26/
+        83045d8cde4fcc06a5d5ac109cad1dcc79c154
+        d4d195b63782b4c35130e83a979ac9825c6658
+      27/
+        8f30d5015bc4d98944478e43e4a0fdf1c23fbe
+      28/
+        c899cc1a0760a745fe0a44fb7f6b051a2b8152
+      29/
+        e75f0f7a4f57375fdee5578a7176f54060e24c
+      2a/
+        3144b966284e1e929c61c3994f0532768e0dd9
+        a11c3deaea5a1b95c571b5606776dee53bba4f
       2d/
+        56da800cec61726b9ddc78205936968b2f6ba8
         c2d9eb0861384aead82ee94b669ffecd7e6613
       2f/
         fe17f7022a4b665bb5935325d3e75c02514ff3
       30/
         1cbb9ad516e60c941019437bfef2c9b31c8ac8
+        33d23626e0516cdece00f54dc627c726e88cd7
       31/
         feea61368deedca4bbd4a928698b3540cd5258
       33/
         fa6e9a3a910bdaceb1a320e0c44c70b178dbde
+      34/
+        148c41492cadb9bbc3877cfc1c7122ec787dbb
+      35/
+        108fbbf28a00d8c604eb57595c095e0a1c8a3f
+        dfe605754e01a4eb380b9fb4306871050d90d2
       37/
         7c9e4eb4735bccfcdf9e72189041d85271b107
         df1cbf2a35e8498edfde1ae1829ad3138c34b9
+      38/
+        ac312f89d17413e0a2c32e3e8efead5f2b09db
       39/
         48ade15729390a1d5e52a8dda28bb80bbf6df6
+        b8b70835d0efabad9fb542b96dac61616853b2
       3a/
+        183f8034d97f1664bf06eb0c19a84ec7916141
         39953223bca508d41b067546c44eae33cc77d5
       3c/
         1075ab8a1464e98e452271ae93ea8c2fbc4cbf
         4202e660710fc5e0158adaded01cec7e32b91c
+      41/
+        396b448d007932c514e27684e479fc2c22b4bc
+        ceb5c2a8bbb700d26bb6b8cb12c62357fd77c4
       43/
         b7b6f0afa550d84d96f2fdf554a7a3d3f33e0c
       44/
         e34bb58bae47d24472c5d4be3a4d4eff4649c3
       45/
         4772303350534542fa77a188966d466f133738
+        50bc2d8ec4f19da6ffec8df213089ee3b22a94
+      46/
+        7687810887dcf959d528c395f2671a89516d0e
       47/
         b97783f66d735cbe7a3a7073a62a76080de3c7
       48/
+        09039c3dc2c3014410da12c14bdf569907a6ba
         4dc31f9cac7be77b7b2f1a34fa1f4fe862f214
+      49/
+        39cc68d7138249c72c08ef41e1a8e95a0d260e
+      4a/
+        4ea6d277dc5bd980b282a31641567ea9b68545
+      4e/
+        c17a347087f24c170c4b7a5a1e03ac7b91a9fb
       50/
         62019735f64f9a539ad8ab097d24838f53d80f
+        8a69950ada55384b0a788461893ee38c03b21e
       51/
         5150a18a216ba1f74a667ffe21becfad6f216b
         99e155cfb86b7a3445657820898b0e01f0972c
@@ -136,11 +200,17 @@ fxbot/
         d388c96599ae235443283e0890db9a67ac41f9
       54/
         295fb19b844c071ff5a3a887afe3080494ca05
+        863217673bba650a8617ce69442d57314cdc25
+      56/
+        44fb170735da9238ac6d32b07da387cfb4c738
       57/
+        1e25c4950512d910153d95e0a44ffea2f1b853
         3db7466e3f7d157f70e6741b499f70f2da9d39
         bf03f6cb1ac33dbee45548dcbfd091aa1ecae3
       59/
         f55fa77ba993e73a5d1fd933c90f5b636a8657
+      5a/
+        5570c99909b5cb44a3409b4bb32f74748b0ae5
       5b/
         83ff76e85bc788c7a634c072b63eb24c8b052e
       5c/
@@ -152,13 +222,20 @@ fxbot/
         f340f11dd1b171ab57f27ebe75fad47bc3f7f8
       5e/
         5c551f180ec22c0110846032354e23b2212aa0
+        7829166cfe4e06159a57167946403218173d51
+      5f/
+        2ddaccff85e3eb4a925306d45c218036d9383e
       61/
         dc3683fd1746a42a4fc65ba6e009ef8262db7f
+      62/
+        ee85a10b95acd17ac83eab3637488f14e05bc5
       65/
         00a19cac3844a8c188a05909ac345624a33306
         480c84e085b24fda67fabdd48acec874947ecd
         61f9c9707860e8978ad9a06d6983c1c09bb47c
+        6aa0acfef0a64d13fa57539d63a24ce52d7f7d
         9c0137d91b0e7b252d8f945258bb2b7841a569
+        e32c35530a311b2a893f6e60677d7dec0f32d7
       66/
         1c5e7a01bee85f819eb1fbb6e5c882ae0f0af1
       67/
@@ -173,44 +250,81 @@ fxbot/
         f6e91fd166d2762ee3454797b3dddf93bf9ce4
       6f/
         4709d7c67df34b2eae7eead85129a44e939390
+        6ea189f20d3c524b955b496223c5dd5b22f359
         e2c9c58691a9c191691f163c5e293002fb43c1
+        f8b94bb74f09986e7896b759eb0a0326ac5f44
+      72/
+        a845f14fb0386a872cb7188857f5aace45c2e2
+      74/
+        30b3b27ac82306661aaa78355d6400c0ac5498
+      75/
+        f0535d0a123f247080c7d47ba90190b0844b21
       77/
+        0ec73c2e988f0795f293188132ed0f770287b9
         0ffb062b2463534f5ef6b777e7c48a871d28f0
+        7af0cfbf7315e2689a87c0cd137ffd476a3c0a
       78/
         a4e99ab1f760126d1d7f5c41426478665ac392
       79/
+        995cb1ba4711bb064edb2efe34c508df590623
         cbf5275cceb4d6bf51fde0429b33bc5000cd21
       7a/
+        4f93255dc70b5e3d1764eb8779fdad079c52ba
         a5ecac2b1de7ad5de88d9dc173bd4fe7f7457f
+      7b/
+        3133b72760b58b0675206fd45f4e76201c8c28
       7c/
         07fc1869e186866b741d9ee51f0a4b1f4b62c1
       7e/
         fac12a4fca7841ab99984a4ce9377b1100e836
         fc71bcff730e132162a1a4d73e181474d7aa02
       7f/
+        c9530c7fe31ef6c3812c67b6c9b65ceb571d74
         e76ef9bbfe3304e6d528e8ebad86442673c680
+      80/
+        ab14826b9a93ab188f175691a2cfd801e3b7e5
+        f4315f1deab283714e65f5242763d4b3ae064f
       81/
         1c8c56072b6a65af9a195afc7cb293701f8ad2
+        387d2607dc05422cbdb0837d78fc187c87d532
+        45002799b6beeb84434abb5843324ddafbc745
       82/
         f7512b210a54ea81231e2e21be5177c8b8f0fd
       83/
+        0e4611f9264d80da93f6e9e90a914379e52fc7
         796b4cf31259a41e156e89c0754fa8d7aa4736
       85/
         e5a61cffbb987edcfd2a1150bf7d5d0693fbd1
+      86/
+        e740985bd9c907d1678538ae16e4065657c602
+        f2766b83ba752d884085c2f904ecdb4840a4ad
       88/
         4eebe2f269b80fe23b16d6dcfa66cffeda8853
       89/
         07b7ab93be26ad3db3039e78d43dd18a067804
       8a/
         4df32fb78dd746e01dbee3efd076eecb90fb5f
+        a3c0730b1d09c879df88a75e5548444698982b
       8c/
         4dc3091720fee68a86a9de82bb618ef2b0e0a6
+        eb2c7c33d7aecd07782061ccc3279ba4e7c62d
       8d/
+        473d8ba2cfd7a1af5776bc069541a5c9d870f8
+        4dcb31cbb582373236e2d8f99057cfdf5377c9
         6a1c2252890bcdd681f116a30ef70f04c4a91b
       8e/
         365007e2e30d43503bae35c87f0704e8e8cbd0
+        71f32836c81331fec811eaa35038d3631ae69e
+      8f/
+        32fa7d9dca55e6f37e6dd03b08d3fe761eb694
+        9a71568c4eb06243e1736022792d3939031a4d
       90/
+        bfb594ecfbe7b54d7db04d285ed91b5586e42b
         dcb47559c7272d41e2c2865face1adbe1f9965
+      91/
+        36a68fa79214cdaf6c37a38a9f2f18e5f88529
+      92/
+        7033572af7c2b8a39289c08bfdd165aac286f0
       97/
         ecea0268d144e5a65b86bba34c977671169da6
       98/
@@ -218,14 +332,21 @@ fxbot/
       99/
         1a4274ec76bfbc627918966d6a861d4d30c1f5
         55011d3884cc628c6e93d6202281344ea44ae7
+        7a66e1926a481ec6fd1bfbcbe351ad66b340e2
       9b/
+        3df3e0bdb3ec10a8fe9ce7241a4660781cf3a4
+        5a7e83c4f6cdd20bbc234ee383fca45e5d4584
         806082494362e05bc5aa805edba30d941cfce6
       9c/
         344c2b66d4c943bab8bd74e43db0aca46df73e
+        ec680d4a83da98597f875fea9252add04d4d0a
+      9e/
+        f6a2341cb04c1d64b3d89c88c99666db23465a
       9f/
         a49027bd805bcba11c37024a2ed535fd3d684f
       a0/
         36ec42266e036224d231e8b1e06dc65661b7fb
+        4851dd4098c9a42c313db33ca09b123a0f252c
       a1/
         05df5be74001de22819de82ead1c4178d8d3c7
         765334d21dbbb3c76f58588bba42ee46539399
@@ -233,66 +354,132 @@ fxbot/
       a2/
         0f8e6643ac44ac649221c849eff0f2d3736f4d
         174a942579c89b333352152571b452291070f6
+        22bba5c2eccf59c0c9046184de74a5d9b76e41
+        63c12e355b2fcd523b200c83c528bc51a19500
       a3/
         74348e0488ef9f9d5ba8f1ac8d98519ba3a25c
+        e207ffcbca6933770fb1a301b712e92855c8f5
+      a4/
+        1cfc2f6454c121f6355428cd92a3650540297f
       a5/
         699ebe568ebc103d08f0992ad44f2fca89aabf
         85666b9dddd7736f191db37ab6e5fa79da05f3
       a7/
         1c36872b306846e4e95ce758bca8e2f0b1a62e
+        7f4f8d28ae8ca6772f6feec6d9e8bcd46d03dc
+        e280645b393d821300777fbe842e5ebf012537
       aa/
         85747e1493f9ad4daad63fb3c40d42dcea7978
+        c0281d04200f19a6ff50f5d82a607378a08ed8
+      ab/
+        3b1f096b3d4e7d7bf628e3c63a288a45347ac2
+      ac/
+        57078b999318e311aec4198623e3a4a86f62be
       ae/
         192c85f640c36f1497041c025216446bcc875f
       b0/
         0d13bbab828f4ae0051b2682698d422e2f5eea
+        96522a0a5394ec421b6c38dc1b01a340c61409
+      b1/
+        356276c51ed3d371fd68fe05b5f24521091fa5
       b3/
         83d0fcee64fbf68a5c4ccea2fab33d61986b0c
         acab41d43907963f5dafd4481848861fc9b9c7
+        c836b8137ccc2798d9b1ec766b61d6e4b08a34
       b4/
         103e6b780bf25109134fcdb246118b98bc73f8
       b5/
         05174fb161cc773fca7db77c1653b7fb487c3a
+        474c82beabd57bebf54aa19721c7c5d03c230e
         b178511621238433e50822db295c6d82b472cb
+      b6/
+        ecf572f88ab63e70954fa181e7ca6814dc82ad
       b7/
+        1dbf9f6f20c47f0fc1d6982499653fc65a5207
         77a59cc5d62069a37cadc847fb6e7429daad63
+        cfaee860911410eaadbff3b2d47908809dd4d0
       b8/
         1c34d4413670f9281e09e87978a42c829ff244
+        1f42e853b127c7833a80e85101fb3b0340988f
+        a3f2dae6422d4f937dd69976f46d27dd06c577
+      b9/
+        5fae4ff6b892d13f8760f24a2abdf7ff384144
+      bb/
+        45fec9b4fd60777ee8195a5bf3f8a2b9ce775f
+      bd/
+        b74e72d54610afe3d00c1bfae232baecf59b85
+      be/
+        0a9a8c37056db95d3283e5e0148b2456c2bcbd
+        be45564abe1ba155338f84fa5c2270b2f58c89
       bf/
         2110ed80db597e76b067630c954906e4f36b71
         74d40947b88c5af841dfae36233c4d0d379e7e
       c2/
+        2de09dbcea45b4e25d22dc27f2615368cd2f72
+        3adae0bb2870edcbf32f9467b5b3dd63b09f1d
         5e861b5523e19f640926b8adbbd08c9e3a141d
+        8d645f1f9701efd0ece3e4e67773bec08815b2
       c3/
+        1cb4900f67cbbe541a1ad48c27b89ff67399b9
+        a6f4608c874c609935072327e497ee53035b21
         fa1088d7f4c0a51de6b6d22d5c7342287431bc
       c6/
+        82519fd6404ac52311d1b77d2a8cf523200f77
         ae0b40c5fb151e1329377501838df7517382ad
+      c9/
+        f0cd7176abe7d8973cf3790228f43831f34dc9
       ca/
         a2b5d322cea0982b1db1fce4acba2cb2901677
         e647d3b9482be62712a6a3cead7f93a8215f71
       cb/
         1fd5f93257436256990a115132d7e4a8639110
+        4292eed7fb9c03f6b43fbe3f44a0d9752f5fe5
+      cd/
+        af3a911723d1930bd1fed5298c2368c63ade22
+      ce/
+        a9d0641b813a8af760da2b310b255d1ae680c8
+      cf/
+        0c872ab31f317ba06147bf6fe08228a91a93cf
+      d0/
+        49fa5b550e1735094dac23856b3b4019ec8740
+        587bebb25b5250bc09197aa043fc4b332c9962
       d1/
         5b0dadc122d0c8a19fc240d2389f48433d6fa7
         82c7ac32c217dd1a6aef6445ab8ba6ceb4baec
       d2/
+        184a415153a3107f623f30a07407042426331f
         7cd39775ed7be77cbec2eec12166b09ce3d54b
+        f048d1d6d82338347c6d5f71d501ccee5fba67
       d3/
         82263abfef3f71c15e33cdd99dc7505e99665a
+      d4/
+        0b4940edf0607d72183f09a539de38d2f30dbb
+        2ca66794655a3a3389e9fa395efcc7f6fc7e2f
       d6/
+        ae881925c9c5230819cda568bd3e19f9a36895
         be3a01635a5dcdd41af89d0becb96603dc344e
       d7/
         053cd4ac4136202519be5128077cc50dde2c08
+        73fa5249e33bbc3a04a3d38a605532efd98986
+        c28b442ddc8167c3270be5a283b7ba6d91bf26
+        ced7591c7e048d61755736451b75bdd9d6cf29
       d9/
+        16af3722049f8b294f47cdeabfaa587a803b65
         1e6f2b6be49a6cfa32919c57cf0f012905203b
+      dd/
+        8c9de7d037cfbb3e4d9eef5785dfd6454d6321
       de/
         5c51330c4457010905d380ebfc3f3456ffe2aa
       df/
         f2b10e4a7f1d54d445a2df42dd13371c0e1fba
       e0/
+        71616438ad16869433a729a4fa38f6b7ec9cb9
         cdea7889f817f394f014f440814756190b7c26
       e1/
+        029f6add5534603b8b33291d57810b1ae059d8
         50ca817673139fcd4d1cb7a1002270b09f4271
+      e2/
+        838b2bf9578ff50512d4978b30d9cedeb3793e
       e4/
         118c6879c6a728601f1bc3921389a2cb76c9b6
       e5/
@@ -301,23 +488,48 @@ fxbot/
         31c7745aa0d6e460775d532510bea8d28500a4
       e8/
         470f694998ed7a58c2fc9b94741daf8412122b
+        b0ff14a964b6d0146caad9c472ac0872c01411
+        cb0f9057d8aa607f0eae66ce21c539e5505477
       e9/
         7cbc15e6a2455bf7eaf8fefa071eaea4a78496
+      ea/
+        c53979b75d1648d11b7010b1169a23aec1db79
+      eb/
+        e3975eb7ebc290900de7549f5070d6123d7255
       ec/
+        029a13c9ed7df0e8106501e07adb2df8833dbe
+        cd79475b9862ab17d848e80d283f40927214b0
         cda0e1ff6e9425be198c28606001f9b15e7c40
+      ed/
+        7319ba1bfde8df721dc350206fdead775cf5da
+      ee/
+        efb6474f25ac893c73ccd39342f56ad897405b
+        f441739a4475bfc43a52a294a52da84e9fd8cc
       f0/
         1f3791744cf78bd29355f284117092930c3832
+        98d3a984617ce7caa2c078a8bfd6bdeaf1455a
+      f1/
+        5e3ee33e5e8891ba0b6d158347fa8d21380b9b
       f3/
         598b4c49d3fa65f18880d62a1b270a091a88d4
       f4/
+        1e56a4a467eb5900b289f1fa390e91351a1d31
         9123063524566f24bc40671ec961556065b4ff
+      f5/
+        49b86921f3e0d455f23bf265118d699f3c7d87
+      f6/
+        4ee20497b359c8876f50564080217306fde9e4
+        78206bdb52129185a4a1947a4dd796357a58a4
       f9/
         eb47a14bee5875b9045667bfc247cbb8288804
+      fa/
+        9489c4c9f4304358da91c828d1e31b38a5e606
       fc/
         39fe13fec654ab981f41936e3a0311808eb537
       fe/
         16c447579f2488e5723307f29b7194dcfb219f
         3cbffb9b24984d4fec42144219bf1b568132a2
+        e1d06534bf72d6de2001c6ab8f59d1b5a7cb01
       ff/
         096b06a36a656530caf87349ecf7dd797a11f2
         717f39ea33ddadd68191d928e85a1480799419
@@ -1456,6 +1668,7 @@ fxbot/
       symbol_map.py
       __pycache__/
         config_loader.cpython-313.pyc
+        logger.cpython-313.pyc
         market.cpython-313.pyc
         mt5_client.cpython-313.pyc
         strategy_profile.cpython-313.pyc
@@ -1472,7 +1685,21 @@ fxbot/
       __init__.py
       widgets/
         feature_importance.py
+        monthly_returns_widget.py
         shap_bar.py
+        __pycache__/
+          feature_importance.cpython-313.pyc
+          monthly_returns_widget.cpython-313.pyc
+          shap_bar.cpython-313.pyc
+      __pycache__/
+        ai_tab.cpython-313.pyc
+        backtest_tab.cpython-313.pyc
+        control_tab.cpython-313.pyc
+        dashboard_tab_qt.cpython-313.pyc
+        history_tab.cpython-313.pyc
+        main.cpython-313.pyc
+        settings_tab.cpython-313.pyc
+        __init__.cpython-313.pyc
     services/
       aisvc_loader.py
       ai_service.py
@@ -1482,6 +1709,7 @@ fxbot/
       event_store.py
       execution_stub.py
       feature_importance.py
+      kpi_service.py
       metrics.py
       mt5_account_store.py
       mt5_selftest.py
@@ -1497,12 +1725,18 @@ fxbot/
       __pycache__/
         ai_service.cpython-313.pyc
         circuit_breaker.cpython-313.pyc
+        data_guard.cpython-313.pyc
+        decision_log.cpython-313.pyc
         event_store.cpython-313.pyc
         execution_stub.cpython-313.pyc
         feature_importance.cpython-313.pyc
+        kpi_service.cpython-313.pyc
         metrics.cpython-313.pyc
+        mt5_account_store.cpython-313.pyc
+        mt5_selftest.cpython-313.pyc
         mt5_service.cpython-313.pyc
         orderbook_stub.cpython-313.pyc
+        recent_kpi.cpython-313.pyc
         shap_service.cpython-313.pyc
         trade_service.cpython-313.pyc
         trade_state.cpython-313.pyc
@@ -1519,6 +1753,7 @@ fxbot/
       __init__.cpython-313.pyc
   backtests/
     michibiki_std/
+      monthly_returns.csv
   config/
     mt5_accounts.json
   configs/
@@ -1652,6 +1887,11 @@ fxbot/
             trades.csv
             trades_test.csv
             trades_train.csv
+          backtest_2024-01-01_to_2025-11-27/
+            equity_curve.csv
+            metrics.json
+            monthly_returns.csv
+            trades.csv
           backtest_2024-07-01_to_2024-12-31/
             equity_curve.csv
             equity_test.csv
@@ -1836,10 +2076,12 @@ fxbot/
   runtime/
     active_model.json
     metrics.json
+    metrics_03dcmp1t.json
     metrics_044ho80o.json
     metrics_04i6g_bm.json
     metrics_08lb8guj.json
     metrics_0fdsym9v.json
+    metrics_0fo8shxp.json
     metrics_0ks5iv74.json
     metrics_0m3pzxsa.json
     metrics_0s0y1mq_.json
@@ -1854,6 +2096,7 @@ fxbot/
     metrics_2b5irl55.json
     metrics_2llsmgld.json
     metrics_2wh_r543.json
+    metrics_328riod9.json
     metrics_32ej_3qs.json
     metrics_384xt0qj.json
     metrics_3op0smhm.json
@@ -1867,12 +2110,14 @@ fxbot/
     metrics_4jkcw838.json
     metrics_4jwlaw79.json
     metrics_4sqd0ccq.json
+    metrics_4t1fuk45.json
     metrics_4u83ovxn.json
     metrics_51fzibz0.json
     metrics_56tbpp98.json
     metrics_57o72g0n.json
     metrics_5b05eo73.json
     metrics_5c1keku_.json
+    metrics_5plmm1nf.json
     metrics_5_uus6ny.json
     metrics_681i8dz0.json
     metrics_6g2ygykl.json
@@ -1890,6 +2135,7 @@ fxbot/
     metrics_7wtig7zq.json
     metrics_7yx4f9p_.json
     metrics_865i7pkx.json
+    metrics_8e_avc89.json
     metrics_8i0ku3__.json
     metrics_8iecfllz.json
     metrics_8s427o_h.json
@@ -1909,6 +2155,7 @@ fxbot/
     metrics_bsejl6ul.json
     metrics_b_e39daa.json
     metrics_c19f7jhr.json
+    metrics_c3x98n96.json
     metrics_c6dlu7j3.json
     metrics_c7srgc6l.json
     metrics_c8vn4_xo.json
@@ -1925,6 +2172,7 @@ fxbot/
     metrics_es10kbkj.json
     metrics_exyc2aoi.json
     metrics_f4ba8yj0.json
+    metrics_fnhwnj30.json
     metrics_fusrtchw.json
     metrics_fvkjx3i3.json
     metrics_fwgrd7ek.json
@@ -1935,6 +2183,7 @@ fxbot/
     metrics_gkox137u.json
     metrics_gn3r368k.json
     metrics_gre0l2vv.json
+    metrics_gty4tjqv.json
     metrics_gu2jj4x6.json
     metrics_gy7yzni_.json
     metrics_h2ke1que.json
@@ -1943,12 +2192,16 @@ fxbot/
     metrics_i5pwbdy8.json
     metrics_i9ixee1p.json
     metrics_iegm05ma.json
+    metrics_j96gmz5t.json
     metrics_jeul60z4.json
+    metrics_jfp3li42.json
     metrics_jldkp6oj.json
     metrics_joyqy1yz.json
+    metrics_jvx3zmoo.json
     metrics_k452r_bd.json
     metrics_keyuq093.json
     metrics_kijozz54.json
+    metrics_kipddk8_.json
     metrics_l0nrt8ax.json
     metrics_l4qkqhvl.json
     metrics_l9a3g7f_.json
@@ -1979,6 +2232,7 @@ fxbot/
     metrics_r1oyukcw.json
     metrics_r2iljktq.json
     metrics_r4cxpbus.json
+    metrics_rez4azku.json
     metrics_ri5kzye8.json
     metrics_s0g6aqij.json
     metrics_smrtxq4q.json
@@ -1989,6 +2243,7 @@ fxbot/
     metrics_t09rkk69.json
     metrics_tka4z8jk.json
     metrics_tnyuui1p.json
+    metrics_ts0va54h.json
     metrics_tvk5w34y.json
     metrics_u85k0bty.json
     metrics_ue987r_m.json
@@ -1996,6 +2251,7 @@ fxbot/
     metrics_uhoep47z.json
     metrics_uiqkfigp.json
     metrics_ujl1qfgc.json
+    metrics_uvxzw4l8.json
     metrics_v30su220.json
     metrics_v372j6bp.json
     metrics_vd8t6g2k.json
@@ -2003,6 +2259,7 @@ fxbot/
     metrics_vlx06rwe.json
     metrics_vm46jhw3.json
     metrics_vzimyuwy.json
+    metrics_w6io5w2_.json
     metrics_w88v4g45.json
     metrics_wcsasy33.json
     metrics_x7rwrpb_.json
@@ -2048,6 +2305,7 @@ fxbot/
     live_runner.py
     lot_diagnose.py
     lot_info_debug.py
+    lot_sizing_viewer.py
     make_csv_from_mt5.py
     make_project_snapshot.py
     make_project_snapshot2.py
@@ -2072,6 +2330,7 @@ fxbot/
       discover_symbols.cpython-313.pyc
       lot_diagnose.cpython-313.pyc
       lot_info_debug.cpython-313.pyc
+      lot_sizing_viewer.cpython-313.pyc
   tests/
     test_sanity.py
   tools/
@@ -2087,6 +2346,8 @@ fxbot/
     __pycache__/
       backtest_run.cpython-313.pyc
       __init__.cpython-313.pyc
+  __pycache__/
+    fxbot_path.cpython-313.pyc
   設定/
     Agent HQ 用「細分化版」.txt
     To Doリスト.txt

@@ -2,6 +2,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Dict, Any, Optional
 import time
+import json
 
 import numpy as np
 import pandas as pd
@@ -18,6 +19,120 @@ from app.services.shap_service import (
 )
 
 
+def _safe_float(value: Any) -> Optional[float]:
+    """数値 or 数値っぽい文字列だけ float に変換し、それ以外は None を返す小さいユーティリティ。"""
+    try:
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str) and value.strip():
+            return float(value)
+    except Exception:
+        return None
+    return None
+
+
+def get_model_metrics(models_dir: str | Path = "models") -> Dict[str, Any]:
+    """
+    active_model.json と {model_name}.meta.json から
+    Logloss / AUC / モデル名 / バージョンなどを読み取って dict で返す。
+
+    戻り値のキー（GUI側で使う想定）:
+        - model_name   : str  （例: "LightGBM_clf"）
+        - version      : str  （例: "20251117_090029"）
+        - file         : str  （例: "LightGBM_clf_20251117_090029.pkl"）
+        - meta_file    : str  （例: "LightGBM_clf_20251117_090029.meta.json"）
+        - auc          : float | None
+        - logloss      : float | None
+        - best_threshold : float | None
+        - updated_at   : str | None
+    """
+    base = Path(models_dir)
+
+    # --- active_model.json を読む ---------------------------------
+    active_path = base / "active_model.json"
+    active: Dict[str, Any] = {}
+    if active_path.is_file():
+        try:
+            active = json.loads(active_path.read_text(encoding="utf-8"))
+        except Exception as e:
+            logger.warning(f"[AISvc] failed to read {active_path}: {e}")
+    else:
+        logger.info("[AISvc] active_model.json not found; model metrics will be '-'.")
+
+    # ★ active_model.json の実際のキー名に合わせる！
+    #   { "file": "...pkl", "meta_file": "...meta.json", "version": 1763..., ... }
+    model_file = active.get("file") or active.get("model_file")
+    meta_file_name = active.get("meta_file")
+    best_threshold = active.get("best_threshold")
+    version_active = active.get("version")
+    updated_at = active.get("updated_at")
+
+    # --- meta.json を決める ---------------------------------------
+    meta: Dict[str, Any] = {}
+    meta_path: Optional[Path] = None
+
+    # 1) active_model.json の meta_file 優先
+    if isinstance(meta_file_name, str) and meta_file_name:
+        cand = base / meta_file_name
+        if cand.is_file():
+            meta_path = cand
+
+    # 2) なければ model_file から {stem}.meta.json を推測
+    if meta_path is None and isinstance(model_file, str) and model_file:
+        cand = base / f"{Path(model_file).stem}.meta.json"
+        if cand.is_file():
+            meta_path = cand
+
+    # 3) meta_path が決まっていれば読む
+    if meta_path is not None:
+        try:
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        except Exception as e:
+            logger.warning(f"[AISvc] failed to read {meta_path}: {e}")
+
+    # --- モデル名とバージョン -------------------------------------
+    if isinstance(model_file, str) and model_file:
+        fallback_name: str | None = Path(model_file).stem
+    else:
+        fallback_name = "-"
+
+    model_name = (
+        meta.get("model_name")
+        or active.get("model_name")
+        or fallback_name
+        or "-"
+    )
+
+    version: Any = (
+        meta.get("version")
+        or version_active
+        or updated_at
+        or "-"
+    )
+    if isinstance(version, (int, float)):
+        version = str(version)
+
+    # --- metrics（logloss / AUC） ---------------------------------
+    metrics_dict = meta.get("metrics") or {}
+    # AUC は auc@cal があればそれを優先、なければ auc
+    auc = _safe_float(metrics_dict.get("auc@cal") or metrics_dict.get("auc"))
+    logloss = _safe_float(metrics_dict.get("logloss"))
+
+    # --- まとめて返す ---------------------------------------------
+    result: Dict[str, Any] = {
+        "model_name": model_name,
+        "version": version,
+        "file": model_file or "-",
+        "meta_file": str(meta_path.name) if meta_path else (meta_file_name or "-"),
+        "auc": auc,
+        "logloss": logloss,
+        "best_threshold": _safe_float(best_threshold),
+        "updated_at": updated_at,
+    }
+
+    return result
+
+
 class AISvc:
     """
     既存の推論サービス想定。モデル群は self.models に格納されている想定。
@@ -29,6 +144,8 @@ class AISvc:
         self._fi_cache: Optional[pd.DataFrame] = None
         self._fi_cache_key: Optional[str] = None
         self._fi_cache_ts: float = 0.0
+        self.models_dir = Path("models")
+        self._active_meta: Optional[dict[str, Any]] = None
 
         # SHAP用の高速キャッシュ
         self._shap_cache: Optional[pd.DataFrame] = None
@@ -129,6 +246,7 @@ class AISvc:
             logger.error("[AISvc] active model meta の読み込みに失敗: {err}", err=exc)
             return
 
+        self._active_meta = meta
         fname = meta.get("file")
         if not fname:
             logger.error("[AISvc] active_model.json に 'file' がありません")

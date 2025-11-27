@@ -33,6 +33,7 @@ import pandas as pd
 import yaml
 from joblib import dump
 from loguru import logger
+from sklearn.metrics import roc_auc_score
 
 # ---- 定数 (Ruff の magic number 対策も兼ねる) -----------------------------
 
@@ -273,6 +274,7 @@ class WFOResult:
     folds: list[FoldResult]
     mean_logloss: float
     mean_accuracy: float
+    mean_auc: float
 
 
 def iter_walkforward_indices(
@@ -397,6 +399,7 @@ def train_lightgbm_wfo(
     valid_mask = ~np.isnan(oof_pred)
     mean_logloss = float("nan")
     mean_accuracy = float("nan")
+    mean_auc = float("nan")
     if valid_mask.sum() > 0:
         y_valid_arr: npt.NDArray[np.int_] = y[valid_mask].to_numpy()
         p_valid: npt.NDArray[np.float_] = oof_pred[valid_mask]
@@ -410,11 +413,16 @@ def train_lightgbm_wfo(
         )
         preds_valid = (p_valid >= DEFAULT_CLASS_THRESHOLD).astype(int)
         mean_accuracy = float((y_valid_arr == preds_valid).sum() / len(y_valid_arr))
+        try:
+            mean_auc = float(roc_auc_score(y_valid_arr, p_valid))
+        except ValueError:
+            mean_auc = float("nan")
 
     wfo_result = WFOResult(
         folds=fold_results,
         mean_logloss=mean_logloss,
         mean_accuracy=mean_accuracy,
+        mean_auc=mean_auc,
     )
 
     return wfo_result, boosters, oof_pred
@@ -656,6 +664,10 @@ def save_model_and_meta(  # noqa: PLR0913  (引数多めでもここはOKとす�
         "label_horizon_bars": cfg.retrain.label_horizon,
         "min_pips": cfg.retrain.min_pips,
         "features": list(feature_cols),
+        "metrics": {
+            "logloss": float(wfo_result.mean_logloss),
+            "auc": float(wfo_result.mean_auc),
+        },
         "wfo": {
             "mean_logloss": wfo_result.mean_logloss,
             "mean_accuracy": wfo_result.mean_accuracy,
@@ -679,6 +691,8 @@ def save_model_and_meta(  # noqa: PLR0913  (引数多めでもここはOKとす�
         "meta_file": meta_path.name,
         "version": version,
         "best_threshold": threshold_info.get("best_threshold"),
+        "feature_order": list(feature_cols),
+        "features": list(feature_cols),
     }
     active_path = cfg.paths.models_dir / "active_model.json"
     with active_path.open("w", encoding="utf-8") as f:

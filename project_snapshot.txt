@@ -1,7 +1,7 @@
 ############################################################
 # project_snapshot
 ############################################################
-generated_at: 2025-11-25 18:21:04
+generated_at: 2025-11-27 15:49:12
 project_root: D:\fxbot
 
 NOTE:
@@ -26,7 +26,7 @@ app/
     symbol_map.py (updated: 2025-11-25 10:55:29)
   gui/
     __init__.py (updated: 2025-11-20 17:32:02)
-    ai_tab.py (updated: 2025-11-20 17:32:02)
+    ai_tab.py (updated: 2025-11-27 13:06:11)
     backtest_tab.py (updated: 2025-11-20 17:32:02)
     control_tab.py (updated: 2025-11-20 17:32:02)
     dashboard_tab.py (updated: 2025-11-20 17:32:02)
@@ -36,26 +36,28 @@ app/
     settings_tab.py (updated: 2025-11-20 17:32:02)
     widgets/
       feature_importance.py (updated: 2025-11-20 17:32:02)
+      monthly_returns_widget.py (updated: 2025-11-26 18:41:02)
       shap_bar.py (updated: 2025-11-20 17:32:02)
   main_tk.py (updated: 2025-11-20 17:32:02)
   services/
     __init__.py (updated: 2025-11-20 17:32:02)
-    ai_service.py (updated: 2025-11-25 11:11:17)
+    ai_service.py (updated: 2025-11-27 13:07:39)
     aisvc_loader.py (updated: 2025-11-20 17:32:02)
     circuit_breaker.py (updated: 2025-11-20 17:32:02)
     data_guard.py (updated: 2025-11-20 17:32:02)
     decision_log.py (updated: 2025-11-20 17:32:02)
     event_store.py (updated: 2025-11-20 17:32:02)
-    execution_stub.py (updated: 2025-11-25 15:48:22)
+    execution_stub.py (updated: 2025-11-26 13:24:03)
     feature_importance.py (updated: 2025-11-20 17:32:02)
+    kpi_service.py (updated: 2025-11-27 12:05:13)
     metrics.py (updated: 2025-11-20 17:32:02)
     mt5_account_store.py (updated: 2025-11-20 17:32:02)
     mt5_selftest.py (updated: 2025-11-20 17:32:02)
     mt5_service.py (updated: 2025-11-20 17:32:02)
     orderbook_stub.py (updated: 2025-11-20 17:32:02)
-    recent_kpi.py (updated: 2025-11-20 17:32:02)
+    recent_kpi.py (updated: 2025-11-26 18:24:00)
     shap_service.py (updated: 2025-11-20 17:32:02)
-    trade_service.py (updated: 2025-11-24 07:56:36)
+    trade_service.py (updated: 2025-11-26 13:15:14)
     trade_state.py (updated: 2025-11-20 17:32:02)
     trailing.py (updated: 2025-11-20 17:32:02)
     trailing_hook.py (updated: 2025-11-20 17:32:02)
@@ -83,7 +85,7 @@ core/
     fi_extractor.py (updated: 2025-11-20 17:32:02)
     registry.py (updated: 2025-11-20 17:32:02)
   position_guard.py (updated: 2025-11-20 17:32:02)
-  risk.py (updated: 2025-11-25 15:57:35)
+  risk.py (updated: 2025-11-26 13:14:57)
   utils/
     __init__.py (updated: 2025-11-20 17:32:02)
     clock.py (updated: 2025-11-20 17:32:02)
@@ -102,6 +104,7 @@ scripts/
   live_runner.py (updated: 2025-11-24 07:56:36)
   lot_diagnose.py (updated: 2025-11-25 17:52:30)
   lot_info_debug.py (updated: 2025-11-25 17:29:36)
+  lot_sizing_viewer.py (updated: 2025-11-26 18:15:35)
   make_csv_from_mt5.py (updated: 2025-11-20 17:32:02)
   make_project_snapshot.py (updated: 2025-11-24 07:56:36)
   make_project_snapshot2.py (updated: 2025-11-24 07:56:36)
@@ -910,20 +913,27 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QTabWidget,
 )
+
 import joblib
+import pandas as pd
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.figure import Figure
 
 from loguru import logger
 
-from app.services.ai_service import AISvc
+from app.services.ai_service import AISvc, get_model_metrics
 from app.services.recent_kpi import compute_recent_kpi_from_decisions
 from app.gui.widgets.feature_importance import FeatureImportanceWidget
 from app.gui.widgets.shap_bar import ShapBarWidget
+from app.gui.widgets.monthly_returns_widget import MonthlyReturnsWidget
+from app.core.strategy_profile import get_profile
 
 
 class AITab(QWidget):
     def __init__(self, ai_service: AISvc | None = None, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.ai_service = ai_service or AISvc()
+        self.profile = get_profile()
 
         try:
             p = Path("models/LightGBM_clf.pkl")
@@ -935,6 +945,22 @@ class AITab(QWidget):
             print(f"[AITab] model autoload skipped: {e}")
 
         main_layout = QVBoxLayout(self)
+        # --- モデル指標パネル ------------------------------------
+        self.model_group = QGroupBox("モデル指標", self)
+        model_form = QFormLayout(self.model_group)
+
+        self.lbl_model_name = QLabel("-")
+        self.lbl_model_version = QLabel("-")
+        self.lbl_model_logloss = QLabel("-")
+        self.lbl_model_auc = QLabel("-")
+
+        model_form.addRow("モデル名", self.lbl_model_name)
+        model_form.addRow("バージョン", self.lbl_model_version)
+        model_form.addRow("Logloss", self.lbl_model_logloss)
+        model_form.addRow("AUC", self.lbl_model_auc)
+
+        main_layout.addWidget(self.model_group)
+
         self.tab_widget = QTabWidget(self)
         main_layout.addWidget(self.tab_widget, 1)
 
@@ -970,10 +996,34 @@ class AITab(QWidget):
         btn_row.addWidget(self.btn_refresh_kpi)
         kpi_form.addRow(btn_row)
 
+        # --- 月次リターン（backtest）を表示するグラフ + KPIラベル ---
+        self.monthly_group = QGroupBox("Monthly returns (backtest, %)", self.tab_kpi)
+        monthly_layout = QVBoxLayout(self.monthly_group)
+
+        # グラフ本体（既存の MonthlyReturnsWidget）
+        self.monthly_widget = MonthlyReturnsWidget(self.monthly_group)
+        monthly_layout.addWidget(self.monthly_widget)
+
+        # ★今月リターン vs 目標3% の KPI ラベル（同じグループ内）
+        self.kpi_monthly_label = QLabel("今月: - % / 目標: 3.0 %", self.monthly_group)
+        self.kpi_monthly_label.setStyleSheet("font-size: 12px; color: #005050;")
+        monthly_layout.addWidget(self.kpi_monthly_label)
+
         kpi_layout.addWidget(self.recent_kpi_group)
+        kpi_layout.addWidget(self.monthly_group)
         kpi_layout.addStretch(1)
 
         self.tab_widget.addTab(self.tab_kpi, "KPI")
+
+        # --- Monthly Returns tab (matplotlib chart) ---
+        self.tab_monthly = QWidget(self.tab_widget)
+        monthly_layout = QVBoxLayout(self.tab_monthly)
+
+        self.fig_monthly = Figure(figsize=(6, 4))
+        self.canvas_monthly = FigureCanvas(self.fig_monthly)
+        monthly_layout.addWidget(self.canvas_monthly)
+
+        self.tab_widget.addTab(self.tab_monthly, "Monthly Returns")
 
         self.tab_fi = QWidget(self.tab_widget)
         fi_layout = QVBoxLayout(self.tab_fi)
@@ -997,6 +1047,9 @@ class AITab(QWidget):
 
         self.btn_refresh_kpi.clicked.connect(self.refresh_kpi)
         self.refresh_kpi()
+        self._update_monthly_returns_chart()
+        self.update_monthly_kpi()
+        self.refresh_model_metrics()
 
     def refresh_kpi(self) -> None:
         """
@@ -1044,11 +1097,176 @@ class AITab(QWidget):
             f"{result.best_win_streak} / {result.best_loss_streak}"
         )
 
-        if getattr(self, "shap_widget", None) is not None:
+        # SHAP はウィジェット初期化時の refresh に任せる
+
+    # ------------------------------------------------------
+    # Monthly Returns グラフ更新（NEW）
+    # ------------------------------------------------------
+    def _update_monthly_returns_chart(self) -> None:
+        """
+        backtests/{profile}/monthly_returns.csv から
+        月次リターン（％）の折れ線グラフを描画する。
+        """
+        if not hasattr(self, "fig_monthly") or not hasattr(self, "canvas_monthly"):
+            return  # __init__ 途中で呼ばれた場合の保険
+
+        self.fig_monthly.clear()
+        ax = self.fig_monthly.add_subplot(111)
+
+        path = self.profile.monthly_returns_path
+
+        if not path.exists():
+            ax.text(
+                0.5,
+                0.5,
+                "monthly_returns.csv not found",
+                ha="center",
+                va="center",
+                transform=ax.transAxes,
+            )
+            ax.set_axis_off()
+            self.canvas_monthly.draw_idle()
+            return
+
+        try:
+            df = pd.read_csv(path)
+        except Exception as e:  # pragma: no cover - GUI用の保険
+            ax.text(
+                0.5,
+                0.5,
+                f"read error: {e}",
+                ha="center",
+                va="center",
+                transform=ax.transAxes,
+            )
+            ax.set_axis_off()
+            self.canvas_monthly.draw_idle()
+            return
+
+        required = {"year", "month", "return_pct"}
+        if df.empty or not required.issubset(df.columns):
+            ax.text(
+                0.5,
+                0.5,
+                "no monthly returns",
+                ha="center",
+                va="center",
+                transform=ax.transAxes,
+            )
+            ax.set_axis_off()
+            self.canvas_monthly.draw_idle()
+            return
+
+        # 年月順に並べる
+        df = df.sort_values(["year", "month"])
+        years = df["year"].astype(int).tolist()
+        months = df["month"].astype(int).tolist()
+        rets = df["return_pct"].astype(float).tolist()
+
+        labels = [f"{y}-{m}" for y, m in zip(years, months)]
+
+        ax.plot(labels, rets, marker="o")
+
+        # KPI目標は「月次 +3%」で固定
+        target_line = 3.0
+        ax.axhline(target_line, linestyle="--", linewidth=1.0)
+
+        ax.set_title("Monthly Returns (%)")  # 英語にしてフォント警告を回避
+        ax.set_ylabel("Return [%]")
+        ax.set_xticks(range(len(labels)))
+        ax.set_xticklabels(labels, rotation=45, ha="right")
+
+        self.fig_monthly.tight_layout()
+        self.canvas_monthly.draw_idle()
+
+    def load_monthly_returns(self):
+        """
+        strategy_profile で指定された monthly_returns.csv から
+        [{'year': int, 'month': int, 'return_pct': float}, ...] を返す。
+        """
+        path = self.profile.monthly_returns_path
+
+        if not path.exists():
+            logger.warning("[AITab] monthly_returns.csv not found: {}", path)
+            return []
+
+        try:
+            df = pd.read_csv(path)
+        except Exception as e:
+            logger.error("[AITab] failed to read monthly_returns.csv: {}", e)
+            return []
+
+        required = {"year", "month", "return_pct"}
+        if df.empty or not required.issubset(df.columns):
+            logger.warning("[AITab] monthly_returns.csv has no required columns")
+            return []
+
+        df = df.sort_values(["year", "month"])
+
+        records = []
+        for _, row in df.iterrows():
             try:
-                self.shap_widget.refresh(force=True)
-            except Exception as e:
-                logger.exception("failed to refresh SHAP bar: %s", e)
+                records.append(
+                    {
+                        "year": int(row["year"]),
+                        "month": int(row["month"]),
+                        "return_pct": float(row["return_pct"]),
+                    }
+                )
+            except Exception:
+                # 壊れた行は無視
+                continue
+
+        return records
+
+    def update_monthly_kpi(self) -> None:
+        from app.services.kpi_service import load_backtest_kpi_summary
+
+        summary = load_backtest_kpi_summary()
+        data = self.load_monthly_returns()
+
+        if summary is None or not data:
+            logger.warning("[AITab] cannot update monthly KPI (no summary or no data)")
+            return
+
+        # CSVの最後の月を「今月」とみなす
+        this_month = float(data[-1]["return_pct"])
+        target = float(summary.target_monthly_return_pct)
+
+        self.kpi_monthly_label.setText(
+            f"今月: {this_month:.2f} % / 目標: {target:.2f} %"
+        )
+
+    def refresh_model_metrics(self) -> None:
+        """サービス層からモデル指標を取得してラベルに反映する。"""
+        try:
+            m = get_model_metrics()
+        except Exception as e:
+            print(f"[AITab] get_model_metrics failed: {e!r}")
+            self.lbl_model_name.setText("Error")
+            self.lbl_model_version.setText("Error")
+            self.lbl_model_logloss.setText("Error")
+            self.lbl_model_auc.setText("Error")
+            return
+
+        # --- テキスト整形 ----------------------------------------
+        model_name = m.get("model_name") or "-"
+        version = m.get("version") or "-"
+        logloss = m.get("logloss")
+        auc = m.get("auc")
+
+        self.lbl_model_name.setText(str(model_name))
+        self.lbl_model_version.setText(str(version))
+
+        if isinstance(logloss, (int, float)):
+            self.lbl_model_logloss.setText(f"{logloss:.4f}")
+        else:
+            self.lbl_model_logloss.setText("-")
+
+        if isinstance(auc, (int, float)):
+            self.lbl_model_auc.setText(f"{auc:.4f}")
+        else:
+            self.lbl_model_auc.setText("-")
 
 
 
@@ -3565,6 +3783,160 @@ class FeatureImportanceWidget(QtWidgets.QWidget):
 
 
 
+=== file: app/gui/widgets/monthly_returns_widget.py ===
+
+# app/gui/widgets/monthly_returns_widget.py
+from __future__ import annotations
+
+from typing import Optional
+from pathlib import Path
+
+import pandas as pd
+from PyQt6 import QtWidgets
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.figure import Figure
+
+from app.core.strategy_profile import get_profile
+
+
+class MonthlyReturnsWidget(QtWidgets.QWidget):
+    """
+    backtests/{profile}/monthly_returns.csv を読み込んで、
+    月次リターン（％）＋ 3％ ラインを表示するシンプルなウィジェット。
+
+    前提:
+      - StrategyProfile.monthly_returns_path が
+        backtests/{profile}/monthly_returns.csv を指している。
+      - CSV には最低限 year, month, return_pct 列が含まれている。
+        return_pct は「％」単位（+3.0 なら +3％）を想定。
+    """
+
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
+        super().__init__(parent)
+
+        self.figure = Figure(figsize=(6, 3), tight_layout=True)
+        self.canvas = FigureCanvas(self.figure)
+
+        self.btn_reload = QtWidgets.QPushButton("Reload")
+        self.lbl_info = QtWidgets.QLabel("")
+        self.lbl_info.setWordWrap(True)
+
+        btn_row = QtWidgets.QHBoxLayout()
+        btn_row.addStretch(1)
+        btn_row.addWidget(self.btn_reload)
+
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.addWidget(self.canvas, 1)
+        layout.addLayout(btn_row)
+        layout.addWidget(self.lbl_info)
+
+        self.btn_reload.clicked.connect(self.refresh)
+
+        # 初回ロード
+        self.refresh()
+
+    # ----------------- データ読み込みまわり -----------------
+
+    def _load_monthly_df(self) -> Optional[pd.DataFrame]:
+        """
+        StrategyProfile から monthly_returns.csv を探して読み込む。
+        問題があれば None を返して lbl_info にメッセージを出す。
+        """
+        try:
+            profile = get_profile()
+        except Exception as e:
+            self.lbl_info.setText(f"プロファイル取得エラー: {e}")
+            return None
+
+        path: Path = profile.monthly_returns_path
+        if not path.exists():
+            self.lbl_info.setText(f"monthly_returns.csv が見つかりません: {path}")
+            return None
+
+        try:
+            df = pd.read_csv(path)
+        except Exception as e:
+            self.lbl_info.setText(f"CSV 読み込みエラー: {e}")
+            return None
+
+        required = {"year", "month", "return_pct"}
+        missing = required.difference(df.columns)
+        if missing:
+            self.lbl_info.setText(f"monthly_returns.csv に必要列が不足: {missing}")
+            return None
+
+        df = df.copy()
+        # 数値化 & 欠損除去
+        df["year"] = pd.to_numeric(df["year"], errors="coerce")
+        df["month"] = pd.to_numeric(df["month"], errors="coerce")
+        df["return_pct"] = pd.to_numeric(df["return_pct"], errors="coerce")
+
+        df = df.dropna(subset=["year", "month", "return_pct"])
+        if df.empty:
+            self.lbl_info.setText("月次リターンの有効な行がありません。")
+            return None
+
+        # ラベル（YYYY-MM）
+        df["year"] = df["year"].astype(int)
+        df["month"] = df["month"].astype(int)
+        df["label"] = df["year"].astype(str) + "-" + df["month"].astype(str).str.zfill(2)
+
+        return df
+
+    # ----------------- 描画 -----------------
+
+    def refresh(self) -> None:
+        """
+        monthly_returns.csv を読み込み直してグラフを更新。
+        return_pct（％）の棒グラフ + 3％ ライン + 0％ ライン。
+        """
+        df = self._load_monthly_df()
+
+        self.figure.clear()
+        ax = self.figure.add_subplot(111)
+
+        if df is None or df.empty:
+            ax.set_title("Monthly returns (no data)")
+            ax.axhline(0.0, linestyle="--", linewidth=1.0)
+            self.canvas.draw_idle()
+            return
+
+        x = range(len(df))
+        y = df["return_pct"].values
+        labels = df["label"].tolist()
+
+        # 棒グラフ
+        ax.bar(x, y)
+
+        # 0％ ライン
+        ax.axhline(0.0, color="black", linestyle="--", linewidth=1.0)
+        # 3％ ライン
+        ax.axhline(3.0, color="red", linestyle="--", linewidth=1.0, label="Target 3%")
+
+        ax.set_xticks(list(x))
+        ax.set_xticklabels(labels, rotation=45, ha="right")
+        ax.set_ylabel("Monthly return [%]")
+        ax.set_title("Monthly returns vs 3% target")
+
+        # 凡例は 3％ ラインだけ
+        ax.legend(loc="upper left")
+
+        # ちょっと余裕を持って y 範囲を設定
+        ymin = min(y.min(), 0.0, -10.0)
+        ymax = max(y.max(), 3.0, 10.0)
+        if ymin == ymax:
+            ymin -= 1.0
+            ymax += 1.0
+        ax.set_ylim(ymin - 1.0, ymax + 1.0)
+
+        self.lbl_info.setText(
+            f"データ件数: {len(df)} 期間: {labels[0]} 〜 {labels[-1]}"
+        )
+
+        self.canvas.draw_idle()
+
+
+
 === file: app/gui/widgets/shap_bar.py ===
 
 # app/gui/widgets/shap_bar.py
@@ -3835,6 +4207,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Dict, Any, Optional
 import time
+import json
 
 import numpy as np
 import pandas as pd
@@ -3851,6 +4224,120 @@ from app.services.shap_service import (
 )
 
 
+def _safe_float(value: Any) -> Optional[float]:
+    """数値 or 数値っぽい文字列だけ float に変換し、それ以外は None を返す小さいユーティリティ。"""
+    try:
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str) and value.strip():
+            return float(value)
+    except Exception:
+        return None
+    return None
+
+
+def get_model_metrics(models_dir: str | Path = "models") -> Dict[str, Any]:
+    """
+    active_model.json と {model_name}.meta.json から
+    Logloss / AUC / モデル名 / バージョンなどを読み取って dict で返す。
+
+    戻り値のキー（GUI側で使う想定）:
+        - model_name   : str  （例: "LightGBM_clf"）
+        - version      : str  （例: "20251117_090029"）
+        - file         : str  （例: "LightGBM_clf_20251117_090029.pkl"）
+        - meta_file    : str  （例: "LightGBM_clf_20251117_090029.meta.json"）
+        - auc          : float | None
+        - logloss      : float | None
+        - best_threshold : float | None
+        - updated_at   : str | None
+    """
+    base = Path(models_dir)
+
+    # --- active_model.json を読む ---------------------------------
+    active_path = base / "active_model.json"
+    active: Dict[str, Any] = {}
+    if active_path.is_file():
+        try:
+            active = json.loads(active_path.read_text(encoding="utf-8"))
+        except Exception as e:
+            logger.warning(f"[AISvc] failed to read {active_path}: {e}")
+    else:
+        logger.info("[AISvc] active_model.json not found; model metrics will be '-'.")
+
+    # ★ active_model.json の実際のキー名に合わせる！
+    #   { "file": "...pkl", "meta_file": "...meta.json", "version": 1763..., ... }
+    model_file = active.get("file") or active.get("model_file")
+    meta_file_name = active.get("meta_file")
+    best_threshold = active.get("best_threshold")
+    version_active = active.get("version")
+    updated_at = active.get("updated_at")
+
+    # --- meta.json を決める ---------------------------------------
+    meta: Dict[str, Any] = {}
+    meta_path: Optional[Path] = None
+
+    # 1) active_model.json の meta_file 優先
+    if isinstance(meta_file_name, str) and meta_file_name:
+        cand = base / meta_file_name
+        if cand.is_file():
+            meta_path = cand
+
+    # 2) なければ model_file から {stem}.meta.json を推測
+    if meta_path is None and isinstance(model_file, str) and model_file:
+        cand = base / f"{Path(model_file).stem}.meta.json"
+        if cand.is_file():
+            meta_path = cand
+
+    # 3) meta_path が決まっていれば読む
+    if meta_path is not None:
+        try:
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        except Exception as e:
+            logger.warning(f"[AISvc] failed to read {meta_path}: {e}")
+
+    # --- モデル名とバージョン -------------------------------------
+    if isinstance(model_file, str) and model_file:
+        fallback_name: str | None = Path(model_file).stem
+    else:
+        fallback_name = "-"
+
+    model_name = (
+        meta.get("model_name")
+        or active.get("model_name")
+        or fallback_name
+        or "-"
+    )
+
+    version: Any = (
+        meta.get("version")
+        or version_active
+        or updated_at
+        or "-"
+    )
+    if isinstance(version, (int, float)):
+        version = str(version)
+
+    # --- metrics（logloss / AUC） ---------------------------------
+    metrics_dict = meta.get("metrics") or {}
+    # AUC は auc@cal があればそれを優先、なければ auc
+    auc = _safe_float(metrics_dict.get("auc@cal") or metrics_dict.get("auc"))
+    logloss = _safe_float(metrics_dict.get("logloss"))
+
+    # --- まとめて返す ---------------------------------------------
+    result: Dict[str, Any] = {
+        "model_name": model_name,
+        "version": version,
+        "file": model_file or "-",
+        "meta_file": str(meta_path.name) if meta_path else (meta_file_name or "-"),
+        "auc": auc,
+        "logloss": logloss,
+        "best_threshold": _safe_float(best_threshold),
+        "updated_at": updated_at,
+    }
+
+    return result
+
+
 class AISvc:
     """
     既存の推論サービス想定。モデル群は self.models に格納されている想定。
@@ -3862,6 +4349,8 @@ class AISvc:
         self._fi_cache: Optional[pd.DataFrame] = None
         self._fi_cache_key: Optional[str] = None
         self._fi_cache_ts: float = 0.0
+        self.models_dir = Path("models")
+        self._active_meta: Optional[dict[str, Any]] = None
 
         # SHAP用の高速キャッシュ
         self._shap_cache: Optional[pd.DataFrame] = None
@@ -3962,6 +4451,7 @@ class AISvc:
             logger.error("[AISvc] active model meta の読み込みに失敗: {err}", err=exc)
             return
 
+        self._active_meta = meta
         fname = meta.get("file")
         if not fname:
             logger.error("[AISvc] active_model.json に 'file' がありません")
@@ -4017,6 +4507,22 @@ class AISvc:
         - sklearn 互換なら predict_proba を優先
         """
         self._ensure_model_loaded()
+
+        # --- デバッグ: モデル入力の shape と1行目をログに出す ---
+        try:
+            row_preview = None
+            if hasattr(X, "__getitem__"):
+                # X[0] が numpy 配列や list のことを想定
+                row0 = X[0]
+                # numpy でも list でも .tolist() が使えるようにする
+                row_preview = getattr(row0, "tolist", lambda: row0)()
+            logger.info(
+                "[AISvc.predict] X.shape={shape}, X[0]={row}",
+                shape=getattr(X, "shape", None),
+                row=row_preview,
+            )
+        except Exception as e:
+            logger.warning("[AISvc.predict] debug logging failed: {err}", err=e)
 
         if not self.models:
             # モデルが 1つもない場合は安全側に全スキップ
@@ -4320,6 +4826,23 @@ class AISvc:
             vec = [model_feats[name] for name in self.expected_features]
         else:
             vec = list(model_feats.values())
+
+        # --- デバッグ: 特徴量 dict & 並び替え後ベクトルをログ出力 ---
+        try:
+            import json
+            logger.info(
+                "[AISvc.get_live_probs] model_feats(normalized)={payload}",
+                payload=json.dumps(model_feats, ensure_ascii=False),
+            )
+            logger.info(
+                "[AISvc.get_live_probs] input vec (ordered)={vec}",
+                vec=vec,
+            )
+        except Exception as e:
+            logger.warning(
+                "[AISvc.get_live_probs] failed to dump debug input: {err}",
+                err=e,
+            )
 
         arr = np.array([vec], dtype=float)
 
@@ -4892,11 +5415,13 @@ from loguru import logger
 from app.core import market, mt5_client
 from app.core.mt5_client import MT5Client
 from app.core.strategy_profile import get_profile
+from core.risk import LotSizingResult
 from app.core.config_loader import load_config
 from app.services import circuit_breaker, trade_service, trade_state
 from app.services.orderbook_stub import orderbook
 from app.services.trailing import AtrTrailer, TrailConfig, TrailState
 from app.services.trailing_hook import apply_trailing_update
+from app.services.trade_service import TradeService
 from core import position_guard
 from core.ai.service import AISvc, ProbOut
 from core.metrics import METRICS
@@ -5392,6 +5917,7 @@ class ExecutionStub:
         ai_out = self.ai.predict(features)
 
         tick_dict = _tick_to_dict(runtime_cfg.get("tick"))
+        trade_svc = getattr(trade_service, "SERVICE", None)
 
         spread_limit = float(runtime_cfg.get("spread_limit_pips", 1.5))
         min_adx = float(runtime_cfg.get("min_adx", 15.0))
@@ -5771,16 +6297,32 @@ class ExecutionStub:
             tick_size=float(tick_size),
             tick_value=float(tick_value),
         )
+        # TradeService 側にもロット計算結果を保持しておく
+        if isinstance(trade_svc, TradeService):
+            try:
+                trade_svc.last_lot_result = lot_result
+                if hasattr(trade_svc, "_last_lot_result"):
+                    trade_svc._last_lot_result = lot_result  # type: ignore[attr-defined]
+            except Exception:
+                pass
         # ---------------------------------------------------
-        # --- ロット情報（LotSizingResult）があれば dict 化する -----------------
+        # --- ���b�g���iLotSizingResult�j������� dict ������ -----------------
         lot_info = None
-        try:
-            # M-A3-5 で導入した LotSizingResult を想定
-            # dataclasses.asdict(...) で全フィールドを辞書に展開する
-            lot_info = asdict(lot_result)  # type: ignore[name-defined]
-        except NameError:
-            # まだ lot_result が導入されていない場合は何もしない
-            lot_info = None
+        lot_info_source = None
+        if isinstance(trade_svc, TradeService):
+            lot_info_source = getattr(trade_svc, "last_lot_result", None)
+        if lot_info_source is None:
+            lot_info_source = lot_result
+
+        if lot_info_source is not None:
+            try:
+                if isinstance(lot_info_source, LotSizingResult) and hasattr(lot_info_source, "to_dict"):
+                    lot_info = lot_info_source.to_dict()  # type: ignore[attr-defined]
+                else:
+                    lot_info = asdict(lot_info_source)  # type: ignore[arg-type]
+            except Exception as exc:
+                print(f"[warn] failed to serialize lot_result: {exc!r}")
+                lot_info = None
         decision_payload = {
             "action": "ENTRY",
             "reason": decision_info.get("reason","entry_ok"),
@@ -5958,7 +6500,6 @@ def evaluate_and_log_once() -> None:
                 shutdown()
         except Exception:
             pass
-
 
 
 
@@ -6232,6 +6773,163 @@ def compute_feature_importance(
         items = items[:top_n]
 
     return items
+
+
+
+=== file: app/services/kpi_service.py ===
+
+# app/services/kpi_service.py
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+from typing import List, Optional
+
+import math
+
+import numpy as np
+import pandas as pd
+from loguru import logger
+
+from app.core.strategy_profile import get_profile
+
+
+@dataclass
+class MonthlyKPI:
+    year: int
+    month: int
+    # CSV は「%」単位なので、そのまま % の値を入れる（例: 3.0 = +3%）
+    return_pct: float
+    dd_pct: Optional[float] = None
+
+
+@dataclass
+class BacktestKpiSummary:
+    n_months: int
+    avg_return_pct: float          # 平均月次リターン（%）
+    median_return_pct: float       # 中央値（%）
+    win_ratio: float               # プラス月の比率（0.0〜1.0）
+    max_dd_pct: Optional[float]    # 最悪月次DD（% / マイナス方向）
+    target_monthly_return_pct: float  # プロファイルの目標（%）
+    target_hit_ratio: float        # 目標以上を達成した月の比率（0.0〜1.0）
+    months: List[MonthlyKPI]
+
+
+def load_backtest_kpi_summary() -> BacktestKpiSummary:
+    """
+    アクティブな StrategyProfile から monthly_returns.csv を読み込み、
+    月次KPIを集計して返す。
+
+    想定する CSV 形式:
+        year,month,return_pct,dd_pct
+        2024,7,-7.0,-7.12
+        2024,8,-2.5,-6.12
+        ...
+
+    return_pct / dd_pct は「%」単位とみなす。
+    """
+    profile = get_profile()
+    csv_path: Path = profile.monthly_returns_path
+
+    logger.info(f"[KPI] loading monthly_returns.csv from: {csv_path}")
+
+    if not csv_path.exists():
+        raise FileNotFoundError(f"monthly_returns.csv not found: {csv_path}")
+
+    df = pd.read_csv(csv_path)
+
+    if "return_pct" not in df.columns:
+        raise ValueError("monthly_returns.csv に 'return_pct' 列がありません。")
+
+    has_dd = "dd_pct" in df.columns
+
+    if df.empty:
+        raise ValueError("monthly_returns.csv に行がありません。")
+
+    # NaN を落としておく（全部NaNなら ValueError にする）
+    df = df.dropna(subset=["return_pct"])
+    if df.empty:
+        raise ValueError("monthly_returns.csv の return_pct が全て NaN です。")
+
+    # 「%」単位 → 内部では小数にして扱う
+    raw_ret = df["return_pct"].astype(float).to_numpy()
+    returns = raw_ret / 100.0  # 例: 3.0(%) -> 0.03
+
+    # dd_pct もあれば同様に処理
+    if has_dd:
+        raw_dd = df["dd_pct"].astype(float).to_numpy()
+        dd_vals = raw_dd / 100.0
+    else:
+        dd_vals = None
+
+    n_months = returns.size
+
+    avg_ret = float(np.mean(returns))
+    median_ret = float(np.median(returns))
+    win_ratio = float(np.mean(returns > 0.0))
+
+    max_dd_pct: Optional[float]
+    if dd_vals is not None and dd_vals.size > 0:
+        # 最も悪い（=最も小さい）月次DD
+        max_dd = float(dd_vals.min())  # 例: -0.0712
+        max_dd_pct = max_dd * 100.0
+    else:
+        max_dd_pct = None
+
+    # プロファイルに設定されたターゲット（小数, 例: 0.03 = 3%）
+    target = float(profile.target_monthly_return)
+    target_monthly_return_pct = target * 100.0
+
+    target_hit_ratio = float(np.mean(returns >= target))
+
+    months: List[MonthlyKPI] = []
+    for _, row in df.iterrows():
+        year = int(row["year"])
+        month = int(row["month"])
+        r_pct = float(row["return_pct"])
+        dd_pct_val: Optional[float] = None
+        if has_dd:
+            try:
+                v = float(row["dd_pct"])
+                if not math.isnan(v):
+                    dd_pct_val = v
+            except Exception:
+                dd_pct_val = None
+
+        months.append(
+            MonthlyKPI(
+                year=year,
+                month=month,
+                return_pct=r_pct,
+                dd_pct=dd_pct_val,
+            )
+        )
+
+    summary = BacktestKpiSummary(
+        n_months=n_months,
+        avg_return_pct=avg_ret * 100.0,        # 小数 → %
+        median_return_pct=median_ret * 100.0,
+        win_ratio=win_ratio,
+        max_dd_pct=max_dd_pct,
+        target_monthly_return_pct=target_monthly_return_pct,
+        target_hit_ratio=target_hit_ratio,
+        months=months,
+    )
+
+    logger.info(
+        "[KPI] n_months={n}, avg={avg:.2f}%, median={med:.2f}%, win_ratio={wr:.1%}, "
+        "max_dd={dd}, target={tgt:.2f}%, hit_ratio={hit:.1%}",
+        n=summary.n_months,
+        avg=summary.avg_return_pct,
+        med=summary.median_return_pct,
+        wr=summary.win_ratio,
+        dd=summary.max_dd_pct,
+        tgt=summary.target_monthly_return_pct,
+        hit=summary.target_hit_ratio,
+    )
+
+    return summary
 
 
 
@@ -7082,6 +7780,123 @@ def compute_kpi_from_trades(
         best_loss_streak=best_loss_streak,
     )
 
+# === M-A3-5 step23: KPI 統合ロジック ===
+
+import json
+from pathlib import Path
+import pandas as pd
+from datetime import datetime
+
+
+class KPIService:
+    """
+    月次KPI（今月の損益％、最大月次DD、月次リターン系列）を一括で返すサービス。
+    GUI側は get_kpi(profile) だけ呼べば良い。
+    """
+
+    def __init__(self, root: str | Path = None) -> None:
+        self.root = Path(root) if root else Path.cwd()
+
+    def _find_latest_monthly_returns(self, profile: str) -> Path | None:
+        """
+        backtests/{profile}/**/monthly_returns.csv を探索し、最新の1つを返す。
+        """
+        base = self.root / "logs" / "backtest" / "USDJPY"  # TODO: symbol固定 → 後で改善
+        candidates = list(base.rglob("monthly_returns.csv"))
+        if not candidates:
+            return None
+        return max(candidates, key=lambda p: p.stat().st_mtime)
+
+    def _load_monthly_returns(self, path: Path) -> pd.DataFrame:
+        df = pd.read_csv(path)
+        # "year","month","ret_pct","dd_pct" 形式を期待
+        return df
+
+    def _load_runtime_metrics(self) -> dict:
+        """
+        runtime/metrics.json を読み、今月の実運用損益を加算する。
+        """
+        path = self.root / "runtime" / "metrics.json"
+        if not path.exists():
+            return {}
+        try:
+            with path.open("r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+
+    def get_kpi(self, profile: str = "default") -> dict:
+        """
+        GUI側が使うメインAPI
+        - 今月のリターン（backtest＋live）
+        - 最大月次DD
+        - 月次リターンの全系列
+        """
+        out = {
+            "monthly_returns": [],
+            "current_month_return_pct": 0.0,
+            "max_monthly_dd_pct": 0.0,
+        }
+
+        # 1. 最新の monthly_returns.csv を探す
+        path = self._find_latest_monthly_returns(profile)
+        if path is None or not path.exists():
+            return out
+
+        df = self._load_monthly_returns(path)
+        # 生データはそのまま返しておく（GUI側で柔軟に解釈できるように）
+        out["monthly_returns"] = df.to_dict(orient="records")
+
+        # 2. 最大月次DD（カラム名の揺れに対応）
+        dd_col = None
+        for cand in ["dd_pct", "dd", "max_dd_pct", "max_dd"]:
+            if cand in df.columns:
+                dd_col = cand
+                break
+
+        if dd_col is not None:
+            try:
+                out["max_monthly_dd_pct"] = float(df[dd_col].min())
+            except Exception:
+                # 変な値が入っていても落ちないようにする
+                pass
+
+        # 3. 今月のバックテストリターン
+        now = datetime.now()
+
+        # year/month が無い場合は「全体の最新行」として扱う
+        if "year" in df.columns and "month" in df.columns:
+            row = df[(df["year"] == now.year) & (df["month"] == now.month)]
+        else:
+            # 一応「最後の1件」を月次代表として扱う
+            row = df.tail(1)
+
+        # リターンカラムの候補を順に探す
+        ret_col = None
+        for cand in ["ret_pct", "ret", "return_pct", "monthly_ret_pct"]:
+            if cand in df.columns:
+                ret_col = cand
+                break
+
+        if ret_col is not None and len(row):
+            try:
+                # 今月分が複数行あれば平均しても良いが、とりあえず先頭を採用
+                bt_ret = float(row[ret_col].iloc[0])
+            except Exception:
+                bt_ret = 0.0
+        else:
+            bt_ret = 0.0
+
+        # 4. runtime/metrics.json の値を加算（ライブ損益）
+        rt = self._load_runtime_metrics()
+        try:
+            live_ret = float(rt.get("monthly_return_pct", 0.0))
+        except Exception:
+            live_ret = 0.0
+
+        out["current_month_return_pct"] = bt_ret + live_ret
+        return out
+
 
 def compute_recent_kpi_from_decisions(
     limit: Optional[int] = None,
@@ -7314,7 +8129,7 @@ from core.utils.clock import now_jst
 
 from app.core.mt5_client import MT5Client, TickSpec
 from app.core.strategy_profile import StrategyProfile, get_profile
-from core.risk import LotSizingResult
+from core.risk import LotSizingResult, compute_lot_scaler_from_backtest
 #from app.core.risk import LotSizingResult
 
 
@@ -7356,14 +8171,81 @@ class TradeService:
         self._mt5 = mt5_client
         self._profile = profile or get_profile()
         self._last_lot_result: LotSizingResult | None = None
+        # 直近の LotSizingResult を公開用に保持
+        self.last_lot_result: LotSizingResult | None = None
         self._logger = logging.getLogger(__name__)
         self.pos_guard = PositionGuard()
         self.cb = CircuitBreaker()
         self._reconcile_interval = 15
         self._desync_fix = True
         self._last_reconcile = 0.0
+
+        # --- バックテスト由来ロットスケーラー --------------------------
+        # 月次リターン / DD の安定度に応じてロットを倍率調整する係数。
+        # compute_lot_scaler_from_backtest(...) で計算し、ここでキャッシュする。
+        self._lot_scaler: float = 1.0
+        self._lot_scaler_last_updated: float = 0.0
+        # 何秒ごとに CSV を再読込するか（ここでは 1時間に1回）
+        self._lot_scaler_ttl_sec: float = 3600.0
+
         self.state = trade_state.get_runtime()
         self.reload()
+
+    def _get_lot_scaler(self) -> float:
+        """
+        バックテスト（月次リターン / 最大DD）から計算したロット補正係数を返す。
+
+        - monthly_returns.csv がなければ 1.0 にフォールバック
+        - 計算結果がおかしければ 1.0 にフォールバック
+        - 高頻度で CSV を読まないよう、一定時間キャッシュする
+        """
+        now = time.time()
+        # キャッシュが有効ならそのまま返す
+        if (
+            self._lot_scaler_last_updated > 0.0
+            and (now - self._lot_scaler_last_updated) < self._lot_scaler_ttl_sec
+        ):
+            return self._lot_scaler
+
+        path = self._profile.monthly_returns_path
+        scaler = 1.0
+
+        try:
+            # ここでは core.risk.compute_lot_scaler_from_backtest のインターフェースを
+            #   compute_lot_scaler_from_backtest(
+            #       monthly_returns_csv: str,
+            #       target_monthly_return: float,
+            #       max_monthly_dd: float,
+            #   ) -> float
+            # という前提で呼び出しています。
+            scaler = float(
+                compute_lot_scaler_from_backtest(
+                    monthly_returns_csv=str(path),
+                    target_monthly_return=self._profile.target_monthly_return,
+                    max_monthly_dd=self._profile.max_monthly_dd,
+                )
+            )
+            # NaN や 0 以下は無効扱い
+            if not (scaler > 0.0):
+                raise ValueError(f"invalid scaler <= 0: {scaler}")
+        except Exception as e:
+            self._logger.warning(
+                "compute_lot_scaler_from_backtest 失敗のため scaler=1.0 で継続: %s",
+                e,
+            )
+            scaler = 1.0
+
+        self._lot_scaler = scaler
+        self._lot_scaler_last_updated = now
+
+        self._logger.info(
+            "Backtest lot scaler 更新: path=%s target_ret=%.3f max_dd=%.3f -> scaler=%.3f",
+            path,
+            self._profile.target_monthly_return,
+            self._profile.max_monthly_dd,
+            scaler,
+        )
+        return scaler
 
     def _compute_lot_for_entry(self, symbol: str, atr: float) -> LotSizingResult:
         """
@@ -7371,24 +8253,28 @@ class TradeService:
 
         atr: エントリー直前の足で計算した ATR 値（価格単位）
         """
+        # --- ATR が変なときは default_lot にフォールバック ----------------
         if atr is None or atr <= 0:
-            # ATR が変な場合は、プロファイルのデフォルトロットにフォールバック
             default_lot = getattr(self._profile, "default_lot", None)
             if default_lot is None:
-                default_lot = float(self._config.trade.default_lot)  # プロジェクト側の設定名に合わせてください
+                default_lot = float(self._config.trade.default_lot)
 
             self._logger.warning(
                 "ATR が無効 (atr=%s) のため、default_lot=%.2f を使用します。",
                 atr,
                 default_lot,
             )
-            return LotSizingResult(
+            res = LotSizingResult(
                 lot=default_lot,
                 capped_by_max_risk=False,
                 effective_risk_pct=None,
                 note="fallback_default_lot_due_to_invalid_atr",
             )
+            self._last_lot_result = res
+            self.last_lot_result = res
+            return res
 
+        # --- ベースロットを StrategyProfile から計算 -----------------------
         equity = self._mt5.get_equity()
         tick_spec: TickSpec = self._mt5.get_tick_spec(symbol)
 
@@ -7399,18 +8285,64 @@ class TradeService:
             tick_value=tick_spec.tick_value,
         )
 
+        base_lot = float(result.lot)
+
         self._logger.info(
-            "ロット計算: equity=%.2f atr=%.5f tick_size=%.5f tick_value=%.5f -> lot=%.2f (capped=%s risk=%.3f)",
+            "ロット計算(base): equity=%.2f atr=%.5f tick_size=%.5f tick_value=%.5f -> lot=%.2f (capped=%s risk=%.3f)",
             equity,
             atr,
             tick_spec.tick_size,
             tick_spec.tick_value,
-            result.lot,
-            result.capped_by_max_risk,
-            (result.effective_risk_pct or 0.0),
+            base_lot,
+            getattr(result, "capped_by_max_risk", None),
+            float(getattr(result, "effective_risk_pct", 0.0) or 0.0),
         )
 
+        # --- バックテスト由来のロット補正係数を適用 -------------------------
+        scaler = self._get_lot_scaler()
+        if scaler > 0.0 and scaler != 1.0 and base_lot > 0.0:
+            # スケーラー適用前の lot を使って倍率を求める
+            scaled_lot = base_lot * scaler
+
+            # 安全のため物理的な最小/最大ロットでクランプ
+            min_lot = 0.01
+            max_lot = 1.00
+            scaled_lot = max(min_lot, min(max_lot, scaled_lot))
+
+            # 小数第2位で丸め
+            scaled_lot = float(f"{scaled_lot:.2f}")
+
+            if scaled_lot != base_lot:
+                factor = scaled_lot / base_lot
+
+                # LotSizingResult の関連フィールドも線形にスケーリングする
+                # （定義されていないフィールドは無視）
+                for field in (
+                    "lot",
+                    "per_trade_risk_pct",
+                    "est_monthly_volatility_pct",
+                    "est_max_monthly_dd_pct",
+                    "effective_risk_pct",
+                ):
+                    if hasattr(result, field):
+                        val = getattr(result, field)
+                        if val is not None:
+                            setattr(result, field, float(val) * factor)
+
+                self._logger.info(
+                    "Backtest lot scaler 適用: base_lot=%.3f scaler=%.3f -> adjusted_lot=%.3f (factor=%.3f)",
+                    base_lot,
+                    scaler,
+                    scaled_lot,
+                    factor,
+                )
+        else:
+            self._logger.info("Backtest lot scaler=%.3f (ロット変更なし)", scaler)
+
+        self._last_lot_result = result
+        self.last_lot_result = result
         return result
+
 
     # ------------------------------------------------------------------ #
     # Configuration & helpers
@@ -7538,6 +8470,7 @@ class TradeService:
             lot_val = float(default_lot)
 
         self._last_lot_result = lot_result
+        self.last_lot_result = lot_result
 
         self._mt5.order_send(
             symbol=symbol,
@@ -10082,7 +11015,7 @@ def on_order_rejected_or_canceled(symbol: Optional[str] = None, ticket: Optional
 # core/risk.py
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from math import sqrt
 from typing import Optional
 
@@ -10111,6 +11044,116 @@ class LotSizingResult:
 
     # 将来用：エントリー価格と損切り価格から計算して入れる「穴」
     sl_price: float | None = None
+
+    def to_dict(self) -> dict[str, float | None]:
+        """
+        decisions ログや GUI に載せやすいように dataclass を dict へ変換する。
+        浮動小数は軽く丸めてログ肥大を防ぐ。
+        """
+        d = asdict(self)
+        for k, v in d.items():
+            if isinstance(v, float):
+                d[k] = round(v, 8)
+        return d
+
+
+# ----------------------------------------------------------------------
+# Backtest-based lot adjustment utility
+# ----------------------------------------------------------------------
+
+def compute_lot_scaler_from_backtest(
+    monthly_returns_csv: str,
+    target_monthly_return: float,
+    max_monthly_dd: float
+) -> float:
+    """
+    バックテストの monthly_returns.csv を読み込み、
+    実際の月次リターンのボラ（標準偏差）と最大DDから
+    ロット倍率の補正値（0.1〜3.0 の範囲）を返す。
+
+    Parameters
+    ----------
+    monthly_returns_csv : str
+        backtests/{profile}/monthly_returns.csv のパス
+    target_monthly_return : float
+        例: 0.03 (3%)
+    max_monthly_dd : float
+        許容最大DD (例: 0.20)
+
+    Returns
+    -------
+    float
+        ロットに掛ける補正倍率。大きすぎる/危険であれば小さくなる。
+        （例）0.7, 1.0, 1.3 など
+    """
+    import pandas as pd
+    import numpy as np
+
+    try:
+        df = pd.read_csv(monthly_returns_csv)
+    except Exception:
+        # 読めなければ補正なし
+        return 1.0
+
+    # 想定するカラム:
+    # yyyy-mm, return_pct, dd_pct
+    if "return_pct" not in df.columns or "dd_pct" not in df.columns:
+        return 1.0
+
+    ret = df["return_pct"].astype(float)
+    dd = df["dd_pct"].astype(float)
+
+    # 実際の最大DD（dd_pct は負値想定なので符号反転）
+    real_dd = float(dd.min() * -1.0) if len(dd) > 0 else 0.0
+
+    # 月次ボラ（標準偏差）
+    vol = float(ret.std()) if len(ret) > 1 else 0.0
+
+    # 平均リターン
+    mean_ret = float(ret.mean()) if len(ret) > 0 else 0.0
+
+    # --- 1. リターン側の係数 k_ret ---------------------------------
+    # 目標リターンに対する達成度。
+    # 成績がマイナス or 目標が0以下なら「かなり弱い」とみなして 0.1 に固定。
+    if target_monthly_return > 0 and mean_ret > 0:
+        k_ret = mean_ret / target_monthly_return
+        if not np.isfinite(k_ret) or k_ret <= 0:
+            k_ret = 0.1
+    else:
+        k_ret = 0.1
+
+    # --- 2. DD側の係数 k_dd -----------------------------------------
+    # DDが20%許容に対して、実DDが10% → 余裕あり → 2.0倍まで許容
+    if real_dd > 0:
+        k_dd = max_monthly_dd / real_dd
+        if not np.isfinite(k_dd) or k_dd <= 0:
+            k_dd = 1.0
+    else:
+        k_dd = 1.0
+
+    # --- 3. ボラ側の係数 k_vol ---------------------------------------
+    # ボラが高すぎればロットを抑制。
+    # 「月次ボラ15％を1.0」とする。
+    if vol > 0:
+        k_vol = 0.15 / vol
+        if not np.isfinite(k_vol) or k_vol <= 0:
+            k_vol = 1.0
+    else:
+        k_vol = 1.0
+
+    # --- 4. 3つを合わせる（幾何平均） --------------------------------
+    prod = k_ret * k_dd * k_vol
+
+    # 計算が変なとき（負, 0, nan, inf）は安全側に 0.1 とみなす
+    import math
+    if not np.isfinite(prod) or prod <= 0:
+        ks = 0.1
+    else:
+        ks = math.sqrt(prod)
+
+    # 係数は 0.1〜3.0 の範囲に収める
+    ks = float(np.clip(ks, 0.1, 3.0))
+    return ks
 
 
 def compute_lot_size_from_atr(
@@ -11431,6 +12474,143 @@ def main() -> None:
     print_summary(df)
     plot_lot_timeseries(df)
     plot_lot_vs_atr(df)
+
+
+if __name__ == "__main__":
+    main()
+
+
+
+=== file: scripts/lot_sizing_viewer.py ===
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pandas as pd
+from PyQt6 import QtWidgets, QtCore
+from PyQt6.QtWidgets import QAbstractItemView  # PyQt6 enums are scoped under the class
+
+
+ROOT = Path(__file__).resolve().parents[1]
+LOG_DIR = ROOT / "logs" / "decisions"
+
+
+def load_latest_decisions() -> pd.DataFrame:
+    if not LOG_DIR.exists():
+        print(f"[warn] LOG_DIR not found: {LOG_DIR}")
+        return pd.DataFrame()
+
+    files = sorted(LOG_DIR.glob("decisions_*.jsonl"))
+    if not files:
+        print("[warn] no decisions_*.jsonl found")
+        return pd.DataFrame()
+
+    latest = files[-1]
+    print(f"[info] using latest decision log: {latest}")
+
+    rows: list[dict] = []
+    for line in latest.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            rec = json.loads(line)
+        except Exception:
+            continue
+
+        lot_info = rec.get("lot_info") or {}
+
+        row = {
+            # ts_jst があればそれを使い、なければ ts を使う
+            "ts": rec.get("ts_jst") or rec.get("ts"),
+            "symbol": rec.get("symbol"),
+            "decision": rec.get("decision"),
+            "lot": rec.get("lot"),
+            # risk_pct は lot_info 優先（トップレベルにあればフォールバック）
+            "risk_pct": lot_info.get("risk_pct", rec.get("risk_pct")),
+            "atr": lot_info.get("atr"),
+            "equity": lot_info.get("equity"),
+            "per_trade_risk_pct": lot_info.get("per_trade_risk_pct"),
+            "est_month_vol": lot_info.get("est_monthly_volatility_pct"),
+            "est_max_month_dd": lot_info.get("est_max_monthly_dd_pct"),
+        }
+        rows.append(row)
+
+    if not rows:
+        return pd.DataFrame()
+
+    df = pd.DataFrame(rows)
+    # 時系列順に並べる（ts があれば）
+    if "ts" in df.columns:
+        df = df.sort_values("ts")
+    return df
+
+
+class LotSizingViewer(QtWidgets.QWidget):
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("LotSizingResult Viewer")
+
+        self.table = QtWidgets.QTableWidget(self)
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+
+        self.summary_label = QtWidgets.QLabel(self)
+        self.reload_button = QtWidgets.QPushButton("最新ログを再読み込み", self)
+        self.reload_button.clicked.connect(self.reload)
+
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.addWidget(self.summary_label)
+        layout.addWidget(self.table)
+        layout.addWidget(self.reload_button)
+
+        self.resize(900, 600)
+        self.reload()
+
+    def reload(self) -> None:
+        df = load_latest_decisions()
+        if df.empty:
+            self.summary_label.setText("決定ログが見つかりません。dryrun か live を1回回してください。")
+            self.table.setRowCount(0)
+            self.table.setColumnCount(0)
+            return
+
+        # テーブルに反映
+        cols = list(df.columns)
+        self.table.setColumnCount(len(cols))
+        self.table.setHorizontalHeaderLabels(cols)
+        self.table.setRowCount(len(df))
+
+        for r, (_, row) in enumerate(df.iterrows()):
+            for c, col in enumerate(cols):
+                val = row[col]
+                text = "" if val is None or (isinstance(val, float) and pd.isna(val)) else str(val)
+                item = QtWidgets.QTableWidgetItem(text)
+                self.table.setItem(r, c, item)
+
+        self.table.resizeColumnsToContents()
+
+        # サマリー：平均ロット、平均リスクなど
+        avg_lot = df["lot"].mean() if "lot" in df.columns else float("nan")
+        avg_risk_pct = df["risk_pct"].mean() if "risk_pct" in df.columns else float("nan")
+        avg_est_dd = df["est_max_month_dd"].mean() if "est_max_month_dd" in df.columns else float("nan")
+
+        self.summary_label.setText(
+            f"件数={len(df)} | 平均 lot={avg_lot:.5f} | "
+            f"平均 risk_pct={avg_risk_pct:.4%} | "
+            f"推定最大月次DDの平均={avg_est_dd:.2%}"
+        )
+
+
+def main() -> None:
+    import sys
+
+    app = QtWidgets.QApplication(sys.argv)
+    viewer = LotSizingViewer()
+    viewer.show()
+    sys.exit(app.exec())
 
 
 if __name__ == "__main__":

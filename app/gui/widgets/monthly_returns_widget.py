@@ -29,6 +29,8 @@ class MonthlyReturnsWidget(QtWidgets.QWidget):
 
         self.figure = Figure(figsize=(6, 3), tight_layout=True)
         self.canvas = FigureCanvas(self.figure)
+        # グラフ潰れ防止のため最低高さを確保
+        self.setMinimumHeight(300)
 
         self.btn_reload = QtWidgets.QPushButton("Reload")
         self.lbl_info = QtWidgets.QLabel("")
@@ -39,6 +41,8 @@ class MonthlyReturnsWidget(QtWidgets.QWidget):
         btn_row.addWidget(self.btn_reload)
 
         layout = QtWidgets.QVBoxLayout(self)
+        layout.setContentsMargins(10, 5, 10, 10)
+        layout.setSpacing(6)
         layout.addWidget(self.canvas, 1)
         layout.addLayout(btn_row)
         layout.addWidget(self.lbl_info)

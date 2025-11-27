@@ -1,8 +1,8 @@
 {
   "model_name": "LightGBM_clf",
-  "file": "LightGBM_clf_20251117_090029.pkl",
-  "meta_file": "LightGBM_clf_20251117_090029.pkl.meta.json",
-  "version": 1763370029.885401,
+  "file": "LightGBM_clf_20251127_075810.pkl",
+  "meta_file": "LightGBM_clf_20251127_075810.pkl.meta.json",
+  "version": 1764230290.186728,
   "best_threshold": 0.45,
   "feature_order": [
     "ret_1",

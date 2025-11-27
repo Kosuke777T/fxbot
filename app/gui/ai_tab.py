@@ -15,16 +15,13 @@ from PyQt6.QtWidgets import (
 
 import joblib
 import pandas as pd
-from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.figure import Figure
-
 from loguru import logger
 
-from app.services.ai_service import AISvc
+from app.services.ai_service import AISvc, get_model_metrics
 from app.services.recent_kpi import compute_recent_kpi_from_decisions
 from app.gui.widgets.feature_importance import FeatureImportanceWidget
 from app.gui.widgets.shap_bar import ShapBarWidget
-from app.gui.widgets.monthly_returns_widget import MonthlyReturnsWidget
+from app.gui.widgets.monthly_dashboard import MonthlyDashboardGroup
 from app.core.strategy_profile import get_profile
 
 
@@ -44,11 +41,42 @@ class AITab(QWidget):
             print(f"[AITab] model autoload skipped: {e}")
 
         main_layout = QVBoxLayout(self)
+        # --- モデル指標パネル ------------------------------------
+        self.model_group = QGroupBox("モデル指標", self)
+        model_form = QFormLayout(self.model_group)
+
+        # 基本情報
+        self.lbl_model_name = QLabel("-")
+        self.lbl_model_version = QLabel("-")
+
+        # 評価指標
+        self.lbl_model_logloss = QLabel("-")
+        self.lbl_model_auc = QLabel("-")
+
+        # 追加情報（ファイル名・しきい値・最終更新）
+        self.lbl_model_file = QLabel("-")
+        self.lbl_model_threshold = QLabel("-")
+        self.lbl_model_updated = QLabel("-")
+
+        model_form.addRow("モデル名", self.lbl_model_name)
+        model_form.addRow("バージョン", self.lbl_model_version)
+        model_form.addRow("ファイル", self.lbl_model_file)
+        model_form.addRow("しきい値", self.lbl_model_threshold)
+        model_form.addRow("Logloss", self.lbl_model_logloss)
+        model_form.addRow("AUC", self.lbl_model_auc)
+        model_form.addRow("最終更新", self.lbl_model_updated)
+
+        main_layout.addWidget(self.model_group)
+
         self.tab_widget = QTabWidget(self)
         main_layout.addWidget(self.tab_widget, 1)
 
         self.tab_kpi = QWidget(self.tab_widget)
         kpi_layout = QVBoxLayout(self.tab_kpi)
+
+        # 月次ダッシュボード
+        self.monthly_group = MonthlyDashboardGroup(self.tab_kpi)
+        kpi_layout.addWidget(self.monthly_group)
 
         self.recent_kpi_group = QGroupBox("Recent Trades KPI", self.tab_kpi)
         kpi_form = QFormLayout(self.recent_kpi_group)
@@ -79,27 +107,14 @@ class AITab(QWidget):
         btn_row.addWidget(self.btn_refresh_kpi)
         kpi_form.addRow(btn_row)
 
-        # --- 月次リターン（backtest）を表示するグラフ ---
-        self.monthly_group = QGroupBox("Monthly returns (backtest, %)", self.tab_kpi)
-        monthly_layout = QVBoxLayout(self.monthly_group)
-        self.monthly_widget = MonthlyReturnsWidget(self.monthly_group)
-        monthly_layout.addWidget(self.monthly_widget)
-
         kpi_layout.addWidget(self.recent_kpi_group)
-        kpi_layout.addWidget(self.monthly_group)
         kpi_layout.addStretch(1)
 
         self.tab_widget.addTab(self.tab_kpi, "KPI")
-
-        # --- Monthly Returns tab (matplotlib chart) ---
-        self.tab_monthly = QWidget(self.tab_widget)
-        monthly_layout = QVBoxLayout(self.tab_monthly)
-
-        self.fig_monthly = Figure(figsize=(6, 4))
-        self.canvas_monthly = FigureCanvas(self.fig_monthly)
-        monthly_layout.addWidget(self.canvas_monthly)
-
-        self.tab_widget.addTab(self.tab_monthly, "Monthly Returns")
+        try:
+            self.monthly_group.refresh()
+        except Exception as e:  # pragma: no cover - UI fallback
+            print("[AI Tab] monthly dashboard refresh error:", e)
 
         self.tab_fi = QWidget(self.tab_widget)
         fi_layout = QVBoxLayout(self.tab_fi)
@@ -122,8 +137,11 @@ class AITab(QWidget):
         self.tab_widget.addTab(self.tab_shap, "SHAP")
 
         self.btn_refresh_kpi.clicked.connect(self.refresh_kpi)
+        # Recent Trades KPI
         self.refresh_kpi()
-        self._update_monthly_returns_chart()
+
+        # モデル指標
+        self.refresh_model_metrics()
 
     def refresh_kpi(self) -> None:
         """
@@ -171,84 +189,55 @@ class AITab(QWidget):
             f"{result.best_win_streak} / {result.best_loss_streak}"
         )
 
-        # SHAP はウィジェット初期化時の refresh に任せる
 
-    # ------------------------------------------------------
-    # Monthly Returns グラフ更新（NEW）
-    # ------------------------------------------------------
-    def _update_monthly_returns_chart(self) -> None:
-        """
-        backtests/{profile}/monthly_returns.csv から
-        月次リターン（％）の折れ線グラフを描画する。
-        """
-        if not hasattr(self, "fig_monthly") or not hasattr(self, "canvas_monthly"):
-            return  # __init__ 途中で呼ばれた場合の保険
-
-        self.fig_monthly.clear()
-        ax = self.fig_monthly.add_subplot(111)
-
-        path = self.profile.monthly_returns_path
-
-        if not path.exists():
-            ax.text(
-                0.5,
-                0.5,
-                "monthly_returns.csv not found",
-                ha="center",
-                va="center",
-                transform=ax.transAxes,
-            )
-            ax.set_axis_off()
-            self.canvas_monthly.draw_idle()
-            return
-
+    def refresh_model_metrics(self) -> None:
+        """サービス層からモデル指標を取得してラベルに反映する。"""
         try:
-            df = pd.read_csv(path)
-        except Exception as e:  # pragma: no cover - GUI用の保険
-            ax.text(
-                0.5,
-                0.5,
-                f"read error: {e}",
-                ha="center",
-                va="center",
-                transform=ax.transAxes,
-            )
-            ax.set_axis_off()
-            self.canvas_monthly.draw_idle()
+            m = get_model_metrics()
+        except Exception as e:
+            print(f"[AITab] get_model_metrics failed: {e!r}")
+            # エラー時は全部まとめて Error 表示
+            self.lbl_model_name.setText("Error")
+            self.lbl_model_version.setText("Error")
+            self.lbl_model_file.setText("Error")
+            self.lbl_model_threshold.setText("Error")
+            self.lbl_model_logloss.setText("Error")
+            self.lbl_model_auc.setText("Error")
+            self.lbl_model_updated.setText("Error")
             return
 
-        required = {"year", "month", "return_pct"}
-        if df.empty or not required.issubset(df.columns):
-            ax.text(
-                0.5,
-                0.5,
-                "no monthly returns",
-                ha="center",
-                va="center",
-                transform=ax.transAxes,
-            )
-            ax.set_axis_off()
-            self.canvas_monthly.draw_idle()
-            return
+        # --- テキスト整形 ----------------------------------------
+        model_name = m.get("model_name") or "-"
+        version = m.get("version") or "-"
 
-        # 年月順に並べる
-        df = df.sort_values(["year", "month"])
-        years = df["year"].astype(int).tolist()
-        months = df["month"].astype(int).tolist()
-        rets = df["return_pct"].astype(float).tolist()
+        # file / model_file のどちらかに入っている想定
+        file_name = m.get("file") or m.get("model_file") or "-"
 
-        labels = [f"{y}-{m}" for y, m in zip(years, months)]
+        logloss = m.get("logloss")
+        auc = m.get("auc")
+        best_threshold = m.get("best_threshold")
 
-        ax.plot(labels, rets, marker="o")
+        # updated_at がなければ created_at_utc を fallback
+        updated_at = m.get("updated_at") or m.get("created_at_utc") or "-"
 
-        # KPI目標は「月次 +3%」で固定
-        target_line = 3.0
-        ax.axhline(target_line, linestyle="--", linewidth=1.0)
+        # --- ラベル反映 -------------------------------------------
+        self.lbl_model_name.setText(str(model_name))
+        self.lbl_model_version.setText(str(version))
+        self.lbl_model_file.setText(str(file_name))
 
-        ax.set_title("Monthly Returns (%)")  # 英語にしてフォント警告を回避
-        ax.set_ylabel("Return [%]")
-        ax.set_xticks(range(len(labels)))
-        ax.set_xticklabels(labels, rotation=45, ha="right")
+        if isinstance(best_threshold, (int, float)):
+            self.lbl_model_threshold.setText(f"{best_threshold:.3f}")
+        else:
+            self.lbl_model_threshold.setText("-")
 
-        self.fig_monthly.tight_layout()
-        self.canvas_monthly.draw_idle()
+        if isinstance(logloss, (int, float)):
+            self.lbl_model_logloss.setText(f"{logloss:.4f}")
+        else:
+            self.lbl_model_logloss.setText("-")
+
+        if isinstance(auc, (int, float)):
+            self.lbl_model_auc.setText(f"{auc:.4f}")
+        else:
+            self.lbl_model_auc.setText("-")
+
+        self.lbl_model_updated.setText(str(updated_at))
