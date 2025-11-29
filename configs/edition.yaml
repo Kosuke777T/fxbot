@@ -1,0 +1,3 @@
+# configs/edition.yaml
+# 有効な値: FREE / BASIC / PRO / EXPERT / MASTER
+edition: MASTER

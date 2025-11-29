@@ -371,6 +371,12 @@ class AISvc:
             importance は「割合(%)」を想定。FeatureImportanceWidget 側の
             軸ラベル "importance(%)" と対応させる。
         """
+        # ★ モデル未ロード時でもここで遅延ロードしておく
+        self._ensure_model_loaded()
+        if not self.models:
+            # モデルが1つもロードできなかった場合は、空の DataFrame を返す
+            return pd.DataFrame(columns=["model", "feature", "importance"])
+
         model_key = ",".join(f"{name}:{id(model)}" for name, model in sorted(self.models.items()))
         key = f"{model_key}|{method}|{top_n}"
         now = time.time()
@@ -475,6 +481,9 @@ class AISvc:
         - 背景データは _load_shap_background_features() で読み込む。
         - cache_sec 秒以内に同じ条件で呼ばれた場合は前回結果を再利用する。
         """
+        # ★ ここでも必要ならモデルを遅延ロード
+        self._ensure_model_loaded()
+
         model_key = ",".join(
             f"{name}:{id(model)}"
             for name, model in sorted(self.models.items())

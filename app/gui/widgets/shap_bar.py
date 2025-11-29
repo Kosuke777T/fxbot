@@ -79,7 +79,8 @@ class ShapBarWidget(QtWidgets.QWidget):
         self.spin_top_n.valueChanged.connect(self.refresh)
         self.spin_cache_sec.valueChanged.connect(self.refresh)
 
-        self.refresh()
+        # ★GUI軽量化：起動時にはSHAP計算を行わず、空のメッセージだけ表示
+        self._render_empty("SHAP は「更新」ボタンを押すと計算されます")
 
     def refresh(self, force: bool = False) -> None:
         """
