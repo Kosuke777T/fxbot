@@ -1,10 +1,11 @@
 import time
+import os  # ★ 追加
+
 import MetaTrader5 as MT5
 import pandas as pd
 from loguru import logger
 from typing import Optional, Dict, Any
 from typing import NamedTuple
-
 
 
 POSITION_COLUMNS = [
@@ -335,3 +336,119 @@ class MT5Client:
             raise RuntimeError(f"{symbol!r} の tick_value が 0 以下です: {tick_value}")
 
         return TickSpec(tick_size=tick_size, tick_value=tick_value)
+
+
+# ================================
+# モジュールレベルのシングルトン & ラッパーAPI
+# ================================
+
+_client: Optional[MT5Client] = None
+
+
+def _get_env(name: str) -> str:
+    """必須の環境変数を取得（なければ RuntimeError）"""
+    value = os.getenv(name)
+    if not value:
+        raise RuntimeError(
+            f"環境変数 {name} が設定されていません。"
+            "設定タブから MT5 口座プロファイルを選び、"
+            "apply_env=True で MT5_LOGIN / MT5_PASSWORD / MT5_SERVER を適用してください。"
+        )
+    return value
+
+
+def _get_client() -> MT5Client:
+    """
+    環境変数 MT5_LOGIN / PASSWORD / SERVER から MT5Client の
+    シングルトンインスタンスを生成して返す。
+    """
+    global _client
+    if _client is not None:
+        return _client
+
+    login = int(_get_env("MT5_LOGIN"))
+    password = _get_env("MT5_PASSWORD")
+    server = _get_env("MT5_SERVER")
+
+    logger.info(
+        f"[mt5_client] create MT5Client(login={login}, server={server}) "
+        "(password はログに出しません)"
+    )
+    _client = MT5Client(login=login, password=password, server=server)
+    return _client
+
+
+def initialize() -> bool:
+    """
+    scripts/selftest_mt5.py などから呼ばれる想定のラッパー。
+    MT5Client.initialize() を委譲する。
+    """
+    client = _get_client()
+    return client.initialize()
+
+
+def login() -> bool:
+    """必要なら MT5Client.login_account() を呼ぶためのラッパー。"""
+    client = _get_client()
+    return client.login_account()
+
+
+def shutdown() -> None:
+    """
+    MT5 のシャットダウンラッパー。
+
+    _client がなくても MT5.shutdown() だけは呼んでおく。
+    """
+    global _client
+    logger.info("[mt5_client] shutdown() called")
+
+    if _client is not None:
+        _client.shutdown()
+        _client = None
+    else:
+        # 念のため直接 MT5.shutdown() も呼ぶ
+        MT5.shutdown()
+
+
+def get_account_info():
+    """
+    アカウント情報を取得するラッパー。
+    とりあえず MetaTrader5 の account_info をそのまま返す。
+    """
+    info = MT5.account_info()
+    if info is None:
+        logger.error("[mt5_client] MT5.account_info() returned None")
+        return None
+    return info
+
+
+def get_positions():
+    """
+    オープンポジション一覧（Rawのリスト）を返すラッパー。
+    """
+    client = _get_client()
+    return client.get_positions()
+
+
+def get_positions_df(symbol: Optional[str] = None):
+    """
+    オープンポジションを pandas.DataFrame で返すラッパー。
+    """
+    client = _get_client()
+    return client.get_positions_df(symbol=symbol)
+
+
+def get_equity() -> float:
+    """
+    有効証拠金（equity）を float で返すラッパー。
+    """
+    client = _get_client()
+    return client.get_equity()
+
+
+def get_tick_spec(symbol: str) -> TickSpec:
+    """
+    指定シンボルの TickSpec を返すラッパー。
+    """
+    client = _get_client()
+    return client.get_tick_spec(symbol)

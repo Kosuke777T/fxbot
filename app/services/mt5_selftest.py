@@ -5,9 +5,11 @@ from typing import Any, List, Tuple
 import traceback
 import subprocess
 import sys
+import os  # ★ 追加
 from pathlib import Path
 
 from app.core import mt5_client
+from app.services import mt5_account_store  # ★ 追加
 
 
 def _get_attr(obj: Any, name: str, default: Any = "(n/a)") -> Any:
@@ -37,6 +39,18 @@ def run_mt5_selftest() -> Tuple[bool, str]:
     lines.append("")
 
     try:
+        # 0) アクティブプロファイルから環境変数を適用
+        active = mt5_account_store.get_active_profile_name()
+        lines.append(f"現在のアクティブプロファイル: {active or '(未設定)'}")
+        if not active:
+            lines.append("")
+            lines.append("ERROR: アクティブなMT5口座プロファイルが設定されていません。")
+            lines.append("設定タブで口座を保存し、「この口座に切り替え」を押してから再実行してください。")
+            return False, "\n".join(lines)
+
+        # 念のため、ここでも apply_env=True で環境変数を更新しておく
+        mt5_account_store.set_active_profile(active, apply_env=True)
+
         # 念のため毎回クリーンな状態から始める
         try:
             mt5_client.shutdown()
@@ -130,23 +144,48 @@ def run_mt5_selftest() -> Tuple[bool, str]:
 def run_mt5_orderflow_selftest() -> Tuple[bool, str]:
     """
     scripts/selftest_order_flow.py をサブプロセスとして実行し、
-    (成功フラグ, ログ文字列) を返す。
+    (成功/失敗) を返す。
 
-    - GUI から呼び出すことを前提に、print ではなく文字列を組み立てる
-    - 例外はここでキャッチし、False とスタックトレースを返す
+    - GUI から呼び出された場合は、print ではなく GUI に表示する
+    - 例外は潰してキャッチし、False とスタックトレースを返す
     """
     lines: List[str] = []
     lines.append("=== MT5 order flow self test (GUI) ===")
     lines.append(
-        "このテストは、現在のアクティブMT5口座で 0.01 lot の成行BUY → 即クローズを行い、"
-        "発注フローが正常に動くかを確認します。"
+        "このテストは、現在のアクティブMT5口座で 0.01 lot の仮想BUY をクローズ実行し、"
+        "オーダーフロー結果を画面に表示を確認します。"
     )
     lines.append("")
     lines.append("※ 必ずデモ口座で実行してください。")
     lines.append("")
 
     try:
-        # プロジェクトルートを推定（.../app/services/ から2つ上）
+        # 0) アクティブプロファイルから env を準備
+        active = mt5_account_store.get_active_profile_name()
+        lines.append(f"現在のアクティブプロファイル: {active or '(未設定)'}")
+
+        if not active:
+            lines.append("")
+            lines.append("ERROR: アクティブなMT5口座プロファイルが設定されていません。")
+            lines.append("設定タブで口座を保存し、「この口座に切り替え」を押してから再実行してください。")
+            return False, "\n".join(lines)
+
+        acc = mt5_account_store.get_profile(active)
+        if acc is None:
+            lines.append("")
+            lines.append(f"ERROR: プロファイル '{active}' の設定が見つかりません。")
+            return False, "\n".join(lines)
+
+        # GUIプロセス側でも念のため apply_env しておく
+        mt5_account_store.set_active_profile(active, apply_env=True)
+
+        # サブプロセスに渡す環境変数を構築
+        env = os.environ.copy()
+        env["MT5_LOGIN"] = str(acc.get("login", ""))
+        env["MT5_PASSWORD"] = str(acc.get("password", ""))
+        env["MT5_SERVER"] = str(acc.get("server", ""))
+
+        # 1) プロジェクトルートを推定（.../app/services/ から2つ上）
         project_root = Path(__file__).resolve().parents[2]
 
         cmd = [sys.executable, "-m", "scripts.selftest_order_flow"]
@@ -157,6 +196,7 @@ def run_mt5_orderflow_selftest() -> Tuple[bool, str]:
         result = subprocess.run(
             cmd,
             cwd=project_root,
+            env=env,              # ★ ここが重要：MT5_* を明示的に渡す
             capture_output=True,
             text=True,
             check=False,
@@ -183,7 +223,7 @@ def run_mt5_orderflow_selftest() -> Tuple[bool, str]:
         return ok, "\n".join(lines)
 
     except Exception:
-        # ここで例外を握って、False + スタックトレースを返す
+        # 例外は潰して返すので、False + スタックトレースを返す
         lines.append("")
         lines.append("ERROR: selftest_order_flow 実行中に例外が発生しました。")
         lines.append(traceback.format_exc())
