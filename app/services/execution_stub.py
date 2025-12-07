@@ -23,6 +23,7 @@ from app.services.orderbook_stub import orderbook
 from app.services.trailing import AtrTrailer, TrailConfig, TrailState
 from app.services.trailing_hook import apply_trailing_update
 from app.services.trade_service import TradeService
+from app.services.filter_service import evaluate_entry
 from core import position_guard
 from core.ai.service import AISvc, ProbOut
 from core.metrics import METRICS
@@ -924,6 +925,21 @@ class ExecutionStub:
             except Exception as exc:
                 print(f"[warn] failed to serialize lot_result: {exc!r}")
                 lot_info = None
+
+        # --- フィルタエンジン呼び出しを追加 ---
+        entry_context = {
+            "timestamp": datetime.now(),
+            "atr": float(atr_val) if atr_val is not None and atr_val > 0 else None,
+            "volatility": features.get("volatility") if isinstance(features, dict) else (ai_out.meta.get("volatility") if isinstance(ai_out.meta, dict) else None),
+            "trend_strength": features.get("trend_strength") if isinstance(features, dict) else (ai_out.meta.get("trend_strength") if isinstance(ai_out.meta, dict) else None),
+            "consecutive_losses": int(cb_status.get("consecutive_losses", 0)) if isinstance(cb_status, dict) else 0,
+            "profile_stats": {
+                "profile_name": profile.name if hasattr(profile, "name") else None,
+            } if profile else {},
+        }
+
+        ok, reasons = evaluate_entry(entry_context)
+
         decision_payload = {
             "action": "ENTRY",
             "reason": decision_info.get("reason","entry_ok"),
@@ -932,7 +948,15 @@ class ExecutionStub:
             "dec": decision_info,
             "lot": (lot_info.get("lot") if isinstance(lot_info, dict) else None),
             "lot_info": lot_info,
+            "filter_pass": ok,
+            "filter_reasons": reasons,
         }
+
+        if not ok:
+            # フィルタ NG の場合は decision をログに出すだけ
+            print(f"[Filter] blocked decision: {decision_payload}")
+            return {"blocked": True, "ai": ai_out, "cb": cb_status, "ts": ts, "decision": decision_payload}
+
         _emit(decision_payload, filters_ctx, level="info")
         return {"blocked": False, "ai": ai_out, "cb": cb_status, "ts": ts, "decision": decision_payload}
 

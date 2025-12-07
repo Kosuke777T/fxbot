@@ -1,202 +1,171 @@
 # app/core/strategy_filter_engine.py
-"""
-v5.1 フィルタエンジン
-
-- コア層に属する
-- EditionGuard には依存しない（filter_level は呼び出し側で管理）
-- evaluate() は v5.1 仕様通り bool を返す
-"""
-
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import datetime, time
-from typing import Any, Dict, Optional
-
-
-@dataclass
-class FilterConfig:
-    # 時間帯
-    start_hour: int = 0    # 取引開始時刻（含む）
-    end_hour: int = 24     # 取引終了時刻（除く）
-
-    # ATR / ボラティリティ
-    min_atr: Optional[float] = None
-    max_atr: Optional[float] = None
-
-    low_vol_threshold: Optional[float] = None
-    high_vol_threshold: Optional[float] = None
-
-    # トレンド強度（絶対値で判定）
-    min_trend_strength: Optional[float] = None
-
-    # 連敗回避
-    max_consecutive_losses: Optional[int] = None
-
-    # プロファイル自動切替（STEP1 ではフラグだけ。実装は後続ステップ）
-    enable_profile_autoswitch: bool = False
-
-
-@dataclass
-class EntryContext:
-    timestamp: datetime
-    atr: Optional[float] = None
-    volatility: Optional[float] = None
-    trend_strength: Optional[float] = None
-    consecutive_losses: int = 0
-    profile_stats: Dict[str, Any] = field(default_factory=dict)
+from datetime import datetime
+from typing import Dict, List, Tuple
 
 
 class StrategyFilterEngine:
+    """ミチビキ v5.1 フィルタエンジン（コア層）
+
+    - EditionGuard には依存しない
+    - filter_level は services 層から引数として渡される
+    - 評価順序は v5.1 の仕様に固定
+      ① 取引時間帯
+      ② ATR
+      ③ ボラティリティ帯
+      ④ トレンド強度
+      ⑤ 連敗回避
+      ⑥ プロファイル自動切替
     """
-    v5.1 フィルタエンジン
 
-    - コア層に属する
-    - EditionGuard には依存しない（filter_level は呼び出し側で管理）
-    - evaluate() は v5.1 仕様通り bool を返す
-    """
-
-    def __init__(self, config: Optional[FilterConfig] = None) -> None:
-        self.config = config or FilterConfig()
-        # evaluate() 実行時の「落ちた理由」を簡易に保持
-        self._last_reasons: list[str] = []
-
-    @property
-    def last_reasons(self) -> list[str]:
-        """直近の evaluate() で NG になった理由一覧（ログ用）"""
-        return list(self._last_reasons)
-
-    # --- 公開API ---
-
-    def evaluate(self, context: Dict[str, Any], filter_level: int = 3) -> bool:
-        """
-        エントリー可否を判定する。
+    def evaluate(self, ctx: Dict, filter_level: int) -> Tuple[bool, List[str]]:
+        """エントリー可否を評価する
 
         Parameters
         ----------
-        context : dict
-            Strategy / ExecutionService から渡されるエントリー情報。
-            EntryContext 互換の dict を想定。
+        ctx : dict
+            EntryContext 相当の辞書
         filter_level : int
-            0〜3。EditionGuard から渡される想定。
-            0 = フィルタ無し, 1 = 時間帯のみ, 2 = 時間帯+ATR, 3 = 全フィルタ
+            EditionGuard から渡される 0〜3
+
+        Returns
+        -------
+        ok : bool
+            True のときエントリー許可
+        reasons : list[str]
+            False のとき NG になった理由の一覧
         """
-        self._last_reasons = []
+        reasons: List[str] = []
 
+        # level 0 → フィルタ無し（常に通過）
         if filter_level <= 0:
-            return True  # フィルタ無効
+            return True, []
 
-        ctx = self._normalize_context(context)
+        # ① 取引時間帯（level >= 1）
+        if filter_level >= 1:
+            if not self._check_time_window(ctx):
+                reasons.append("time_window")
 
-        # ① 時間帯
-        if not self._check_time(ctx):
-            self._last_reasons.append("time_window")
-            return False
-
-        # ② ATR（filter_level >= 2 のときだけ）
+        # ② ATR（level >= 2）
         if filter_level >= 2:
             if not self._check_atr(ctx):
-                self._last_reasons.append("atr")
-                return False
+                reasons.append("atr")
 
-        # ③ ボラティリティ（filter_level >= 3 のとき）
+        # ③〜⑤ Expert（level >= 3）
         if filter_level >= 3:
             if not self._check_volatility(ctx):
-                self._last_reasons.append("volatility")
-                return False
+                reasons.append("volatility")
 
-            # ④ トレンド強度
             if not self._check_trend(ctx):
-                self._last_reasons.append("trend")
-                return False
+                reasons.append("trend")
 
-            # ⑤ 連敗回避
-            if not self._check_consecutive_losses(ctx):
-                self._last_reasons.append("consecutive_losses")
-                return False
+            if not self._check_loss_streak(ctx):
+                reasons.append("loss_streak")
 
-            # ⑥ プロファイル自動切替（判定そのものは変えない。STEP1では True を返すだけ）
-            self._apply_profile_autoswitch(ctx)
+            # ⑥ プロファイル自動切替（結果には影響させない）
+            self._auto_switch_profile(ctx)
 
-        return True
+        ok = len(reasons) == 0
+        return ok, reasons
 
-    # --- 内部ヘルパー ---
+    # ============================================================
+    # 個別フィルタ（ここは v0 ロジック。閾値は後で profile/config に逃がせる設計）
+    # ============================================================
 
-    def _normalize_context(self, context: Dict[str, Any]) -> EntryContext:
-        """dict から EntryContext を構築するヘルパー。"""
-        ts = context.get("timestamp")
-        if not isinstance(ts, datetime):
-            raise TypeError("EntryContext.timestamp must be datetime")
+    def _check_time_window(self, ctx: Dict) -> bool:
+        """取引時間帯フィルタ
 
-        return EntryContext(
-            timestamp=ts,
-            atr=context.get("atr"),
-            volatility=context.get("volatility"),
-            trend_strength=context.get("trend_strength"),
-            consecutive_losses=int(context.get("consecutive_losses") or 0),
-            profile_stats=context.get("profile_stats") or {},
-        )
-
-    def _check_time(self, ctx: EntryContext) -> bool:
-        h = ctx.timestamp.hour
-        start = self.config.start_hour
-        end = self.config.end_hour
-        if start == 0 and end == 24:
-            return True
-        if start <= end:
-            return start <= h < end
-        # 23〜5時などのまたぎに対応
-        return h >= start or h < end
-
-    def _check_atr(self, ctx: EntryContext) -> bool:
-        atr = ctx.atr
-        if atr is None:
-            return True  # スキップ（後で方針を決める）
-        if self.config.min_atr is not None and atr < self.config.min_atr:
-            return False
-        if self.config.max_atr is not None and atr > self.config.max_atr:
-            return False
-        return True
-
-    def _check_volatility(self, ctx: EntryContext) -> bool:
-        vol = ctx.volatility
-        if vol is None:
-            return True
-
-        low = self.config.low_vol_threshold
-        high = self.config.high_vol_threshold
-
-        # low / high の解釈は運用ルールに合わせて後で微調整可能
-        if low is not None and vol < low:
-            return False
-        if high is not None and vol > high:
-            return False
-        return True
-
-    def _check_trend(self, ctx: EntryContext) -> bool:
-        strength = ctx.trend_strength
-        if strength is None:
-            return True
-        if self.config.min_trend_strength is None:
-            return True
-        return abs(strength) >= self.config.min_trend_strength
-
-    def _check_consecutive_losses(self, ctx: EntryContext) -> bool:
-        if self.config.max_consecutive_losses is None:
-            return True
-        return ctx.consecutive_losses <= self.config.max_consecutive_losses
-
-    def _apply_profile_autoswitch(self, ctx: EntryContext) -> None:
+        ctx["timestamp"]: datetime
+        ctx["time_window"]: {"start": int, "end": int} を受け取れれば優先
+        なければ 8〜22 時をデフォルトとする
         """
-        プロファイル自動切替のフック。
+        ts: datetime | None = ctx.get("timestamp")
+        if ts is None or not isinstance(ts, datetime):
+            # 時刻不明な場合は安全のため NG にしておく
+            return False
 
-        STEP1 では「なにもしない」。
-        T-22 で実装するときのためにフックだけ用意しておく。
+        window = ctx.get("time_window") or {}
+        start_hour = int(window.get("start", 8))
+        end_hour = int(window.get("end", 22))
+
+        hour = ts.hour
+        return start_hour <= hour <= end_hour
+
+    def _check_atr(self, ctx: Dict) -> bool:
+        """ATR フィルタ
+
+        ctx["atr"]: float
+        ctx["atr_band"]: {"min": float, "max": float} を優先利用
+        無ければ 0.02〜5.0 をデフォルトとする
         """
-        if not self.config.enable_profile_autoswitch:
-            return
+        atr = float(ctx.get("atr") or 0.0)
+        band = ctx.get("atr_band") or {}
+        min_atr = float(band.get("min", 0.02))
+        max_atr = float(band.get("max", 5.0))
 
-        # NOTE: 実際の切替ロジックは app.services 側から呼び出す想定。
-        # コア層では何も実装しない。
+        # 0 以下はそもそも論外
+        if atr <= 0:
+            return False
+
+        return min_atr <= atr <= max_atr
+
+    def _check_volatility(self, ctx: Dict) -> bool:
+        """ボラティリティ帯フィルタ
+
+        ctx["volatility"]: float
+        ctx["vol_band"]: {"min": float, "max": float} を優先利用
+        v0 では min=0.3, max=None というイメージ
+        """
+        vol = float(ctx.get("volatility") or 0.0)
+        band = ctx.get("vol_band") or {}
+        min_vol = band.get("min", 0.3)
+        max_vol = band.get("max")  # None なら上限なし
+
+        if vol <= 0:
+            return False
+
+        if max_vol is None:
+            return vol >= min_vol
+
+        return min_vol <= vol <= max_vol
+
+    def _check_trend(self, ctx: Dict) -> bool:
+        """トレンド強度フィルタ
+
+        ctx["trend_strength"]: float
+        ctx["trend_band"]: {"min": float, "max": float} を優先利用
+        v0 では -0.8〜0.8 を許容
+        """
+        strength = float(ctx.get("trend_strength") or 0.0)
+        band = ctx.get("trend_band") or {}
+        min_t = band.get("min", -0.8)
+        max_t = band.get("max", 0.8)
+
+        return min_t <= strength <= max_t
+
+    def _check_loss_streak(self, ctx: Dict) -> bool:
+        """連敗回避フィルタ
+
+        ctx["consecutive_losses"]: int
+        ctx["max_loss_streak"]: int を優先利用
+        v0 では 3 連敗でストップ
+        """
+        streak = int(ctx.get("consecutive_losses") or 0)
+        max_streak = int(ctx.get("max_loss_streak") or 3)
+
+        return streak < max_streak
+
+    def _auto_switch_profile(self, ctx: Dict) -> None:
+        """プロファイル自動切替
+
+        Expert 用。ここでは v0 のダミー実装。
+
+        ctx["profile_stats"] などを解析して
+        「どのプロファイルが優位か」を判定する予定だが、
+        コア層なので、ここでは「フックだけ用意して何もしない」。
+        """
+        # ここで何か値を返すとレイヤーを侵食するので、何も返さない。
+        _stats = ctx.get("profile_stats") or {}
+        _ = _stats  # いずれ使う。今は警告避け。
         return
-

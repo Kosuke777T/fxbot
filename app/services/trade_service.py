@@ -11,6 +11,7 @@ from app.core.config_loader import load_config
 from app.services import trade_state
 from app.services.circuit_breaker import CircuitBreaker
 from app.services.event_store import EVENT_STORE
+from app.services.filter_service import evaluate_entry
 from core.config import cfg
 from core.indicators import atr as _atr
 from core.position_guard import PositionGuard
@@ -318,6 +319,7 @@ class TradeService:
         sl: float | None = None,
         tp: float | None = None,
         comment: str = "",
+        features: Dict[str, Any] | None = None,
     ) -> None:
         """
         MT5 への発注。ATR を元に lot 計算を優先し、なければ ATR なしのフォールバック lot で送信。
@@ -330,6 +332,25 @@ class TradeService:
         side_up = side.upper()
         if side_up not in {"BUY", "SELL"}:
             raise ValueError('side must be "buy" or "sell"')
+
+        # --- フィルタエンジン呼び出しを追加 ---
+        entry_context = {
+            "timestamp": datetime.now(),
+            "atr": atr,
+            "volatility": features.get("volatility") if isinstance(features, dict) else None,
+            "trend_strength": features.get("trend_strength") if isinstance(features, dict) else None,
+            "consecutive_losses": self.cb.state.consecutive_losses if hasattr(self, "cb") and hasattr(self.cb, "state") else 0,
+            "profile_stats": {
+                "profile_name": self._profile.name if hasattr(self._profile, "name") else None,
+            } if self._profile else {},
+        }
+
+        ok, reasons = evaluate_entry(entry_context)
+
+        if not ok:
+            # ここではまだ decisions.jsonl には書かず、ログだけ軽く出しておく
+            self._logger.info(f"[Filter] entry blocked. reasons={reasons}")
+            return
 
         equity = float(self._mt5.get_equity())
         tick_spec: TickSpec = self._mt5.get_tick_spec(symbol)
@@ -488,11 +509,16 @@ def execute_decision(
     # lot=None + atr=atr_for_lot で呼び出し
     # open_position 側で StrategyProfile.compute_lot_size_from_atr を使って
     # ATR ベースの自動ロット計算が走る（既に実装済み）
+    
+    # features があれば取得（フィルタエンジン用）
+    features = signal.get("features") or decision.get("features")
+    
     svc.open_position(
         symbol=str(sym),
         side=str(side),
         lot=None,
         atr=float(atr_for_lot) if atr_for_lot is not None else None,
+        features=features if isinstance(features, dict) else None,
     )
 
 
