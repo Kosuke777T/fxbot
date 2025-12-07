@@ -421,6 +421,25 @@ class AISvc:
         self._fi_cache = df.copy()
         self._fi_cache_key = key
         self._fi_cache_ts = now
+
+        # --- EditionGuard による制限 ---
+        from app.services.edition_guard import EditionGuard
+        eg = EditionGuard()
+        level = eg.get_capability("fi_level") or 0
+
+        # level 0: 表示なし
+        if level == 0:
+            return df.iloc[0:0]  # カラム構造だけ残した空DF
+
+        # level 1: Top3
+        if level == 1:
+            return df.head(3) if len(df) > 0 else df
+
+        # level 2: Top20
+        if level == 2:
+            return df.head(20) if len(df) > 0 else df
+
+        # level 3: 全件
         return df
 
     def _load_shap_background_features(
@@ -557,7 +576,81 @@ class AISvc:
         self._shap_cache_key = key
         self._shap_cache_ts = now
 
+        # --- EditionGuard による制限 ---
+        from app.services.edition_guard import EditionGuard
+        eg = EditionGuard()
+        level = eg.get_capability("shap_level") or 0
+
+        # level 0: 表示なし
+        if level == 0:
+            return df_result.iloc[0:0]  # カラム構造だけ残した空DF
+
+        # level 1: Top3
+        if level == 1:
+            return df_result.head(3) if len(df_result) > 0 else df_result
+
+        # level 2: Top20
+        if level == 2:
+            return df_result.head(20) if len(df_result) > 0 else df_result
+
+        # level 3: 全件
         return df_result
+
+    def get_shap_values(self):
+        """
+        SHAP 結果を EditionGuard に従って制限して返す。
+        戻り値は DataFrame でも list でもOKなように扱う。
+
+        注意: このメソッドはモデル側に get_shap_values() メソッドがあることを前提とします。
+        モデル側に実装がない場合は、get_shap_top_features() を使用してください。
+        """
+        from app.services.edition_guard import EditionGuard
+        eg = EditionGuard()
+        level = eg.get_capability("shap_level") or 0
+
+        # モデルが SHAP未対応のときにも落ちないように try/except
+        try:
+            # まずモデルをロード
+            self._ensure_model_loaded()
+            if not self.models:
+                return [] if level == 0 else []
+
+            # 最初のモデルを取得
+            model = next(iter(self.models.values()))
+            
+            # モデルに get_shap_values() メソッドがあるか確認
+            if not hasattr(model, "get_shap_values"):
+                # モデル側に実装がない場合は空を返す
+                return [] if level == 0 else []
+
+            shap_vals = model.get_shap_values()
+        except AttributeError:
+            # まだ SHAP 実装していないモデルの場合
+            return [] if level == 0 else []
+        except Exception as e:
+            logger.warning(f"[AISvc.get_shap_values] SHAP取得エラー: {e}")
+            return [] if level == 0 else []
+
+        if shap_vals is None:
+            return [] if level == 0 else []
+
+        # level 0: 表示なし
+        if level == 0:
+            # DataFrame の場合は空DF、listの場合は []
+            if hasattr(shap_vals, "iloc"):
+                return shap_vals.iloc[0:0]
+            return []
+
+        # level 1: Top3
+        if level == 1:
+            return shap_vals.head(3) if hasattr(shap_vals, "head") else shap_vals[:3]
+
+        # level 2: Top20
+        if level == 2:
+            return shap_vals.head(20) if hasattr(shap_vals, "head") else shap_vals[:20]
+
+        # level 3: 全件
+        return shap_vals
 
     def get_live_probs(self, symbol: str) -> dict[str, float]:
         """
