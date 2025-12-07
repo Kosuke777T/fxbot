@@ -17,6 +17,7 @@ from app.services.shap_service import (
     compute_shap_feature_importance,
     shap_items_to_frame,
 )
+from app.services.edition_guard import get_capability
 
 
 def _safe_float(value: Any) -> Optional[float]:
@@ -651,6 +652,132 @@ class AISvc:
 
         # level 3: 全件
         return shap_vals
+
+    def feature_importance(self) -> pd.DataFrame:
+        """FI を edition に応じて TopN で返す。"""
+        fi_level = get_capability("fi_level")
+        if fi_level == 0:
+            return pd.DataFrame(columns=["model", "feature", "importance"])
+
+        # モデルロード（失敗時は空データ）
+        self._ensure_model_loaded()
+        if not self.models:
+            return pd.DataFrame(columns=["model", "feature", "importance"])
+
+        # 最初のモデルを取得
+        model = next(iter(self.models.values()))
+
+        # LightGBM 想定（他モデルの場合は後で拡張）
+        try:
+            importances = model.feature_importances_
+            features = self.expected_features
+            if features is None:
+                # expected_features がない場合は feature_name() を試す
+                try:
+                    features = model.feature_name()
+                except Exception:
+                    return pd.DataFrame(columns=["model", "feature", "importance"])
+        except Exception:
+            return pd.DataFrame(columns=["model", "feature", "importance"])
+
+        if len(importances) != len(features):
+            logger.warning(
+                "[AISvc.feature_importance] importances length ({}) != features length ({})",
+                len(importances),
+                len(features),
+            )
+            return pd.DataFrame(columns=["model", "feature", "importance"])
+
+        df = pd.DataFrame({
+            "model": ["active"] * len(features),
+            "feature": features,
+            "importance": importances
+        }).sort_values("importance", ascending=False)
+
+        # TopN に切り替え
+        if fi_level == 1:
+            top_n = 3
+        elif fi_level == 2:
+            top_n = 20
+        else:
+            top_n = None
+
+        if top_n is not None:
+            df = df.head(top_n)
+
+        return df.reset_index(drop=True)
+
+    def shap_summary(self) -> Dict[str, Any]:
+        """SHAP を edition に応じて TopN で返す。"""
+        shap_level = get_capability("shap_level")
+        if shap_level == 0:
+            return {"features": [], "values": []}
+
+        self._ensure_model_loaded()
+        if not self.models:
+            return {"features": [], "values": []}
+
+        # 最初のモデルを取得
+        model = next(iter(self.models.values()))
+
+        try:
+            import shap
+            # Lazy SHAP
+            explainer = shap.TreeExplainer(model)
+            
+            # 背景データを取得（既存のメソッドを使用）
+            try:
+                bg_features = self._load_shap_background_features(max_rows=100)
+            except Exception:
+                # 背景データがない場合は空を返す
+                return {"features": [], "values": []}
+            
+            shap_values = explainer.shap_values(bg_features)
+        except Exception as e:
+            logger.warning(f"[AISvc.shap_summary] SHAP計算エラー: {e}")
+            return {"features": [], "values": []}
+
+        # shap_values が [classes][samples][features] 形式の場合
+        if isinstance(shap_values, list):
+            shap_values = shap_values[0]
+
+        mean_abs = np.mean(np.abs(shap_values), axis=0)
+        features = self.expected_features
+        
+        if features is None:
+            try:
+                features = model.feature_name()
+            except Exception:
+                return {"features": [], "values": []}
+
+        if len(mean_abs) != len(features):
+            logger.warning(
+                "[AISvc.shap_summary] mean_abs length ({}) != features length ({})",
+                len(mean_abs),
+                len(features),
+            )
+            return {"features": [], "values": []}
+
+        df = pd.DataFrame({
+            "feature": features,
+            "value": mean_abs
+        }).sort_values("value", ascending=False)
+
+        # TopN 制御
+        if shap_level == 1:
+            top_n = 3
+        elif shap_level == 2:
+            top_n = 20
+        else:
+            top_n = None
+
+        if top_n is not None:
+            df = df.head(top_n)
+
+        return {
+            "features": df["feature"].tolist(),
+            "values": df["value"].tolist()
+        }
 
     def get_live_probs(self, symbol: str) -> dict[str, float]:
         """
