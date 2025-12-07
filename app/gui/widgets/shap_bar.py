@@ -8,6 +8,7 @@ from pathlib import Path
 import pandas as pd
 from PyQt6 import QtWidgets
 from PyQt6.QtWidgets import QHeaderView
+from PyQt6.QtCore import Qt
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 
@@ -60,6 +61,12 @@ class ShapBarWidget(QtWidgets.QWidget):
         self.figure = Figure(figsize=(5, 3))
         self.canvas = FigureCanvas(self.figure)
 
+        # データなしラベル
+        self.shap_empty_label = QtWidgets.QLabel("データがありません")
+        self.shap_empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.shap_empty_label.setStyleSheet("color: gray; font-size: 12pt; padding: 20px;")
+        self.shap_empty_label.hide()
+
         self.table = QtWidgets.QTableWidget()
         self.table.setColumnCount(4)
         self.table.setHorizontalHeaderLabels(["rank", "feature", "mean|SHAP|", "model"])
@@ -72,6 +79,7 @@ class ShapBarWidget(QtWidgets.QWidget):
         layout = QtWidgets.QVBoxLayout(self)
         layout.addLayout(ctrl_layout)
         layout.addWidget(top_box)
+        layout.addWidget(self.shap_empty_label)
         layout.addWidget(self.canvas, 2)
         layout.addWidget(self.table, 1)
 
@@ -103,7 +111,14 @@ class ShapBarWidget(QtWidgets.QWidget):
 
         if df is None or df.empty:
             self._render_empty("No SHAP data.")
+            self.shap_empty_label.show()
+            self.canvas.hide()
+            self.table.hide()
             return
+
+        self.shap_empty_label.hide()
+        self.canvas.show()
+        self.table.show()
 
         self._df_cache = df
         self._plot(df)
@@ -124,13 +139,9 @@ class ShapBarWidget(QtWidgets.QWidget):
         self.figure.clear()
         ax = self.figure.add_subplot(111)
 
-        y_pos = range(len(features))
-        ax.barh(y_pos, values)
-        ax.set_yticks(list(y_pos))
-        ax.set_yticklabels(features)
-
-        ax.set_xlabel("mean |SHAP value|")
-        ax.set_title("Global SHAP Feature Importance")
+        ax.barh(features, values)
+        ax.set_title("SHAP Feature Importance")
+        ax.invert_yaxis()
 
         self.figure.tight_layout()
         self.canvas.draw_idle()

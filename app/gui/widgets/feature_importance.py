@@ -6,6 +6,8 @@ from pathlib import Path
 
 from PyQt6 import QtWidgets
 from PyQt6.QtWidgets import QHeaderView
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QColor
 import pandas as pd
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
@@ -46,9 +48,16 @@ class FeatureImportanceWidget(QtWidgets.QWidget):
         self.table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows)
 
+        # データなしラベル
+        self.fi_empty_label = QtWidgets.QLabel("データがありません")
+        self.fi_empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.fi_empty_label.setStyleSheet("color: gray; font-size: 12pt; padding: 20px;")
+        self.fi_empty_label.hide()
+
         lay = QtWidgets.QVBoxLayout(self)
         lay.addLayout(ctrl)
         lay.addWidget(self.canvas, 2)
+        lay.addWidget(self.fi_empty_label)
         lay.addWidget(self.table, 1)
 
         self.refreshBtn.clicked.connect(self.refresh)
@@ -105,14 +114,46 @@ class FeatureImportanceWidget(QtWidgets.QWidget):
         self.canvas.draw_idle()
 
     def _fill_table(self, df: pd.DataFrame):
+        # データなし（fi_level=0 or 失敗時）
+        if df is None or df.empty:
+            self.table.hide()
+            self.fi_empty_label.show()
+            return
+        else:
+            self.fi_empty_label.hide()
+            self.table.show()
+
         rows = list(df.reset_index(drop=True).itertuples(index=False))
         self.table.setRowCount(len(rows))
+        
+        # importance の最大値を取得（色付け用）
+        max_importance = df["importance"].max() if len(df) > 0 else 1.0
+        
         for r, row in enumerate(rows):
             importance_val = float(cast(Any, row.importance))
-            self.table.setItem(r, 0, QtWidgets.QTableWidgetItem(str(row.feature)))
-            self.table.setItem(r, 1, QtWidgets.QTableWidgetItem(f"{importance_val:.2f}"))
-            self.table.setItem(r, 2, QtWidgets.QTableWidgetItem(str(row.model)))
-        self.table.resizeColumnsToContents()
+            
+            # テーブルアイテムを作成
+            item_feature = QtWidgets.QTableWidgetItem(str(row.feature))
+            item_importance = QtWidgets.QTableWidgetItem(f"{importance_val:.2f}")
+            item_model = QtWidgets.QTableWidgetItem(str(row.model))
+            
+            # importance に応じて背景色を変える
+            if max_importance > 0:
+                ratio = importance_val / max_importance
+                color_value = int(255 - ratio * 155)
+                item_importance.setBackground(QColor(255, color_value, color_value))
+            
+            self.table.setItem(r, 0, item_feature)
+            self.table.setItem(r, 1, item_importance)
+            self.table.setItem(r, 2, item_model)
+        
+        # カラム幅調整
+        self.table.setColumnWidth(0, 120)
+        self.table.setColumnWidth(1, 160)
+        self.table.setColumnWidth(2, 100)
+        header = self.table.horizontalHeader()
+        if header is not None:
+            header.setStretchLastSection(True)
 
     def _render_empty(self):
         self.fig.clear()

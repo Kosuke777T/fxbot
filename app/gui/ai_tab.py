@@ -11,7 +11,9 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QHBoxLayout,
     QTabWidget,
+    QApplication,
 )
+from PyQt6.QtCore import Qt
 
 import joblib
 import pandas as pd
