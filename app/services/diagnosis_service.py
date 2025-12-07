@@ -57,6 +57,7 @@ class DiagnosisService:
         records = self._load_decision_records(start=start_date, end=end_date)
         time_of_day_stats = self._compute_time_of_day_stats(records)
         winning_conditions = self._compute_winning_conditions(records, time_of_day_stats)
+        dd_pre_signal = self._compute_dd_pre_signal(records)
 
         # --- 結果整形 ---
         return {
@@ -68,7 +69,7 @@ class DiagnosisService:
             "time_of_day_stats": time_of_day_stats,
             "volatility_stats": {},      # ここは後のSTEPで実装
             "winning_conditions": winning_conditions,
-            "dd_pre_signal": {},         # ここも後で実装
+            "dd_pre_signal": dd_pre_signal,
             "anomalies": [],
         }
 
@@ -294,6 +295,88 @@ class DiagnosisService:
             "global_pf": global_pf,
             "min_trades_per_bucket": min_trades_per_bucket,
             "best_hours": best_hours,
+        }
+
+    def _compute_dd_pre_signal(self, decisions: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        decisions.jsonl（バックテスト or 実運用ログ）を元に
+        DD直前に見られる特徴を簡易的に抽出する v0 ロジック。
+
+        Parameters
+        ----------
+        decisions: List[Dict[str, Any]]
+            _load_decision_records() が返すレコードのリスト
+
+        Returns
+        -------
+        Dict[str, Any]
+            {
+                "loss_streak": int,
+                "common_hours": List[int],
+                "avg_atr": float | None,
+                "avg_volatility": float | None,
+                "notes": str
+            }
+        """
+        if not decisions:
+            return {
+                "loss_streak": 0,
+                "common_hours": [],
+                "avg_atr": None,
+                "avg_volatility": None,
+                "notes": "データが無いため分析できません。",
+            }
+
+        loss_streak = 0
+        max_streak = 0
+        hours: List[int] = []
+        atr_list: List[float] = []
+        vol_list: List[float] = []
+
+        for d in decisions:
+            # pl < 0 を損失として扱う（result == -1 の代わり）
+            pl = d.get("pl", 0.0)
+            if pl < 0:
+                loss_streak += 1
+                max_streak = max(max_streak, loss_streak)
+
+                # 時間帯は dd_pre_signal v0 の代表指標
+                ts = d.get("timestamp")
+                if ts and isinstance(ts, datetime):
+                    hours.append(ts.hour)
+
+                # ATR / ボラティリティ がログにある場合は集計
+                # meta フィールドから取得を試みる
+                meta = d.get("meta", {})
+                if isinstance(meta, str):
+                    try:
+                        import json
+                        meta = json.loads(meta)
+                    except Exception:
+                        meta = {}
+
+                atr = meta.get("atr") or d.get("atr")
+                if atr is not None:
+                    try:
+                        atr_list.append(float(atr))
+                    except (ValueError, TypeError):
+                        pass
+
+                volatility = meta.get("volatility") or d.get("volatility")
+                if volatility is not None:
+                    try:
+                        vol_list.append(float(volatility))
+                    except (ValueError, TypeError):
+                        pass
+            else:
+                loss_streak = 0
+
+        return {
+            "loss_streak": max_streak,
+            "common_hours": sorted(list(set(hours))),
+            "avg_atr": sum(atr_list) / len(atr_list) if atr_list else None,
+            "avg_volatility": sum(vol_list) / len(vol_list) if vol_list else None,
+            "notes": "v0簡易ロジック：本番版では勝率推移・トレンド崩壊なども解析予定",
         }
 
 
