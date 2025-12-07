@@ -58,6 +58,7 @@ class DiagnosisService:
         time_of_day_stats = self._compute_time_of_day_stats(records)
         winning_conditions = self._compute_winning_conditions(records, time_of_day_stats)
         dd_pre_signal = self._compute_dd_pre_signal(records)
+        future_scenario = self._compute_future_scenario(records)
 
         # --- 結果整形 ---
         return {
@@ -71,6 +72,7 @@ class DiagnosisService:
             "winning_conditions": winning_conditions,
             "dd_pre_signal": dd_pre_signal,
             "anomalies": [],
+            "future_scenario": future_scenario,
         }
 
     def _load_decision_records(
@@ -377,6 +379,113 @@ class DiagnosisService:
             "avg_atr": sum(atr_list) / len(atr_list) if atr_list else None,
             "avg_volatility": sum(vol_list) / len(vol_list) if vol_list else None,
             "notes": "v0簡易ロジック：本番版では勝率推移・トレンド崩壊なども解析予定",
+        }
+
+    def _compute_future_scenario(self, records: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Expert 限定：来週のシナリオ（v1）
+
+        過去の ATR / volatility / winrate の傾向から
+        next_week_bias・expected_volatility・risk_zone を推定する。
+
+        Parameters
+        ----------
+        records: List[Dict[str, Any]]
+            _load_decision_records() が返すレコードのリスト
+
+        Returns
+        -------
+        Dict[str, Any]
+            {
+                "next_week_bias": str,  # "buy" | "sell" | "neutral"
+                "expected_volatility": str,  # "low" | "mid" | "high"
+                "risk_zone": str,  # "normal" | "caution" | "dangerous"
+                "reason": str,
+                "confidence": float  # 0.0 ~ 1.0
+            }
+        """
+        if not records:
+            return {
+                "next_week_bias": "neutral",
+                "expected_volatility": "mid",
+                "risk_zone": "normal",
+                "reason": "データが少ないためデフォルト評価",
+                "confidence": 0.2,
+            }
+
+        # --- 最近50トレードを使用 ---
+        recent = records[-50:] if len(records) >= 50 else records
+        wins = sum(1 for r in recent if r.get("pl", 0) > 0)
+        losses = len(recent) - wins
+        winrate = wins / max(len(recent), 1)
+
+        # --- ATRとvolatilityの平均 ---
+        atr_list = []
+        vol_list = []
+        for r in recent:
+            meta = r.get("meta", {})
+            atr = meta.get("atr")
+            vol = meta.get("volatility")
+            if isinstance(meta, str):
+                try:
+                    meta = json.loads(meta)
+                    atr = meta.get("atr")
+                    vol = meta.get("volatility")
+                except Exception:
+                    pass
+            if atr:
+                try:
+                    atr_list.append(float(atr))
+                except (ValueError, TypeError):
+                    pass
+            if vol:
+                try:
+                    vol_list.append(float(vol))
+                except (ValueError, TypeError):
+                    pass
+
+        avg_atr = sum(atr_list) / len(atr_list) if atr_list else 0
+        avg_vol = sum(vol_list) / len(vol_list) if vol_list else 0
+
+        # --- next_week_bias 判定 ---
+        if winrate > 0.55:
+            bias = "buy"
+        elif winrate < 0.45:
+            bias = "sell"
+        else:
+            bias = "neutral"
+
+        # --- expected_volatility 判定 ---
+        if avg_vol > 0.7:
+            vol_label = "high"
+        elif avg_vol < 0.3:
+            vol_label = "low"
+        else:
+            vol_label = "mid"
+
+        # --- risk_zone 判定 ---
+        # 最近10トレードで負けが多ければ caution/danger
+        recent10 = recent[-10:]
+        r10_wins = sum(1 for r in recent10 if r.get("pl", 0) > 0)
+        r10_winrate = r10_wins / max(len(recent10), 1)
+
+        if r10_winrate < 0.3:
+            risk = "dangerous"
+        elif r10_winrate < 0.45:
+            risk = "caution"
+        else:
+            risk = "normal"
+
+        # --- confidence（信頼度） ---
+        # winrateの偏差を使う軽い推定
+        confidence = min(1.0, abs(winrate - 0.5) * 3)
+
+        return {
+            "next_week_bias": bias,
+            "expected_volatility": vol_label,
+            "risk_zone": risk,
+            "reason": f"winrate={winrate:.2f}, avg_vol={avg_vol:.2f}, avg_atr={avg_atr:.2f}",
+            "confidence": round(confidence, 2),
         }
 
 
