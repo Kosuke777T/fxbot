@@ -6,16 +6,21 @@ from typing import Any, Dict, Iterable, List, Optional
 
 from loguru import logger
 
-from app.core.edition import get_guard
+from app.services import edition_guard
 
 
-# Edition の「強さ順」定義
+# Edition の「強さ順」定義（小文字も対応）
 _EDITION_ORDER = {
     "FREE": 0,
     "BASIC": 1,
     "PRO": 2,
     "EXPERT": 3,
     "MASTER": 4,
+    "free": 0,
+    "basic": 1,
+    "pro": 2,
+    "expert": 3,
+    "master": 4,
 }
 
 
@@ -50,9 +55,8 @@ def filter_jobs_for_current_edition(
     - guard.scheduler_jobs_max が None でなければ、
       edition 条件を満たしたジョブの先頭から max 件だけを残す。
     """
-    guard = get_guard()
-    current_edition = getattr(guard, "name", None)
-    max_jobs: Optional[int] = getattr(guard, "scheduler_jobs_max", None)
+    current_edition = edition_guard.current_edition()
+    max_jobs = edition_guard.scheduler_limit()
 
     # 安全のため list に確定してから処理
     all_jobs: List[Dict[str, Any]] = list(jobs)
@@ -85,27 +89,26 @@ def filter_jobs_for_current_edition(
 
     # ジョブ数上限の適用
     limited_jobs: List[Dict[str, Any]] = allowed_by_edition
-    if isinstance(max_jobs, int):
-        if max_jobs < 0:
-            logger.warning(
-                "[SchedulerGuard] scheduler_jobs_max が負数({}) なので無視します",
+    if max_jobs < 0:
+        logger.warning(
+            "[SchedulerGuard] scheduler_limit が負数({}) なので無視します",
+            max_jobs,
+        )
+    elif max_jobs > 0:
+        limited_jobs = allowed_by_edition[:max_jobs]
+        if len(allowed_by_edition) > len(limited_jobs):
+            skipped_ids = [
+                str(job.get("id") or job.get("name") or "?")
+                for job in allowed_by_edition[max_jobs:]
+            ]
+            logger.info(
+                "[SchedulerGuard] edition='{}' scheduler_limit={} により "
+                "{} 個のジョブを除外: {}",
+                current_edition,
                 max_jobs,
+                len(allowed_by_edition) - len(limited_jobs),
+                skipped_ids,
             )
-        else:
-            limited_jobs = allowed_by_edition[:max_jobs]
-            if len(allowed_by_edition) > len(limited_jobs):
-                skipped_ids = [
-                    str(job.get("id") or job.get("name") or "?")
-                    for job in allowed_by_edition[max_jobs:]
-                ]
-                logger.info(
-                    "[SchedulerGuard] edition='{}' scheduler_jobs_max={} により "
-                    "{} 個のジョブを除外: {}",
-                    current_edition,
-                    max_jobs,
-                    len(allowed_by_edition) - len(limited_jobs),
-                    skipped_ids,
-                )
 
     logger.info(
         "[SchedulerGuard] edition='{}' 有効ジョブ数 / 全ジョブ数: {}/{} (max={})",

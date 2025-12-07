@@ -1,0 +1,243 @@
+-----------------------------------------
+ミチビキ FX 自動売買システム：仕様書 v5（統合正式版）
+-----------------------------------------
+0. 目的（KPI仕様を明確化）
+
+ミチビキは “月間 +3% 前後” を目標としたリスク管理型 FX 自動売買システム。
+
+月利3％は 義務ではなく KPI（目標値）
+
+最大ドローダウン（DD）は -15%〜-20% を安全圏 とする
+
+Walk-Forward（WFO）再学習により “市場変化に追従するAI” を重視する
+
+バックテスト・診断AI・ランキングなどの分析基盤を内蔵する
+
+ターゲット：
+Windowsユーザー / MT5ユーザー / 裁量 → 半自動 → 自動へ移行したい個人トレーダー。
+
+1. 全体アーキテクチャ（3層構造）
+GUI層（app.gui）
+ ├─ Dashboard / AIタブ / スケジューラ / ランキング / ログビューア
+
+サービス層（app.services）
+ ├─ AISvc（特徴量 / 予測 / SHAP / FI）
+ ├─ KPIサービス（KPI計算・月次3％ダッシュボード）
+ ├─ JobScheduler（内蔵スケジューラ）
+ ├─ RankingService
+ └─ 診断AIサービス（Pro/Expert）
+
+コア層（app.core）
+ ├─ MT5Client（MT5発注ラッパー）
+ ├─ 戦略ロジック
+ ├─ フィルタエンジン（Pro/Expert）
+ ├─ バックテストエンジン
+ └─ モデル管理・Walk-Forward
+
+2. エディション体系（v5版・CapabilitySet方式）
+
+エディション差は Capability（能力セット） として抽象化し、
+機能ロックは EditionGuard が一元制御する。
+
+2.1 CapabilitySet
+fi_level:
+ 0 = 表示なし
+ 1 = Top3
+ 2 = Top20
+ 3 = 全件
+
+shap_level: (同上)
+
+scheduler_level:
+ 0 = 表示のみ
+ 1 = 週1再学習（固定）
+ 2 = 1ジョブのみ（再学習 or 診断）
+ 3 = 複数ジョブ・連鎖（Expert）
+
+filter_level:
+ 0 = フィルタなし
+ 1 = Basic（時間帯）
+ 2 = Pro（ATRオンオフ＋時間帯）
+ 3 = Expert（ATR/ボラ/トレンド/連敗回避/自動プロファイル切替）
+
+ranking_level:
+ 0 = 閲覧のみ
+ 1 = Basicランキング送信
+ 2 = Proランキング送信
+ 3 = Expert複合スコア＋自動送信
+
+2.2 各エディションの Capability
+Edition	FI	SHAP	Scheduling	Filter	Ranking	備考
+Free	0	0	0	0	0	デモのみ
+Basic	0	0	1	1	1	単一プロファイル
+Pro	2	1	2	2	2	FI20, SHAP3
+Expert	3	3	3	3	3	Full診断AI
+Master	全て無制限	全機能	-			
+3. データ構造（標準フォルダ）
+config/                 設定ファイル（edition, scheduler, profiles）
+models/                 学習モデル（LightGBM 他）
+logs/                   ログ
+logs/decisions_*.jsonl  AI判断ログ
+backtests/{profile}/    バックテスト結果（標準化）
+
+4. バックテスト仕様（完全標準化）
+4.1 monthly_returns.csv（公式フォーマット）
+
+全バックテストは 必ずこの形式の CSV を出力 する。
+
+column	type	説明
+year_month	str	"2025-11"
+return_pct	float	0.031 → +3.1%
+max_dd_pct	float	-0.12 → -12%
+total_trades	int	トレード数
+pf	float	ProfitFactor
+
+KPI / ランキング / AIタブ / フィルタ学習 すべてこの形式を前提とする。
+
+5. KPIタブ（3％ダッシュボード）
+
+ミチビキ v5 の中心機能。
+仕様書 v3/v4/ToDo を統合した形で正式化。
+
+5.1 表示項目
+
+今月の利益率（%）
+
+今月の必要達成度：
+(現在利益 ÷ 3％) × 100%
+
+月次折れ線グラフ（12ヶ月）
+
+目標線：3% を水平線として表示
+
+最大DD（過去12ヶ月）
+
+勝率・PF・平均RR
+
+5.2 Expert/Master追加項目
+
+来週の簡易サマリ（診断AI）
+
+モデルバージョン・AUC/Logloss 可視化
+
+6. AIタブ（Feature Importance / SHAP / 診断AI）
+6.1 FI / SHAP 表示規則（CapabilitySetに従う）
+Free：なし
+Basic：なし
+Pro：FI20 + SHAP3
+Expert：FI全件 + SHAP20
+Master：全件制限なし
+
+6.2 診断AI（Detection Service）
+
+Pro：時間帯 × 相場タイプ分析（v0）
+
+Expert：
+
+DD直前区間の特徴検出
+
+勝率高い相場条件
+
+連勝区間の特性
+
+異常点の自動検出
+
+来週の条件シナリオ
+
+Master：全アルゴリズムのデバッグモード
+
+7. フィルタエンジン仕様（StrategyFilterEngine）
+7.1 取り扱う指標
+
+時間帯フィルタ（start_hour〜end_hour）
+
+ATRしきい値
+
+ボラティリティ帯（low/mid/high）
+
+トレンド強度（±値）
+
+連敗回避（N連敗で停止）
+
+プロファイル自動切替（勝率上位）
+
+7.2 エディション差（filter_level）
+0：なし
+1：時間帯のみ
+2：時間帯＋ATRオンオフ
+3：ATR＋ボラ＋トレンド＋連敗回避＋自動切替
+
+8. 内蔵スケジューラ（JobScheduler）
+8.1 2モード存在
+標準モード（Free〜Pro）：GUI起動中のみ実行
+常駐モード（Expert/Master）：GUIを閉じても常駐
+
+8.2 scheduler_level による制御
+0：表示のみ
+1：週1再学習（固定時刻）
+2：1ジョブのみ（種類は選択可）
+3：複数ジョブ・ジョブ連鎖
+
+8.3 ジョブ種別（Master基準・下位版は制限）
+
+Walk-Forward再学習
+
+バックテスト診断生成
+
+ログ圧縮
+
+モデルバックアップ
+
+任意Pythonコマンド（Master）
+
+9. ランキング機能
+9.1 データ送信フォーマット（正式定義）
+POST /ranking/submit
+{
+ "nickname": "xxx",
+ "edition": "expert",
+ "year_month": "2025-11",
+ "return_pct": 0.028,
+ "max_dd_pct": -0.05,
+ "pf": 1.42
+}
+
+9.2 エディション差（ranking_level）
+0：閲覧のみ
+1：Basicランキング送信
+2：Proランキング（リターン％のみ）
+3：Expert複合スコア＋自動送信
+
+10. 日本語UI仕様・ログ仕様
+
+全UIは日本語
+
+ログ：日本語＋簡易英語併記
+例：「MT5接続に失敗しました (login error)」
+
+UTF-8（BOMなし）
+
+11. モデル管理仕様
+
+モデルは models/ に保存
+
+active_model.json は以下を持つ：
+
+{
+  "model_path": "...",
+  "expected_features": [...],
+  "best_threshold": 0.45,
+  "trained_at": "2025-11-20 09:00"
+}
+
+12. Master版専用ツール（開発者用）
+
+モデル比較ツール
+
+SHAP全件可視化
+
+バックテスト一括実行
+
+ランキング送信先URL設定
+
+APIキー設定

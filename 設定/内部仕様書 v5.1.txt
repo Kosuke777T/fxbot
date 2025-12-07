@@ -1,0 +1,303 @@
+=====================================================
+ミチビキ 開発者向け内部仕様書 v5.1（完全版）
+=====================================================
+0. 文書の目的
+
+本仕様書は ミチビキ（fxbot）の内部実装ルールを統一し、
+ChatGPT・Cursor・人間開発者が 一貫した構造の中で安全にコード変更できるようにすることを目的とする。
+
+以下を確定させる：
+
+ディレクトリ構造の責務
+
+GUI・サービス・コアの境界
+
+importlinter ポリシー
+
+モデル管理
+
+戦略ロジック
+
+スケジューラ内部構造
+
+フィルタエンジン
+
+KPI/診断AIの API
+
+EditionGuard の内部API
+
+ログ・例外処理
+
+データ構造の完全仕様
+
+1. アーキテクチャ（C4 Model 準拠）
+1.1 レイヤ境界（絶対ルール）
+GUI層（app.gui） 
+    ↓ 呼び出しのみ
+サービス層（app.services）
+    ↓ 呼び出しのみ
+コア層（app.core）
+
+
+禁止事項：
+
+GUI → コアへの直接アクセス【禁止】
+
+サービス層が GUI を import【禁止】
+
+コア層はサービスの存在を知らない【原則】
+
+importlinter で強制
+app.gui → app.services のみ  
+app.services → app.core のみ  
+app.core → 下位層への参照なし  
+
+2. ディレクトリの責務と内部規約
+app/
+ ├ gui/          … 画面表示・イベント・UI入力処理のみ
+ ├ services/     … 業務ロジック・AI・KPI・診断AI・スケジューラ
+ └ core/         … MT5ラッパー・バックテスト・フィルタ・戦略
+
+2.1 GUI 層の禁止事項
+
+GUI は状態を持たず、表示と入力の橋渡しだけを行う。
+
+GUI がやってはいけないこと：
+
+データ計算（KPI、AI予測、SHAPなど）
+
+モデルロード
+
+MT5通信
+
+スケジューラ制御
+
+バックテスト実行
+
+GUI は イベント → サービス呼び出し → 結果を描画 のみ。
+
+3. モデル管理仕様（AISvc）
+
+AISvc はサービス層の中心。
+
+3.1 AISvc の責務
+
+モデルロード（lazy-load, cached）
+
+予測
+
+Feature Importance
+
+SHAP
+
+期待値ログ出力
+
+active_model.json の参照・更新
+
+3.2 active_model.json 仕様（固定）
+{
+  "model_path": "models/LightGBM_clf_20251120.pkl",
+  "expected_features": ["atr", "vol", ...],
+  "best_threshold": 0.45,
+  "trained_at": "2025-11-20 09:00",
+  "scaler_path": "models/scaler.pkl"
+}
+
+4. 戦略ロジック（Strategy Engine）
+4.1 Strategy の内部構造
+StrategyBase
+ ├ LightGBMStrategy
+ ├ RiverStrategy
+ └ FutureModelStrategy（TFT/LSTMなど実装予定）
+
+4.2 Strategy の仕様（全モデル共通）
+
+各 Strategy は以下を必ず持つ：
+
+def predict(features: dict) -> dict:
+    {
+        "prob_buy": float,
+        "prob_sell": float,
+        "meta": {...}
+    }
+
+
+Strategy は 決済・発注を直接行わない。
+発注は execution_service が行う。
+
+5. フィルタエンジン（StrategyFilterEngine）
+
+フィルタの内部 API は次の形に統一。
+
+class StrategyFilterEngine:
+    def evaluate(entry_context: dict) -> bool:
+         return True / False
+
+
+entry_context には：
+
+{
+ "timestamp": datetime,
+ "atr": float,
+ "volatility": float,
+ "trend_strength": float,
+ "consecutive_losses": int,
+ "profile_stats": {...},
+}
+
+5.1 評価順序（重要）
+
+ミチビキではフィルタ評価順が性能に影響するため 順序は固定。
+
+① 取引時間帯  
+② ATR  
+③ ボラティリティ帯  
+④ トレンド強度  
+⑤ 連敗回避  
+⑥ プロファイル自動切替
+
+6. MT5Client（コア層）
+原則：サービス層は MT5 を直接触らない
+
+→ 必ず app.core.mt5_client を通す。
+
+MT5Client の公開API：
+
+initialize()
+order_buy(symbol, lot, sl, tp)
+order_sell(symbol, lot, sl, tp)
+close_position(position_id)
+get_positions()
+get_price(symbol)
+
+7. KPIサービス（KPIService）
+7.1 標準メソッド
+load_backtest_kpi_summary(profile) -> dict
+compute_monthly_dashboard(profile) -> dict
+compute_target_progress(return_pct, target=0.03)
+
+7.2 3% ダッシュボード計算式
+progress = current_month_return / 0.03
+
+
+メーターUIは 0〜200% を想定。
+
+8. バックテスト仕様（標準化）
+8.1 必須出力（月次CSV）
+backtests/{profile}/monthly_returns.csv
+
+8.2 CSV仕様（完全固定）
+col	type	説明
+year_month	str	"2025-11"
+return_pct	float	0.031
+max_dd_pct	float	-0.12
+total_trades	int	トレード数
+pf	float	ProfitFactor
+9. 診断AI（Diagnosis Service）
+9.1 API
+def analyze(profile, start, end) -> dict:
+    {
+      "time_of_day_stats": {...},
+      "volatility_stats": {...},
+      "winning_conditions": {...},
+      "dd_pre_signal": {...},
+      "anomalies": [...]
+    }
+
+
+Pro → time_of_day_stats のみ
+Expert → すべて有効
+
+10. 内蔵スケジューラ（JobScheduler）
+10.1 Job オブジェクト
+{
+ "id": "weekly_retrain",
+ "enabled": True,
+ "edition_min": "basic",
+ "weekday": 6,
+ "hour": 3,
+ "minute": 0,
+ "command": "python -m scripts.walkforward_retrain --profile std",
+ "chain": ["weekly_report"]
+}
+
+10.2 状態管理（state machine）
+IDLE → (時間到来) → RUNNING → SUCCESS / FAILED → IDLE
+
+10.3 last_run_at で重複防止（必須）
+jobs_state[id]["last_run_at"] = "2025-11-20 03:00"
+
+11. EditionGuard（最も重要な内部API）
+11.1 公開API
+get_capability("fi_level") → int
+allow_real_account() → bool
+scheduler_limit() → int
+filter_level() → int
+ranking_level() → int
+
+11.2 internal config
+edition: "free/basic/pro/expert/master"
+
+
+CapabilitySet はここから割り出す。
+
+GUI では EditionGuard の結果だけ使う
+→ エディション名を直接判定しない。
+
+12. ロギングポリシー
+12.1 ログ構造
+logs/
+  app.log
+  decisions_2025-11-22.jsonl
+  scheduler.log
+
+decisions_*.jsonl の形式（必須）
+{
+ "timestamp": "...",
+ "strategy": "LightGBM",
+ "prob_buy": 0.62,
+ "prob_sell": 0.14,
+ "filter_pass": true,
+ "reason": "threshold_passed",
+ "meta": {...}
+}
+
+13. 例外処理規約（Internal Rule）
+
+Exception は必ずサービス層で握り、GUIへは “安全な dict” を返す。
+
+禁止例：
+
+GUIが Exception を直接受け取る → クラッシュの原因
+
+14. データフロー（最重要の内部仕様）
+MT5 → DataLoader → FeatureBuilder → AISvc.predict → FilterEngine → ExecutionService → MT5
+
+
+バックテスト時は：
+
+HistoricalData → BacktestEngine → Strategy.predict → Filter → SimulatedExecution
+
+
+この構造は今後も絶対に変えない。
+
+15. 将来拡張（TFT/LSTM/RL対応）
+
+v5.1 では FutureModelStrategy を定義済み。
+
+共通インターフェース：
+
+predict(features) -> dict（必須）
+load_model(path)
+
+16. Master版専用内部ツール
+
+モデル比較（validation 指標出力）
+
+SHAP全件プロッター
+
+バックテスト一括ランナー
+
+ランキングAPI切替（mock→prod）
+
+Scheduler 強制起動ツール

@@ -1,0 +1,259 @@
+============================================
+ミチビキ ToDoリスト v5.1（統合版・完全リファイン）
+============================================
+■ 現在の達成状況（あなたの進捗に基づく）
+
+すでに完了：
+
+M-A1：monthly_returns.csv の標準化
+
+M-A2：基準プロファイル（michibiki_std）
+
+M-A3：ロット計算ロジック（土台）
+
+M-A4：AIタブ（FI/SHAP lazy-load、KPI連携の基盤）
+
+M-A5：診断AI v0 の入口
+
+ステップ38：AIタブの遅延ロード完成（GUI高速化）
+
+つまり 骨格（背骨）が整い、データ構造と AIタブのコアは完成済み。
+
+ここからは、仕様書 v5.1 に合わせて残りの核機能を順に実装していくフェーズになります。
+
+--------------------------------------------
+■ Part 1：アーキテクチャ整備（v5.1 準拠）
+--------------------------------------------
+T-01｜EditionGuard の v5.1 CapabilitySet へ統一
+
+目的：
+エディションごとの制御を “if edition==XXX” から完全排除し、
+CapabilitySet（fi_level, shap_level, scheduler_level…）方式に移行する。
+
+作業内容：
+
+edition_guard.py を新仕様（v5.1）に入れ替え
+
+GUI/サービスの「Edition判定」を CapabilitySet 参照へ置換
+
+テスト：Free / Basic / Pro / Expert の画面項目が正しく出るか
+
+T-02｜Layered Architecture チェック（importlinter）
+
+目的：
+GUI → Services → Core の方向性が守られているかを検証。
+
+作業内容：
+
+.importlinter.ini を v5.1 仕様に最適化
+
+CI（ローカル）で importlinter を実行
+
+違反パスがないか確認し修正
+
+--------------------------------------------
+■ Part 2：AIタブ & KPI（v5.1 完全版）
+--------------------------------------------
+T-10｜KPI “月次3％ダッシュボード” の本実装
+
+内容：
+
+月次リターングラフ（12ヶ月）
+
+今月の進捗ゲージ（Current / 3%）
+
+最大DD・勝率・PF
+
+回帰的 KPIService API の拡張
+
+依存： monthly_returns.csv（標準化済）
+
+T-11｜Feature Importance / SHAP の Edition 対応
+
+内容：
+
+fi_level（0,1,2,3）に応じて表示件数を切替
+
+shap_level（0,1,2,3）に応じて Top3 / Top20 / All を分岐
+
+Lazy-load のまま Edition 制御を適用
+
+エラー時の UI fallback（空データ表示）
+
+T-12｜診断AI（v0 → Full）実装
+
+段階的に以下を追加：
+
+時間帯 × 相場タイプ（v0）
+
+勝率が高い相場条件
+
+DD直前シグナル
+
+連勝区間の特徴
+
+異常点検出
+
+来週の簡易シナリオ（Expert限定）
+
+--------------------------------------------
+■ Part 3：フィルタエンジン（StrategyFilterEngine）
+--------------------------------------------
+T-20｜フィルタエンジンの v5.1 完全仕様を実装
+
+内容：
+
+評価順序を固定（時間帯→ATR→ボラ→トレンド→連敗回避）
+
+EntryContext を標準化
+
+ログ（filter_pass / reason）を decisions.jsonl に統合
+
+Edition 差（filter_level）による有効化範囲を制御
+
+T-21｜連敗回避モードの実装
+
+内容：
+
+consecutive_losses のカウンタ
+
+エントリー停止条件
+
+再開条件（時間 or 勝ち）
+
+Expert のみ UI 表示
+
+T-22｜プロファイル自動切替（Expert）
+
+内容：
+
+過去 N トレード or 月次成績から現在最適な Profile を選択
+
+Expert のみ ON/OFF
+
+選択履歴のログ出力
+
+--------------------------------------------
+■ Part 4：バックテスト & WFO
+--------------------------------------------
+T-30｜BacktestEngine の v5.1 仕様準拠
+
+内容：
+
+StrategyBase → フィルタ → 仮想 Execution の流れを統一
+
+monthly_returns.csv の生成フォーマットを固定出力
+
+バックテスト中の decisions.jsonl をサンプル出力に加える
+
+T-31｜Walk-Forward 再学習の安定化
+
+内容：
+
+features の整合性チェック
+
+active_model.json の手動/自動更新
+
+retry & timeout 仕様
+
+--------------------------------------------
+■ Part 5：内蔵スケジューラ（JobScheduler）
+--------------------------------------------
+T-40｜Scheduler v5.1 の StateMachine 実装
+
+内容：
+
+IDLE → RUNNING → SUCCESS/FAILED の状態遷移
+
+last_run_at による重複防止
+
+scheduler.yaml 読み込み
+
+T-41｜Edition 制御（scheduler_level）の適用
+
+内容：
+
+Free：表示のみ
+
+Basic：週1固定ジョブのみ
+
+Pro：1ジョブのみ（再学習 or 診断）
+
+Expert：複数ジョブ & ジョブ連鎖
+
+T-42｜Scheduler の GUI 完成
+
+内容：
+
+ジョブ一覧
+
+次回実行予定
+
+実行ログ表示
+
+ジョブ追加/削除（Expert）
+
+--------------------------------------------
+■ Part 6：ランキング機能（RankingService）
+--------------------------------------------
+T-50｜ランキングAPI（モック → 本番）実装
+
+内容：
+
+monthly_returns.csv → payload 化
+
+Expert：複合スコア（Return × DD × PF）
+
+自動送信（scheduler 経由）
+
+T-51｜ランキングタブ（Edition対応）
+
+内容：
+
+Free：閲覧のみ
+
+Basic：Basic テーブル送信
+
+Pro：Pro テーブル送信（Returnのみ）
+
+Expert：複合スコア送信
+
+--------------------------------------------
+■ Part 7：MT5・Execution・決定ログ
+--------------------------------------------
+T-60｜MT5Client の仕様統一 & 例外ハンドリング
+
+内容：
+
+initialize/price/order_send のログ形式を統一
+
+JSONL 形式に trade_reason / filter_reason を追加
+
+T-61｜ExecutionService の v5.1 対応
+
+内容：
+
+Strategy → Filter → Execution の一元化
+
+best_threshold に基づく売買判断
+
+AIタブ → “直近10トレードの可視化” に繋がるログ形式へ統一
+
+--------------------------------------------
+■ Part 8：Master版（開発者ツール）
+--------------------------------------------
+T-70｜モデル比較ツール（Master専用）
+
+内容：
+
+AUC/Logloss/PF を比較
+
+プロファイル選択
+
+T-71｜バックテスト一括ランナー
+
+内容：
+
+複数プロファイルを一括実行
+
+monthly_returns.csv をまとめる

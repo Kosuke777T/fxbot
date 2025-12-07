@@ -23,6 +23,7 @@ from app.gui.widgets.feature_importance import FeatureImportanceWidget
 from app.gui.widgets.shap_bar import ShapBarWidget
 from app.gui.widgets.monthly_dashboard import MonthlyDashboardGroup
 from app.core.strategy_profile import get_profile
+from app.services import edition_guard
 
 
 class AITab(QWidget):
@@ -116,25 +117,31 @@ class AITab(QWidget):
         except Exception as e:  # pragma: no cover - UI fallback
             print("[AI Tab] monthly dashboard refresh error:", e)
 
-        self.tab_fi = QWidget(self.tab_widget)
-        fi_layout = QVBoxLayout(self.tab_fi)
-        self.feature_importance = FeatureImportanceWidget(self.ai_service, self.tab_fi)
-        fi_layout.addWidget(self.feature_importance)
-        self.tab_widget.addTab(self.tab_fi, "Feature Importance")
+        # --- FI / SHAP 表示制御（CapabilitySet 版） ---
+        fi_level = edition_guard.get_capability("fi_level") or 0
+        shap_level = edition_guard.get_capability("shap_level") or 0
 
-        self.tab_shap = QWidget(self.tab_widget)
-        shap_layout = QVBoxLayout(self.tab_shap)
+        if fi_level > 0:
+            self.tab_fi = QWidget(self.tab_widget)
+            fi_layout = QVBoxLayout(self.tab_fi)
+            self.feature_importance = FeatureImportanceWidget(self.ai_service, self.tab_fi)
+            fi_layout.addWidget(self.feature_importance)
+            self.tab_widget.addTab(self.tab_fi, "Feature Importance")
 
-        self.shap_group = QGroupBox("SHAP Global Importance", self.tab_shap)
-        shap_group_layout = QVBoxLayout(self.shap_group)
+        if shap_level > 0:
+            self.tab_shap = QWidget(self.tab_widget)
+            shap_layout = QVBoxLayout(self.tab_shap)
 
-        self.shap_widget = ShapBarWidget(self.ai_service, self.shap_group)
-        shap_group_layout.addWidget(self.shap_widget)
+            self.shap_group = QGroupBox("SHAP Global Importance", self.tab_shap)
+            shap_group_layout = QVBoxLayout(self.shap_group)
 
-        shap_layout.addWidget(self.shap_group)
-        shap_layout.addStretch(1)
+            self.shap_widget = ShapBarWidget(self.ai_service, self.shap_group)
+            shap_group_layout.addWidget(self.shap_widget)
 
-        self.tab_widget.addTab(self.tab_shap, "SHAP")
+            shap_layout.addWidget(self.shap_group)
+            shap_layout.addStretch(1)
+
+            self.tab_widget.addTab(self.tab_shap, "SHAP")
 
         self.btn_refresh_kpi.clicked.connect(self.refresh_kpi)
         # Recent Trades KPI
