@@ -34,19 +34,18 @@ def _safe_float(value: Any) -> Optional[float]:
 
 def get_model_metrics(models_dir: str | Path = "models") -> Dict[str, Any]:
     """
-    active_model.json と {model_name}.meta.json から
-    Logloss / AUC / モデル名 / バージョンなどを読み取って dict で返す。
+    active_model.json からモデル指標情報を取得する。
 
-    戻り値のキー（GUI側で使う想定）:
-        - model_name   : str  （例: "LightGBM_clf"）
-        - version      : str  （例: "20251117_090029"）
-        - file         : str  （例: "LightGBM_clf_20251117_090029.pkl"）
-        - meta_file    : str  （例: "LightGBM_clf_20251117_090029.meta.json"）
-        - auc          : float | None
-        - logloss      : float | None
+    戻り値のキー:
+        - model_name   : str          # 例: "LightGBM_clf"
+        - version      : str | None   # 例: "20251127_075810"
+        - file         : str | None   # 例: "LightGBM_clf_20251127_075810.pkl"
         - best_threshold : float | None
-        - updated_at   : str | None
+        - logloss      : float | None
+        - auc          : float | None
+        - trained_at   : str | None   # active_model.json の trained_at
     """
+    import os
     base = Path(models_dir)
 
     # --- active_model.json を読む ---------------------------------
@@ -58,77 +57,77 @@ def get_model_metrics(models_dir: str | Path = "models") -> Dict[str, Any]:
         except Exception as e:
             logger.warning(f"[AISvc] failed to read {active_path}: {e}")
     else:
-        logger.info("[AISvc] active_model.json not found; model metrics will be '-'.")
+        logger.info("[AISvc] active_model.json not found; model metrics will be None.")
 
-    # ★ active_model.json の実際のキー名に合わせる！
-    #   { "file": "...pkl", "meta_file": "...meta.json", "version": 1763..., ... }
+    # --- model_path からファイル名とモデル名を抽出 ----------------
     model_file = active.get("file") or active.get("model_file")
-    meta_file_name = active.get("meta_file")
-    best_threshold = active.get("best_threshold")
-    version_active = active.get("version")
-    updated_at = active.get("updated_at")
+    file_name: Optional[str] = None
+    model_name: Optional[str] = None
 
-    # --- meta.json を決める ---------------------------------------
-    meta: Dict[str, Any] = {}
-    meta_path: Optional[Path] = None
-
-    # 1) active_model.json の meta_file 優先
-    if isinstance(meta_file_name, str) and meta_file_name:
-        cand = base / meta_file_name
-        if cand.is_file():
-            meta_path = cand
-
-    # 2) なければ model_file から {stem}.meta.json を推測
-    if meta_path is None and isinstance(model_file, str) and model_file:
-        cand = base / f"{Path(model_file).stem}.meta.json"
-        if cand.is_file():
-            meta_path = cand
-
-    # 3) meta_path が決まっていれば読む
-    if meta_path is not None:
-        try:
-            meta = json.loads(meta_path.read_text(encoding="utf-8"))
-        except Exception as e:
-            logger.warning(f"[AISvc] failed to read {meta_path}: {e}")
-
-    # --- モデル名とバージョン -------------------------------------
     if isinstance(model_file, str) and model_file:
-        fallback_name: str | None = Path(model_file).stem
-    else:
-        fallback_name = "-"
+        # file = os.path.basename(model_path)
+        file_name = os.path.basename(model_file)
+        # model_name = file.split("_clf")[0] + "_clf" くらいの簡易でOK
+        if "_clf" in file_name:
+            model_name = file_name.split("_clf")[0] + "_clf"
+        else:
+            # _clf がない場合は拡張子を除いたファイル名をそのまま使用
+            model_name = Path(file_name).stem
 
-    model_name = (
-        meta.get("model_name")
-        or active.get("model_name")
-        or fallback_name
-        or "-"
-    )
+    # active_model.json から直接取得を試みる
+    if not model_name:
+        model_name = active.get("model_name")
 
-    version: Any = (
-        meta.get("version")
-        or version_active
-        or updated_at
-        or "-"
-    )
+    # --- active_model.json から直接取得 --------------------------
+    best_threshold = active.get("best_threshold")
+    trained_at = active.get("trained_at") or active.get("trained_at_jst") or active.get("updated_at")
+    version = active.get("version")
     if isinstance(version, (int, float)):
         version = str(version)
 
-    # --- metrics（logloss / AUC） ---------------------------------
-    metrics_dict = meta.get("metrics") or {}
-    # AUC は auc@cal があればそれを優先、なければ auc
-    auc = _safe_float(metrics_dict.get("auc@cal") or metrics_dict.get("auc"))
-    logloss = _safe_float(metrics_dict.get("logloss"))
+    # --- metrics が存在していれば、そこから logloss / auc を取り出す ---
+    metrics = active.get("metrics") or {}
+    logloss = _safe_float(metrics.get("logloss"))
+    auc = _safe_float(metrics.get("auc@cal") or metrics.get("auc"))
+
+    # meta.json からも metrics を取得（active_model.json にない場合のフォールバック）
+    if (logloss is None or auc is None) and model_file:
+        meta_file_name = active.get("meta_file")
+        meta_path: Optional[Path] = None
+
+        # 1) active_model.json の meta_file 優先
+        if isinstance(meta_file_name, str) and meta_file_name:
+            cand = base / meta_file_name
+            if cand.is_file():
+                meta_path = cand
+
+        # 2) なければ model_file から {stem}.meta.json を推測
+        if meta_path is None and isinstance(model_file, str) and model_file:
+            cand = base / f"{Path(model_file).stem}.meta.json"
+            if cand.is_file():
+                meta_path = cand
+
+        # 3) meta_path が決まっていれば読む
+        if meta_path is not None:
+            try:
+                meta = json.loads(meta_path.read_text(encoding="utf-8"))
+                meta_metrics = meta.get("metrics") or {}
+                if logloss is None:
+                    logloss = _safe_float(meta_metrics.get("logloss"))
+                if auc is None:
+                    auc = _safe_float(meta_metrics.get("auc@cal") or meta_metrics.get("auc"))
+            except Exception as e:
+                logger.warning(f"[AISvc] failed to read {meta_path}: {e}")
 
     # --- まとめて返す ---------------------------------------------
     result: Dict[str, Any] = {
         "model_name": model_name,
         "version": version,
-        "file": model_file or "-",
-        "meta_file": str(meta_path.name) if meta_path else (meta_file_name or "-"),
-        "auc": auc,
-        "logloss": logloss,
+        "file": file_name,
         "best_threshold": _safe_float(best_threshold),
-        "updated_at": updated_at,
+        "logloss": logloss,
+        "auc": auc,
+        "trained_at": trained_at,
     }
 
     return result
