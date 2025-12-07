@@ -31,6 +31,26 @@ class MainWindow(QMainWindow):
         # --- QTabWidget をインスタンス変数として保持 ---
         self.tabs = QTabWidget(self)
 
+        # === 1段目タブ（メインタブ）の色 + 角丸スタイル ===
+        self.tabs.setStyleSheet("""
+QTabBar::tab {
+    background: #F0F0F0;              /* 非選択：薄い灰色 */
+    padding: 6px 12px;
+    border: 1px solid #CCCCCC;
+    border-top-left-radius: 4px;      /* ← 角丸 */
+    border-top-right-radius: 4px;     /* ← 角丸 */
+}
+
+QTabBar::tab:selected {
+    background: #D7EEFF;              /* 選択：薄い水色 */
+    border: 1px solid #A0C8E8;
+}
+
+QTabBar::tab:hover {
+    background: #E5F4FF;
+}
+""")
+
         # まずは軽いタブだけ即座に生成
         self.tabs.addTab(DashboardTab(), "Dashboard")
         self.tabs.addTab(ControlTab(), "Control")

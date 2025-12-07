@@ -51,6 +51,26 @@ class AITab(QWidget):
         self.tab_widget = QTabWidget(self)
         main_layout.addWidget(self.tab_widget, 1)
 
+        # === 2段目タブ（AI内部タブ）の色 + 角丸スタイル ===
+        self.tab_widget.setStyleSheet("""
+QTabBar::tab {
+    background: #F0F0F0;              
+    padding: 6px 12px;
+    border: 1px solid #CCCCCC;
+    border-top-left-radius: 4px;      /* ← 角丸 */
+    border-top-right-radius: 4px;     /* ← 角丸 */
+}
+
+QTabBar::tab:selected {
+    background: #D7EEFF;              
+    border: 1px solid #A0C8E8;
+}
+
+QTabBar::tab:hover {
+    background: #E5F4FF;
+}
+""")
+
         # --- モデル指標タブ ---
         self.tab_model_info = QWidget(self.tab_widget)
         model_info_layout = QVBoxLayout(self.tab_model_info)
