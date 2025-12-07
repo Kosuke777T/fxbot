@@ -21,7 +21,7 @@ from app.services.ai_service import AISvc, get_model_metrics
 from app.services.recent_kpi import compute_recent_kpi_from_decisions
 from app.gui.widgets.feature_importance import FeatureImportanceWidget
 from app.gui.widgets.shap_bar import ShapBarWidget
-from app.gui.widgets.monthly_dashboard import MonthlyDashboardGroup
+from app.gui.widgets.kpi_dashboard import KPIDashboardWidget
 from app.core.strategy_profile import get_profile
 from app.services import edition_guard
 
@@ -42,8 +42,17 @@ class AITab(QWidget):
             print(f"[AITab] model autoload skipped: {e}")
 
         main_layout = QVBoxLayout(self)
-        # --- モデル指標パネル ------------------------------------
-        self.model_group = QGroupBox("モデル指標", self)
+        
+        # タブウィジェットをメインレイアウトに追加（モデル指標はタブ内に移動）
+        self.tab_widget = QTabWidget(self)
+        main_layout.addWidget(self.tab_widget, 1)
+
+        # --- モデル指標タブ ---
+        self.tab_model_info = QWidget(self.tab_widget)
+        model_info_layout = QVBoxLayout(self.tab_model_info)
+        
+        # モデル指標パネル
+        self.model_group = QGroupBox("モデル指標", self.tab_model_info)
         model_form = QFormLayout(self.model_group)
 
         # 基本情報
@@ -67,17 +76,19 @@ class AITab(QWidget):
         model_form.addRow("AUC", self.lbl_model_auc)
         model_form.addRow("最終更新", self.lbl_model_updated)
 
-        main_layout.addWidget(self.model_group)
-
-        self.tab_widget = QTabWidget(self)
-        main_layout.addWidget(self.tab_widget, 1)
+        model_info_layout.addWidget(self.model_group)
+        model_info_layout.addStretch(1)
+        
+        self.tab_model_info.setLayout(model_info_layout)
+        self.tab_widget.addTab(self.tab_model_info, "モデル指標")
 
         self.tab_kpi = QWidget(self.tab_widget)
         kpi_layout = QVBoxLayout(self.tab_kpi)
 
-        # 月次ダッシュボード
-        self.monthly_group = MonthlyDashboardGroup(self.tab_kpi)
-        kpi_layout.addWidget(self.monthly_group)
+        # 正式KPIダッシュボード（T-10 STEP2）
+        profile_name = self.profile.name if hasattr(self.profile, "name") else "std"
+        self.kpi_dashboard = KPIDashboardWidget(profile=profile_name, parent=self.tab_kpi)
+        kpi_layout.addWidget(self.kpi_dashboard, 1)
 
         self.recent_kpi_group = QGroupBox("Recent Trades KPI", self.tab_kpi)
         kpi_form = QFormLayout(self.recent_kpi_group)
@@ -112,10 +123,7 @@ class AITab(QWidget):
         kpi_layout.addStretch(1)
 
         self.tab_widget.addTab(self.tab_kpi, "KPI")
-        try:
-            self.monthly_group.refresh()
-        except Exception as e:  # pragma: no cover - UI fallback
-            print("[AI Tab] monthly dashboard refresh error:", e)
+        # KPIダッシュボードは初期化時に自動的にrefreshされる
 
         # --- FI / SHAP 表示制御（CapabilitySet 版） ---
         fi_level = edition_guard.get_capability("fi_level") or 0
