@@ -1,2 +1,0 @@
-make_csv_from_mt5.py
-python -m scripts.make_csv_from_mt5 --layout per-symbol

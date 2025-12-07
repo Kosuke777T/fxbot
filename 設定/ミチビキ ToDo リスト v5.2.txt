@@ -1,0 +1,189 @@
+◆ Part 1：AIタブ & KPI（完成版）
+
+AIタブと月次3％ダッシュボードが、ミチビキの“顔”になる機能群。
+
+T-10｜KPIダッシュボード本実装
+
+月次12ヶ月の折れ線グラフ
+
+今月の進捗ゲージ（利益/3%）
+
+最大DD・勝率・PF の表示
+
+KPIService の正式拡張（仕様書 v5準拠）
+
+これが完成すると「今、どのくらい順調なのか」を一目で判断できる。
+
+T-11｜FI/SHAP の Edition 対応
+
+fi_level（0/1/2/3）で Top3/Top20/All を切り替え
+
+shap_level（0/1/2/3）で SHAP の表示内容を切り替え
+
+Lazy-load のまま EditionGuard に完全準拠
+
+AIタブが製品版仕様になる重要ステップ。
+
+T-12｜診断AI（v0 → Full）
+
+時間帯 × 相場タイプ分析
+
+勝率の高い相場条件
+
+DD直前の特徴
+
+連勝区間の特徴
+
+異常点の自動検出
+
+Expert 限定：来週のシナリオ提示
+
+Pro/Expert で差別化の核になる部分。
+
+◆ Part 2：フィルタエンジン完成（StrategyFilterEngine）
+T-20｜フィルタエンジン v5.1 完全版
+
+評価順を固定（時間帯 → ATR → ボラ → トレンド → 連敗回避）
+
+EntryContext の標準化
+
+decisions.jsonl に理由を統合
+
+filter_level で有効化範囲を制御（Edition 適用）
+
+仕様書のルールに最も沿った“エンジンの完成版”。
+
+T-21｜連敗回避ロジックの実装
+
+連敗数カウンタ
+
+閾値に達するとエントリーストップ
+
+勝利 or 時間経過で解除
+
+Expertのみ UI 表示
+
+自動売買中の深い損失を防ぐ、安全装置。
+
+T-22｜プロファイル自動切替（Expert）
+
+過去 N トレード or 月次成績から最適プロファイルに自動切替
+
+切替履歴ログ
+
+ON/OFF 切り替え
+
+“市場に合わせて勝手に戦略を選ぶ” ミチビキの高度モード。
+
+◆ Part 3：バックテスト & Walk-Forward（WFO）
+T-30｜BacktestEngine の v5.1 準拠化
+
+StrategyBase → Filter → SimulatedExecution の統一
+
+monthly_returns.csv（公式形式）を必ず出力
+
+バックテスト版 decisions.jsonl も出力
+
+すべての分析機能（KPI/診断AI/ランキング）が連動し始める。
+
+T-31｜WFO（Walk-Forward再学習）の安定化
+
+expected_features の整合性チェック
+
+active_model.json の自動/手動更新
+
+retry / timeout / エラーサマリ
+
+プロファイルごとの WFO 確立
+
+ここが完成すると、
+ミチビキは “モデルを毎週自動的に強化するAI” となる。
+
+◆ Part 4：スケジューラ（標準 & 常駐）
+T-40｜Scheduler v5.1 の StateMachine
+
+IDLE → RUNNING → SUCCESS/FAILED の遷移
+
+last_run_at による重複防止
+
+scheduler.yaml 読み込み
+
+ジョブの安定稼働がここで確立。
+
+T-41｜Edition制御（scheduler_level）の適用
+
+Free：表示のみ
+
+Basic：週1固定ジョブ
+
+Pro：1ジョブだけ実行可能
+
+Expert：複数ジョブ & ジョブ連鎖
+
+課金エディションの要。
+
+T-42｜Scheduler GUI 完成
+
+ジョブ一覧
+
+実行ログ
+
+次回実行時刻
+
+Expert: ジョブ追加/削除
+
+これで “完全に製品としてのスケジューラ” になる。
+
+◆ Part 5：ランキング機能
+
+ミチビキ v5 の最後の大型要素。
+
+T-50｜ランキングAPI（モック → 本番）
+
+monthly_returns.csv → payload 化
+
+Expert：複合スコア（Return × DD × PF）
+
+自動送信（scheduler と連動）
+
+T-51｜ランキングタブ（Edition対応）
+
+Free：閲覧だけ
+
+Basic：軽量スコア送信
+
+Pro：Returnのみ送信
+
+Expert：複合スコア送信 + 自動
+
+ここまで来ると “コミュニティ型のプロダクト” に進化する。
+
+◆ Part 6：MT5・Execution・AI判断ログの統合
+T-60｜MT5Client の仕様統一 & 例外処理
+
+initialize / price / order のログを統一
+
+filter_reason / trade_reason を JSONL に追加
+
+MT5接続エラーも安全に処理
+
+実運用のための必須項目。
+
+T-61｜ExecutionService v5.1 完全化
+
+Strategy → Filter → Execution の一元化
+
+best_threshold に基づく売買判断
+
+decisions.jsonl の標準化
+
+AIタブ「直近10トレード可視化」への対応
+
+ここでようやく “実運用品質の売買エンジン” が完成する。
+
+◆ Part 7：最終段階（Masterツールは任意）
+
+本番運用には必須ではないが、開発者としては必要。
+
+T-70｜モデル比較ツール
+T-71｜バックテスト一括ランナー
