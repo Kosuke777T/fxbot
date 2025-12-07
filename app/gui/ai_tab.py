@@ -125,9 +125,15 @@ class AITab(QWidget):
         self.tab_widget.addTab(self.tab_kpi, "KPI")
         # KPIダッシュボードは初期化時に自動的にrefreshされる
 
+        # EditionGuard を利用して表示レベルを取得
+        from app.services.edition_guard import get_capability
+
+        self.fi_level = get_capability("fi_level") or 0
+        self.shap_level = get_capability("shap_level") or 0
+
         # --- FI / SHAP 表示制御（CapabilitySet 版） ---
-        fi_level = edition_guard.get_capability("fi_level") or 0
-        shap_level = edition_guard.get_capability("shap_level") or 0
+        fi_level = self.fi_level
+        shap_level = self.shap_level
 
         if fi_level > 0:
             self.tab_fi = QWidget(self.tab_widget)
