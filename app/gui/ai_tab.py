@@ -24,8 +24,10 @@ from app.services.recent_kpi import compute_recent_kpi_from_decisions
 from app.gui.widgets.feature_importance import FeatureImportanceWidget
 from app.gui.widgets.shap_bar import ShapBarWidget
 from app.gui.widgets.kpi_dashboard import KPIDashboardWidget
+from app.gui.widgets.diagnosis_ai_widget import DiagnosisAIWidget
 from app.core.strategy_profile import get_profile
 from app.services import edition_guard
+from app.services.diagnosis_service import get_diagnosis_service
 
 
 class AITab(QWidget):
@@ -158,6 +160,17 @@ class AITab(QWidget):
             shap_layout.addStretch(1)
 
             self.tab_widget.addTab(self.tab_shap, "SHAP")
+
+        # 診断AIタブ（Pro以上）
+        from app.services.edition_guard import get_capability
+        if (get_capability("shap_level") or 0) >= 1:
+            self.diagnosis_tab = DiagnosisAIWidget(self.tab_widget)
+            self.tab_widget.addTab(self.diagnosis_tab, "診断AI")
+            
+            # v0: 暫定的に固定プロファイル "std" を使用して診断実行
+            diag_svc = get_diagnosis_service()
+            diag_result = diag_svc.analyze(profile="std")
+            self.diagnosis_tab.update_data(diag_result)
 
         self.btn_refresh_kpi.clicked.connect(self.refresh_kpi)
         # Recent Trades KPI
