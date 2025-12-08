@@ -600,6 +600,9 @@ class ExecutionStub:
         # ロット計算用：価格単位の ATR（特徴量 atr_14 と同じもの）
         atr_for_lot = float(features.get("atr_14", 0.0))
 
+        # v0: ATR% をそのまま volatility として使う
+        volatility_val = cur_atr_pct
+
         base_filters: Dict[str, Any] = {
             "spread": cur_spread,
             "spread_limit": spread_limit,
@@ -611,6 +614,8 @@ class ExecutionStub:
             "prob_threshold": prob_threshold,
             # ログ用に、ロット計算で使う ATR も入れておく
             "atr_for_lot": atr_for_lot,
+            # v0: フィルタ用のボラティリティ指標（実体は ATR%）
+            "volatility": volatility_val,
         }
         if side_bias is not None:
             base_filters["side_bias"] = side_bias
@@ -650,10 +655,9 @@ class ExecutionStub:
                 "ai": ai_info,  # on_tick 内で作っている AI 情報の dict
                 "filters": filters,  # さきほど組み立てた filters
                 "cb": cb_info,  # サーキットブレーカー情報
-                # 必要に応じて他のメタ情報も追加
                 "atr": float(atr_for_lot) if atr_for_lot is not None and atr_for_lot > 0 else None,
-                "volatility": features.get("volatility") if isinstance(features, dict) else (ai_out.meta.get("volatility") if isinstance(ai_out.meta, dict) else None),
-                "trend_strength": features.get("trend_strength") if isinstance(features, dict) else (ai_out.meta.get("trend_strength") if isinstance(ai_out.meta, dict) else None),
+                "volatility": volatility_val,  # v0: ATR% ベース
+                "trend_strength": None,  # ここは将来用スロットとして確保だけ
                 "consecutive_losses": int(cb_status.get("consecutive_losses", 0)) if isinstance(cb_status, dict) else 0,
                 "profile_stats": {
                     "profile_name": get_profile("michibiki_std").name if hasattr(get_profile("michibiki_std"), "name") else None,
