@@ -391,6 +391,7 @@ def _build_decision_trace(
         "cb": cb_status,
         "features_hash": ai_out.features_hash,
         "model": ai_out.model_name,
+        "filter_reasons": [],  # デフォルト値（decision に含まれていれば上書きされる）
     }
     if isinstance(decision, dict):
         trace["decision_detail"] = decision
@@ -400,6 +401,16 @@ def _build_decision_trace(
             trace["lot"] = decision.get("lot")
         if "lot_info" in decision:
             trace["lot_info"] = decision.get("lot_info")
+
+        # --- フィルタ情報をトップレベルにコピー -----------------
+        if "filter_pass" in decision:
+            trace["filter_pass"] = decision.get("filter_pass")
+        if "filter_reasons" in decision:
+            filter_reasons = decision.get("filter_reasons")
+            if filter_reasons is not None:
+                trace["filter_reasons"] = list(filter_reasons) if isinstance(filter_reasons, (list, tuple)) else []
+            else:
+                trace["filter_reasons"] = []
 
         exit_plan = decision.get("signal", {}).get("exit_plan")
     else:
@@ -953,9 +964,19 @@ class ExecutionStub:
         }
 
         if not ok:
-            # フィルタ NG の場合は decision をログに出すだけ
-            print(f"[Filter] blocked decision: {decision_payload}")
-            return {"blocked": True, "ai": ai_out, "cb": cb_status, "ts": ts, "decision": decision_payload}
+            # フィルタ NG の場合は BLOCKED としてログに記録
+            blocked_payload = {
+                "action": "BLOCKED",
+                "reason": "filtered",
+                "ai_meta": ai_out.meta,
+                "dec": decision_info,
+                "filter_pass": False,
+                "filter_reasons": reasons,
+            }
+            filters_ctx_blocked = dict(base_filters)
+            filters_ctx_blocked["blocked"] = "filter_service"
+            _emit(blocked_payload, filters_ctx_blocked, level="warning")
+            return {"blocked": True, "ai": ai_out, "cb": cb_status, "ts": ts, "decision": blocked_payload}
 
         _emit(decision_payload, filters_ctx, level="info")
         return {"blocked": False, "ai": ai_out, "cb": cb_status, "ts": ts, "decision": decision_payload}
@@ -1125,3 +1146,88 @@ def evaluate_and_log_once() -> None:
                 shutdown()
         except Exception:
             pass
+
+
+def debug_emit_single_decision() -> None:
+    """
+    フィルタ + decisions.jsonl ログを 1 回だけテスト出力するデバッグ関数。
+    ExecutionService を経由せず、内部ロガーの経路だけを直接叩く。
+    """
+    from datetime import datetime
+    from app.services.filter_service import evaluate_entry
+
+    # 1) ダミーの ProbOut オブジェクトを作成
+    class DummyProbOut:
+        def __init__(self):
+            self.p_buy = 0.7
+            self.p_sell = 0.3
+            self.p_skip = 0.0
+            self.meta = {"symbol": "USDJPY-", "profile": "std"}
+            self.model_name = "debug_model"
+            self.calibrator_name = "debug_calibrator"
+            self.features_hash = "debug_hash"
+
+        def model_dump(self):
+            return {
+                "p_buy": self.p_buy,
+                "p_sell": self.p_sell,
+                "p_skip": self.p_skip,
+                "meta": self.meta,
+                "model_name": self.model_name,
+                "calibrator_name": self.calibrator_name,
+                "features_hash": self.features_hash,
+            }
+
+    ai_out = DummyProbOut()
+
+    # 2) フィルタ用コンテキストを作る
+    ctx = {
+        "timestamp": datetime.now(),
+        "atr": 0.5,
+        "volatility": 1.0,
+        "trend_strength": 0.1,
+        "consecutive_losses": 3,
+        "profile_stats": {},
+    }
+
+    ok, reasons = evaluate_entry(ctx)
+
+    # 3) フィルタ結果を decision に反映
+    decision = {
+        "action": "ENTRY" if ok else "BLOCKED",
+        "reason": "entry_ok" if ok else "filtered",
+        "ai_meta": ai_out.meta,
+        "filter_pass": ok,
+        "filter_reasons": reasons,
+    }
+
+    # 4) ダミーの cb_status と filters_ctx を作成
+    cb_status = {
+        "tripped": False,
+        "reason": None,
+        "consecutive_losses": 0,
+    }
+    filters_ctx = {
+        "blocked": None if ok else "filter_service",
+        "spread": 0.6,
+        "adx": 25.0,
+        "atr_pct": 0.0005,
+    }
+
+    # 5) _build_decision_trace を使って trace を作成
+    trace = _build_decision_trace(
+        ts_jst=now_jst_iso(),
+        symbol="USDJPY-",
+        ai_out=ai_out,
+        cb_status=cb_status,
+        filters_ctx=filters_ctx,
+        decision=decision,
+        prob_threshold=0.5,
+        calibrator_name=ai_out.calibrator_name,
+    )
+
+    # 6) decisions.jsonl に出力
+    _write_decision_log("USDJPY-", trace)
+
+    print(f"debug_emit_single_decision: ok = {ok}, reasons = {reasons}")
+    print(f"  -> decisions.jsonl に出力しました: {trace.get('ts_jst')}")
