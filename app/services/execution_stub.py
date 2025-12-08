@@ -24,6 +24,7 @@ from app.services.trailing import AtrTrailer, TrailConfig, TrailState
 from app.services.trailing_hook import apply_trailing_update
 from app.services.trade_service import TradeService
 from app.services.filter_service import evaluate_entry
+from app.services.edition_guard import filter_level
 from core import position_guard
 from core.ai.service import AISvc, ProbOut
 from core.metrics import METRICS
@@ -626,6 +627,46 @@ class ExecutionStub:
         grace_active = trade_service.post_fill_grace_active()
         base_filters["post_fill_grace"] = grace_active
 
+        # EditionGuard から filter_level を取得して base_filters に追加
+        current_filter_level = filter_level()
+        base_filters["filter_level"] = current_filter_level
+
+        # --- フィルタ評価の共通ロジック（ここから） ---
+        lvl = base_filters.get("filter_level", 0)
+
+        # デフォルト（filter_level == 0 のとき）
+        filter_pass: Optional[bool] = None
+        filter_reasons: list[str] = []
+
+        if isinstance(lvl, int) and lvl > 0:
+            # EntryContext 互換の dict を組み立て
+            ai_info = _ai_to_dict(ai_out)
+            filters = dict(base_filters)  # base_filters のコピー
+            cb_info = dict(cb_status) if isinstance(cb_status, dict) else {}
+
+            entry_context = {
+                "timestamp": ts,  # 既に on_tick 内にある timestamp を使う
+                "symbol": symbol,  # 現在のシンボル
+                "ai": ai_info,  # on_tick 内で作っている AI 情報の dict
+                "filters": filters,  # さきほど組み立てた filters
+                "cb": cb_info,  # サーキットブレーカー情報
+                # 必要に応じて他のメタ情報も追加
+                "atr": float(atr_for_lot) if atr_for_lot is not None and atr_for_lot > 0 else None,
+                "volatility": features.get("volatility") if isinstance(features, dict) else (ai_out.meta.get("volatility") if isinstance(ai_out.meta, dict) else None),
+                "trend_strength": features.get("trend_strength") if isinstance(features, dict) else (ai_out.meta.get("trend_strength") if isinstance(ai_out.meta, dict) else None),
+                "consecutive_losses": int(cb_status.get("consecutive_losses", 0)) if isinstance(cb_status, dict) else 0,
+                "profile_stats": {
+                    "profile_name": get_profile("michibiki_std").name if hasattr(get_profile("michibiki_std"), "name") else None,
+                },
+            }
+
+            ok, reasons = evaluate_entry(entry_context)
+
+            # decisions.jsonl に書き出す値
+            filter_pass = ok  # True / False
+            filter_reasons = reasons or []  # None 回避
+        # --- フィルタ評価の共通ロジック（ここまで） ---
+
         def _emit(decision: Any, filters_ctx: Dict[str, Any], level: str = "info") -> None:
             # decision が str ("SKIP" など) の場合は dict として扱わずに抜ける
             if not isinstance(decision, dict):
@@ -749,34 +790,56 @@ class ExecutionStub:
                     "side": trail_info["state"].get("side"),
                     "symbol": trail_info["state"].get("symbol", symbol),
                 },
+                "filter_pass": filter_pass,
+                "filter_reasons": filter_reasons,
             }
             _emit(decision_payload, filters_ctx, level="info")
 
         if not _session_hour_allowed():
             filters_ctx = dict(base_filters)
             filters_ctx["session"] = "closed"
-            decision_payload = {"action": "SKIP", "reason": "session_closed"}
+            decision_payload = {
+                "action": "SKIP",
+                "reason": "session_closed",
+                "filter_pass": filter_pass,
+                "filter_reasons": filter_reasons,
+            }
             _emit(decision_payload, filters_ctx, level="info")
             return {"blocked": False, "ai": ai_out, "cb": cb_status, "ts": ts, "decision": decision_payload}
 
         if not grace_active and cur_spread and cur_spread > spread_limit:
             filters_ctx = dict(base_filters)
             filters_ctx["blocked"] = "spread"
-            decision_payload = {"action": "BLOCKED", "reason": "spread"}
+            decision_payload = {
+                "action": "BLOCKED",
+                "reason": "spread",
+                "filter_pass": filter_pass,
+                "filter_reasons": filter_reasons,
+            }
             _emit(decision_payload, filters_ctx, level="warning")
             return {"blocked": True, "ai": ai_out, "cb": cb_status, "ts": ts, "decision": None}
 
         if not grace_active and not disable_adx_gate and cur_adx < min_adx:
             filters_ctx = dict(base_filters)
             filters_ctx["blocked"] = "adx_low"
-            decision_payload = {"action": "BLOCKED", "reason": "adx_low"}
+            decision_payload = {
+                "action": "BLOCKED",
+                "reason": "adx_low",
+                "filter_pass": filter_pass,
+                "filter_reasons": filter_reasons,
+            }
             _emit(decision_payload, filters_ctx, level="warning")
             return {"blocked": True, "ai": ai_out, "cb": cb_status, "ts": ts, "decision": None}
 
         if not grace_active and not atr_gate_ok:
             filters_ctx = dict(base_filters)
             filters_ctx["blocked"] = "atr_low"
-            decision_payload = {"action": "BLOCKED", "reason": "atr_low"}
+            decision_payload = {
+                "action": "BLOCKED",
+                "reason": "atr_low",
+                "filter_pass": filter_pass,
+                "filter_reasons": filter_reasons,
+            }
             _emit(decision_payload, filters_ctx, level="warning")
             return {"blocked": True, "ai": ai_out, "cb": cb_status, "ts": ts, "decision": None}
 
@@ -784,7 +847,12 @@ class ExecutionStub:
             cb_status = self.cb.status()
             filters_ctx = dict(base_filters)
             filters_ctx["blocked"] = "circuit_breaker"
-            decision_payload = {"action": "BLOCKED", "reason": cb_status.get("reason", "circuit_breaker")}
+            decision_payload = {
+                "action": "BLOCKED",
+                "reason": cb_status.get("reason", "circuit_breaker"),
+                "filter_pass": filter_pass,
+                "filter_reasons": filter_reasons,
+            }
             _emit(decision_payload, filters_ctx, level="warning")
             return {"blocked": True, "ai": ai_out, "cb": cb_status, "ts": ts, "decision": None}
 
@@ -793,7 +861,12 @@ class ExecutionStub:
         if cb_status.get("tripped"):
             filters_ctx = dict(base_filters)
             filters_ctx["blocked"] = "circuit_breaker"
-            decision_payload = {"action": "BLOCKED", "reason": cb_status.get("reason", "circuit_breaker")}
+            decision_payload = {
+                "action": "BLOCKED",
+                "reason": cb_status.get("reason", "circuit_breaker"),
+                "filter_pass": filter_pass,
+                "filter_reasons": filter_reasons,
+            }
             _emit(decision_payload, filters_ctx, level="warning")
             return {"blocked": True, "ai": ai_out, "cb": cb_status, "ts": ts, "decision": None}
 
@@ -860,6 +933,8 @@ class ExecutionStub:
                 "reason": "ai_threshold",
                 "ai_meta": ai_out.meta,
                 "dec": decision_info,
+                "filter_pass": filter_pass,
+                "filter_reasons": filter_reasons,
             }
             _emit(decision_payload, filters_ctx, level="info")
             return {"blocked": False, "ai": ai_out, "cb": cb_status, "ts": ts, "decision": decision_payload}
@@ -871,6 +946,8 @@ class ExecutionStub:
                 "reason": "ai_low_edge",
                 "ai_meta": ai_out.meta,
                 "dec": decision_info,
+                "filter_pass": filter_pass,
+                "filter_reasons": filter_reasons,
             }
             _emit(decision_payload, filters_ctx, level="info")
             return {"blocked": False, "ai": ai_out, "cb": cb_status, "ts": ts, "decision": decision_payload}
@@ -892,6 +969,8 @@ class ExecutionStub:
                 "reason": "pos_guard",
                 "ai_meta": ai_out.meta,
                 "dec": decision_info,
+                "filter_pass": filter_pass,
+                "filter_reasons": filter_reasons,
             }
             _emit(decision_payload, blocked_filters, level="warning")
             position_guard.on_order_rejected_or_canceled(symbol)
@@ -988,19 +1067,9 @@ class ExecutionStub:
                 print(f"[warn] failed to serialize lot_result: {exc!r}")
                 lot_info = None
 
-        # --- フィルタエンジン呼び出しを追加 ---
-        entry_context = {
-            "timestamp": datetime.now(),
-            "atr": float(atr_val) if atr_val is not None and atr_val > 0 else None,
-            "volatility": features.get("volatility") if isinstance(features, dict) else (ai_out.meta.get("volatility") if isinstance(ai_out.meta, dict) else None),
-            "trend_strength": features.get("trend_strength") if isinstance(features, dict) else (ai_out.meta.get("trend_strength") if isinstance(ai_out.meta, dict) else None),
-            "consecutive_losses": int(cb_status.get("consecutive_losses", 0)) if isinstance(cb_status, dict) else 0,
-            "profile_stats": {
-                "profile_name": profile.name if hasattr(profile, "name") else None,
-            } if profile else {},
-        }
-
-        ok, reasons = evaluate_entry(entry_context)
+        # ENTRY のときは、より詳細なATR値で再評価する（オプション）
+        # ただし、共通ロジックで既に評価済みなので、ここではその結果を使用
+        # より正確な評価が必要な場合は、ここで再評価することも可能
 
         decision_payload = {
             "action": "ENTRY",
@@ -1010,11 +1079,11 @@ class ExecutionStub:
             "dec": decision_info,
             "lot": (lot_info.get("lot") if isinstance(lot_info, dict) else None),
             "lot_info": lot_info,
-            "filter_pass": ok,
-            "filter_reasons": reasons,
+            "filter_pass": filter_pass,
+            "filter_reasons": filter_reasons,
         }
 
-        if not ok:
+        if filter_pass is False:
             # フィルタ NG の場合は BLOCKED としてログに記録
             blocked_payload = {
                 "action": "BLOCKED",
@@ -1022,7 +1091,7 @@ class ExecutionStub:
                 "ai_meta": ai_out.meta,
                 "dec": decision_info,
                 "filter_pass": False,
-                "filter_reasons": reasons,
+                "filter_reasons": filter_reasons,
             }
             filters_ctx_blocked = dict(base_filters)
             filters_ctx_blocked["blocked"] = "filter_service"
