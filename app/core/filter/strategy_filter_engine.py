@@ -1,8 +1,17 @@
 # app/core/strategy_filter_engine.py
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Dict, List, Tuple
+
+
+@dataclass
+class FilterConfig:
+    """フィルタエンジンの設定"""
+
+    # 連敗回避: この回数以上連敗したらエントリー停止（0 以下なら無効）
+    losing_streak_limit: int = 0
 
 
 class StrategyFilterEngine:
@@ -18,6 +27,16 @@ class StrategyFilterEngine:
       ⑤ 連敗回避
       ⑥ プロファイル自動切替
     """
+
+    def __init__(self, config: FilterConfig | None = None):
+        """初期化
+
+        Parameters
+        ----------
+        config : FilterConfig, optional
+            フィルタ設定。None の場合はデフォルト設定を使用
+        """
+        self.config = config or FilterConfig()
 
     def evaluate(self, ctx: Dict, filter_level: int) -> Tuple[bool, List[str]]:
         """エントリー可否を評価する
@@ -52,18 +71,23 @@ class StrategyFilterEngine:
             if not self._check_atr(ctx):
                 reasons.append("atr")
 
-        # ③〜⑤ Expert（level >= 3）
+        # ③ ボラティリティ（level >= 3）
         if filter_level >= 3:
             if not self._check_volatility(ctx):
                 reasons.append("volatility")
 
+        # ④ トレンド強度（level >= 3）
+        if filter_level >= 3:
             if not self._check_trend(ctx):
                 reasons.append("trend")
 
-            if not self._check_loss_streak(ctx):
-                reasons.append("loss_streak")
+        # ⑤ 連敗回避フィルタ（level >= 3）
+        if filter_level >= 3:
+            if not self._check_losing_streak(ctx, reasons):
+                return False, reasons
 
-            # ⑥ プロファイル自動切替（結果には影響させない）
+        # ⑥ プロファイル自動切替（結果には影響させない）
+        if filter_level >= 3:
             self._auto_switch_profile(ctx)
 
         ok = len(reasons) == 0
@@ -144,17 +168,34 @@ class StrategyFilterEngine:
 
         return min_t <= strength <= max_t
 
-    def _check_loss_streak(self, ctx: Dict) -> bool:
-        """連敗回避フィルタ
-
-        ctx["consecutive_losses"]: int
-        ctx["max_loss_streak"]: int を優先利用
-        v0 では 3 連敗でストップ
+    def _check_losing_streak(self, ctx: Dict, reasons: List[str]) -> bool:
         """
-        streak = int(ctx.get("consecutive_losses") or 0)
-        max_streak = int(ctx.get("max_loss_streak") or 3)
+        連敗回避フィルタ:
+        - config.losing_streak_limit > 0 のときだけ有効
+        - entry_context["consecutive_losses"] が limit 以上なら NG
+        - NG の場合は reasons に "losing_streak" を追加
+        """
+        limit = getattr(self.config, "losing_streak_limit", 0)
+        if not limit or limit <= 0:
+            # 0 以下なら機能自体を無効として扱う
+            return True
 
-        return streak < max_streak
+        raw_value = ctx.get("consecutive_losses")
+        if raw_value is None:
+            # 情報が来ていない場合はブロックしない
+            return True
+
+        try:
+            losses = int(raw_value)
+        except (TypeError, ValueError):
+            # 変換できない値が来た場合もブロックはしない（安全側：他フィルタに任せる）
+            return True
+
+        if losses >= limit:
+            reasons.append("losing_streak")
+            return False
+
+        return True
 
     def _auto_switch_profile(self, ctx: Dict) -> None:
         """プロファイル自動切替
