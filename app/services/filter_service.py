@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Tuple
 
-from app.core.strategy_filter_engine import StrategyFilterEngine
+from app.core.filter import StrategyFilterEngine
 from app.services.edition_guard import filter_level
 
 # 型エイリアス（EntryContext 互換）

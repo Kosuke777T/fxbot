@@ -809,11 +809,10 @@ class ExecutionStub:
                 "filter_reasons": filter_reasons,
             }
             _emit(decision_payload, filters_ctx, level="info")
-            return {"blocked": False, "ai": ai_out, "cb": cb_status, "ts": ts, "decision": decision_payload}
+            return {"ai": ai_out, "cb": cb_status, "ts": ts, "decision": decision_payload}
 
         if not grace_active and cur_spread and cur_spread > spread_limit:
             filters_ctx = dict(base_filters)
-            filters_ctx["blocked"] = "spread"
             decision_payload = {
                 "action": "BLOCKED",
                 "reason": "spread",
@@ -821,11 +820,10 @@ class ExecutionStub:
                 "filter_reasons": filter_reasons,
             }
             _emit(decision_payload, filters_ctx, level="warning")
-            return {"blocked": True, "ai": ai_out, "cb": cb_status, "ts": ts, "decision": None}
+            return {"ai": ai_out, "cb": cb_status, "ts": ts, "decision": None}
 
         if not grace_active and not disable_adx_gate and cur_adx < min_adx:
             filters_ctx = dict(base_filters)
-            filters_ctx["blocked"] = "adx_low"
             decision_payload = {
                 "action": "BLOCKED",
                 "reason": "adx_low",
@@ -833,11 +831,10 @@ class ExecutionStub:
                 "filter_reasons": filter_reasons,
             }
             _emit(decision_payload, filters_ctx, level="warning")
-            return {"blocked": True, "ai": ai_out, "cb": cb_status, "ts": ts, "decision": None}
+            return {"ai": ai_out, "cb": cb_status, "ts": ts, "decision": None}
 
         if not grace_active and not atr_gate_ok:
             filters_ctx = dict(base_filters)
-            filters_ctx["blocked"] = "atr_low"
             decision_payload = {
                 "action": "BLOCKED",
                 "reason": "atr_low",
@@ -845,12 +842,11 @@ class ExecutionStub:
                 "filter_reasons": filter_reasons,
             }
             _emit(decision_payload, filters_ctx, level="warning")
-            return {"blocked": True, "ai": ai_out, "cb": cb_status, "ts": ts, "decision": None}
+            return {"ai": ai_out, "cb": cb_status, "ts": ts, "decision": None}
 
         if not self.cb.can_trade():
             cb_status = self.cb.status()
             filters_ctx = dict(base_filters)
-            filters_ctx["blocked"] = "circuit_breaker"
             decision_payload = {
                 "action": "BLOCKED",
                 "reason": cb_status.get("reason", "circuit_breaker"),
@@ -858,13 +854,12 @@ class ExecutionStub:
                 "filter_reasons": filter_reasons,
             }
             _emit(decision_payload, filters_ctx, level="warning")
-            return {"blocked": True, "ai": ai_out, "cb": cb_status, "ts": ts, "decision": None}
+            return {"ai": ai_out, "cb": cb_status, "ts": ts, "decision": None}
 
         cb_status = self.cb.status()
 
         if cb_status.get("tripped"):
             filters_ctx = dict(base_filters)
-            filters_ctx["blocked"] = "circuit_breaker"
             decision_payload = {
                 "action": "BLOCKED",
                 "reason": cb_status.get("reason", "circuit_breaker"),
@@ -872,7 +867,7 @@ class ExecutionStub:
                 "filter_reasons": filter_reasons,
             }
             _emit(decision_payload, filters_ctx, level="warning")
-            return {"blocked": True, "ai": ai_out, "cb": cb_status, "ts": ts, "decision": None}
+            return {"ai": ai_out, "cb": cb_status, "ts": ts, "decision": None}
 
         config = load_config()
         entry_cfg = config.get("entry", {}) if isinstance(config, dict) else {}
@@ -885,7 +880,6 @@ class ExecutionStub:
         base_filters["edge"] = edge
 
         filters_ctx = dict(base_filters)
-        filters_ctx["blocked"] = None
 
         if side_bias is None:
             side_bias = (entry_cfg.get("side_bias") or "auto").lower()
@@ -941,7 +935,7 @@ class ExecutionStub:
                 "filter_reasons": filter_reasons,
             }
             _emit(decision_payload, filters_ctx, level="info")
-            return {"blocked": False, "ai": ai_out, "cb": cb_status, "ts": ts, "decision": decision_payload}
+            return {"ai": ai_out, "cb": cb_status, "ts": ts, "decision": decision_payload}
 
         if (chosen_prob - other_prob) < edge:
             decision_info.update({"decision": "SKIP", "reason": "ai_low_edge"})
@@ -954,7 +948,7 @@ class ExecutionStub:
                 "filter_reasons": filter_reasons,
             }
             _emit(decision_payload, filters_ctx, level="info")
-            return {"blocked": False, "ai": ai_out, "cb": cb_status, "ts": ts, "decision": decision_payload}
+            return {"ai": ai_out, "cb": cb_status, "ts": ts, "decision": decision_payload}
 
         decision_info.update(
             {
@@ -966,8 +960,7 @@ class ExecutionStub:
         )
 
         if not trade_service.can_open_new_position(symbol):
-            blocked_filters = dict(base_filters)
-            blocked_filters["blocked"] = "pos_guard"
+            filters_ctx = dict(base_filters)
             decision_payload = {
                 "action": "BLOCKED",
                 "reason": "pos_guard",
@@ -976,9 +969,9 @@ class ExecutionStub:
                 "filter_pass": filter_pass,
                 "filter_reasons": filter_reasons,
             }
-            _emit(decision_payload, blocked_filters, level="warning")
+            _emit(decision_payload, filters_ctx, level="warning")
             position_guard.on_order_rejected_or_canceled(symbol)
-            return {"blocked": True, "ai": ai_out, "cb": cb_status, "ts": ts, "decision": None}
+            return {"ai": ai_out, "cb": cb_status, "ts": ts, "decision": None}
 
         signal = {
             "side": chosen_side,
@@ -1019,7 +1012,6 @@ class ExecutionStub:
 
         trade_service.mark_filled_now()
         filters_ctx = dict(base_filters)
-        filters_ctx["blocked"] = None
         # --- ロット計算挿入ブロック ----------------------
         profile = get_profile("michibiki_std")
 
@@ -1098,12 +1090,11 @@ class ExecutionStub:
                 "filter_reasons": filter_reasons,
             }
             filters_ctx_blocked = dict(base_filters)
-            filters_ctx_blocked["blocked"] = "filter_service"
             _emit(blocked_payload, filters_ctx_blocked, level="warning")
-            return {"blocked": True, "ai": ai_out, "cb": cb_status, "ts": ts, "decision": blocked_payload}
+            return {"ai": ai_out, "cb": cb_status, "ts": ts, "decision": blocked_payload}
 
         _emit(decision_payload, filters_ctx, level="info")
-        return {"blocked": False, "ai": ai_out, "cb": cb_status, "ts": ts, "decision": decision_payload}
+        return {"ai": ai_out, "cb": cb_status, "ts": ts, "decision": decision_payload}
 
 
 def evaluate_and_log_once() -> None:
@@ -1332,7 +1323,6 @@ def debug_emit_single_decision() -> None:
         "consecutive_losses": 0,
     }
     filters_ctx = {
-        "blocked": None if ok else "filter_service",
         "spread": 0.6,
         "adx": 25.0,
         "atr_pct": 0.0005,
