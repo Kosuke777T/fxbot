@@ -156,7 +156,15 @@ class AISvc:
             print(f"[AISvc][warn] expected_features load failed: {exc}")
         self.expected_features = None
 
-    def predict(self, X: Any) -> _ProbOut:
+    def predict(self, X: Any, *, no_metrics: bool = False) -> _ProbOut:
+        """
+        Parameters
+        ----------
+        X : Any
+            特徴量（DataFrame, dict, array など）
+        no_metrics : bool, optional
+            True の場合、metrics の更新を行わない（デフォルト: False）
+        """
         if self.model is None:
             return _ProbOut(0.5, 0.5, model_name=self.model_name, version="na", features_hash="")
 

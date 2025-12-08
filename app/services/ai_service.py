@@ -296,7 +296,7 @@ class AISvc:
                         n=len(self.expected_features),
                     )
 
-    def predict(self, X: np.ndarray | Dict[str, float]) -> "AISvc.ProbOut":
+    def predict(self, X: np.ndarray | Dict[str, float], *, no_metrics: bool = False) -> "AISvc.ProbOut":
         """
         単一サンプルの特徴量を受け取り、p_buy / p_sell / p_skip を返す。
 
@@ -305,6 +305,8 @@ class AISvc:
         X : np.ndarray | Dict[str, float]
             - np.ndarray: shape [1, n_features] の特徴量ベクトル
             - Dict[str, float]: 特徴量名をキーとした辞書（ExecutionStub 互換）
+        no_metrics : bool, optional
+            True の場合、metrics の更新を行わない（デフォルト: False）
 
         Returns
         -------

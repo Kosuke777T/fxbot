@@ -260,7 +260,7 @@ def main() -> None:
     except Exception:
         pass
 
-    stub = ExecutionStub(cb=cb, ai=ai)
+    stub = ExecutionStub(cb=cb, ai=ai, no_metrics=True)  # demo モードでは metrics を書き込まない
 
     print(f"[Demo] Symbol: {symbol}")
     print(f"[Demo] Running {30} ticks...")

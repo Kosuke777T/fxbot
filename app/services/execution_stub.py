@@ -160,7 +160,7 @@ def _current_price_for_side(tick_dict: Optional[Dict[str, float]], side: str, pr
         return tick_dict.get("ask") if side == "BUY" else tick_dict.get("bid")
     return tick_dict.get("mid")
 
-def _register_trailing_state(symbol: str, signal: Dict[str, Any], tick_dict: Optional[Dict[str, float]]) -> None:
+def _register_trailing_state(symbol: str, signal: Dict[str, Any], tick_dict: Optional[Dict[str, float]], *, no_metrics: bool = False) -> None:
     xp = signal.get("exit_plan") or {}
     if xp.get("mode") != "atr":
         runtime_trail_states.pop(symbol, None)
@@ -232,12 +232,14 @@ def _register_trailing_state(symbol: str, signal: Dict[str, Any], tick_dict: Opt
         "symbol": symbol,
         "entry": float(entry_price),
     }
-    publish_metrics({
-        "trail_activated": False,
-        "trail_be_locked": False,
-        "trail_layers":    0,
-        "trail_current_sl": None,
-    })
+    # no_metrics=True のときは metrics 更新をスキップ
+    if not no_metrics:
+        publish_metrics({
+            "trail_activated": False,
+            "trail_be_locked": False,
+            "trail_layers":    0,
+            "trail_current_sl": None,
+        })
     signal["entry_price"] = float(entry_price)
 
 def _update_trailing_state(symbol: str, tick_dict: Optional[Dict[str, float]]) -> Optional[Dict[str, Any]]:
@@ -545,6 +547,7 @@ class ExecutionStub:
     """
     cb: circuit_breaker.CircuitBreaker
     ai: AISvc
+    no_metrics: bool = False  # True の場合、metrics の更新を行わない
 
     def __post_init__(self) -> None:
         try:
@@ -571,7 +574,7 @@ class ExecutionStub:
         ts = now_jst_iso()
 
         cb_status = self.cb.status()
-        ai_out = self.ai.predict(features)
+        ai_out = self.ai.predict(features, no_metrics=self.no_metrics)
 
         tick_dict = _tick_to_dict(runtime_cfg.get("tick"))
         trade_svc = getattr(trade_service, "SERVICE", None)
@@ -649,22 +652,24 @@ class ExecutionStub:
                 cb += 1
 
             # --- まとめて publish（KVS更新＋runtime/metrics.json原子的書き換え） ---
-            publish_metrics({
-                "last_decision": action,
-                "last_reason":   reason,
-                "atr_ref":       float(atr_ref),
-                "atr_gate_state": gate_state,
-                "post_fill_grace": bool(post_grace),
-                "spread":          filters_ctx.get("spread"),
-                "adx":             filters_ctx.get("adx"),
-                "min_adx":         filters_ctx.get("min_adx"),
-                "prob_threshold":  filters_ctx.get("prob_threshold"),
-                "min_atr_pct":     filters_ctx.get("min_atr_pct"),
-                "count_entry":     ce,
-                "count_skip":      cs,
-                "count_blocked":   cb,
-                # ts は publish_metrics 側でも自動付与するが、ここで入れても良い
-            })
+            # no_metrics=True のときは metrics 更新をスキップ
+            if not self.no_metrics:
+                publish_metrics({
+                    "last_decision": action,
+                    "last_reason":   reason,
+                    "atr_ref":       float(atr_ref),
+                    "atr_gate_state": gate_state,
+                    "post_fill_grace": bool(post_grace),
+                    "spread":          filters_ctx.get("spread"),
+                    "adx":             filters_ctx.get("adx"),
+                    "min_adx":         filters_ctx.get("min_adx"),
+                    "prob_threshold":  filters_ctx.get("prob_threshold"),
+                    "min_atr_pct":     filters_ctx.get("min_atr_pct"),
+                    "count_entry":     ce,
+                    "count_skip":      cs,
+                    "count_blocked":   cb,
+                    # ts は publish_metrics 側でも自動付与するが、ここで入れても良い
+                })
 
 
             trail_signal = decision.get("signal") if isinstance(decision, dict) else None
@@ -725,12 +730,14 @@ class ExecutionStub:
             filters_ctx["trail_state"] = trail_info["state"]
             filters_ctx["trail_new_sl"] = trail_info["new_sl"]
             filters_ctx["trail_price"] = trail_info["price"]
-            publish_metrics({
-                "trail_activated": bool(trail_info["state"].get("activated")),
-                "trail_be_locked": bool(trail_info["state"].get("be_locked")),
-                "trail_layers":    int(trail_info["state"].get("layers") or 0),
-                "trail_current_sl": trail_info["state"].get("current_sl"),
-            })
+            # no_metrics=True のときは metrics 更新をスキップ
+            if not self.no_metrics:
+                publish_metrics({
+                    "trail_activated": bool(trail_info["state"].get("activated")),
+                    "trail_be_locked": bool(trail_info["state"].get("be_locked")),
+                    "trail_layers":    int(trail_info["state"].get("layers") or 0),
+                    "trail_current_sl": trail_info["state"].get("current_sl"),
+                })
 
             decision_payload = {
                 "action": "TRAIL_UPDATE",
@@ -925,7 +932,7 @@ class ExecutionStub:
         if atr_for_lot is not None:
             signal["atr_for_lot"] = float(atr_for_lot)
 
-        _register_trailing_state(symbol, signal, tick_dict)
+        _register_trailing_state(symbol, signal, tick_dict, no_metrics=self.no_metrics)
 
         trade_service.mark_filled_now()
         filters_ctx = dict(base_filters)
