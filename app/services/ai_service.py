@@ -153,6 +153,8 @@ class AISvc:
         self._shap_cache_ts: float = 0.0
 
         self.expected_features: Optional[list[str]] = None
+        self.calibrator_name: str = "none"  # execution_stub.py で参照される属性
+        self.model_name: str = "unknown"  # execution_stub.py で参照される属性
 
         # ★ここを追加：起動時に一度だけ active_model.json と同期
         self._sync_expected_features()
@@ -294,14 +296,38 @@ class AISvc:
                         n=len(self.expected_features),
                     )
 
-    def predict(self, X: np.ndarray) -> "AISvc.ProbOut":
+    def predict(self, X: np.ndarray | Dict[str, float]) -> "AISvc.ProbOut":
         """
-        単一サンプルの特徴量ベクトル X (shape: [1, n_features]) を受け取り、
-        p_buy / p_sell / p_skip を返す。
-        - LightGBM Booster なら model.predict(X) が陽線クラスの確率を返す前提
-        - sklearn 互換なら predict_proba を優先
+        単一サンプルの特徴量を受け取り、p_buy / p_sell / p_skip を返す。
+
+        Parameters
+        ----------
+        X : np.ndarray | Dict[str, float]
+            - np.ndarray: shape [1, n_features] の特徴量ベクトル
+            - Dict[str, float]: 特徴量名をキーとした辞書（ExecutionStub 互換）
+
+        Returns
+        -------
+        AISvc.ProbOut
+            p_buy, p_sell, p_skip を含む予測結果
         """
         self._ensure_model_loaded()
+
+        # Dict[str, float] が渡された場合は np.ndarray に変換
+        if isinstance(X, dict):
+            # expected_features に基づいてベクトル化
+            model_feats = self._normalize_features_for_model(X)
+            if self.expected_features:
+                vec = [model_feats.get(name, 0.0) for name in self.expected_features]
+            else:
+                vec = list(model_feats.values())
+            X = np.array([vec], dtype=float)
+        else:
+            # np.ndarray の場合も expected_features に合わせて変換
+            if isinstance(X, (list, tuple)):
+                X = np.array(X, dtype=float)
+            if X.ndim == 1:
+                X = X.reshape(1, -1)
 
         # --- デバッグ: モデル入力の shape と1行目をログに出す ---
         try:
@@ -617,7 +643,7 @@ class AISvc:
 
             # 最初のモデルを取得
             model = next(iter(self.models.values()))
-            
+
             # モデルに get_shap_values() メソッドがあるか確認
             if not hasattr(model, "get_shap_values"):
                 # モデル側に実装がない場合は空を返す
@@ -723,14 +749,14 @@ class AISvc:
             import shap
             # Lazy SHAP
             explainer = shap.TreeExplainer(model)
-            
+
             # 背景データを取得（既存のメソッドを使用）
             try:
                 bg_features = self._load_shap_background_features(max_rows=100)
             except Exception:
                 # 背景データがない場合は空を返す
                 return {"features": [], "values": []}
-            
+
             shap_values = explainer.shap_values(bg_features)
         except Exception as e:
             logger.warning(f"[AISvc.shap_summary] SHAP計算エラー: {e}")
@@ -742,7 +768,7 @@ class AISvc:
 
         mean_abs = np.mean(np.abs(shap_values), axis=0)
         features = self.expected_features
-        
+
         if features is None:
             try:
                 features = model.feature_name()
@@ -917,3 +943,26 @@ class AISvc:
             },
             "reason": "entry_ok",
         }
+
+
+# ============================================================================
+# シングルトン関数
+# ============================================================================
+
+_ai_service: Optional[AISvc] = None
+
+
+def get_ai_service() -> AISvc:
+    """
+    AISvc のシングルトンインスタンスを返す。
+    既に作成済みならそれを返し、まだなら初期化してから返す。
+
+    Returns
+    -------
+    AISvc
+        AISvc のシングルトンインスタンス（モデルロードと expected_features 同期済み）
+    """
+    global _ai_service
+    if _ai_service is None:
+        _ai_service = AISvc()
+    return _ai_service

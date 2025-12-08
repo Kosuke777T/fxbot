@@ -6,7 +6,7 @@ import re
 import statistics
 from collections import deque, defaultdict
 from datetime import datetime
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, is_dataclass
 from typing import Any, DefaultDict, Dict, Optional, Tuple
 from zoneinfo import ZoneInfo
 from pathlib import Path
@@ -352,6 +352,46 @@ def _write_decision_log(symbol: str, record: Dict[str, Any]) -> None:
         fp.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
+def _ai_to_dict(ai_out: Any) -> Dict[str, Any]:
+    """
+    AISvc.predict() の戻り値（ProbOut など）を安全に dict 化する。
+    - model_dump() があればそれを優先
+    - dataclass の場合は asdict()
+    - __dict__ があればそれをベースにする
+    - どれもダメなら repr(ai_out) だけを持つ dict にする
+    """
+    # Pydantic v1/v2 互換用
+    if hasattr(ai_out, "model_dump"):
+        try:
+            return ai_out.model_dump()  # type: ignore[no-any-return]
+        except Exception:
+            pass
+
+    if hasattr(ai_out, "dict"):
+        try:
+            return ai_out.dict()  # type: ignore[no-any-return]
+        except Exception:
+            pass
+
+    if is_dataclass(ai_out):
+        try:
+            return asdict(ai_out)
+        except Exception:
+            pass
+
+    if hasattr(ai_out, "__dict__"):
+        try:
+            return {
+                k: v
+                for k, v in ai_out.__dict__.items()
+                if not k.startswith("_")
+            }
+        except Exception:
+            pass
+
+    return {"repr": repr(ai_out)}
+
+
 def _build_decision_trace(
     *,
     ts_jst: str,
@@ -379,18 +419,22 @@ def _build_decision_trace(
         "symbol": symbol,
         "filters": filters_ctx,
         "probs": {
-            "buy": round(ai_out.p_buy, 6),
-            "sell": round(ai_out.p_sell, 6),
-            "skip": round(ai_out.p_skip, 6),
+            # ProbOut の基本属性は必須のはずだが、安全のために getattr を使用
+            "buy": round(getattr(ai_out, "p_buy", 0.0), 6),
+            "sell": round(getattr(ai_out, "p_sell", 0.0), 6),
+            "skip": round(getattr(ai_out, "p_skip", 0.0), 6),
         },
         "calibrator": calibrator_name,
-        "meta": ai_out.meta,
+        # ProbOut に meta がない場合もあるので、getattr で安全に取得する
+        "meta": getattr(ai_out, "meta", {}),
         "threshold": float(prob_threshold),
         "decision": decision_label,
-        "ai": ai_out.model_dump(),
+        "ai": _ai_to_dict(ai_out),
         "cb": cb_status,
-        "features_hash": ai_out.features_hash,
-        "model": ai_out.model_name,
+        # ProbOut に features_hash がない場合もあるので、getattr で安全に取得する
+        "features_hash": getattr(ai_out, "features_hash", ""),
+        # ProbOut に model_name がない場合もあるので、getattr で安全に取得する
+        "model": getattr(ai_out, "model_name", "unknown"),
         "filter_reasons": [],  # デフォルト値（decision に含まれていれば上書きされる）
     }
     if isinstance(decision, dict):
@@ -655,7 +699,7 @@ class ExecutionStub:
             trace["runtime"] = runtime_cfg
             _write_decision_log(symbol, trace)
 
-            ai_payload = ai_out.model_dump()
+            ai_payload = _ai_to_dict(ai_out)
             ai_payload["best_threshold"] = BEST_THRESHOLD
             ai_payload.setdefault("threshold", getattr(self.ai, "threshold", prob_threshold))
             payload = {
