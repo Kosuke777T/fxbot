@@ -514,32 +514,25 @@ def _build_decision_trace(
     filters_ctx["consecutive_losses"] = ctx.get("consecutive_losses")
     filters_ctx["profile_stats"] = ctx.get("profile_stats")
 
-    # v5.1 仕様に準拠した trace を構築
+    # v5.1 仕様に準拠した trace を構築（統一形式）
+    prob_buy = round(getattr(ai_out, "p_buy", 0.0), 6)
+    prob_sell = round(getattr(ai_out, "p_sell", 0.0), 6)
+    strategy_name = getattr(ai_out, "model_name", calibrator_name)  # model_name を優先、なければ calibrator_name
+    meta_val = getattr(ai_out, "meta", {})
+    if not isinstance(meta_val, dict):
+        meta_val = {}
+
     trace = {
         "ts_jst": ts_jst,
         "type": "decision",
         "symbol": symbol,
-        # フィルタ情報（v5.1 仕様：常に含まれる）
+        "strategy": strategy_name,
+        "prob_buy": prob_buy,
+        "prob_sell": prob_sell,
         "filter_pass": filter_pass_val,  # bool | None: True=通過, False=NG, None=フィルタ無効
-        "filter_reasons": filter_reasons_val,  # list[str]: NG の場合の理由一覧
+        "filter_reasons": list(filter_reasons_val or []),  # 必ず list に正規化
         "filters": filters_ctx,  # EntryContext + filter結果を含む
-        "probs": {
-            # ProbOut の基本属性は必須のはずだが、安全のために getattr を使用
-            "buy": round(getattr(ai_out, "p_buy", 0.0), 6),
-            "sell": round(getattr(ai_out, "p_sell", 0.0), 6),
-            "skip": round(getattr(ai_out, "p_skip", 0.0), 6),
-        },
-        "calibrator": calibrator_name,
-        # ProbOut に meta がない場合もあるので、getattr で安全に取得する
-        "meta": getattr(ai_out, "meta", {}),
-        "threshold": float(prob_threshold),
-        "decision": decision_label,
-        "ai": _ai_to_dict(ai_out),
-        "cb": cb_status,
-        # ProbOut に features_hash がない場合もあるので、getattr で安全に取得する
-        "features_hash": getattr(ai_out, "features_hash", ""),
-        # ProbOut に model_name がない場合もあるので、getattr で安全に取得する
-        "model": getattr(ai_out, "model_name", "unknown"),
+        "meta": meta_val or {},  # 必ず dict
     }
     if isinstance(decision, dict):
         trace["decision_detail"] = decision

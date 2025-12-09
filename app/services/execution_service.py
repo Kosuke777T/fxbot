@@ -173,17 +173,35 @@ class ExecutionService:
             blocked_reason = normalized_reasons[0]
         filters_dict["blocked_reason"] = blocked_reason
 
-        # v5.1 仕様に準拠した decisions.jsonl 出力
+        # v5.1 仕様に準拠した decisions.jsonl 出力（統一形式）
+        # strategy 名を取得（AI サービスから取得、なければデフォルト）
+        try:
+            from app.services.ai_service import get_ai_service
+            ai_svc = get_ai_service()
+            strategy_name = getattr(ai_svc, "model_name", getattr(ai_svc, "calibrator_name", "unknown"))
+        except Exception:
+            strategy_name = "unknown"
+
+        # meta を取得（AI 予測結果から取得、なければ空 dict）
+        meta_val = {}
+        try:
+            # ここでは AI 予測結果の meta を取得できないため、空 dict を返す
+            # 将来的に AI 予測結果を保持する場合は、ここで取得する
+            pass
+        except Exception:
+            pass
+
         DecisionsLogger.log({
             "ts_jst": now_jst_iso(),
             "type": "decision",
             "symbol": symbol,
-            "filter_pass": ok,
-            "filter_reasons": normalized_reasons,
-            "filters": filters_dict,
-            # 追加情報（後方互換性）
+            "strategy": strategy_name,
             "prob_buy": prob_buy,
             "prob_sell": prob_sell,
+            "filter_pass": ok,
+            "filter_reasons": list(normalized_reasons or []),  # 必ず list に正規化
+            "filters": filters_dict,  # EntryContext + filter結果を含む
+            "meta": meta_val or {},  # 必ず dict
         })
 
         # --- 4) フィルタでNGの場合ここで終了 ---
