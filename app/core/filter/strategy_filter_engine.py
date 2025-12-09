@@ -41,6 +41,15 @@ class StrategyFilterEngine:
     def evaluate(self, ctx: Dict, filter_level: int) -> Tuple[bool, List[str]]:
         """エントリー可否を評価する
 
+        【評価順序（v5.1 仕様に固定）】
+        以下の順序で評価を行い、NG の場合は即座に False を返す。
+        ① 取引時間帯（level >= 1）
+        ② ATR（level >= 2）
+        ③ ボラティリティ（level >= 3）
+        ④ トレンド強度（level >= 3）
+        ⑤ 連敗回避（level >= 3）
+        ⑥ プロファイル自動切替（level >= 3、結果には影響しない）
+
         Parameters
         ----------
         ctx : dict
@@ -53,7 +62,7 @@ class StrategyFilterEngine:
         ok : bool
             True のときエントリー許可
         reasons : list[str]
-            False のとき NG になった理由の一覧
+            False のとき NG になった理由の一覧（例: ["time_window", "atr"]）
         """
         reasons: List[str] = []
 
@@ -84,7 +93,8 @@ class StrategyFilterEngine:
         # ⑤ 連敗回避フィルタ（level >= 3）
         if filter_level >= 3:
             if not self._check_losing_streak(ctx, reasons):
-                return False, reasons
+                # _check_losing_streak 内で既に reasons に追加済み
+                pass
 
         # ⑥ プロファイル自動切替（結果には影響させない）
         if filter_level >= 3:

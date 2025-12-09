@@ -417,6 +417,30 @@ def _build_decision_trace(
     else:
         decision_label = str(decision)
 
+    # filters_ctx に filter_pass と filter_reasons を設定
+    filters_ctx = dict(filters_ctx)  # コピーを作成
+    filter_pass_val = None
+    filter_reasons_val = []
+
+    if isinstance(decision, dict):
+        if "filter_pass" in decision:
+            filter_pass_val = decision.get("filter_pass")
+            if not isinstance(filter_pass_val, (bool, type(None))):
+                filter_pass_val = None
+        if "filter_reasons" in decision:
+            filter_reasons_val = decision.get("filter_reasons")
+            if filter_reasons_val is not None:
+                filter_reasons_val = list(filter_reasons_val) if isinstance(filter_reasons_val, (list, tuple)) else []
+            else:
+                filter_reasons_val = []
+
+    filters_ctx["filter_pass"] = filter_pass_val
+    filters_ctx["filter_reasons"] = filter_reasons_val
+
+    # ★ filter_reasons は必ず list に正規化
+    if not isinstance(filters_ctx.get("filter_reasons"), list):
+        filters_ctx["filter_reasons"] = []
+
     trace = {
         "ts_jst": ts_jst,
         "type": "decision",
@@ -439,7 +463,9 @@ def _build_decision_trace(
         "features_hash": getattr(ai_out, "features_hash", ""),
         # ProbOut に model_name がない場合もあるので、getattr で安全に取得する
         "model": getattr(ai_out, "model_name", "unknown"),
-        "filter_reasons": [],  # デフォルト値（decision に含まれていれば上書きされる）
+        # フィルタ情報（v5.1 仕様：常に含まれる）
+        "filter_pass": filter_pass_val,  # bool | None: True=通過, False=NG, None=フィルタ無効
+        "filter_reasons": filter_reasons_val,  # list[str]: NG の場合の理由一覧
     }
     if isinstance(decision, dict):
         trace["decision_detail"] = decision
@@ -449,16 +475,6 @@ def _build_decision_trace(
             trace["lot"] = decision.get("lot")
         if "lot_info" in decision:
             trace["lot_info"] = decision.get("lot_info")
-
-        # --- フィルタ情報をトップレベルにコピー -----------------
-        if "filter_pass" in decision:
-            trace["filter_pass"] = decision.get("filter_pass")
-        if "filter_reasons" in decision:
-            filter_reasons = decision.get("filter_reasons")
-            if filter_reasons is not None:
-                trace["filter_reasons"] = list(filter_reasons) if isinstance(filter_reasons, (list, tuple)) else []
-            else:
-                trace["filter_reasons"] = []
 
         exit_plan = decision.get("signal", {}).get("exit_plan")
     else:
@@ -667,19 +683,24 @@ class ExecutionStub:
             profile_name = profile_obj.name if hasattr(profile_obj, "name") and profile_obj else "michibiki_std"
             consecutive_losses = get_consecutive_losses(profile_name, symbol)
 
+            # EntryContext 標準形式（v5.1 仕様）
+            # 標準フィールド: timestamp, atr, volatility, trend_strength, consecutive_losses, profile_stats
+            # 追加フィールド（後方互換性）: symbol, ai, filters, cb
             entry_context = {
-                "timestamp": ts,  # 既に on_tick 内にある timestamp を使う
-                "symbol": symbol,  # 現在のシンボル
-                "ai": ai_info,  # on_tick 内で作っている AI 情報の dict
-                "filters": filters,  # さきほど組み立てた filters
-                "cb": cb_info,  # サーキットブレーカー情報
+                # 標準フィールド（必須）
+                "timestamp": ts,  # datetime または ISO 文字列
                 "atr": float(atr_for_lot) if atr_for_lot is not None and atr_for_lot > 0 else None,
                 "volatility": volatility_val,  # v0: ATR% ベース
-                "trend_strength": None,  # ここは将来用スロットとして確保だけ
+                "trend_strength": None,  # 将来用スロット（現在は未使用）
                 "consecutive_losses": consecutive_losses,
                 "profile_stats": {
                     "profile_name": profile_name,
                 },
+                # 追加フィールド（後方互換性・デバッグ用）
+                "symbol": symbol,  # 現在のシンボル
+                "ai": ai_info,  # AI 情報の dict
+                "filters": filters,  # フィルタ設定の dict
+                "cb": cb_info,  # サーキットブレーカー情報
             }
 
             ok, reasons = evaluate_entry(entry_context)

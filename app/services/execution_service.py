@@ -123,6 +123,14 @@ class ExecutionService:
         if losing_streak_limit_val is not None:
             filters_dict["losing_streak_limit"] = losing_streak_limit_val
 
+        # filters_dict に filter_pass と filter_reasons を追加
+        filters_dict["filter_pass"] = ok
+        filters_dict["filter_reasons"] = reasons or []
+
+        # ★ filter_reasons は必ず list に正規化
+        if not isinstance(filters_dict.get("filter_reasons"), list):
+            filters_dict["filter_reasons"] = []
+
         DecisionsLogger.log({
             "ts_jst": now_jst_iso(),
             "type": "decision",
@@ -130,7 +138,7 @@ class ExecutionService:
             "prob_buy": prob_buy,
             "prob_sell": prob_sell,
             "filter_pass": ok,
-            "filter_reasons": reasons,  # STEP8 の重要ポイント
+            "filter_reasons": reasons or [],  # STEP8 の重要ポイント（必ず list）
             "filters": filters_dict,
         })
 
