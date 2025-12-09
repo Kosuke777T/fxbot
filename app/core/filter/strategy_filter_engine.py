@@ -108,9 +108,9 @@ class StrategyFilterEngine:
                 # _check_losing_streak 内で既に reasons に "losing_streak" を追加済み
                 pass
 
-        # ⑥ プロファイル自動切替（結果には影響させない）
+        # ⑥ プロファイル自動切替（結果には影響させない、情報のみ記録）
         if filter_level >= 3:
-            self._auto_switch_profile(ctx)
+            self._check_profile_autoswitch(ctx, reasons)
 
         ok = len(reasons) == 0
         return ok, reasons
@@ -241,16 +241,49 @@ class StrategyFilterEngine:
         # 連敗数が limit 未満なら通過
         return True
 
-    def _auto_switch_profile(self, ctx: Dict) -> None:
-        """プロファイル自動切替
-
-        Expert 用。ここでは v0 のダミー実装。
-
-        ctx["profile_stats"] などを解析して
-        「どのプロファイルが優位か」を判定する予定だが、
-        コア層なので、ここでは「フックだけ用意して何もしない」。
+    def _check_profile_autoswitch(self, ctx: Dict, reasons: List[str]) -> bool:
         """
-        # ここで何か値を返すとレイヤーを侵食するので、何も返さない。
-        _stats = ctx.get("profile_stats") or {}
-        _ = _stats  # いずれ使う。今は警告避け。
-        return
+        プロファイル自動切替（v0）
+
+        ctx["profile_stats"] から最適プロファイルを推奨する。
+        フィルタ NG にはしない（情報だけ reasons に記録）。
+
+        Parameters
+        ----------
+        ctx : dict
+            EntryContext 相当の辞書。必須キー: "profile_stats" (dict | None)
+        reasons : list[str]
+            切替推奨情報を記録するリスト（in-place で更新）
+
+        Returns
+        -------
+        bool
+            常に True（フィルタ NG にはしない）
+        """
+        stats = ctx.get("profile_stats")
+        if not isinstance(stats, dict) or not stats:
+            return True  # データがなければ何もしない
+
+        # 現在のプロファイル（ExecutionService から渡される想定）
+        current_profile = ctx.get("current_profile") or "std"
+
+        # 勝率（winrate）が最も高いプロファイルを探す
+        best_profile = None
+        best_wr = -1.0
+
+        for name, rec in stats.items():
+            if not isinstance(rec, dict):
+                continue
+            wr = rec.get("winrate")
+            if isinstance(wr, (int, float)) and wr > best_wr:
+                best_wr = wr
+                best_profile = name
+
+        # 切り替えの必要なし
+        if best_profile is None or best_profile == current_profile:
+            return True
+
+        # 切替推奨を reasons に記録（実際の切替は ExecutionService が行う）
+        reasons.append(f"profile_switch:{current_profile}->{best_profile}")
+
+        return True  # フィルタ NG にはしない（情報だけ渡す）
