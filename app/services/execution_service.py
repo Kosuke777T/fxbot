@@ -2,11 +2,12 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from app.services.filter_service import evaluate_entry, _get_engine
+from app.services.filter_service import evaluate_entry, _get_engine, extract_profile_switch
 from app.services.ai_service import get_ai_service
 from app.services.loss_streak_service import get_consecutive_losses
 from app.core.strategy_profile import get_profile
@@ -77,6 +78,44 @@ class ExecutionService:
     - 売買判断と発注ロジックを含む
     """
 
+    def _apply_profile_autoswitch(self, reasons: list[str]) -> None:
+        """
+        フィルタ結果の reasons からプロファイル自動切替指示を読み取り、
+        self.profile を更新する（v0 実装）。
+
+        Parameters
+        ----------
+        reasons : list[str]
+            フィルタエンジンから返された理由のリスト
+        """
+        if not reasons:
+            return
+
+        switch = extract_profile_switch(reasons)
+        if not switch:
+            return
+
+        from_profile, to_profile = switch
+
+        # ExecutionService が profile を持っていない場合は安全のため何もしない
+        if not hasattr(self, "profile"):
+            return
+
+        # すでに切り替わっている / おかしな指定なら何もしない
+        if self.profile != from_profile or from_profile == to_profile:
+            return
+
+        logger = logging.getLogger(__name__)
+        logger.info(
+            "Profile auto-switch requested by filter engine: %s -> %s",
+            from_profile,
+            to_profile,
+        )
+
+        # v0: メモリ上の使用プロファイルだけ切り替える
+        self.profile = to_profile
+        # TODO: 必要になったらここで永続化や GUI への通知を追加
+
     def execute_entry(self, features: Dict[str, float], *, symbol: Optional[str] = None) -> Dict[str, Any]:
         """
         売買判断 → フィルタ判定 → decisions.jsonl 出力まで一貫処理
@@ -134,6 +173,9 @@ class ExecutionService:
         }
 
         ok, reasons = evaluate_entry(entry_context)
+
+        # ★ここで profile 自動切替を反映
+        self._apply_profile_autoswitch(reasons)
 
         # losing_streak_limit を取得
         try:

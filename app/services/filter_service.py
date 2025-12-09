@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from app.core.filter import StrategyFilterEngine
 from app.services.edition_guard import filter_level
@@ -55,4 +55,48 @@ def evaluate_entry(entry_context: EntryContext) -> Tuple[bool, List[str]]:
     level = filter_level()
     ok, reasons = engine.evaluate(entry_context, filter_level=level)
     return ok, reasons
+
+
+def extract_profile_switch(reasons: Iterable[str]) -> Optional[Tuple[str, str]]:
+    """
+    filter_engine の reasons から 'profile_switch:std->aggr' 形式を拾って
+    (from_profile, to_profile) を返すヘルパー。
+    見つからなければ None を返す。
+
+    Parameters
+    ----------
+    reasons : Iterable[str]
+        フィルタエンジンから返された理由のリスト
+
+    Returns
+    -------
+    Optional[Tuple[str, str]]
+        (from_profile, to_profile) のタプル、見つからなければ None
+    """
+    if reasons is None:
+        return None
+
+    for r in reasons:
+        if not isinstance(r, str):
+            continue
+        if not r.startswith("profile_switch:"):
+            continue
+
+        # "profile_switch:std->aggr" → "std->aggr"
+        payload = r.split(":", 1)[1]
+        if "->" not in payload:
+            continue
+
+        before, after = payload.split("->", 1)
+        before = before.strip()
+        after = after.strip()
+
+        if not before or not after:
+            continue
+        if before == after:
+            continue
+
+        return before, after
+
+    return None
 
