@@ -101,10 +101,11 @@ class StrategyFilterEngine:
             if not self._check_trend(ctx):
                 reasons.append("trend")
 
-        # ⑤ 連敗回避フィルタ（level >= 3）
+        # ⑤ 連敗回避フィルタ（level >= 3、T-21 本番仕様）
+        # 評価順: 時間帯 → ATR → ボラ → トレンド → 連敗回避（5番目）
         if filter_level >= 3:
             if not self._check_losing_streak(ctx, reasons):
-                # _check_losing_streak 内で既に reasons に追加済み
+                # _check_losing_streak 内で既に reasons に "losing_streak" を追加済み
                 pass
 
         # ⑥ プロファイル自動切替（結果には影響させない）
@@ -191,19 +192,39 @@ class StrategyFilterEngine:
 
     def _check_losing_streak(self, ctx: Dict, reasons: List[str]) -> bool:
         """
-        連敗回避フィルタ:
-        - config.losing_streak_limit > 0 のときだけ有効
-        - entry_context["consecutive_losses"] が limit 以上なら NG
-        - NG の場合は reasons に "losing_streak" を追加
+        連敗回避フィルタ（T-21 本番仕様）:
+
+        【動作仕様】
+        1. config.losing_streak_limit が 0 以下ならフィルタ無効（常に True を返す）
+        2. consecutive_losses >= limit なら NG（False を返し、reasons に "losing_streak" を追加）
+        3. consecutive_losses が None または変換できない場合はブロックしない（安全側：他フィルタに任せる）
+
+        【評価順序】
+        evaluate() の評価順（時間帯 → ATR → ボラ → トレンド → 連敗回避）の 5 番目に正式追加
+
+        Parameters
+        ----------
+        ctx : dict
+            EntryContext 相当の辞書。必須キー: "consecutive_losses" (int | None)
+        reasons : list[str]
+            NG の場合に理由を追加するリスト（in-place で更新）
+
+        Returns
+        -------
+        bool
+            True: フィルタ通過（エントリー許可）
+            False: フィルタNG（エントリー不可、reasons に "losing_streak" が追加済み）
         """
+        # 1. config.losing_streak_limit が 0 以下ならフィルタ無効
         limit = getattr(self.config, "losing_streak_limit", 0)
         if not limit or limit <= 0:
-            # 0 以下なら機能自体を無効として扱う
+            # 0 以下なら機能自体を無効として扱う（常に通過）
             return True
 
+        # 2. consecutive_losses >= limit なら NG & 理由 "losing_streak"
         raw_value = ctx.get("consecutive_losses")
         if raw_value is None:
-            # 情報が来ていない場合はブロックしない
+            # 情報が来ていない場合はブロックしない（安全側：他フィルタに任せる）
             return True
 
         try:
@@ -212,10 +233,12 @@ class StrategyFilterEngine:
             # 変換できない値が来た場合もブロックはしない（安全側：他フィルタに任せる）
             return True
 
+        # 連敗数が limit 以上なら NG
         if losses >= limit:
             reasons.append("losing_streak")
             return False
 
+        # 連敗数が limit 未満なら通過
         return True
 
     def _auto_switch_profile(self, ctx: Dict) -> None:
