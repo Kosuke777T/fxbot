@@ -23,8 +23,9 @@ from app.services.orderbook_stub import orderbook
 from app.services.trailing import AtrTrailer, TrailConfig, TrailState
 from app.services.trailing_hook import apply_trailing_update
 from app.services.trade_service import TradeService
-from app.services.filter_service import evaluate_entry
+from app.services.filter_service import evaluate_entry, _get_engine
 from app.services.edition_guard import filter_level
+from app.services.loss_streak_service import get_consecutive_losses
 from core import position_guard
 from core.ai.service import AISvc, ProbOut
 from core.metrics import METRICS
@@ -636,6 +637,18 @@ class ExecutionStub:
         current_filter_level = filter_level()
         base_filters["filter_level"] = current_filter_level
 
+        # 連敗情報を base_filters に追加（すべての filters_ctx に自動的に含まれる）
+        profile_obj = get_profile("michibiki_std")
+        profile_name = profile_obj.name if hasattr(profile_obj, "name") and profile_obj else "michibiki_std"
+        consecutive_losses_val = get_consecutive_losses(profile_name, symbol)
+        base_filters["consecutive_losses"] = consecutive_losses_val
+        try:
+            losing_streak_limit_val = getattr(_get_engine().config, "losing_streak_limit", None)
+            if losing_streak_limit_val is not None:
+                base_filters["losing_streak_limit"] = losing_streak_limit_val
+        except Exception:
+            pass
+
         # --- フィルタ評価の共通ロジック（ここから） ---
         lvl = base_filters.get("filter_level", 0)
 
@@ -649,6 +662,11 @@ class ExecutionStub:
             filters = dict(base_filters)  # base_filters のコピー
             cb_info = dict(cb_status) if isinstance(cb_status, dict) else {}
 
+            # 連敗数を取得（プロファイル名・シンボルは実際の変数名に合わせてください）
+            profile_obj = get_profile("michibiki_std")
+            profile_name = profile_obj.name if hasattr(profile_obj, "name") and profile_obj else "michibiki_std"
+            consecutive_losses = get_consecutive_losses(profile_name, symbol)
+
             entry_context = {
                 "timestamp": ts,  # 既に on_tick 内にある timestamp を使う
                 "symbol": symbol,  # 現在のシンボル
@@ -658,9 +676,9 @@ class ExecutionStub:
                 "atr": float(atr_for_lot) if atr_for_lot is not None and atr_for_lot > 0 else None,
                 "volatility": volatility_val,  # v0: ATR% ベース
                 "trend_strength": None,  # ここは将来用スロットとして確保だけ
-                "consecutive_losses": int(cb_status.get("consecutive_losses", 0)) if isinstance(cb_status, dict) else 0,
+                "consecutive_losses": consecutive_losses,
                 "profile_stats": {
-                    "profile_name": get_profile("michibiki_std").name if hasattr(get_profile("michibiki_std"), "name") else None,
+                    "profile_name": profile_name,
                 },
             }
 

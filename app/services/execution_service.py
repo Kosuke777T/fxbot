@@ -6,8 +6,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from app.services.filter_service import evaluate_entry
+from app.services.filter_service import evaluate_entry, _get_engine
 from app.services.ai_service import get_ai_service
+from app.services.loss_streak_service import get_consecutive_losses
+from app.core.strategy_profile import get_profile
 from core.utils.timeutil import now_jst_iso
 
 # プロジェクトルート = app/services/ から 2 つ上
@@ -90,17 +92,37 @@ class ExecutionService:
         prob_buy = float(getattr(pred, "p_buy", 0.0))
         prob_sell = float(getattr(pred, "p_sell", 0.0))
 
+        # 連敗数を取得（プロファイル名・シンボルは実際の変数名に合わせてください）
+        profile_obj = get_profile("michibiki_std")
+        profile_name = profile_obj.name if hasattr(profile_obj, "name") and profile_obj else "michibiki_std"
+        consecutive_losses = get_consecutive_losses(profile_name, symbol)
+
         # --- 2) フィルタ評価 ---
         ok, reasons = evaluate_entry({
             "timestamp": datetime.now(),
             "atr": features.get("atr"),
             "volatility": features.get("volatility"),
             "trend_strength": features.get("trend_strength"),
-            "consecutive_losses": features.get("consecutive_losses", 0),
+            "consecutive_losses": consecutive_losses,
             "profile_stats": features.get("profile_stats", {}),
         })
 
+        # losing_streak_limit を取得
+        try:
+            losing_streak_limit_val = getattr(_get_engine().config, "losing_streak_limit", None)
+        except Exception:
+            losing_streak_limit_val = None
+
         # --- 3) decisions.jsonl へ統合出力 ---
+        filters_dict = {
+            "atr": features.get("atr"),
+            "volatility": features.get("volatility"),
+            "trend_strength": features.get("trend_strength"),
+            "consecutive_losses": consecutive_losses,
+        }
+        if losing_streak_limit_val is not None:
+            filters_dict["losing_streak_limit"] = losing_streak_limit_val
+
         DecisionsLogger.log({
             "ts_jst": now_jst_iso(),
             "type": "decision",
@@ -109,12 +131,7 @@ class ExecutionService:
             "prob_sell": prob_sell,
             "filter_pass": ok,
             "filter_reasons": reasons,  # STEP8 の重要ポイント
-            "filters": {
-                "atr": features.get("atr"),
-                "volatility": features.get("volatility"),
-                "trend_strength": features.get("trend_strength"),
-                "consecutive_losses": features.get("consecutive_losses", 0),
-            }
+            "filters": filters_dict,
         })
 
         # --- 4) フィルタでNGの場合ここで終了 ---

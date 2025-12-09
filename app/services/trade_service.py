@@ -12,6 +12,7 @@ from app.services import trade_state
 from app.services.circuit_breaker import CircuitBreaker
 from app.services.event_store import EVENT_STORE
 from app.services.filter_service import evaluate_entry
+from app.services.loss_streak_service import update_on_trade_result, get_consecutive_losses
 from core.config import cfg
 from core.indicators import atr as _atr
 from core.position_guard import PositionGuard
@@ -334,14 +335,18 @@ class TradeService:
             raise ValueError('side must be "buy" or "sell"')
 
         # --- フィルタエンジン呼び出しを追加 ---
+        # 連敗数を取得（プロファイル名・シンボルは実際の変数名に合わせてください）
+        profile_name = self._profile.name if hasattr(self._profile, "name") and self._profile else "michibiki_std"
+        consecutive_losses = get_consecutive_losses(profile_name, symbol)
+
         entry_context = {
             "timestamp": datetime.now(),
             "atr": atr,
             "volatility": features.get("volatility") if isinstance(features, dict) else None,
             "trend_strength": features.get("trend_strength") if isinstance(features, dict) else None,
-            "consecutive_losses": self.cb.state.consecutive_losses if hasattr(self, "cb") and hasattr(self.cb, "state") else 0,
+            "consecutive_losses": consecutive_losses,
             "profile_stats": {
-                "profile_name": self._profile.name if hasattr(self._profile, "name") else None,
+                "profile_name": profile_name,
             } if self._profile else {},
         }
 
@@ -435,6 +440,22 @@ class TradeService:
         )
         self.cb.on_trade_result(profit_jpy)
 
+        # 連敗カウンタ更新
+        try:
+            profile_name = self._profile.name if hasattr(self._profile, "name") and self._profile else "michibiki_std"
+            new_streak = update_on_trade_result(profile_name, resolved_symbol, float(profit_jpy))
+            self._logger.info(
+                "[Execution] loss streak updated: profile=%s symbol=%s pl=%.2f consecutive_losses=%d",
+                profile_name, resolved_symbol, profit_jpy, new_streak
+            )
+        except Exception:
+            # ここで例外を握ることで、連敗カウンタの不具合で売買自体が止まらないようにする
+            self._logger.exception(
+                "[Execution] failed to update loss streak (profile=%s, symbol=%s)",
+                getattr(self._profile, "name", "unknown") if self._profile else "unknown",
+                resolved_symbol
+            )
+
 
 # ------------------------------------------------------------------ #
 # Module-level helpers (backwards compatibility)
@@ -509,10 +530,10 @@ def execute_decision(
     # lot=None + atr=atr_for_lot で呼び出し
     # open_position 側で StrategyProfile.compute_lot_size_from_atr を使って
     # ATR ベースの自動ロット計算が走る（既に実装済み）
-    
+
     # features があれば取得（フィルタエンジン用）
     features = signal.get("features") or decision.get("features")
-    
+
     svc.open_position(
         symbol=str(sym),
         side=str(side),

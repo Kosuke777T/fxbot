@@ -1,10 +1,9 @@
-"""
-StrategyFilterEngine などフィルタ関連クラス用のパッケージ。
+# app/core/filter/__init__.py
 
-仕様書 v5.1:
-- app.core.filter.strategy_filter_engine.StrategyFilterEngine を公開APIとする
-"""
+from .strategy_filter_engine import StrategyFilterEngine, FilterConfig
 
-from .strategy_filter_engine import StrategyFilterEngine  # re-export
-
+__all__ = [
+    "StrategyFilterEngine",
+    "FilterConfig",
+]
 
