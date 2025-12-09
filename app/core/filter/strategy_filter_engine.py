@@ -42,13 +42,23 @@ class StrategyFilterEngine:
         """エントリー可否を評価する
 
         【評価順序（v5.1 仕様に固定）】
-        以下の順序で評価を行い、NG の場合は即座に False を返す。
+        以下の順序で評価を行い、すべてのフィルタを評価してから結果を返す。
+        複数の理由を記録するため、NG の場合でもすべてのフィルタを評価する。
         ① 取引時間帯（level >= 1）
         ② ATR（level >= 2）
         ③ ボラティリティ（level >= 3）
         ④ トレンド強度（level >= 3）
         ⑤ 連敗回避（level >= 3）
         ⑥ プロファイル自動切替（level >= 3、結果には影響しない）
+
+        注: decisions.jsonl に複数の理由を記録するため、
+        最初の NG で即座に返さず、すべてのフィルタを評価してから返す。
+
+        【filter_level による制御（v5 仕様）】
+        - level 0: フィルタ無し（常に通過）
+        - level 1: Basic（時間帯のみ）
+        - level 2: Pro（時間帯＋ATR）
+        - level 3: Expert（全フィルタ：時間帯＋ATR＋ボラティリティ＋トレンド＋連敗回避＋プロファイル自動切替）
 
         Parameters
         ----------
@@ -63,6 +73,7 @@ class StrategyFilterEngine:
             True のときエントリー許可
         reasons : list[str]
             False のとき NG になった理由の一覧（例: ["time_window", "atr"]）
+            複数のフィルタが NG の場合は、すべての理由が含まれる
         """
         reasons: List[str] = []
 
