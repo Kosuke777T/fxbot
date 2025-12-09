@@ -396,6 +396,30 @@ def _ai_to_dict(ai_out: Any) -> Dict[str, Any]:
     return {"repr": repr(ai_out)}
 
 
+def _normalize_filter_reasons(reasons: Any) -> list[str]:
+    """
+    filter_reasons を必ず list[str] に正規化する（v5.1 仕様）
+
+    Parameters
+    ----------
+    reasons : Any
+        None, str, list[str], tuple[str] など任意の型
+
+    Returns
+    -------
+    list[str]
+        正規化された理由のリスト
+    """
+    if reasons is None:
+        return []
+    if isinstance(reasons, str):
+        return [reasons]
+    if isinstance(reasons, (list, tuple)):
+        return [str(r) for r in reasons if r is not None]
+    # その他の型は空リストに
+    return []
+
+
 def _build_decision_trace(
     *,
     ts_jst: str,
@@ -406,8 +430,16 @@ def _build_decision_trace(
     decision: Dict[str, Any],
     prob_threshold: float,
     calibrator_name: str,
+    entry_context: Optional[Dict[str, Any]] = None,  # ★追加
 ) -> Dict[str, Any]:
-    """Assemble a structured trace record for downstream analysis."""
+    """
+    v5.1 仕様に準拠した決定トレースを構築する
+
+    - filter_pass, filter_reasons を必ず含める
+    - EntryContext の全フィールドを含める
+    - filter_level を含める
+    - blocked の理由（最初の理由 or None）を含める
+    """
     if isinstance(decision, dict):
         action = str(decision.get("action") or "").upper()
         if action in {"BUY", "SELL", "LONG", "SHORT"}:
@@ -417,10 +449,12 @@ def _build_decision_trace(
     else:
         decision_label = str(decision)
 
-    # filters_ctx に filter_pass と filter_reasons を設定
+    # filters_ctx をコピーして拡張（v5.1 仕様）
     filters_ctx = dict(filters_ctx)  # コピーを作成
+
+    # filter_pass と filter_reasons を decision から取得
     filter_pass_val = None
-    filter_reasons_val = []
+    filter_reasons_val: list[str] = []
 
     if isinstance(decision, dict):
         if "filter_pass" in decision:
@@ -428,24 +462,67 @@ def _build_decision_trace(
             if not isinstance(filter_pass_val, (bool, type(None))):
                 filter_pass_val = None
         if "filter_reasons" in decision:
-            filter_reasons_val = decision.get("filter_reasons")
-            if filter_reasons_val is not None:
-                filter_reasons_val = list(filter_reasons_val) if isinstance(filter_reasons_val, (list, tuple)) else []
-            else:
-                filter_reasons_val = []
+            filter_reasons_val = _normalize_filter_reasons(decision.get("filter_reasons"))
 
+    # filters_ctx に設定（v5.1 仕様）
     filters_ctx["filter_pass"] = filter_pass_val
     filters_ctx["filter_reasons"] = filter_reasons_val
 
-    # ★ filter_reasons は必ず list に正規化
-    if not isinstance(filters_ctx.get("filter_reasons"), list):
-        filters_ctx["filter_reasons"] = []
+    # ★ filter_reasons は必ず list に正規化（二重チェック）
+    filters_ctx["filter_reasons"] = _normalize_filter_reasons(filters_ctx.get("filter_reasons"))
 
+    # EntryContext の全フィールドを filters_ctx に確実に含める（v5.1 仕様：フォールバック処理）
+    # 上記の entry_context マージで既に設定されているが、念のためフォールバック
+    if "timestamp" not in filters_ctx or filters_ctx.get("timestamp") is None:
+        filters_ctx["timestamp"] = ts_jst
+    if "atr" not in filters_ctx or filters_ctx.get("atr") is None:
+        filters_ctx["atr"] = filters_ctx.get("atr_for_lot")
+    if "volatility" not in filters_ctx or filters_ctx.get("volatility") is None:
+        filters_ctx["volatility"] = filters_ctx.get("atr_pct")  # v0: ATR% ベース
+    if "trend_strength" not in filters_ctx:
+        filters_ctx["trend_strength"] = None
+    if "consecutive_losses" not in filters_ctx:
+        filters_ctx["consecutive_losses"] = 0
+    if "profile_stats" not in filters_ctx:
+        filters_ctx["profile_stats"] = {}
+
+    # filter_level を確実に含める（v5.1 仕様）
+    if "filter_level" not in filters_ctx:
+        try:
+            filters_ctx["filter_level"] = filter_level()
+        except Exception:
+            filters_ctx["filter_level"] = 0
+
+    # blocked の理由（最初の理由 or None）を抽出（v5.1 仕様）
+    blocked_reason = None
+    if isinstance(decision, dict):
+        action = decision.get("action")
+        if action == "BLOCKED":
+            # filter_reasons の最初の理由、または decision.reason を使用
+            if filter_reasons_val:
+                blocked_reason = filter_reasons_val[0]
+            else:
+                blocked_reason = decision.get("reason")
+    filters_ctx["blocked_reason"] = blocked_reason
+
+    # --- EntryContext を filters に統合（最後に実行：フォールバック処理の後） ---
+    ctx = entry_context or {}
+    filters_ctx["timestamp"] = ctx.get("timestamp")
+    filters_ctx["atr"] = ctx.get("atr")
+    filters_ctx["volatility"] = ctx.get("volatility")
+    filters_ctx["trend_strength"] = ctx.get("trend_strength")
+    filters_ctx["consecutive_losses"] = ctx.get("consecutive_losses")
+    filters_ctx["profile_stats"] = ctx.get("profile_stats")
+
+    # v5.1 仕様に準拠した trace を構築
     trace = {
         "ts_jst": ts_jst,
         "type": "decision",
         "symbol": symbol,
-        "filters": filters_ctx,
+        # フィルタ情報（v5.1 仕様：常に含まれる）
+        "filter_pass": filter_pass_val,  # bool | None: True=通過, False=NG, None=フィルタ無効
+        "filter_reasons": filter_reasons_val,  # list[str]: NG の場合の理由一覧
+        "filters": filters_ctx,  # EntryContext + filter結果を含む
         "probs": {
             # ProbOut の基本属性は必須のはずだが、安全のために getattr を使用
             "buy": round(getattr(ai_out, "p_buy", 0.0), 6),
@@ -463,9 +540,6 @@ def _build_decision_trace(
         "features_hash": getattr(ai_out, "features_hash", ""),
         # ProbOut に model_name がない場合もあるので、getattr で安全に取得する
         "model": getattr(ai_out, "model_name", "unknown"),
-        # フィルタ情報（v5.1 仕様：常に含まれる）
-        "filter_pass": filter_pass_val,  # bool | None: True=通過, False=NG, None=フィルタ無効
-        "filter_reasons": filter_reasons_val,  # list[str]: NG の場合の理由一覧
     }
     if isinstance(decision, dict):
         trace["decision_detail"] = decision
@@ -653,11 +727,28 @@ class ExecutionStub:
         current_filter_level = filter_level()
         base_filters["filter_level"] = current_filter_level
 
+        # EntryContext の全フィールドを base_filters に追加（v5.1 仕様）
+        # timestamp, atr, volatility, trend_strength, consecutive_losses, profile_stats
+        base_filters["timestamp"] = ts  # ISO 文字列形式
+
+        # atr は既に atr_for_lot として含まれているが、EntryContext 用に追加
+        base_filters["atr"] = float(atr_for_lot) if atr_for_lot is not None and atr_for_lot > 0 else None
+
+        # volatility は既に含まれている
+        # trend_strength を追加（現在は未使用だが、v5.1 仕様に準拠）
+        base_filters["trend_strength"] = None
+
         # 連敗情報を base_filters に追加（すべての filters_ctx に自動的に含まれる）
         profile_obj = get_profile("michibiki_std")
         profile_name = profile_obj.name if hasattr(profile_obj, "name") and profile_obj else "michibiki_std"
         consecutive_losses_val = get_consecutive_losses(profile_name, symbol)
         base_filters["consecutive_losses"] = consecutive_losses_val
+
+        # profile_stats を追加（v5.1 仕様）
+        base_filters["profile_stats"] = {
+            "profile_name": profile_name,
+        }
+
         try:
             losing_streak_limit_val = getattr(_get_engine().config, "losing_streak_limit", None)
             if losing_streak_limit_val is not None:
@@ -671,6 +762,7 @@ class ExecutionStub:
         # デフォルト（filter_level == 0 のとき）
         filter_pass: Optional[bool] = None
         filter_reasons: list[str] = []
+        entry_context: Optional[Dict[str, Any]] = None  # EntryContext を外側のスコープで保持
 
         if isinstance(lvl, int) and lvl > 0:
             # EntryContext 互換の dict を組み立て
@@ -705,9 +797,9 @@ class ExecutionStub:
 
             ok, reasons = evaluate_entry(entry_context)
 
-            # decisions.jsonl に書き出す値
+            # decisions.jsonl に書き出す値（v5.1 仕様：正規化）
             filter_pass = ok  # True / False
-            filter_reasons = reasons or []  # None 回避
+            filter_reasons = _normalize_filter_reasons(reasons)  # 必ず list[str] に正規化
         # --- フィルタ評価の共通ロジック（ここまで） ---
 
         def _emit(decision: Any, filters_ctx: Dict[str, Any], level: str = "info") -> None:
@@ -784,6 +876,7 @@ class ExecutionStub:
                 decision=decision,
                 prob_threshold=prob_threshold,
                 calibrator_name=self.ai.calibrator_name,
+                entry_context=entry_context,  # ★追加
             )
             trace["runtime"] = runtime_cfg
             _write_decision_log(symbol, trace)
@@ -1334,8 +1427,8 @@ def debug_emit_single_decision() -> None:
 
     ai_out = DummyProbOut()
 
-    # 2) フィルタ用コンテキストを作る
-    ctx = {
+    # 2) フィルタ用コンテキストを作る（EntryContext）
+    entry_context = {
         "timestamp": datetime.now(),
         "atr": 0.5,
         "volatility": 1.0,
@@ -1344,7 +1437,7 @@ def debug_emit_single_decision() -> None:
         "profile_stats": {},
     }
 
-    ok, reasons = evaluate_entry(ctx)
+    ok, reasons = evaluate_entry(entry_context)
 
     # 3) フィルタ結果を decision に反映
     decision = {
@@ -1377,6 +1470,7 @@ def debug_emit_single_decision() -> None:
         decision=decision,
         prob_threshold=0.5,
         calibrator_name=ai_out.calibrator_name,
+        entry_context=entry_context,  # ★追加
     )
 
     # 6) decisions.jsonl に出力

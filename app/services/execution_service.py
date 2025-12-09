@@ -10,6 +10,7 @@ from app.services.filter_service import evaluate_entry, _get_engine
 from app.services.ai_service import get_ai_service
 from app.services.loss_streak_service import get_consecutive_losses
 from app.core.strategy_profile import get_profile
+from app.services.edition_guard import filter_level
 from core.utils.timeutil import now_jst_iso
 
 # プロジェクトルート = app/services/ から 2 つ上
@@ -23,6 +24,30 @@ def _symbol_to_filename(symbol: str) -> str:
     import re
     safe = re.sub(r"[^A-Za-z0-9_]+", "_", symbol)
     return safe.strip("_") or "UNKNOWN"
+
+
+def _normalize_filter_reasons(reasons: Any) -> list[str]:
+    """
+    filter_reasons を必ず list[str] に正規化する（v5.1 仕様）
+
+    Parameters
+    ----------
+    reasons : Any
+        None, str, list[str], tuple[str] など任意の型
+
+    Returns
+    -------
+    list[str]
+        正規化された理由のリスト
+    """
+    if reasons is None:
+        return []
+    if isinstance(reasons, str):
+        return [reasons]
+    if isinstance(reasons, (list, tuple)):
+        return [str(r) for r in reasons if r is not None]
+    # その他の型は空リストに
+    return []
 
 
 class DecisionsLogger:
@@ -98,14 +123,17 @@ class ExecutionService:
         consecutive_losses = get_consecutive_losses(profile_name, symbol)
 
         # --- 2) フィルタ評価 ---
-        ok, reasons = evaluate_entry({
-            "timestamp": datetime.now(),
+        # EntryContext を作成（後で filters_dict にマージするため保持）
+        entry_context = {
+            "timestamp": datetime.now().isoformat(),  # ISO 形式に統一
             "atr": features.get("atr"),
             "volatility": features.get("volatility"),
             "trend_strength": features.get("trend_strength"),
             "consecutive_losses": consecutive_losses,
             "profile_stats": features.get("profile_stats", {}),
-        })
+        }
+
+        ok, reasons = evaluate_entry(entry_context)
 
         # losing_streak_limit を取得
         try:
@@ -113,33 +141,49 @@ class ExecutionService:
         except Exception:
             losing_streak_limit_val = None
 
-        # --- 3) decisions.jsonl へ統合出力 ---
+        # --- 3) decisions.jsonl へ統合出力（v5.1 仕様に準拠） ---
+        # filter_reasons を正規化
+        normalized_reasons = _normalize_filter_reasons(reasons)
+
+        # EntryContext の全フィールドを含む filters_dict を構築
         filters_dict = {
-            "atr": features.get("atr"),
-            "volatility": features.get("volatility"),
-            "trend_strength": features.get("trend_strength"),
-            "consecutive_losses": consecutive_losses,
+            # filter_level（v5.1 仕様）
+            "filter_level": filter_level(),
+            # filter 結果（v5.1 仕様）
+            "filter_pass": ok,
+            "filter_reasons": normalized_reasons,
         }
+
+        # --- EntryContext を filters に統合 ---
+        ctx = entry_context or {}
+        filters_dict["timestamp"] = ctx.get("timestamp")
+        filters_dict["atr"] = ctx.get("atr")
+        filters_dict["volatility"] = ctx.get("volatility")
+        filters_dict["trend_strength"] = ctx.get("trend_strength")
+        filters_dict["consecutive_losses"] = ctx.get("consecutive_losses")
+        filters_dict["profile_stats"] = ctx.get("profile_stats")
+
+        # losing_streak_limit を追加（設定されている場合）
         if losing_streak_limit_val is not None:
             filters_dict["losing_streak_limit"] = losing_streak_limit_val
 
-        # filters_dict に filter_pass と filter_reasons を追加
-        filters_dict["filter_pass"] = ok
-        filters_dict["filter_reasons"] = reasons or []
+        # blocked の理由（最初の理由 or None）を抽出（v5.1 仕様）
+        blocked_reason = None
+        if not ok and normalized_reasons:
+            blocked_reason = normalized_reasons[0]
+        filters_dict["blocked_reason"] = blocked_reason
 
-        # ★ filter_reasons は必ず list に正規化
-        if not isinstance(filters_dict.get("filter_reasons"), list):
-            filters_dict["filter_reasons"] = []
-
+        # v5.1 仕様に準拠した decisions.jsonl 出力
         DecisionsLogger.log({
             "ts_jst": now_jst_iso(),
             "type": "decision",
             "symbol": symbol,
+            "filter_pass": ok,
+            "filter_reasons": normalized_reasons,
+            "filters": filters_dict,
+            # 追加情報（後方互換性）
             "prob_buy": prob_buy,
             "prob_sell": prob_sell,
-            "filter_pass": ok,
-            "filter_reasons": reasons or [],  # STEP8 の重要ポイント（必ず list）
-            "filters": filters_dict,
         })
 
         # --- 4) フィルタでNGの場合ここで終了 ---
