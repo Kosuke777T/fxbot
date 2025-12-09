@@ -13,6 +13,14 @@ class FilterConfig:
     # 連敗回避: この回数以上連敗したらエントリー停止（0 以下なら無効）
     losing_streak_limit: int = 0
 
+    # --- プロファイル自動切替用の閾値 ---
+    # プロファイル評価に必要な最小トレード数
+    profile_switch_min_trades: int = 30
+    # 現在プロファイルとの必要勝率差（例: 0.05 = 5%）
+    profile_switch_winrate_gap: float = 0.05
+    # 候補プロファイルの最低勝率（これ未満は切り替え対象にしない）
+    profile_switch_min_winrate: float = 0.50
+
 
 class StrategyFilterEngine:
     """ミチビキ v5.1 フィルタエンジン（コア層）
@@ -243,10 +251,10 @@ class StrategyFilterEngine:
 
     def _check_profile_autoswitch(self, ctx: Dict, reasons: List[str]) -> bool:
         """
-        プロファイル自動切替（v0）
+        プロファイル自動切替の判定。
 
-        ctx["profile_stats"] から最適プロファイルを推奨する。
-        フィルタ NG にはしない（情報だけ reasons に記録）。
+        - エントリー可否は変えず、reasons に 'profile_switch:std->aggr' のような"推奨"だけを追加する。
+        - 閾値は FilterConfig の profile_switch_* で制御。
 
         Parameters
         ----------
@@ -260,30 +268,78 @@ class StrategyFilterEngine:
         bool
             常に True（フィルタ NG にはしない）
         """
-        stats = ctx.get("profile_stats")
+        stats = ctx.get("profile_stats") or {}
         if not isinstance(stats, dict) or not stats:
-            return True  # データがなければ何もしない
-
-        # 現在のプロファイル（ExecutionService から渡される想定）
-        current_profile = ctx.get("current_profile") or "std"
-
-        # 勝率（winrate）が最も高いプロファイルを探す
-        best_profile = None
-        best_wr = -1.0
-
-        for name, rec in stats.items():
-            if not isinstance(rec, dict):
-                continue
-            wr = rec.get("winrate")
-            if isinstance(wr, (int, float)) and wr > best_wr:
-                best_wr = wr
-                best_profile = name
-
-        # 切り替えの必要なし
-        if best_profile is None or best_profile == current_profile:
+            # プロファイル統計が無ければ何もしない
             return True
 
-        # 切替推奨を reasons に記録（実際の切替は ExecutionService が行う）
-        reasons.append(f"profile_switch:{current_profile}->{best_profile}")
+        cfg = self.config
+        min_trades = cfg.profile_switch_min_trades
+        min_winrate = cfg.profile_switch_min_winrate
+        gap_threshold = cfg.profile_switch_winrate_gap
 
-        return True  # フィルタ NG にはしない（情報だけ渡す）
+        # current 情報の取得
+        current_info = stats.get("current") or {}
+        current_name = (
+            current_info.get("name")
+            or current_info.get("profile")
+            or current_info.get("profile_name")
+        )
+        current_wr = current_info.get("winrate")
+        current_trades = (
+            current_info.get("trades")
+            or current_info.get("n_trades")
+            or 0
+        )
+
+        # current 情報が揃っていない場合は何もしない
+        if current_name is None or current_wr is None:
+            return True
+
+        # current のトレード数が少なすぎる場合は、そもそも切替判定を行わない
+        if current_trades < min_trades:
+            return True
+
+        best_name: str | None = None
+        best_wr: float | None = None
+        best_trades: int = 0
+
+        # 各プロファイルを走査して「閾値を満たす中で最も勝率が高いもの」を探す
+        for name, info in stats.items():
+            if name == "current":
+                continue
+            if not isinstance(info, dict):
+                continue
+
+            wr = info.get("winrate")
+            trades = info.get("trades") or info.get("n_trades") or 0
+            if wr is None:
+                continue
+
+            # トレード数・最低勝率の閾値を満たさないものは候補から除外
+            if trades < min_trades:
+                continue
+            if wr < min_winrate:
+                continue
+
+            if best_wr is None or wr > best_wr:
+                best_name = name
+                best_wr = wr
+                best_trades = trades
+
+        # 閾値を満たす候補が見つからなければ何もしない
+        if best_name is None or best_wr is None:
+            return True
+
+        # 同じプロファイルなら切替不要
+        if best_name == current_name:
+            return True
+
+        # 勝率差が小さすぎる場合も切替不要
+        if (best_wr - current_wr) < gap_threshold:
+            return True
+
+        # ここまで来たら「切り替え推奨」として reason を追加
+        reasons.append(f"profile_switch:{current_name}->{best_name}")
+
+        return True
