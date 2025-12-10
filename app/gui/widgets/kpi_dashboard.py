@@ -103,9 +103,17 @@ class KPIDashboardWidget(QWidget):
 
         self.lbl_max_dd = QLabel("---")
         self.lbl_avg_pf = QLabel("---")
+        self.lbl_win_rate = QLabel("---")
+        self.lbl_pf = QLabel("---")
+        self.lbl_avg_rr = QLabel("---")
+        self.lbl_total_trades = QLabel("---")
 
         kpi_form.addRow("最大DD（12ヶ月）", self.lbl_max_dd)
-        kpi_form.addRow("PF平均", self.lbl_avg_pf)
+        kpi_form.addRow("PF平均（月次）", self.lbl_avg_pf)
+        kpi_form.addRow("勝率", self.lbl_win_rate)
+        kpi_form.addRow("PF（全トレード）", self.lbl_pf)
+        kpi_form.addRow("平均RR", self.lbl_avg_rr)
+        kpi_form.addRow("総トレード数", self.lbl_total_trades)
         metrics_layout.addWidget(kpi_group, 1)
 
         main_layout.addLayout(metrics_layout)
@@ -136,6 +144,10 @@ class KPIDashboardWidget(QWidget):
         self.lbl_current_return.hide()
         self.lbl_max_dd.setText("---")
         self.lbl_avg_pf.setText("---")
+        self.lbl_win_rate.setText("---")
+        self.lbl_pf.setText("---")
+        self.lbl_avg_rr.setText("---")
+        self.lbl_total_trades.setText("---")
 
     def _show_data(self, data: dict) -> None:
         """データがある場合の表示"""
@@ -176,6 +188,29 @@ class KPIDashboardWidget(QWidget):
                 self.lbl_avg_pf.setText("N/A")
         else:
             self.lbl_avg_pf.setText("N/A")
+
+    def set_trade_stats(self, win_rate: float, pf: float, avg_rr: float, total_trades: int) -> None:
+        """
+        トレード統計を表示する。
+
+        Parameters
+        ----------
+        win_rate : float
+            勝率（0.0〜1.0）
+        pf : float
+            プロフィットファクター（無限大の場合は float("inf")）
+        avg_rr : float
+            平均リスクリワード比
+        total_trades : int
+            総トレード数
+        """
+        self.lbl_win_rate.setText(f"{win_rate * 100:.1f}%")
+        if pf == float("inf"):
+            self.lbl_pf.setText("∞")
+        else:
+            self.lbl_pf.setText(f"{pf:.2f}")
+        self.lbl_avg_rr.setText(f"{avg_rr:.2f}")
+        self.lbl_total_trades.setText(str(total_trades))
 
     def _draw_chart(self, data: dict) -> None:
         """12ヶ月折れ線グラフを描画"""
