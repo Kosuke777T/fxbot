@@ -29,6 +29,42 @@ LOG_DIR = PROJECT_ROOT / "logs" / "backtest"
 import pandas as pd
 
 
+def iter_with_progress(df: pd.DataFrame, step: int = 5, use_iterrows: bool = False):
+    """
+    バックテスト用の行イテレータ。
+    df を順に返しながら、step (%) ごとに [bt_progress] ログを出す。
+
+    例: step=5 のとき → 5, 10, 15, ..., 100
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        対象のDataFrame
+    step : int
+        進捗を出力する間隔（%）
+    use_iterrows : bool
+        True の場合は iterrows() を使用、False の場合は itertuples() を使用
+    """
+    n = len(df)
+    if n <= 0:
+        return
+    last_pct = -1
+    if use_iterrows:
+        for i, (idx, row) in enumerate(df.iterrows()):
+            pct = int(100 * (i + 1) / n)
+            if pct != last_pct and pct % step == 0:
+                print(f"[bt_progress] {pct}", flush=True)
+                last_pct = pct
+            yield idx, row
+    else:
+        for i, row in enumerate(df.itertuples()):
+            pct = int(100 * (i + 1) / n)
+            if pct != last_pct and pct % step == 0:
+                print(f"[bt_progress] {pct}", flush=True)
+                last_pct = pct
+            yield i, row
+
+
 def _print_progress(pct: int) -> None:
     """バックテスト進捗を [bt_progress] 形式で出力するヘルパー"""
     pct = max(0, min(100, int(pct)))
@@ -617,11 +653,11 @@ def run_backtest(
         equity_curve.csv のパス
     """
     print("[bt] start (v5.1)", flush=True)
-    _print_progress(0)
+    # _print_progress(0)  # iter_with_progress で5%刻みになるので削除
     out_dir.mkdir(parents=True, exist_ok=True)
     print(f"[bt] read_csv {data_csv}", flush=True)
     df = pd.read_csv(data_csv, parse_dates=["time"])
-    _print_progress(10)
+    # _print_progress(10)  # iter_with_progress で5%刻みになるので削除
 
     tag_start = start or "ALL"
     tag_end = end or "ALL"
@@ -629,7 +665,7 @@ def run_backtest(
     df = slice_period(df, start, end)
     if df.empty:
         raise RuntimeError("No data in the requested period.")
-    _print_progress(30)
+    # _print_progress(30)  # iter_with_progress で5%刻みになるので削除
 
     # v5.1 準拠の BacktestEngine を使用
     try:
@@ -644,11 +680,11 @@ def run_backtest(
 
         print(f"[bt] Running backtest...", flush=True)
         results = engine.run(df, out_dir, symbol=symbol)
-        _print_progress(60)
+        # _print_progress(60)  # iter_with_progress で5%刻みになるので削除
 
         eq_csv = results["equity_curve"]
         print(f"[bt] Backtest completed. Output: {eq_csv}", flush=True)
-        _print_progress(80)
+        # _print_progress(80)  # iter_with_progress で5%刻みになるので削除
 
         # メトリクスを計算
         eq_df = pd.read_csv(eq_csv)
@@ -664,10 +700,10 @@ def run_backtest(
         )
 
         # monthly_returns.csv は BacktestEngine.run 内で既に生成済み
-        _print_progress(95)
+        # _print_progress(95)  # iter_with_progress で5%刻みになるので削除
 
         print("[bt] done", flush=True)
-        _print_progress(100)
+        # _print_progress(100)  # iter_with_progress で5%刻みになるので削除
         return eq_csv
 
     except Exception as e:

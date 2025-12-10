@@ -96,7 +96,8 @@ class BacktestEngine:
 
         # 各バーを処理
         print(f"[BacktestEngine] Processing {len(df_features)} bars...", flush=True)
-        for idx, row in df_features.iterrows():
+        from tools.backtest_run import iter_with_progress
+        for idx, row in iter_with_progress(df_features, step=5, use_iterrows=True):
             timestamp = pd.Timestamp(row["time"])
             price = float(row["close"])
 

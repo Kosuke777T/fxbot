@@ -11,7 +11,7 @@ from typing import Any, Dict, Optional, Tuple
 import pandas as pd
 import numpy as np
 from PyQt6 import QtCore, QtWidgets
-from PyQt6.QtCore import Qt, QProcess
+from PyQt6.QtCore import Qt, QProcess, QTimer
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as Canvas
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as Toolbar
 from matplotlib.dates import AutoDateLocator, ConciseDateFormatter
@@ -701,6 +701,19 @@ class BacktestTab(QtWidgets.QWidget):
         path_line = QtWidgets.QHBoxLayout()
         path_line.addWidget(QtWidgets.QLabel("Equity CSV:")); path_line.addWidget(self.path_edit, 1); path_line.addWidget(self.btn_open)
 
+        # プログレスバー
+        self.progress_bar = QtWidgets.QProgressBar(self)
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setTextVisible(True)
+
+        # ★進捗アニメーション用の状態 & タイマー
+        self._progress_value = 0          # 実際にバーに表示している値
+        self._progress_target = 0         # エンジンから報告された目標値
+        self._progress_timer = QTimer(self)
+        self._progress_timer.setInterval(100)  # 0.1秒ごとにちょっとずつ動かす
+        self._progress_timer.timeout.connect(self._on_progress_timer)
+
         # 進捗ログ
         self.progress_box = QtWidgets.QPlainTextEdit(); self.progress_box.setReadOnly(True); self.progress_box.setMaximumBlockCount(1000)
 
@@ -735,6 +748,7 @@ class BacktestTab(QtWidgets.QWidget):
         lay.addLayout(path_line)
         lay.addWidget(QtWidgets.QLabel("モデル情報:")); lay.addWidget(self.model_info)
         lay.addWidget(QtWidgets.QLabel("メトリクス:")); lay.addWidget(self.table)
+        lay.addWidget(self.progress_bar)
         lay.addWidget(QtWidgets.QLabel("進捗ログ:")); lay.addWidget(self.progress_box, 2)
         lay.addWidget(self.wfo_stats_group)
 
@@ -774,6 +788,15 @@ class BacktestTab(QtWidgets.QWidget):
         self._on_mode_changed()
 
     # ------------------ ヘルパ ------------------
+    def _on_progress_timer(self):
+        # target に向かって 1 ずつ近づける
+        if self._progress_value < self._progress_target:
+            self._progress_value += 1
+            self.progress_bar.setValue(self._progress_value)
+        else:
+            # 目標に到達していて、かつ 100 ならタイマー停止
+            if self._progress_target >= 100:
+                self._progress_timer.stop()
     def _append_progress(self, text: str):
         self.progress_box.appendPlainText(text.rstrip())
 
@@ -1125,12 +1148,20 @@ class BacktestTab(QtWidgets.QWidget):
         self.proc.setArguments(args)
         self.proc.setWorkingDirectory(str(PROJECT_ROOT))  # 重要：プロジェクト直下をCWDに
 
-        self.proc.setProcessChannelMode(QProcess.ProcessChannelMode.MergedChannels)
-        self.proc.readyReadStandardOutput.connect(self._on_proc_output)
+        self.proc.setProcessChannelMode(QProcess.ProcessChannelMode.SeparateChannels)
+        self.proc.readyReadStandardOutput.connect(self._on_proc_ready_read_stdout)
+        self.proc.readyReadStandardError.connect(self._on_proc_ready_read_stderr)
         self.proc.finished.connect(
             lambda code, status: self._on_proc_finished(code, status, sym, tf, mode)
         )
         self.label_meta.setText("実行中…")
+        
+        # ★進捗状態を初期化してタイマー開始
+        self._progress_value = 0
+        self._progress_target = 0
+        self.progress_bar.setValue(0)
+        self._progress_timer.start()
+        
         self.proc.start()
 
         # Walk-Forward の場合は、学習側WFOの最新レポートをコンソールにサマリ表示
@@ -1144,25 +1175,80 @@ class BacktestTab(QtWidgets.QWidget):
             except Exception as e:  # 念のためここで例外を潰しておくとGUIごと落ちない
                 print(f"[WFO] summary error: {e}")
 
-    def _on_proc_output(self):
-        if not self.proc:
-            return
+    def _on_proc_ready_read_stdout(self):
+        data = bytes(self.proc.readAllStandardOutput()).decode("utf-8", errors="ignore")
 
-        out = bytes(self.proc.readAllStandardOutput()).decode("utf-8", errors="replace")
-        if not out:
-            return
+        for line in data.splitlines():
+            if not line:
+                continue
 
-        for raw in out.splitlines():
-            line = raw.rstrip("\r\n")
+            # 1) bt_progress 行はプログレスバーだけ更新してログには出さない
+            if "[bt_progress]" in line:
+                m = re.search(r"\[bt_progress\]\s+(\d+)", line)
+                if m:
+                    try:
+                        value = int(m.group(1))
+                        value = max(0, min(100, value))
+                        # ★ここで直接バーを動かさず、ターゲットだけ上書き
+                        if value > self._progress_target:
+                            self._progress_target = value
+                            # 念のためタイマーが止まっていたら再開
+                            if not self._progress_timer.isActive():
+                                self._progress_timer.start()
+                    except ValueError:
+                        pass
+                # 進捗行はログに書かない
+                continue
 
-            # loguru 形式の DEBUG 行は GUI には表示しない
-            # 例: "2025-12-10 20:20:52.443 | DEBUG    | app.services.ai_service:predict:342 - ..."
-            if " DEBUG " in line:
+            # 2) AISvc.predict 系のエラースパムは Backtest タブでは非表示
+            if "AISvc.predict" in line or "app.services.ai_service:predict" in line:
+                # コンソール側には出ているので GUI ログではミュート
+                continue
+
+            # それ以外だけログに出す
+            self._append_progress(line)
+
+    def _on_proc_ready_read_stderr(self):
+        data = bytes(self.proc.readAllStandardError()).decode("utf-8", errors="ignore")
+
+        for line in data.splitlines():
+            if not line:
+                continue
+
+            # bt_progress が stderr 側に来ることはあまりないはずだけど、
+            # 念のため同じ処理を入れておく
+            if "[bt_progress]" in line:
+                m = re.search(r"\[bt_progress\]\s+(\d+)", line)
+                if m:
+                    try:
+                        value = int(m.group(1))
+                        value = max(0, min(100, value))
+                        # ★ここで直接バーを動かさず、ターゲットだけ上書き
+                        if value > self._progress_target:
+                            self._progress_target = value
+                            # 念のためタイマーが止まっていたら再開
+                            if not self._progress_timer.isActive():
+                                self._progress_timer.start()
+                    except ValueError:
+                        pass
+                continue
+
+            # AISvc.predict 系ログをミュート
+            if "AISvc.predict" in line or "app.services.ai_service:predict" in line:
                 continue
 
             self._append_progress(line)
 
     def _on_proc_finished(self, code: int, status: QtCore.QProcess.ExitStatus, sym: str, tf: str, mode: str):
+        # ★進捗アニメーションはここで止める
+        if self._progress_timer.isActive():
+            self._progress_timer.stop()
+
+        # ★内部状態とバーを即 100 にそろえる
+        self._progress_target = 100
+        self._progress_value = 100
+        self.progress_bar.setValue(100)
+        
         if code != 0:
             self.label_meta.setText(f"失敗(code={code})")
             self._append_progress(f"[gui] process failed code={code}")
