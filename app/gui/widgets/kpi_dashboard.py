@@ -24,7 +24,7 @@ from app.services.kpi_service import KPIService
 class KPIDashboardWidget(QWidget):
     """
     正式KPIダッシュボード（v5.1 仕様準拠）
-    
+
     - 12ヶ月折れ線グラフ（月次return_pct）
     - 3%に対する進捗ゲージ（progress_pct）
     - 今月のリターン（current_month_return）
@@ -35,6 +35,7 @@ class KPIDashboardWidget(QWidget):
     def __init__(self, profile: str = "std", parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self.profile = profile
+        self.kpi_service = KPIService()
 
         # メインレイアウト
         main_layout = QVBoxLayout(self)
@@ -47,7 +48,7 @@ class KPIDashboardWidget(QWidget):
         title_label.setStyleSheet("font-size: 14pt; font-weight: bold;")
         self.btn_reload = QPushButton("Reload")
         self.btn_reload.clicked.connect(self.refresh)
-        
+
         header_layout.addWidget(title_label)
         header_layout.addStretch(1)
         header_layout.addWidget(self.btn_reload)
@@ -72,7 +73,7 @@ class KPIDashboardWidget(QWidget):
         # 左側: 進捗ゲージ
         progress_group = QGroupBox("今月の進捗（目標: 3%）")
         progress_layout = QVBoxLayout(progress_group)
-        
+
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 200)  # 0〜200%
         self.progress_bar.setFormat("%p%")
@@ -88,10 +89,10 @@ class KPIDashboardWidget(QWidget):
                 background-color: #4CAF50;
             }
         """)
-        
+
         self.lbl_current_return = QLabel("今月のリターン: ---")
         self.lbl_current_return.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        
+
         progress_layout.addWidget(self.progress_bar)
         progress_layout.addWidget(self.lbl_current_return)
         metrics_layout.addWidget(progress_group, 1)
@@ -99,10 +100,10 @@ class KPIDashboardWidget(QWidget):
         # 右側: KPIカード
         kpi_group = QGroupBox("KPI指標")
         kpi_form = QFormLayout(kpi_group)
-        
+
         self.lbl_max_dd = QLabel("---")
         self.lbl_avg_pf = QLabel("---")
-        
+
         kpi_form.addRow("最大DD（12ヶ月）", self.lbl_max_dd)
         kpi_form.addRow("PF平均", self.lbl_avg_pf)
         metrics_layout.addWidget(kpi_group, 1)
@@ -115,17 +116,13 @@ class KPIDashboardWidget(QWidget):
     def refresh(self) -> None:
         """KPIServiceからデータを取得してダッシュボードを更新"""
         try:
-            data = KPIService.compute_monthly_dashboard(
-                profile=self.profile,
-                target=0.03,  # 3%
-                months_window=12,
-            )
+            data = self.kpi_service.load_backtest_kpi_summary(self.profile)
         except Exception as e:
-            print(f"[KPIDashboard] compute_monthly_dashboard error: {e}")
+            print(f"[KPIDashboard] load_backtest_kpi_summary error: {e}")
             self._show_no_data()
             return
 
-        if not data.get("has_data", False):
+        if not data.get("has_backtest", False):
             self._show_no_data()
             return
 
@@ -150,9 +147,9 @@ class KPIDashboardWidget(QWidget):
         # グラフ描画
         self._draw_chart(data)
 
-        # 進捗ゲージ（progress_pctは既にパーセンテージ形式、0〜200%）
-        progress_pct = data.get("progress_pct", 0.0)
-        progress_value = int(progress_pct)  # 0〜200
+        # 進捗ゲージ（current_month_progress は 0.0〜2.0、×100 してパーセント表示）
+        progress = data.get("current_month_progress", 0.0)
+        progress_value = int(progress * 100)  # 0.0〜2.0 → 0〜200
         self.progress_bar.setValue(min(max(progress_value, 0), 200))
 
         # 今月のリターン
@@ -161,17 +158,22 @@ class KPIDashboardWidget(QWidget):
             f"今月のリターン: {current_return * 100:.2f}%"
         )
 
-        # 最大DD
-        max_dd_pct = data.get("max_dd_pct")
-        if max_dd_pct is not None:
-            self.lbl_max_dd.setText(f"{max_dd_pct * 100:.2f}%")
+        # 最大DD（12ヶ月の monthly から計算）
+        monthly = data.get("monthly", [])
+        if monthly:
+            max_dd_pct = min(m["max_dd_pct"] for m in monthly)
+            self.lbl_max_dd.setText(f"{max_dd_pct:.2f}%")
         else:
             self.lbl_max_dd.setText("N/A")
 
-        # PF平均
-        avg_pf = data.get("avg_pf")
-        if avg_pf is not None:
-            self.lbl_avg_pf.setText(f"{avg_pf:.2f}")
+        # PF平均（12ヶ月の monthly から計算、0より大きいもののみ）
+        if monthly:
+            pf_vals = [m["pf"] for m in monthly if m["pf"] > 0]
+            if pf_vals:
+                avg_pf = sum(pf_vals) / len(pf_vals)
+                self.lbl_avg_pf.setText(f"{avg_pf:.2f}")
+            else:
+                self.lbl_avg_pf.setText("N/A")
         else:
             self.lbl_avg_pf.setText("N/A")
 
@@ -180,9 +182,16 @@ class KPIDashboardWidget(QWidget):
         self.figure.clear()
         ax = self.figure.add_subplot(111)
 
-        months = data.get("months", [])
-        returns = data.get("returns", [])
-        target = data.get("target", 0.03)
+        monthly = data.get("monthly", [])
+        if not monthly:
+            ax.set_title("Monthly Returns (no data)")
+            ax.axhline(0.0, linestyle="--", linewidth=1.0, color="gray")
+            self.canvas.draw_idle()
+            return
+
+        months = [m["year_month"] for m in monthly]
+        returns = [m["return_pct"] for m in monthly]
+        target = 0.03  # 固定値
 
         if not months or not returns:
             ax.set_title("Monthly Returns (no data)")
@@ -199,7 +208,7 @@ class KPIDashboardWidget(QWidget):
 
         # 3%目標線
         ax.axhline(target * 100, color="red", linestyle="--", linewidth=2, label="目標 3%")
-        
+
         # 0%ライン
         ax.axhline(0.0, color="black", linestyle="--", linewidth=1, alpha=0.5)
 

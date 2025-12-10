@@ -37,8 +37,27 @@ class KpiDashboard:
 class KPIService:
     """バックテスト結果を元に KPI ダッシュボード用のデータを作るサービス."""
 
-    def __init__(self, backtest_root: Optional[Path] = None) -> None:
-        self.backtest_root = backtest_root or BACKTEST_ROOT
+    def __init__(
+        self,
+        backtest_root: Optional[Path] = None,
+        base_dir: Optional[Path] = None,
+    ) -> None:
+        """
+        backtest_root:
+            - 明示的に backtests ルートディレクトリを指定したい場合に使用
+            - 例: KPIService(backtest_root=Path("backtests"))
+
+        base_dir:
+            - 旧仕様互換用。
+            - 例: KPIService(base_dir=Path(".")) のような呼び出しをサポートする。
+            - base_dir が指定された場合は base_dir / "backtests" を backtest_root とみなす。
+        """
+        if backtest_root is not None:
+            self.backtest_root = Path(backtest_root)
+        elif base_dir is not None:
+            self.backtest_root = Path(base_dir) / "backtests"
+        else:
+            self.backtest_root = BACKTEST_ROOT
         # monthly_returns の簡易キャッシュ（必要なら）
         self._monthly_cache: dict[str, pd.DataFrame] = {}
 
