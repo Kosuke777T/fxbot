@@ -72,7 +72,7 @@ Free	0	0	0	0	0	デモのみ
 Basic	0	0	1	1	1	単一プロファイル
 Pro	2	1	2	2	2	FI20, SHAP3
 Expert	3	3	3	3	3	Full診断AI
-Master	全て無制限	全機能	-			
+Master	全て無制限	全機能	-
 3. データ構造（標準フォルダ）
 config/                 設定ファイル（edition, scheduler, profiles）
 models/                 学習モデル（LightGBM 他）
@@ -93,6 +93,366 @@ total_trades	int	トレード数
 pf	float	ProfitFactor
 
 KPI / ランキング / AIタブ / フィルタ学習 すべてこの形式を前提とする。
+
+BacktestRun 入出力仕様（単体実行時）
+
+BacktestRun（tools/backtest_run.py）を単体実行したとき、指定した out_dir 配下に以下の4ファイルを出力する想定になっている：
+
+equity_curve.csv
+
+trades.csv
+
+metrics.json
+
+monthly_returns.csv（※BacktestRunローカル版。michibiki_std 直下のものとは別物）
+
+以下、それぞれのフォーマット仕様。
+
+1. equity_curve.csv
+パス
+
+out_dir / "equity_curve.csv"
+
+例：backtests/michibiki_std/2025-11_ALL/equity_curve.csv（※実際の階層は今後の設計次第）
+
+生成元
+close = df["close"]
+close.index = df["time"]
+
+eq_df = to_equity(close, capital)
+eq_df["signal"] = 0  # Buy&Holdなのでシグナル無し
+eq_csv = out_dir / "equity_curve.csv"
+eq_df.to_csv(eq_csv, index=False)
+
+
+to_equity:
+
+def to_equity(close: pd.Series, capital: float = 100000.0) -> pd.DataFrame:
+    close = close.astype(float)
+    ret = close.pct_change().fillna(0.0)
+    eq = (1.0 + ret).cumprod() * capital
+    return pd.DataFrame({"time": close.index, "equity": eq.values})
+
+カラム仕様
+
+CSV ヘッダ行あり、index=False で保存。
+
+time
+
+型：datetime（CSV上は ISO8601 文字列）
+
+内容：元データ df["time"]。バーのタイムスタンプ（M5など）。
+
+equity
+
+型：float
+
+内容：初期資金 capital を基準にした累積エクイティ。
+
+計算：ret = close.pct_change() → eq = (1 + ret).cumprod() * capital
+
+signal
+
+型：int
+
+内容：現状 Buy & Hold のため 常に 0。
+
+将来的に戦略別の信号（1：ロング、-1：ショート、0：ノーポジ）を埋める拡張余地あり。
+
+想定用途
+
+エクイティ曲線の可視化
+
+metrics_from_equity に渡してパフォーマンス指標を計算
+
+compute_monthly_returns の入力（「equity_curve.csv」→「monthly_returns.csv」）
+
+2. trades.csv
+パス
+
+out_dir / "trades.csv"
+
+生成元
+trades = trades_from_buyhold(df, capital)
+trades.to_csv(out_dir / "trades.csv", index=False)
+
+
+trades_from_buyhold:
+
+def trades_from_buyhold(df: pd.DataFrame, capital: float) -> pd.DataFrame:
+    # テンプレ：開始→終了の単一トレード（将来は戦略で複数トレードに差し替え）
+    if df.empty:
+        return pd.DataFrame(
+            columns=[
+                "entry_time",
+                "exit_time",
+                "pnl",
+                "holding_bars",
+                "holding_days",
+                "win",
+            ]
+        )
+    entry = df["time"].iloc[0]
+    exit_ = df["time"].iloc[-1]
+    close = df["close"].astype(float)
+    ret = (close.iloc[-1] / close.iloc[0]) - 1.0
+    pnl = capital * ret
+    holding_bars = len(df)
+    holding_days = (pd.Timestamp(exit_) - pd.Timestamp(entry)).days
+    win = int(pnl > 0)
+    return pd.DataFrame(
+        [
+            {
+                "entry_time": entry,
+                "exit_time": exit_,
+                "pnl": float(pnl),
+                "holding_bars": int(holding_bars),
+                "holding_days": int(holding_days),
+                "win": win,
+            }
+        ]
+    )
+
+カラム仕様
+
+entry_time
+
+型：datetime（CSVでは文字列）
+
+内容：トレードのエントリー時刻（現状は期間の最初のバー時間）
+
+exit_time
+
+型：datetime
+
+内容：トレードのエグジット時刻（現状は期間の最後のバー時間）
+
+pnl
+
+型：float
+
+内容：JPYベースの損益。
+
+計算：capital * ((close_last / close_first) - 1.0)
+
+holding_bars
+
+型：int
+
+内容：保有バー数（len(df)）
+
+holding_days
+
+型：int
+
+内容：保有日数（(exit_ - entry).days）
+
+win
+
+型：int（0 or 1）
+
+内容：勝ちトレードなら 1、負け or 引き分けなら 0
+
+※現状はテンプレとして「期間全体を 1 トレード扱い」にしているが、
+将来 trades_from_signal_series 等に差し替えることで、複数トレード対応に拡張可能。
+
+3. metrics.json
+パス
+
+out_dir / "metrics.json"
+
+生成元
+base = metrics_from_equity(eq_df["equity"])
+tmet = trade_metrics(trades)
+base.update(tmet)
+(out_dir / "metrics.json").write_text(
+    json.dumps(base, ensure_ascii=False, indent=2)
+)
+
+metrics_from_equity(eq: pd.Series)
+def metrics_from_equity(eq: pd.Series) -> dict:
+    ret = eq.pct_change().fillna(0.0)
+    total = eq.iloc[-1] / eq.iloc[0] - 1.0
+    dd = (eq / eq.cummax() - 1.0).min()
+    sharpe = (ret.mean() / (ret.std() + 1e-12)) * np.sqrt(252 * 24 * 12)
+    return {
+        "start_equity": float(eq.iloc[0]),
+        "end_equity": float(eq.iloc[-1]),
+        "total_return": float(total),
+        "max_drawdown": float(dd),
+        "sharpe_like": float(sharpe),
+        "bars": int(len(eq)),
+        "max_dd_days": _dd_duration_max(eq),
+    }
+
+trade_metrics(trades: pd.DataFrame)
+def trade_metrics(trades: pd.DataFrame) -> dict:
+    if trades.empty:
+        return {
+            "trades": 0,
+            "win_rate": 0.0,
+            "avg_pnl": 0.0,
+            "profit_factor": 0.0,
+            "avg_holding_bars": 0.0,
+            "avg_holding_days": 0.0,
+            "max_consec_win": 0,
+            "max_consec_loss": 0,
+        }
+    wins = trades["pnl"] > 0
+    sum_win = trades.loc[wins, "pnl"].sum()
+    sum_loss_abs = (-trades.loc[~wins, "pnl"]).clip(lower=0).sum()
+    pf = (
+        float(sum_win / sum_loss_abs)
+        if sum_loss_abs > 0
+        else float("inf") if sum_win > 0 else 0.0
+    )
+
+    seq = wins.astype(int)
+    consec_win = _max_consecutive(seq, 1)
+    consec_loss = _max_consecutive(1 - seq, 1)
+
+    return {
+        "trades": int(len(trades)),
+        "win_rate": float(wins.mean()) if len(trades) else 0.0,
+        "avg_pnl": float(trades["pnl"].mean()) if len(trades) else 0.0,
+        "profit_factor": pf,
+        "avg_holding_bars": (
+            float(trades["holding_bars"].mean()) if len(trades) else 0.0
+        ),
+        "avg_holding_days": (
+            float(trades["holding_days"].mean()) if len(trades) else 0.0
+        ),
+        "max_consec_win": int(consec_win),
+        "max_consec_loss": int(consec_loss),
+    }
+
+JSON のキー一覧
+
+metrics.json のルートはフラットな dict：
+
+エクイティ由来
+
+start_equity : float … 初期エクイティ
+
+end_equity : float … 最終エクイティ
+
+total_return : float … トータルリターン（比率, 0.10 = +10%）
+
+max_drawdown : float … 最大ドローダウン（比率, -0.25 なら -25%）
+
+sharpe_like : float … 疑似シャープレシオ（M5相当スケール）
+
+bars : int … エクイティ系列のバー数
+
+max_dd_days : int … 最大DD区間の長さ（日数ベース）
+
+トレード由来
+
+trades : int … トレード数
+
+win_rate : float … 勝率（0.55 = 55%）
+
+avg_pnl : float … 平均損益（JPY）
+
+profit_factor : float … Profit Factor
+
+損失が0で利益>0の場合は inf、利益=0なら 0.0
+
+avg_holding_bars : float … 平均保有バー数
+
+avg_holding_days : float … 平均保有日数
+
+max_consec_win : int … 最大連勝数
+
+max_consec_loss : int … 最大連敗数
+
+4. monthly_returns.csv（BacktestRun ローカル版）
+
+※ここは tools/backtest_run.py::compute_monthly_returns が出力する形式。
+いま backtests\michibiki_std\monthly_returns.csv にある
+year_month / return_pct / max_dd_pct / total_trades / pf は、
+別の集計ロジックで作られている「プロフィール全体の月次レポート」と思っておくと混乱しない。
+
+パス
+
+out_dir / "monthly_returns.csv"
+
+例：backtests/michibiki_std/2025-11_ALL/monthly_returns.csv
+
+生成元
+def compute_monthly_returns(equity_csv_path: str, out_path: str):
+    df = pd.read_csv(equity_csv_path)
+
+    if "timestamp" not in df.columns and "time" in df.columns:
+        df = df.rename(columns={"time": "timestamp"})
+
+    # 必須カラムチェック：timestamp, equity
+    if not {"timestamp", "equity"}.issubset(df.columns):
+        raise ValueError("equity_curve.csv に必要なカラムがありません (timestamp, equity)")
+
+    df["timestamp"] = pd.to_datetime(df["timestamp"])
+    df["year"] = df["timestamp"].dt.year
+    df["month"] = df["timestamp"].dt.month
+
+    first = df.groupby(["year", "month"])["equity"].first()
+    last = df.groupby(["year", "month"])["equity"].last()
+    monthly_return = (last - first) / first * 100
+
+    def calc_dd(sub):
+        peak = sub["equity"].cummax()
+        dd = (sub["equity"] - peak) / peak * 100
+        return dd.min()
+
+    dd_rows = []
+    for (y, m), sub in df.groupby(["year", "month"]):
+        dd_rows.append({
+            "year": y,
+            "month": m,
+            "dd_pct": calc_dd(sub)
+        })
+    dd_df = pd.DataFrame(dd_rows).set_index(["year", "month"])
+
+    out = pd.DataFrame({
+        "return_pct": monthly_return,
+    }).join(dd_df)
+
+    out = out.reset_index().sort_values(["year", "month"])
+    out.to_csv(out_path, index=False)
+
+カラム仕様（BacktestRunローカル）
+
+year
+
+型：int
+
+内容：西暦
+
+month
+
+型：int（1〜12）
+
+return_pct
+
+型：float
+
+内容：月次リターン（％）。
+
+計算：(月末 equity - 月初 equity) / 月初 equity * 100
+
+dd_pct
+
+型：float
+
+内容：その月内の最大ドローダウン（％, マイナス方向）
+
+備考
+
+仕様書 v5 で書いてある year_month / max_dd_pct / total_trades / pf は、
+将来的に「トレード情報も込みで月次をまとめる版」として拡張予定のフォーマットとみなすといい。
+
+現時点の BacktestRun 実装では、月次 PF やトレード数は monthly_returns には入っていない。
+必要なら metrics.json 群を集計する別ツールで profile 単位の monthly_returns.csv を生成する想定になる。
+
 
 5. KPIタブ（3％ダッシュボード）
 
