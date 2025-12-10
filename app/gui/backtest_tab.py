@@ -337,12 +337,26 @@ class PlotWindow(QtWidgets.QDialog):
         self.figure.clear()
         ax = self.figure.add_subplot(111)
 
-        if "year" not in df.columns or "month" not in df.columns:
+        # --- v5 仕様: year_month にも対応させる ---
+        if "year" in df.columns and "month" in df.columns:
+            # 旧形式: そのまま使う
+            year = df["year"].astype(int)
+            month = df["month"].astype(int)
+        elif "year_month" in df.columns:
+            # 新形式: "2025-07" → year=2025, month=7 に分解
+            ym = df["year_month"].astype(str)
+            # フォーマットが "YYYY-MM" 前提
+            df["year"] = ym.str.slice(0, 4).astype(int)
+            df["month"] = ym.str.slice(5, 7).astype(int)
+            year = df["year"]
+            month = df["month"]
+        else:
             QtWidgets.QMessageBox.information(
                 self, "情報",
-                "月次リターンCSVに 'year' または 'month' 列がありません。"
+                "月次リターンCSVに 'year'/'month' も 'year_month' 列もありません。"
             )
             return
+        # ここより下の処理では df['year'], df['month'] を使ってOK
 
         value_col = None
         for cand in ("return", "ret", "pnl_pct", "pnl"):
@@ -1131,11 +1145,22 @@ class BacktestTab(QtWidgets.QWidget):
                 print(f"[WFO] summary error: {e}")
 
     def _on_proc_output(self):
-        if not self.proc: return
+        if not self.proc:
+            return
+
         out = bytes(self.proc.readAllStandardOutput()).decode("utf-8", errors="replace")
-        if out:
-            for line in out.splitlines():
-                self._append_progress(line)
+        if not out:
+            return
+
+        for raw in out.splitlines():
+            line = raw.rstrip("\r\n")
+
+            # loguru 形式の DEBUG 行は GUI には表示しない
+            # 例: "2025-12-10 20:20:52.443 | DEBUG    | app.services.ai_service:predict:342 - ..."
+            if " DEBUG " in line:
+                continue
+
+            self._append_progress(line)
 
     def _on_proc_finished(self, code: int, status: QtCore.QProcess.ExitStatus, sym: str, tf: str, mode: str):
         if code != 0:

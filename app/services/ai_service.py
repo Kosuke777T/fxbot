@@ -268,7 +268,7 @@ class AISvc:
 
         # とりあえず 'lgbm' というキーで登録（SHAP などから参照される）
         self.models["lgbm"] = model
-        logger.info("[AISvc] モデルをロード: key='lgbm', type={typ}",
+        logger.info("[AISvc] model loaded: key='lgbm', type={typ}",
                     typ=type(model).__name__)
 
         # モデル側が feature_name / expected_features を持っていて、
@@ -339,7 +339,7 @@ class AISvc:
                 row0 = X[0]
                 # numpy でも list でも .tolist() が使えるようにする
                 row_preview = getattr(row0, "tolist", lambda: row0)()
-            logger.info(
+            logger.debug(
                 "[AISvc.predict] X.shape={shape}, X[0]={row}",
                 shape=getattr(X, "shape", None),
                 row=row_preview,
@@ -881,11 +881,11 @@ class AISvc:
         # --- デバッグ: 特徴量 dict & 並び替え後ベクトルをログ出力 ---
         try:
             import json
-            logger.info(
+            logger.debug(
                 "[AISvc.get_live_probs] model_feats(normalized)={payload}",
                 payload=json.dumps(model_feats, ensure_ascii=False),
             )
-            logger.info(
+            logger.debug(
                 "[AISvc.get_live_probs] input vec (ordered)={vec}",
                 vec=vec,
             )
