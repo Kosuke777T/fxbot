@@ -29,6 +29,12 @@ LOG_DIR = PROJECT_ROOT / "logs" / "backtest"
 import pandas as pd
 
 
+def _print_progress(pct: int) -> None:
+    """バックテスト進捗を [bt_progress] 形式で出力するヘルパー"""
+    pct = max(0, min(100, int(pct)))
+    print(f"[bt_progress] {pct}", flush=True)
+
+
 def _month_dd(equity: pd.Series) -> float:
     """月内最大ドローダウンを計算する（v5.1 仕様）"""
     if equity.empty:
@@ -611,9 +617,11 @@ def run_backtest(
         equity_curve.csv のパス
     """
     print("[bt] start (v5.1)", flush=True)
+    _print_progress(0)
     out_dir.mkdir(parents=True, exist_ok=True)
     print(f"[bt] read_csv {data_csv}", flush=True)
     df = pd.read_csv(data_csv, parse_dates=["time"])
+    _print_progress(10)
 
     tag_start = start or "ALL"
     tag_end = end or "ALL"
@@ -621,6 +629,7 @@ def run_backtest(
     df = slice_period(df, start, end)
     if df.empty:
         raise RuntimeError("No data in the requested period.")
+    _print_progress(30)
 
     # v5.1 準拠の BacktestEngine を使用
     try:
@@ -635,9 +644,11 @@ def run_backtest(
 
         print(f"[bt] Running backtest...", flush=True)
         results = engine.run(df, out_dir, symbol=symbol)
+        _print_progress(60)
 
         eq_csv = results["equity_curve"]
         print(f"[bt] Backtest completed. Output: {eq_csv}", flush=True)
+        _print_progress(80)
 
         # メトリクスを計算
         eq_df = pd.read_csv(eq_csv)
@@ -652,7 +663,11 @@ def run_backtest(
             json.dumps(base, ensure_ascii=False, indent=2)
         )
 
+        # monthly_returns.csv は BacktestEngine.run 内で既に生成済み
+        _print_progress(95)
+
         print("[bt] done", flush=True)
+        _print_progress(100)
         return eq_csv
 
     except Exception as e:

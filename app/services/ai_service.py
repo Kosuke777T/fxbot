@@ -19,6 +19,9 @@ from app.services.shap_service import (
 )
 from app.services.edition_guard import get_capability
 
+# AISvc.predict の詳細ログを出すかどうか（バックテストでは OFF 推奨）
+DEBUG_PREDICT_LOG = False
+
 
 def _safe_float(value: Any) -> Optional[float]:
     """数値 or 数値っぽい文字列だけ float に変換し、それ以外は None を返す小さいユーティリティ。"""
@@ -332,20 +335,21 @@ class AISvc:
                 X = X.reshape(1, -1)
 
         # --- デバッグ: モデル入力の shape と1行目をログに出す ---
-        try:
-            row_preview = None
-            if hasattr(X, "__getitem__"):
-                # X[0] が numpy 配列や list のことを想定
-                row0 = X[0]
-                # numpy でも list でも .tolist() が使えるようにする
-                row_preview = getattr(row0, "tolist", lambda: row0)()
-            logger.debug(
-                "[AISvc.predict] X.shape={shape}, X[0]={row}",
-                shape=getattr(X, "shape", None),
-                row=row_preview,
-            )
-        except Exception as e:
-            logger.warning("[AISvc.predict] debug logging failed: {err}", err=e)
+        if DEBUG_PREDICT_LOG:
+            try:
+                row_preview = None
+                if hasattr(X, "__getitem__"):
+                    # X[0] が numpy 配列や list のことを想定
+                    row0 = X[0]
+                    # numpy でも list でも .tolist() が使えるようにする
+                    row_preview = getattr(row0, "tolist", lambda: row0)()
+                logger.debug(
+                    "[AISvc.predict] X.shape={shape}, X[0]={row}",
+                    shape=getattr(X, "shape", None),
+                    row=row_preview,
+                )
+            except Exception as e:
+                logger.warning("[AISvc.predict] debug logging failed: {err}", err=e)
 
         if not self.models:
             # モデルが 1つもない場合は安全側に全スキップ
@@ -879,21 +883,22 @@ class AISvc:
             vec = list(model_feats.values())
 
         # --- デバッグ: 特徴量 dict & 並び替え後ベクトルをログ出力 ---
-        try:
-            import json
-            logger.debug(
-                "[AISvc.get_live_probs] model_feats(normalized)={payload}",
-                payload=json.dumps(model_feats, ensure_ascii=False),
-            )
-            logger.debug(
-                "[AISvc.get_live_probs] input vec (ordered)={vec}",
-                vec=vec,
-            )
-        except Exception as e:
-            logger.warning(
-                "[AISvc.get_live_probs] failed to dump debug input: {err}",
-                err=e,
-            )
+        if DEBUG_PREDICT_LOG:
+            try:
+                import json
+                logger.debug(
+                    "[AISvc.get_live_probs] model_feats(normalized)={payload}",
+                    payload=json.dumps(model_feats, ensure_ascii=False),
+                )
+                logger.debug(
+                    "[AISvc.get_live_probs] input vec (ordered)={vec}",
+                    vec=vec,
+                )
+            except Exception as e:
+                logger.warning(
+                    "[AISvc.get_live_probs] failed to dump debug input: {err}",
+                    err=e,
+                )
 
         arr = np.array([vec], dtype=float)
 
