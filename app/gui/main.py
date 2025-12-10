@@ -21,6 +21,7 @@ from app.gui.history_tab import HistoryTab
 from app.services.execution_stub import evaluate_and_log_once
 from app.gui.ai_tab import AITab
 from app.gui.backtest_tab import BacktestTab
+from app.gui.kpi_tab import KPITab
 from app.gui.settings_tab import SettingsTab
 from app.services.kpi_service import KPIService
 
@@ -73,7 +74,7 @@ QTabBar::tab:hover {
         self._ai_tab: Optional[AITab] = None
         self._ai_tab_index = self.tabs.addTab(ai_placeholder, "AI")
 
-        # KPI サービスを生成（BacktestTab で使用）
+        # KPI サービスを生成（BacktestTab と KPITab で使用）
         self.kpi_service = KPIService(base_dir=Path("."))
 
         # 残りのタブを追加
@@ -84,6 +85,14 @@ QTabBar::tab:hover {
                 profile_name="michibiki_std",
             ),
             "Backtest"
+        )
+        self.tabs.addTab(
+            KPITab(
+                parent=self,
+                kpi_service=self.kpi_service,
+                profile_name="michibiki_std",
+            ),
+            "運用KPI"
         )
         self.tabs.addTab(SettingsTab(), "Settings")
 

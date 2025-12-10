@@ -47,7 +47,7 @@ class AITab(QWidget):
             print(f"[AITab] model autoload skipped: {e}")
 
         main_layout = QVBoxLayout(self)
-        
+
         # タブウィジェットをメインレイアウトに追加（モデル指標はタブ内に移動）
         self.tab_widget = QTabWidget(self)
         main_layout.addWidget(self.tab_widget, 1)
@@ -55,7 +55,7 @@ class AITab(QWidget):
         # === 2段目タブ（AI内部タブ）の色 + 角丸スタイル ===
         self.tab_widget.setStyleSheet("""
 QTabBar::tab {
-    background: #F0F0F0;              
+    background: #F0F0F0;
     padding: 6px 12px;
     border: 1px solid #CCCCCC;
     border-top-left-radius: 4px;      /* ← 角丸 */
@@ -63,7 +63,7 @@ QTabBar::tab {
 }
 
 QTabBar::tab:selected {
-    background: #D7EEFF;              
+    background: #D7EEFF;
     border: 1px solid #A0C8E8;
 }
 
@@ -75,12 +75,12 @@ QTabBar::tab:hover {
         # --- モデル指標タブ ---
         self.tab_model_info = QWidget(self.tab_widget)
         model_info_layout = QVBoxLayout(self.tab_model_info)
-        
+
         # モデル指標ウィジェット
         self.model_info_widget = ModelInfoWidget(self.tab_model_info)
         model_info_layout.addWidget(self.model_info_widget)
         model_info_layout.addStretch(1)
-        
+
         self.tab_model_info.setLayout(model_info_layout)
         self.tab_widget.addTab(self.tab_model_info, "モデル指標")
 
@@ -124,7 +124,7 @@ QTabBar::tab:hover {
         kpi_layout.addWidget(self.recent_kpi_group)
         kpi_layout.addStretch(1)
 
-        self.tab_widget.addTab(self.tab_kpi, "KPI")
+        self.tab_widget.addTab(self.tab_kpi, "AI・KPI")
         # KPIダッシュボードは初期化時に自動的にrefreshされる
 
         # EditionGuard を利用して表示レベルを取得
@@ -162,7 +162,7 @@ QTabBar::tab:hover {
         if (get_capability("shap_level") or 0) >= 1:
             self.diagnosis_tab = DiagnosisAIWidget(self.tab_widget)
             self.tab_widget.addTab(self.diagnosis_tab, "診断AI")
-            
+
             # v0: 暫定的に固定プロファイル "std" を使用して診断実行
             diag_svc = get_diagnosis_service()
             diag_result = diag_svc.analyze(profile="std")
