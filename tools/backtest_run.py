@@ -29,53 +29,136 @@ LOG_DIR = PROJECT_ROOT / "logs" / "backtest"
 import pandas as pd
 
 
-def compute_monthly_returns(equity_csv_path: str, out_path: str):
-    df = pd.read_csv(equity_csv_path)
+def _month_dd(equity: pd.Series) -> float:
+    """月内最大ドローダウンを計算する（v5.1 仕様）"""
+    if equity.empty:
+        return 0.0
+    dd = (equity / equity.cummax() - 1.0).min()
+    return float(dd * 100.0)  # ％に変換（-5.4 なら -5.4%）
 
-    if "timestamp" not in df.columns and "time" in df.columns:
-        df = df.rename(columns={"time": "timestamp"})
 
-    # 必須カラムチェック：timestamp, equity
-    if not {"timestamp", "equity"}.issubset(df.columns):
-        raise ValueError("equity_curve.csv に必要なカラムがありません (timestamp, equity)")
+def compute_monthly_returns(
+    equity_csv_path: str | Path,
+    out_path: str | Path,
+) -> Path:
+    """
+    equity.csv から v5.1 仕様の monthly_returns.csv を作成する。
 
-    # timestamp → datetime 変換
-    df["timestamp"] = pd.to_datetime(df["timestamp"])
+    - equity_csv_path: equity.csv のパス（time, equity を含む想定）
+    - out_path: monthly_returns.csv の出力パス
 
-    # 月末の equity を集計
-    df["year"] = df["timestamp"].dt.year
-    df["month"] = df["timestamp"].dt.month
+    出力カラム:
+        year_month, return_pct, max_dd_pct, total_trades, pf
+    """
+    equity_csv_path = Path(equity_csv_path)
+    out_path = Path(out_path)
 
-    # 月初値を取得
-    first = df.groupby(["year", "month"])["equity"].first()
-    last = df.groupby(["year", "month"])["equity"].last()
+    # === equity 読み込み ===
+    df_eq = pd.read_csv(equity_csv_path)
 
-    # リターン計算
-    monthly_return = (last - first) / first * 100
+    if "time" not in df_eq.columns:
+        raise ValueError("equity.csv に 'time' 列がありません。")
 
-    # 同時に月次DDも計算する（peak-to-trough）
-    def calc_dd(sub):
-        peak = sub["equity"].cummax()
-        dd = (sub["equity"] - peak) / peak * 100
-        return dd.min()
+    # equity 列の名前が違う場合のフォールバック
+    if "equity" not in df_eq.columns:
+        for cand in ("equity_curve", "balance", "equity_value"):
+            if cand in df_eq.columns:
+                df_eq["equity"] = df_eq[cand]
+                break
+        else:
+            raise ValueError("equity.csv に 'equity' 系の列が見つかりません。")
 
-    dd_rows = []
-    for (y, m), sub in df.groupby(["year", "month"]):
-        dd_rows.append({
-            "year": y,
-            "month": m,
-            "dd_pct": calc_dd(sub)
-        })
-    dd_df = pd.DataFrame(dd_rows).set_index(["year", "month"])
+    df_eq["time"] = pd.to_datetime(df_eq["time"])
+    df_eq = df_eq.sort_values("time").reset_index(drop=True)
 
-    out = pd.DataFrame({
-        "return_pct": monthly_return,
-    }).join(dd_df)
+    # index を time にした Series（値は口座残高や評価額）
+    eq_series = df_eq.set_index("time")["equity"].astype(float)
 
-    out = out.reset_index().sort_values(["year", "month"])
-    out.to_csv(out_path, index=False)
+    # 対象となる年月の一覧（Period[M]）
+    months = eq_series.index.to_period("M").unique()
 
+    # === trades.csv を読み込み（あれば） ===
+    trades_csv = equity_csv_path.with_name("trades.csv")
+    trades_df: pd.DataFrame | None = None
+
+    if trades_csv.exists():
+        tdf = pd.read_csv(trades_csv)
+
+        # entry_time 列の標準化
+        if "entry_time" in tdf.columns:
+            tdf["entry_time"] = pd.to_datetime(tdf["entry_time"])
+        elif "open_time" in tdf.columns:
+            tdf["entry_time"] = pd.to_datetime(tdf["open_time"])
+        else:
+            # 月次トレード数・PFを計算できないので NaT にしておく
+            tdf["entry_time"] = pd.NaT
+
+        # pnl 列の標準化
+        if "pnl" not in tdf.columns:
+            if "profit" in tdf.columns:
+                tdf["pnl"] = tdf["profit"].astype(float)
+            else:
+                tdf["pnl"] = 0.0
+
+        trades_df = tdf
+
+    rows: list[dict] = []
+
+    for p in months:
+        # 当該月の equity 部分
+        mask_month = eq_series.index.to_period("M") == p
+        sub_eq = eq_series[mask_month]
+        if sub_eq.empty:
+            continue
+
+        year_month = f"{p.year}-{p.month:02d}"
+
+        # 月次リターン: 期首→期末のリターン
+        return_pct = float(sub_eq.iloc[-1] / sub_eq.iloc[0] - 1.0)
+
+        # 月内最大DD（v5.1 仕様に合わせて _month_dd を利用）
+        max_dd_pct = float(_month_dd(sub_eq))
+
+        # default 値
+        total_trades = 0
+        pf = 0.0
+
+        # トレード情報がある場合のみ total_trades, pf を計算
+        if trades_df is not None and trades_df["entry_time"].notna().any():
+            mask_trades = trades_df["entry_time"].dt.to_period("M") == p
+            m_trades = trades_df[mask_trades]
+
+            total_trades = int(len(m_trades))
+
+            if total_trades > 0:
+                pnl = m_trades["pnl"].astype(float)
+                gross_profit = float(pnl[pnl > 0].sum())
+                gross_loss = float(pnl[pnl < 0].sum())  # マイナス値
+
+                if gross_loss < 0:
+                    pf = float(gross_profit / abs(gross_loss)) if gross_profit > 0 else 0.0
+                elif gross_profit > 0:
+                    # 損失が 0 で利益のみ → PF を無限大扱い
+                    pf = float("inf")
+
+        rows.append(
+            {
+                "year_month": year_month,
+                "return_pct": return_pct,
+                "max_dd_pct": max_dd_pct,
+                "total_trades": total_trades,
+                "pf": pf,
+            }
+        )
+
+    df_monthly = pd.DataFrame(
+        rows,
+        columns=["year_month", "return_pct", "max_dd_pct", "total_trades", "pf"],
+    )
+
+    df_monthly.to_csv(out_path, index=False)
     print(f"[bt] write monthly {out_path}")
+    return out_path
 
 
 @dataclass
@@ -316,12 +399,6 @@ def monthly_returns_from_equity(
     return_pct = (ret_raw * 100.0).rename("return_pct")  # ％に変換
 
     # --- 月次の最大ドローダウン（％） ---
-    def _month_dd(equity: pd.Series) -> float:
-        if equity.empty:
-            return 0.0
-        dd = (equity / equity.cummax() - 1.0).min()
-        return float(dd * 100.0)  # ％に変換（-5.4 なら -5.4%）
-
     dd_pct = df["equity"].resample("ME").apply(_month_dd).rename("dd_pct")
 
     # ベースとなる DataFrame（year/month 作成）
@@ -638,6 +715,12 @@ def run_wfo(
 
     # 可視化用に test をメインへコピー
     (out_dir / "equity_curve.csv").write_text((out_dir / "equity_test.csv").read_text())
+
+    # v5.1 仕様の monthly_returns.csv を生成（test 期間の結果を使用）
+    equity_test_csv = out_dir / "equity_test.csv"
+    monthly_csv = out_dir / "monthly_returns.csv"
+    compute_monthly_returns(equity_test_csv, monthly_csv)
+
     (out_dir / "metrics_wfo.json").write_text(
         json.dumps({"train": m_tr, "test": m_ts}, ensure_ascii=False, indent=2)
     )
