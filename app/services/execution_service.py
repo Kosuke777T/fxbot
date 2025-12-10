@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from app.services.filter_service import evaluate_entry, _get_engine, extract_profile_switch
+from app.services.profile_stats_service import get_profile_stats_service
 from app.services.ai_service import get_ai_service
 from app.services.loss_streak_service import get_consecutive_losses
 from app.core.strategy_profile import get_profile
@@ -169,8 +170,17 @@ class ExecutionService:
             "volatility": features.get("volatility"),
             "trend_strength": features.get("trend_strength"),
             "consecutive_losses": consecutive_losses,
-            "profile_stats": features.get("profile_stats", {}),
         }
+
+        # ★プロファイル統計を注入
+        try:
+            profile_stats_svc = get_profile_stats_service()
+            # v1 ではデフォルトプロファイル (michibiki_std / michibiki_aggr) を使用
+            profile_stats = profile_stats_svc.get_profile_stats()
+        except Exception:
+            profile_stats = {}
+
+        entry_context["profile_stats"] = profile_stats
 
         ok, reasons = evaluate_entry(entry_context)
 

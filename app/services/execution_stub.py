@@ -24,6 +24,7 @@ from app.services.trailing import AtrTrailer, TrailConfig, TrailState
 from app.services.trailing_hook import apply_trailing_update
 from app.services.trade_service import TradeService
 from app.services.filter_service import evaluate_entry, _get_engine
+from app.services.profile_stats_service import get_profile_stats_service
 from app.services.edition_guard import filter_level
 from app.services.loss_streak_service import get_consecutive_losses
 from core import position_guard
@@ -778,15 +779,23 @@ class ExecutionStub:
                 "volatility": volatility_val,  # v0: ATR% ベース
                 "trend_strength": None,  # 将来用スロット（現在は未使用）
                 "consecutive_losses": consecutive_losses,
-                "profile_stats": {
-                    "profile_name": profile_name,
-                },
                 # 追加フィールド（後方互換性・デバッグ用）
                 "symbol": symbol,  # 現在のシンボル
                 "ai": ai_info,  # AI 情報の dict
                 "filters": filters,  # フィルタ設定の dict
                 "cb": cb_info,  # サーキットブレーカー情報
             }
+
+            # ★ここでプロファイル統計を注入
+            try:
+                profile_stats_svc = get_profile_stats_service()
+                profile_stats = profile_stats_svc.get_profile_stats()
+            except Exception:
+                # ここで例外を握りつぶすのは、
+                # CSV が無くても本体が止まらないようにするため
+                profile_stats = {}
+
+            entry_context["profile_stats"] = profile_stats
 
             ok, reasons = evaluate_entry(entry_context)
 
