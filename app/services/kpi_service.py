@@ -8,6 +8,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Optional
 
+import pandas as pd
+
 
 BACKTESTS_DIR = Path("backtests")
 DEFAULT_TARGET = 0.03  # 月次3%
@@ -29,8 +31,57 @@ class KPIService:
     - 月次3%ダッシュボード用の dict を返す
     """
 
+    def __init__(self, base_dir: Path | None = None):
+        self.base_dir = Path(base_dir) if base_dir is not None else Path(".")
+        # monthly_returns の簡易キャッシュ（必要なら）
+        self._monthly_cache: dict[str, pd.DataFrame] = {}
+
+    def load_monthly_returns(self, profile: str) -> pd.DataFrame:
+        """
+        指定プロファイルの monthly_returns.csv を読み込んで返す。
+        必須フォーマット:
+          year_month, return_pct, max_dd_pct, total_trades, pf
+        """
+        # backtests/{profile}/monthly_returns.csv
+        csv_path = self.base_dir / "backtests" / profile / "monthly_returns.csv"
+
+        if not csv_path.exists():
+            # ファイルが無い場合は空データフレームを返す（GUIが死なないように）
+            return pd.DataFrame(
+                columns=["year_month", "return_pct", "max_dd_pct", "total_trades", "pf"]
+            )
+
+        df = pd.read_csv(csv_path)
+        # フォーマットの最低限チェック（足りなければ列を追加しておく）
+        for col in ["year_month", "return_pct", "max_dd_pct", "total_trades", "pf"]:
+            if col not in df.columns:
+                if col == "year_month":
+                    df[col] = ""
+                elif col in ("return_pct", "max_dd_pct", "pf"):
+                    df[col] = 0.0
+                else:
+                    df[col] = 0
+
+        return df
+
+    def refresh_monthly_returns(self, profile: str) -> pd.DataFrame:
+        """
+        BacktestRun が monthly_returns.csv を更新した後に呼び出す前提。
+        キャッシュを捨てて最新の monthly_returns を返す。
+        """
+        # キャッシュを使っている場合は破棄
+        if hasattr(self, "_monthly_cache"):
+            self._monthly_cache.pop(profile, None)
+
+        df = self.load_monthly_returns(profile)
+
+        # ここで KPI 用の派生データを更新してもよい
+        # （例：self._kpi_summary[profile] = self._build_kpi_summary(df) など）
+
+        return df
+
     @classmethod
-    def load_monthly_returns(cls, profile: str) -> List[MonthlyRecord]:
+    def load_monthly_returns_legacy(cls, profile: str) -> List[MonthlyRecord]:
         csv_path = BACKTESTS_DIR / profile / "monthly_returns.csv"
 
         if not csv_path.exists():
@@ -77,7 +128,7 @@ class KPIService:
           "avg_pf": 1.23,
         }
         """
-        records = cls.load_monthly_returns(profile)
+        records = cls.load_monthly_returns_legacy(profile)
         if not records:
             return {
                 "has_data": False,
@@ -140,20 +191,20 @@ class KPIService:
 def load_backtest_kpi_summary(profile: str = "michibiki_std"):
     """
     既存コードとの互換性のための関数。
-    
+
     BacktestKpiSummary 形式のデータを返す（旧仕様互換）。
     """
     from dataclasses import dataclass
     from typing import List, Optional
     from app.core.strategy_profile import get_profile
-    
+
     @dataclass
     class MonthlyKPI:
         year: int
         month: int
         return_pct: float
         dd_pct: Optional[float] = None
-    
+
     @dataclass
     class BacktestKpiSummary:
         n_months: int
@@ -164,14 +215,14 @@ def load_backtest_kpi_summary(profile: str = "michibiki_std"):
         target_monthly_return_pct: float
         target_hit_ratio: float
         months: List[MonthlyKPI]
-    
+
     try:
         profile_obj = get_profile(profile)
         target_monthly_return_pct = profile_obj.target_monthly_return * 100.0
     except Exception:
         target_monthly_return_pct = 3.0  # デフォルト3%
-    
-    records = KPIService.load_monthly_returns(profile)
+
+    records = KPIService.load_monthly_returns_legacy(profile)
     if not records:
         return BacktestKpiSummary(
             n_months=0,
@@ -183,12 +234,12 @@ def load_backtest_kpi_summary(profile: str = "michibiki_std"):
             target_hit_ratio=0.0,
             months=[],
         )
-    
+
     # year_month から year, month を抽出
     months_kpi: List[MonthlyKPI] = []
     returns_pct: List[float] = []
     dd_pcts: List[float] = []
-    
+
     for r in records:
         try:
             year, month = map(int, r.year_month.split("-"))
@@ -204,7 +255,7 @@ def load_backtest_kpi_summary(profile: str = "michibiki_std"):
             dd_pcts.append(r.max_dd_pct)
         except Exception:
             continue
-    
+
     if not returns_pct:
         return BacktestKpiSummary(
             n_months=0,
@@ -216,16 +267,16 @@ def load_backtest_kpi_summary(profile: str = "michibiki_std"):
             target_hit_ratio=0.0,
             months=[],
         )
-    
+
     # 統計計算
     import statistics
-    
+
     avg_return_pct = statistics.mean(returns_pct)
     median_return_pct = statistics.median(returns_pct)
     win_ratio = sum(1 for r in returns_pct if r > 0) / len(returns_pct)
     max_dd_pct = min(dd_pcts) if dd_pcts else None
     target_hit_ratio = sum(1 for r in returns_pct if r >= target_monthly_return_pct / 100.0) / len(returns_pct)
-    
+
     return BacktestKpiSummary(
         n_months=len(returns_pct),
         avg_return_pct=avg_return_pct,

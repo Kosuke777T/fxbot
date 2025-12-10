@@ -23,6 +23,7 @@ from pandas.api.types import is_datetime64_any_dtype
 from app.services.data_guard import ensure_data
 from functools import partial
 from datetime import datetime, timedelta
+from tools.backtest_run import compute_monthly_returns
 
 def _thousands(x, pos):
     try:
@@ -573,8 +574,17 @@ class PlotWindow(QtWidgets.QDialog):
         _apply_xlim(xmin, xmax)
 
 class BacktestTab(QtWidgets.QWidget):
-    def __init__(self, parent=None):
+    def __init__(
+        self,
+        parent: QtWidgets.QWidget | None = None,
+        kpi_service: Optional[Any] = None,
+        profile_name: str = "michibiki_std",
+    ) -> None:
         super().__init__(parent)
+        from app.services.kpi_service import KPIService
+
+        self._kpi_service = kpi_service if kpi_service is not None else KPIService(base_dir=Path("."))
+        self._profile_name = profile_name
 
         # === 入力フォーム ===
         self.symbol_edit = QtWidgets.QLineEdit("USDJPY")
@@ -1141,6 +1151,17 @@ class BacktestTab(QtWidgets.QWidget):
             self._append_progress(f"[gui] missing file: {out_csv}")
             return
 
+        # === 集約 monthly_returns を backtests/{profile}/monthly_returns.csv に書く ===
+        try:
+            profile = self._profile_name   # __init__ で渡した "michibiki_std" など
+            out_monthly_csv = Path("backtests") / profile / "monthly_returns.csv"
+            out_monthly_csv.parent.mkdir(parents=True, exist_ok=True)
+
+            compute_monthly_returns(str(out_csv), str(out_monthly_csv))
+            self._append_progress(f"集約 monthly_returns を更新しました: {out_monthly_csv}")
+        except Exception as e:
+            self._append_progress(f"集約 monthly_returns 更新に失敗しました: {e!r}")
+
         self._load_plot(out_csv)  # Equity描画
 
         # まずは毎回クリアしておく
@@ -1173,6 +1194,15 @@ class BacktestTab(QtWidgets.QWidget):
 
         # 月次リターン保存パスを控える
         self._last_monthly_returns = out_dir / ("monthly_returns.csv" if mode=="bt" else "monthly_returns_test.csv")
+
+        # === monthly_returns を再読込 ===
+        try:
+            df = self._kpi_service.refresh_monthly_returns(self._profile_name)
+            self._append_progress(
+                f"monthly_returns を再読込しました。行数: {len(df)}"
+            )
+        except Exception as e:
+            self._append_progress(f"monthly_returns 再読込に失敗しました: {e!r}")
 
         self.label_meta.setText("完了")
 
@@ -1493,4 +1523,4 @@ class BacktestTab(QtWidgets.QWidget):
         except Exception as e:
             QtWidgets.QMessageBox.warning(self, "期間ジャンプエラー", str(e))
             self._append_progress(f"[range] error: {e}")
-    
+
