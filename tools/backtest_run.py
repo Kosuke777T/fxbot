@@ -582,8 +582,35 @@ def run_backtest(
     end: str | None,
     capital: float,
     out_dir: Path,
+    profile: str = "michibiki_std",
+    symbol: str = "USDJPY",
 ) -> Path:
-    print("[bt] start", flush=True)
+    """
+    v5.1 準拠のバックテストを実行する
+
+    Parameters
+    ----------
+    data_csv : Path
+        OHLCVデータのCSVファイル
+    start : str | None
+        開始日（YYYY-MM-DD形式）
+    end : str | None
+        終了日（YYYY-MM-DD形式）
+    capital : float
+        初期資本
+    out_dir : Path
+        出力ディレクトリ
+    profile : str
+        プロファイル名
+    symbol : str
+        シンボル名
+
+    Returns
+    -------
+    Path
+        equity_curve.csv のパス
+    """
+    print("[bt] start (v5.1)", flush=True)
     out_dir.mkdir(parents=True, exist_ok=True)
     print(f"[bt] read_csv {data_csv}", flush=True)
     df = pd.read_csv(data_csv, parse_dates=["time"])
@@ -594,32 +621,66 @@ def run_backtest(
     df = slice_period(df, start, end)
     if df.empty:
         raise RuntimeError("No data in the requested period.")
-    close = df["close"]
-    close.index = df["time"]
 
-    print("[bt] equity compute", flush=True)
-    eq_df = to_equity(close, capital)
-    eq_df["signal"] = 0  # Buy&Holdなのでシグナル無し
-    eq_csv = out_dir / "equity_curve.csv"
-    print(f"[bt] write equity {eq_csv}", flush=True)
-    eq_df.to_csv(eq_csv, index=False)
-    monthly_path = out_dir / "monthly_returns.csv"
-    compute_monthly_returns(eq_csv, monthly_path)
+    # v5.1 準拠の BacktestEngine を使用
+    try:
+        from app.core.backtest.backtest_engine import BacktestEngine
 
-    # 仮トレード（Buy&Hold）
-    trades = trades_from_buyhold(df, capital)
-    trades.to_csv(out_dir / "trades.csv", index=False)
+        print(f"[bt] Initializing BacktestEngine (profile={profile})", flush=True)
+        engine = BacktestEngine(
+            profile=profile,
+            initial_capital=capital,
+            filter_level=3,  # Expert level
+        )
 
-    # メトリクス
-    base = metrics_from_equity(eq_df["equity"])
-    tmet = trade_metrics(trades)
-    base.update(tmet)
-    (out_dir / "metrics.json").write_text(
-        json.dumps(base, ensure_ascii=False, indent=2)
-    )
+        print(f"[bt] Running backtest...", flush=True)
+        results = engine.run(df, out_dir, symbol=symbol)
 
-    print("[bt] done", flush=True)
-    return eq_csv
+        eq_csv = results["equity_curve"]
+        print(f"[bt] Backtest completed. Output: {eq_csv}", flush=True)
+
+        # メトリクスを計算
+        eq_df = pd.read_csv(eq_csv)
+        base = metrics_from_equity(pd.Series(eq_df["equity"].values, index=pd.to_datetime(eq_df["time"])))
+
+        trades_df = pd.read_csv(results["trades"]) if results["trades"].exists() else pd.DataFrame()
+        if not trades_df.empty:
+            tmet = trade_metrics(trades_df)
+            base.update(tmet)
+
+        (out_dir / "metrics.json").write_text(
+            json.dumps(base, ensure_ascii=False, indent=2)
+        )
+
+        print("[bt] done", flush=True)
+        return eq_csv
+
+    except Exception as e:
+        print(f"[bt] BacktestEngine failed: {e}, falling back to Buy&Hold", flush=True)
+        import traceback
+        traceback.print_exc()
+
+        # フォールバック: Buy&Hold
+        close = df["close"]
+        close.index = df["time"]
+        eq_df = to_equity(close, capital)
+        eq_df["signal"] = 0
+        eq_csv = out_dir / "equity_curve.csv"
+        eq_df.to_csv(eq_csv, index=False)
+        monthly_path = out_dir / "monthly_returns.csv"
+        compute_monthly_returns(eq_csv, monthly_path)
+
+        trades = trades_from_buyhold(df, capital)
+        trades.to_csv(out_dir / "trades.csv", index=False)
+
+        base = metrics_from_equity(eq_df["equity"])
+        tmet = trade_metrics(trades)
+        base.update(tmet)
+        (out_dir / "metrics.json").write_text(
+            json.dumps(base, ensure_ascii=False, indent=2)
+        )
+
+        return eq_csv
 
 
 def run_wfo(
@@ -777,17 +838,38 @@ def _build_period_tag(start: str | None, end: str | None) -> str:
 
 def _mirror_latest_run(period_dir: Path, base_dir: Path) -> None:
     """
-    期間付きフォルダに出力されたファイルを、ベースディレクトリ
-    (logs/backtest/{symbol}/{timeframe}) にもコピーして、
-    GUI や他ツール向けの「最新結果」として見えるようにする。
+    期間付きフォルダに出力されたファイルのうち、
+    ミチビキ標準で参照するファイルだけを base_dir にミラーする。
+
+    対象:
+      - equity_curve.csv
+      - trades.csv
+      - monthly_returns.csv
+      - metrics.json
+      - decisions.jsonl
+
+    WFO の train/test 系ファイルはコピーしない。
     """
     base_dir.mkdir(parents=True, exist_ok=True)
     if not period_dir.exists():
         return
+
+    # ミラー対象ファイル名（標準BTの5点セット）
+    allowed = {
+        "equity_curve.csv",
+        "trades.csv",
+        "monthly_returns.csv",
+        "metrics.json",
+        "decisions.jsonl",
+    }
+
     for f in period_dir.glob("*"):
-        if f.is_file():
-            target = base_dir / f.name
-            target.write_bytes(f.read_bytes())
+        if not f.is_file():
+            continue
+        if f.name not in allowed:
+            continue
+        target = base_dir / f.name
+        target.write_bytes(f.read_bytes())
 
 
 def main() -> None:
@@ -806,6 +888,7 @@ def main() -> None:
     ap.add_argument("--timeframe", default="M5")
     ap.add_argument("--layout", choices=["flat", "per-symbol"], default="per-symbol")
     ap.add_argument("--train-ratio", type=float, default=0.7)
+    ap.add_argument("--profile", default="michibiki_std", help="プロファイル名（backtests/<profile>/ に出力）")
     args = ap.parse_args()
 
     csv = Path(args.csv).resolve()
@@ -820,8 +903,9 @@ def main() -> None:
 
     print(f"[main] mode={args.mode} csv={csv}", flush=True)
     print(f"[main] period={period_tag}", flush=True)
+    print(f"[main] profile={args.profile}", flush=True)
     if args.mode == "bt":
-        p = run_backtest(csv, start_str, end_str, args.capital, period_dir)
+        p = run_backtest(csv, start_str, end_str, args.capital, period_dir, profile=args.profile, symbol=args.symbol)
     else:
         p = run_wfo(
             csv,
@@ -832,8 +916,10 @@ def main() -> None:
             train_ratio=args.train_ratio,
         )
 
-    # 期間付きフォルダの内容を「最新結果」としてベースディレクトリへミラー
-    _mirror_latest_run(period_dir, base_dir)
+    # 期間付きフォルダの内容を「最新結果」として backtests/<profile>/ へミラー
+    profile_dir = PROJECT_ROOT / "backtests" / args.profile
+    profile_dir.mkdir(parents=True, exist_ok=True)
+    _mirror_latest_run(period_dir, profile_dir)
 
     print(str(p), flush=True)
 

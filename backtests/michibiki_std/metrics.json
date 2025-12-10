@@ -1,17 +1,9 @@
 {
   "start_equity": 100000.0,
-  "end_equity": 97707.37599781404,
-  "total_return": -0.022926240021859612,
-  "max_drawdown": -0.13592599467853617,
-  "sharpe_like": -0.09235605217160932,
-  "bars": 105206,
-  "max_dd_days": 0,
-  "trades": 1,
-  "win_rate": 0.0,
-  "avg_pnl": -2292.6240021917674,
-  "profit_factor": 0.0,
-  "avg_holding_bars": 105206.0,
-  "avg_holding_days": 519.0,
-  "max_consec_win": 0,
-  "max_consec_loss": 1
+  "end_equity": 100000.0,
+  "total_return": 0.0,
+  "max_drawdown": 0.0,
+  "sharpe_like": 0.0,
+  "bars": 105193,
+  "max_dd_days": 519
 }
