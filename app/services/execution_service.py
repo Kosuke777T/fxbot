@@ -81,43 +81,155 @@ class ExecutionService:
     - 売買判断と発注ロジックを含む
     """
 
-    def _apply_profile_autoswitch(self, reasons: list[str]) -> None:
+    def __init__(self):
+        """初期化"""
+        self.profile_stats_service = get_profile_stats_service()
+        self.filter_engine = StrategyFilterEngine()
+        self.ai_service = get_ai_service()
+
+    def _build_entry_context(
+        self,
+        symbol: str,
+        features: Dict[str, float],
+    ) -> Dict[str, Any]:
         """
-        フィルタ結果の reasons からプロファイル自動切替指示を読み取り、
-        self.profile を更新する（v0 実装）。
+        EntryContext を構築する
 
         Parameters
         ----------
+        symbol : str
+            シンボル名
+        features : dict
+            特徴量の辞書
+
+        Returns
+        -------
+        dict
+            EntryContext
+        """
+        # EditionGuard から filter_level を取得
+        guard = EditionGuard()
+        current_filter_level = guard.filter_level()
+
+        # 連敗数を取得
+        profile_obj = get_profile("michibiki_std")
+        profile_name = profile_obj.name if hasattr(profile_obj, "name") and profile_obj else "michibiki_std"
+        consecutive_losses = get_consecutive_losses(profile_name, symbol)
+
+        # EntryContext を作成
+        entry_context = {
+            "timestamp": datetime.now().isoformat(),  # ISO 形式に統一
+            "atr": features.get("atr"),
+            "volatility": features.get("volatility"),
+            "trend_strength": features.get("trend_strength"),
+            "consecutive_losses": consecutive_losses,
+            "filter_level": current_filter_level,
+        }
+
+        # --- ProfileStats の追加 ---
+        try:
+            profile_stats = self.profile_stats_service.load(symbol)
+        except Exception:
+            profile_stats = {}
+
+        entry_context["profile_stats"] = profile_stats
+
+        return entry_context
+
+    def process_tick(
+        self,
+        symbol: str,
+        price: float,
+        timestamp: datetime,
+        features: Optional[Dict[str, float]] = None,
+    ) -> Dict[str, Any]:
+        """
+        1ティック分の処理をまとめて行うヘルパー。
+        - 特徴量の構築（簡易版 or 別サービスに委譲）
+        - execute_entry によるフィルタ＆発注
+        - 結果 dict を返す
+
+        Parameters
+        ----------
+        symbol : str
+            シンボル名
+        price : float
+            現在価格
+        timestamp : datetime
+            タイムスタンプ
+        features : dict, optional
+            特徴量の辞書。指定されない場合は簡易版を構築
+
+        Returns
+        -------
+        dict
+            execute_entry の戻り値
+        """
+        # 1) 特徴量の準備
+        if features is None:
+            # 簡易版：最低限の特徴量を構築
+            features = {
+                "price": float(price),
+                # TODO: 実装済みの FeatureBuilder があるならそちらを呼ぶ
+                # 現時点では簡易版として price のみ
+                "atr": None,
+                "volatility": None,
+                "trend_strength": None,
+            }
+        else:
+            # 既存の特徴量を使用（price が含まれていない場合は追加）
+            features = dict(features)
+            if "price" not in features:
+                features["price"] = float(price)
+
+        # 2) execute_entry に委譲
+        result = self.execute_entry(features, symbol=symbol)
+        return result
+
+    def _apply_profile_autoswitch(self, symbol: str, reasons: list[str]) -> None:
+        """
+        フィルタ結果の reasons からプロファイル自動切替指示を読み取り、
+        ProfileStatsService に反映する。
+
+        Parameters
+        ----------
+        symbol : str
+            シンボル名
         reasons : list[str]
             フィルタエンジンから返された理由のリスト
         """
         if not reasons:
             return
 
-        switch = extract_profile_switch(reasons)
-        if not switch:
-            return
+        # profile_switch が含まれていれば apply_switch を呼ぶ
+        for r in reasons:
+            if r.startswith("profile_switch:"):
+                try:
+                    # "profile_switch:from->to" をパース
+                    body = r.split("profile_switch:", 1)[1]
+                    if "->" not in body:
+                        continue
+                    from_profile, to_profile = body.split("->", 1)
 
-        from_profile, to_profile = switch
+                    # ProfileStatsService に反映
+                    stats = self.profile_stats_service.load(symbol)
+                    stats["current_profile"] = to_profile
+                    self.profile_stats_service.save(symbol, stats)
 
-        # ExecutionService が profile を持っていない場合は安全のため何もしない
-        if not hasattr(self, "profile"):
-            return
-
-        # すでに切り替わっている / おかしな指定なら何もしない
-        if self.profile != from_profile or from_profile == to_profile:
-            return
-
-        logger = logging.getLogger(__name__)
-        logger.info(
-            "Profile auto-switch requested by filter engine: %s -> %s",
-            from_profile,
-            to_profile,
-        )
-
-        # v0: メモリ上の使用プロファイルだけ切り替える
-        self.profile = to_profile
-        # TODO: 必要になったらここで永続化や GUI への通知を追加
+                    logger = logging.getLogger(__name__)
+                    logger.info(
+                        "Profile auto-switch applied: %s -> %s (symbol=%s)",
+                        from_profile,
+                        to_profile,
+                        symbol,
+                    )
+                except Exception as e:
+                    logger = logging.getLogger(__name__)
+                    logger.warning(
+                        "Failed to apply profile switch: %s (reason=%s)",
+                        e,
+                        r,
+                    )
 
     def execute_entry(self, features: Dict[str, float], *, symbol: Optional[str] = None) -> Dict[str, Any]:
         """
@@ -152,8 +264,7 @@ class ExecutionService:
                 symbol = "USDJPY-"
 
         # --- 1) モデル予測 ---
-        ai = get_ai_service()
-        pred = ai.predict(features)
+        pred = self.ai_service.predict(features)
 
         # ProbOut オブジェクトから確率を取得
         prob_buy = getattr(pred, "p_buy", None)
@@ -173,42 +284,19 @@ class ExecutionService:
             best_threshold=best_threshold,
         )
 
-        # 連敗数を取得（プロファイル名・シンボルは実際の変数名に合わせてください）
-        profile_obj = get_profile("michibiki_std")
-        profile_name = profile_obj.name if hasattr(profile_obj, "name") and profile_obj else "michibiki_std"
-        consecutive_losses = get_consecutive_losses(profile_name, symbol)
+        # --- 2) EntryContext を構築（ProfileStats を含む） ---
+        entry_context = self._build_entry_context(symbol, features)
 
-        # --- 2) フィルタ評価 ---
         # EditionGuard から filter_level を取得
         guard = EditionGuard()
         current_filter_level = guard.filter_level()
 
-        # EntryContext を作成（後で filters_dict にマージするため保持）
-        entry_context = {
-            "timestamp": datetime.now().isoformat(),  # ISO 形式に統一
-            "atr": features.get("atr"),
-            "volatility": features.get("volatility"),
-            "trend_strength": features.get("trend_strength"),
-            "consecutive_losses": consecutive_losses,
-            "filter_level": current_filter_level,  # EditionGuardから取得したfilter_levelを追加
-        }
-
-        # ★プロファイル統計を注入
-        try:
-            profile_stats_svc = get_profile_stats_service()
-            # v1 ではデフォルトプロファイル (michibiki_std / michibiki_aggr) を使用
-            profile_stats = profile_stats_svc.get_profile_stats()
-        except Exception:
-            profile_stats = {}
-
-        entry_context["profile_stats"] = profile_stats
-
+        # --- 3) フィルタ評価 ---
         # StrategyFilterEngine を使用してフィルタ評価
-        filter_engine = StrategyFilterEngine()
-        ok, reasons = filter_engine.evaluate(entry_context, filter_level=current_filter_level)
+        ok, reasons = self.filter_engine.evaluate(entry_context, filter_level=current_filter_level)
 
         # ★ここで profile 自動切替を反映
-        self._apply_profile_autoswitch(reasons)
+        self._apply_profile_autoswitch(symbol, reasons)
 
         # losing_streak_limit を取得
         try:
@@ -251,9 +339,7 @@ class ExecutionService:
         # v5.1 仕様に準拠した decisions.jsonl 出力（統一形式）
         # strategy 名を取得（AI サービスから取得、なければデフォルト）
         try:
-            from app.services.ai_service import get_ai_service
-            ai_svc = get_ai_service()
-            strategy_name = getattr(ai_svc, "model_name", getattr(ai_svc, "calibrator_name", "unknown"))
+            strategy_name = getattr(self.ai_service, "model_name", getattr(self.ai_service, "calibrator_name", "unknown"))
         except Exception:
             strategy_name = "unknown"
 
