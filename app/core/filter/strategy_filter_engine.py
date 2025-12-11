@@ -255,10 +255,29 @@ class StrategyFilterEngine:
         必要なら 'profile_switch:from->to' を reasons に追加する。
 
         - filter_level < 3 のときは何もしない
+        - config.yaml の filters.profile_auto_switch.enabled が false のときは何もしない
         - ExecutionService 側で actual switch を行う前提
         """
         filter_level = ctx.get("filter_level", 0)
         if filter_level < 3:
+            return
+
+        # 設定を読み込む
+        try:
+            from app.core.config_loader import load_config
+            config = load_config()
+            filters_cfg = config.get("filters", {})
+            switch_cfg = filters_cfg.get("profile_auto_switch", {})
+            enabled = switch_cfg.get("enabled", False)
+            if not enabled:
+                return
+
+            # 閾値を設定から取得（デフォルト値あり）
+            min_trades = switch_cfg.get("min_trades", 30)
+            winrate_gap_min = switch_cfg.get("winrate_gap_min", 0.05)
+            pf_min = switch_cfg.get("pf_min", 1.05)
+        except Exception:
+            # 設定読み込み失敗時は機能を無効化
             return
 
         stats = ctx.get("profile_stats") or {}
@@ -272,11 +291,6 @@ class StrategyFilterEngine:
         cur = profiles.get(current, {})
         cur_wr = float(cur.get("winrate", 0.0))
         cur_pf = float(cur.get("pf", 0.0))
-
-        # 閾値（とりあえず固定値。将来は config から取得）
-        min_trades = 30
-        winrate_gap_min = 0.05
-        pf_min = 1.05
 
         best_name = current
         best_score = cur_wr  # シンプルに winrate をスコアとする

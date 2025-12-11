@@ -276,9 +276,7 @@ class ExecutionService:
                     from_profile, to_profile = body.split("->", 1)
 
                     # ProfileStatsService に反映
-                    stats = self.profile_stats_service.load(symbol)
-                    stats["current_profile"] = to_profile
-                    self.profile_stats_service.save(symbol, stats)
+                    self.profile_stats_service.set_current_profile(symbol, to_profile)
 
                     logger = logging.getLogger(__name__)
                     logger.info(

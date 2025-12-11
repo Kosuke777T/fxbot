@@ -223,6 +223,21 @@ class ProfileStatsService:
         self.save(symbol, stats)
         return stats
 
+    def set_current_profile(self, symbol: str, profile_name: str) -> dict[str, Any]:
+        """
+        現在選択されているプロファイル名を更新する。
+
+        - ExecutionService から呼ばれることを想定
+        - updated_at を JST 現在時刻で更新
+        """
+        stats = self.load(symbol)
+        stats["current_profile"] = profile_name
+        stats["updated_at"] = datetime.now(
+            timezone(timedelta(hours=9))
+        ).isoformat()
+        self.save(symbol, stats)
+        return stats
+
     def get_summary_for_filter(self, symbol: str) -> dict[str, Any]:
         """
         フィルタエンジンに渡す軽量サマリを返す。
