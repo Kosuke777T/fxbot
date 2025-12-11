@@ -5,6 +5,8 @@ from pathlib import Path
 from typing import Dict, Any, Optional, List
 import csv
 import threading
+import json
+from datetime import datetime, timezone, timedelta
 
 
 @dataclass
@@ -31,6 +33,15 @@ class ProfileStat:
             "pf": self.pf,
             # 将来: winrate, dd_flag などを追加してもよい
         }
+
+
+@dataclass
+class ProfileStatsConfig:
+    base_dir: Path = Path(".")
+
+    @property
+    def stats_dir(self) -> Path:
+        return self.base_dir / "logs" / "profile_stats"
 
 
 class ProfileStatsService:
@@ -134,6 +145,101 @@ class ProfileStatsService:
                     results[name] = stat.to_dict()
 
         return results
+
+    # -----------------------
+    # トレードベースの統計更新（新規追加）
+    # -----------------------
+    def _path(self, symbol: str) -> Path:
+        """symbol: 'USDJPY-' を前提"""
+        stats_dir = self._base_dir / "logs" / "profile_stats"
+        stats_dir.mkdir(parents=True, exist_ok=True)
+        return stats_dir / f"profile_stats_{symbol}.json"
+
+    def load(self, symbol: str) -> dict[str, Any]:
+        """プロファイル統計を読み込む"""
+        path = self._path(symbol)
+        if not path.exists():
+            return {
+                "symbol": symbol,
+                "updated_at": None,
+                "current_profile": None,
+                "profiles": {},
+            }
+        with path.open(encoding="utf-8") as f:
+            return json.load(f)
+
+    def save(self, symbol: str, stats: dict[str, Any]) -> None:
+        """プロファイル統計を保存する"""
+        path = self._path(symbol)
+        stats["symbol"] = symbol
+        with path.open("w", encoding="utf-8") as f:
+            json.dump(stats, f, ensure_ascii=False, indent=2)
+
+    def update_from_trade(
+        self,
+        symbol: str,
+        profile_name: str,
+        pnl: float,
+    ) -> dict[str, Any]:
+        """
+        決済トレード1件から profile_stats を更新する。
+        """
+        stats = self.load(symbol)
+        profiles = stats.setdefault("profiles", {})
+        p = profiles.setdefault(
+            profile_name,
+            {
+                "total_trades": 0,
+                "win_trades": 0,
+                "loss_trades": 0,
+                "gross_profit": 0.0,
+                "gross_loss": 0.0,
+                "winrate": 0.0,
+                "pf": 0.0,
+            },
+        )
+
+        p["total_trades"] += 1
+        if pnl > 0:
+            p["win_trades"] += 1
+            p["gross_profit"] += float(pnl)
+        elif pnl < 0:
+            p["loss_trades"] += 1
+            p["gross_loss"] += float(pnl)
+
+        # 派生値
+        if p["total_trades"] > 0:
+            p["winrate"] = p["win_trades"] / p["total_trades"]
+        if p["gross_loss"] < 0:
+            p["pf"] = p["gross_profit"] / abs(p["gross_loss"])
+        else:
+            p["pf"] = 0.0
+
+        # current_profile は ExecutionService 側で更新する前提
+        stats["updated_at"] = datetime.now(
+            timezone(timedelta(hours=9))
+        ).isoformat()
+
+        self.save(symbol, stats)
+        return stats
+
+    def get_summary_for_filter(self, symbol: str) -> dict[str, Any]:
+        """
+        フィルタエンジンに渡す軽量サマリを返す。
+        """
+        stats = self.load(symbol)
+        profiles = stats.get("profiles", {})
+        return {
+            "current_profile": stats.get("current_profile"),
+            "profiles": {
+                name: {
+                    "winrate": p.get("winrate", 0.0),
+                    "pf": p.get("pf", 0.0),
+                    "trades": p.get("total_trades", 0),
+                }
+                for name, p in profiles.items()
+            },
+        }
 
 
 # シングルトンっぽく使うためのヘルパ
