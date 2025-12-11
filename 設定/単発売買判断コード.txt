@@ -1,0 +1,16 @@
+$code = @'
+from app.services.execution_service import ExecutionService
+
+symbol = "USDJPY-"
+
+# ExecutionService は内部で get_ai_service() を呼ぶので引数不要
+exec_service = ExecutionService()
+
+# 特徴量は空 dict で良い（内部で自動生成される）
+result = exec_service.execute_entry({}, symbol=symbol)
+
+print("=== EXEC RESULT ===")
+print(result)
+'@
+
+python -X utf8 -c "$code"

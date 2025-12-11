@@ -19,6 +19,12 @@ from core.utils.timeutil import now_jst_iso
 
 # プロジェクトルート = app/services/ から 2 つ上
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+# AI判断ログ（ExecutionService 専用）
+# 仕様書 v5.1 の「logs/decisions_*.jsonl」を拡張した実装として、
+# シンボルごとに JSONL を出力する:
+#   logs/decisions/decisions_{symbol}.jsonl
+# 例: USDJPY- → logs/decisions/decisions_USDJPY-.jsonl
 LOG_DIR = _PROJECT_ROOT / "logs" / "decisions"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -60,13 +66,71 @@ class DecisionsLogger:
     @staticmethod
     def log(record: Dict[str, Any]) -> None:
         """
-        decisions.jsonl に 1 レコードを書き込む
+        ExecutionService 用 AI判断ログ (decisions.jsonl) を 1 レコード追記する。
 
-        Parameters
-        ----------
-        record : dict
-            decisions.jsonl に書き込むレコード
-            必須キー: ts_jst, type, symbol
+        ファイルパス
+        ------------
+        logs/decisions/decisions_{symbol}.jsonl
+
+        例:
+            symbol = "USDJPY-"
+            → logs/decisions/decisions_USDJPY-.jsonl
+
+        レコード形式 (v5.1 ExecutionService 版・標準形)
+        ----------------------------------------------
+        ExecutionService から書き込まれるレコードは、基本的に次の構造を持つ::
+
+            {
+                "ts_jst": "2025-12-11T19:59:32+09:00",
+                "type": "decision",
+                "symbol": "USDJPY-",
+
+                "strategy": "signal_smoke_test",   # self.ai_service.model_name など
+                "prob_buy": 0.52,
+                "prob_sell": 0.48,
+
+                "filter_pass": false,
+                "filter_reasons": ["time_window", "atr", "volatility"],
+
+                "filters": {
+                    "timestamp": "...",            # EntryContext.timestamp
+                    "atr": 0.0002,
+                    "volatility": 0.5,
+                    "trend_strength": 0.3,
+                    "consecutive_losses": 0,
+                    "profile_stats": {...},
+                    "filter_level": 3,
+                    "filter_reasons": ["time_window", "atr", "volatility"],
+                    "blocked_reason": "time_window"   # or None
+                },
+
+                "meta": {},                        # 予備フィールド
+
+                "decision": "SKIP",                # "ENTRY" or "SKIP"
+
+                "decision_detail": {
+                    "action": "SKIP",              # decision と同じ
+                    "side": "BUY",                 # 信号が指した方向（ENTRY/ SKIP 共通）
+
+                    "signal": {
+                        "side": "BUY",
+                        "confidence": 0.5187,      # prob_buy or prob_sell
+                        "best_threshold": 0.45,
+                        "pass_threshold": true,    # しきい値を満たしたか
+                        "reason": "threshold_ok"   # または "below_threshold" など
+                    },
+
+                    # フィルタ結果（上位と同じ値をミラーする）
+                    "filter_pass": false,
+                    "filter_reasons": ["time_window", "atr", "volatility"]
+                }
+            }
+
+        備考
+        ----
+        - BacktestEngine が出力する decisions.jsonl とキー構造を揃えることを目的とする。
+        - 古いバージョンのログには追加キー (ai, model, cb など) が混在するが、
+          v5.1 以降は上記のフィールドを標準とする。
         """
         symbol = record.get("symbol", "UNKNOWN")
         fname = LOG_DIR / f"decisions_{_symbol_to_filename(symbol)}.jsonl"
@@ -359,32 +423,54 @@ class ExecutionService:
             decision = "ENTRY"
 
         # BacktestEngine と完全一致する decision_detail を構築
-        decision_detail = {
-            "action": decision,
-            "side": signal.side,
-            "signal": {
-                "side": signal.side,
-                "confidence": signal.confidence,
-                "best_threshold": signal.best_threshold,
-                "pass_threshold": signal.pass_threshold,
-                "reason": signal.reason,
-            },
-            "filter_pass": ok,
-            "filter_reasons": filters_dict.get("filter_reasons", []),
+        # - action / side はトップレベルと同じ値
+        # - signal は AI シグナルの詳細
+        # - filter_pass / filter_reasons はトップレベルと同じ値をミラー
+        signal_detail = {
+            "side": getattr(signal, "side", None),
+            "confidence": getattr(signal, "confidence", None),
+            "best_threshold": getattr(signal, "best_threshold", None),
+            "pass_threshold": getattr(signal, "pass_threshold", None),
+            "reason": getattr(signal, "reason", None),
         }
 
+        decision_detail = {
+            "action": decision,
+            "side": signal_detail["side"],
+            "signal": signal_detail,
+            "filter_pass": ok,
+            "filter_reasons": normalized_reasons,
+        }
+
+        # --- 3) decisions.jsonl へ統合出力（v5.1 仕様に準拠） ---
+        # logging 用のタイムスタンプ（ts_jst と timestamp は同じ値）
+        ts_str = now_jst_iso()
+
         DecisionsLogger.log({
-            "ts_jst": now_jst_iso(),
+            # 時刻・識別
+            "timestamp": ts_str,   # 仕様書の正式フィールド名
+            "ts_jst": ts_str,      # 互換性のため当面残す
             "type": "decision",
             "symbol": symbol,
+
+            # 戦略情報
             "strategy": strategy_name,
-            "prob_buy": signal.prob_buy,
-            "prob_sell": signal.prob_sell,
+            "prob_buy": getattr(signal, "prob_buy", None),
+            "prob_sell": getattr(signal, "prob_sell", None),
+
+            # フィルタ結果（トップレベル要約）
             "filter_pass": ok,
-            "filter_reasons": list(normalized_reasons or []),  # 必ず list に正規化
-            "filters": filters_dict,  # EntryContext + filter結果を含む
-            "meta": meta_val or {},  # 必ず dict
+            "filter_reasons": normalized_reasons,
+
+            # 決定内容（トップレベル）
             "decision": decision,
+            "side": getattr(signal, "side", None),
+
+            # 生フィルタ情報 / メタ情報
+            "filters": filters_dict,      # EntryContext + filter結果を含む
+            "meta": meta_val or {},       # 必ず dict
+
+            # 詳細 (BacktestEngine とほぼ同型)
             "decision_detail": decision_detail,
         })
 
