@@ -56,6 +56,30 @@ class BacktestEngine:
         # decisions.jsonl の記録用
         self.decisions: List[Dict[str, Any]] = []
 
+    def _normalize_filter_ctx(self, filters_ctx: dict | None) -> dict:
+        """
+        Backtest 用 filters_ctx を v5.1 仕様に揃える:
+        - None を {} に置き換え
+        - filter_reasons を必ず list に正規化
+        """
+        if filters_ctx is None:
+            filters_ctx = {}
+        else:
+            filters_ctx = dict(filters_ctx)
+
+        reasons = filters_ctx.get("filter_reasons")
+
+        if reasons is None:
+            reasons_list: list[str] = []
+        elif isinstance(reasons, str):
+            reasons_list = [reasons]
+        else:
+            # list, tuple, set などを list にする
+            reasons_list = list(reasons)
+
+        filters_ctx["filter_reasons"] = reasons_list
+        return filters_ctx
+
     def run(
         self,
         df: pd.DataFrame,
@@ -329,6 +353,14 @@ class BacktestEngine:
 
         ts_jst = timestamp.strftime("%Y-%m-%d %H:%M:%S")
 
+        # filters_ctx を構築して正規化
+        filters_ctx = {
+            **entry_context,
+            "filter_level": self.filter_level,
+            "filter_reasons": decision.get("filter_reasons", []),
+        }
+        filters_ctx = self._normalize_filter_ctx(filters_ctx)
+
         return {
             "ts_jst": ts_jst,
             "type": "decision",
@@ -337,11 +369,8 @@ class BacktestEngine:
             "prob_buy": round(prob_buy, 6),
             "prob_sell": round(prob_sell, 6),
             "filter_pass": decision.get("filter_pass"),
-            "filter_reasons": decision.get("filter_reasons", []),
-            "filters": {
-                **entry_context,
-                "filter_level": self.filter_level,
-            },
+            "filter_reasons": filters_ctx.get("filter_reasons", []),
+            "filters": filters_ctx,
             "meta": meta,
             "decision": decision.get("action", "SKIP"),
             "decision_detail": decision,
