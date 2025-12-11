@@ -9,7 +9,9 @@ from typing import Any, Dict, List, Optional
 import pandas as pd
 
 from app.core.backtest.simulated_execution import SimulatedExecution
-from app.services.ai_service import AISvc
+from app.core.trade.decision_logic import decide_signal
+from app.core.filter.strategy_filter_engine import StrategyFilterEngine
+from app.services.ai_service import AISvc, get_model_metrics
 from app.services.filter_service import evaluate_entry
 from app.services.profile_stats_service import get_profile_stats_service
 from app.strategies.ai_strategy import build_features
@@ -49,12 +51,20 @@ class BacktestEngine:
         self.ai_service = AISvc()
         self.executor = SimulatedExecution(initial_capital, contract_size)
         self.profile_stats_service = get_profile_stats_service()
+        self.filter_engine = StrategyFilterEngine()
 
         # 連敗カウンタ（バックテスト中に動的に更新）
         self.consecutive_losses = 0
 
         # decisions.jsonl の記録用
         self.decisions: List[Dict[str, Any]] = []
+
+        # best_threshold を取得（active_model.jsonから）
+        try:
+            model_metrics = get_model_metrics()
+            self.best_threshold = float(model_metrics.get("best_threshold", 0.52))
+        except Exception:
+            self.best_threshold = 0.52  # フォールバック
 
     def _normalize_filter_ctx(self, filters_ctx: dict | None) -> dict:
         """
@@ -135,10 +145,9 @@ class BacktestEngine:
             entry_context = self._build_entry_context(row, timestamp)
 
             # FilterEngine.evaluate を呼ぶ
-            # filter_level を渡すために、直接 StrategyFilterEngine を使用
-            from app.core.filter.strategy_filter_engine import StrategyFilterEngine
-            filter_engine = StrategyFilterEngine()
-            filter_pass, filter_reasons = filter_engine.evaluate(entry_context, filter_level=self.filter_level)
+            # filter_level を entry_context に追加
+            entry_context["filter_level"] = self.filter_level
+            filter_pass, filter_reasons = self.filter_engine.evaluate(entry_context, filter_level=self.filter_level)
 
             # 決定を構築
             decision = self._build_decision(
@@ -288,22 +297,22 @@ class BacktestEngine:
         dict
             決定辞書
         """
-        prob_buy = getattr(ai_out, "p_buy", 0.0)
-        prob_sell = getattr(ai_out, "p_sell", 0.0)
+        prob_buy = getattr(ai_out, "p_buy", None)
+        prob_sell = getattr(ai_out, "p_sell", None)
 
-        # 簡易版：prob_buy > 0.52 なら BUY、prob_sell > 0.52 なら SELL
-        # TODO: 実際の戦略ロジックに合わせて修正
-        threshold = 0.52
+        # decide_signal を使用してシグナル判定
+        signal = decide_signal(
+            prob_buy=prob_buy,
+            prob_sell=prob_sell,
+            best_threshold=self.best_threshold,
+        )
+
         action = "SKIP"
         side = None
 
-        if filter_pass:
-            if prob_buy > threshold:
-                action = "BUY"
-                side = "BUY"
-            elif prob_sell > threshold:
-                action = "SELL"
-                side = "SELL"
+        if filter_pass and signal.side:
+            action = "ENTRY"
+            side = signal.side
 
         return {
             "action": action,
@@ -311,7 +320,11 @@ class BacktestEngine:
             "filter_pass": filter_pass,
             "filter_reasons": filter_reasons,
             "signal": {
-                "side": side,
+                "side": signal.side,
+                "confidence": signal.confidence,
+                "best_threshold": signal.best_threshold,
+                "pass_threshold": signal.pass_threshold,
+                "reason": signal.reason,
                 "lot": 0.1,  # TODO: 実際のロット計算ロジックに合わせて修正
             },
         }
@@ -361,6 +374,9 @@ class BacktestEngine:
         }
         filters_ctx = self._normalize_filter_ctx(filters_ctx)
 
+        # signal情報を取得
+        signal_info = decision.get("signal", {})
+
         return {
             "ts_jst": ts_jst,
             "type": "decision",
@@ -373,7 +389,13 @@ class BacktestEngine:
             "filters": filters_ctx,
             "meta": meta,
             "decision": decision.get("action", "SKIP"),
-            "decision_detail": decision,
+            "decision_detail": {
+                "action": decision.get("action", "SKIP"),
+                "side": decision.get("side"),
+                "signal": signal_info,
+                "filter_pass": decision.get("filter_pass"),
+                "filter_reasons": filters_ctx.get("filter_reasons", []),
+            },
         }
 
     def _normalize_for_json(self, obj: Any) -> Any:

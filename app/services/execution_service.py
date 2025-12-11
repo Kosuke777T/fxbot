@@ -7,12 +7,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from app.core.trade.decision_logic import decide_signal
+from app.core.filter.strategy_filter_engine import StrategyFilterEngine
 from app.services.filter_service import evaluate_entry, _get_engine, extract_profile_switch
 from app.services.profile_stats_service import get_profile_stats_service
-from app.services.ai_service import get_ai_service
+from app.services.ai_service import get_ai_service, get_model_metrics
 from app.services.loss_streak_service import get_consecutive_losses
 from app.core.strategy_profile import get_profile
-from app.services.edition_guard import filter_level
+from app.services.edition_guard import filter_level, EditionGuard
 from core.utils.timeutil import now_jst_iso
 
 # プロジェクトルート = app/services/ から 2 つ上
@@ -154,8 +156,22 @@ class ExecutionService:
         pred = ai.predict(features)
 
         # ProbOut オブジェクトから確率を取得
-        prob_buy = float(getattr(pred, "p_buy", 0.0))
-        prob_sell = float(getattr(pred, "p_sell", 0.0))
+        prob_buy = getattr(pred, "p_buy", None)
+        prob_sell = getattr(pred, "p_sell", None)
+
+        # best_threshold を取得
+        try:
+            model_metrics = get_model_metrics()
+            best_threshold = float(model_metrics.get("best_threshold", 0.52))
+        except Exception:
+            best_threshold = 0.52  # フォールバック
+
+        # decide_signal を使用してシグナル判定
+        signal = decide_signal(
+            prob_buy=prob_buy,
+            prob_sell=prob_sell,
+            best_threshold=best_threshold,
+        )
 
         # 連敗数を取得（プロファイル名・シンボルは実際の変数名に合わせてください）
         profile_obj = get_profile("michibiki_std")
@@ -163,6 +179,10 @@ class ExecutionService:
         consecutive_losses = get_consecutive_losses(profile_name, symbol)
 
         # --- 2) フィルタ評価 ---
+        # EditionGuard から filter_level を取得
+        guard = EditionGuard()
+        current_filter_level = guard.filter_level()
+
         # EntryContext を作成（後で filters_dict にマージするため保持）
         entry_context = {
             "timestamp": datetime.now().isoformat(),  # ISO 形式に統一
@@ -170,6 +190,7 @@ class ExecutionService:
             "volatility": features.get("volatility"),
             "trend_strength": features.get("trend_strength"),
             "consecutive_losses": consecutive_losses,
+            "filter_level": current_filter_level,  # EditionGuardから取得したfilter_levelを追加
         }
 
         # ★プロファイル統計を注入
@@ -182,7 +203,9 @@ class ExecutionService:
 
         entry_context["profile_stats"] = profile_stats
 
-        ok, reasons = evaluate_entry(entry_context)
+        # StrategyFilterEngine を使用してフィルタ評価
+        filter_engine = StrategyFilterEngine()
+        ok, reasons = filter_engine.evaluate(entry_context, filter_level=current_filter_level)
 
         # ★ここで profile 自動切替を反映
         self._apply_profile_autoswitch(reasons)
@@ -243,17 +266,40 @@ class ExecutionService:
         except Exception:
             pass
 
+        # 決定アクションを判定
+        if not signal.side or not ok:
+            decision = "SKIP"
+        else:
+            decision = "ENTRY"
+
+        # BacktestEngine と完全一致する decision_detail を構築
+        decision_detail = {
+            "action": decision,
+            "side": signal.side,
+            "signal": {
+                "side": signal.side,
+                "confidence": signal.confidence,
+                "best_threshold": signal.best_threshold,
+                "pass_threshold": signal.pass_threshold,
+                "reason": signal.reason,
+            },
+            "filter_pass": ok,
+            "filter_reasons": filters_dict.get("filter_reasons", []),
+        }
+
         DecisionsLogger.log({
             "ts_jst": now_jst_iso(),
             "type": "decision",
             "symbol": symbol,
             "strategy": strategy_name,
-            "prob_buy": prob_buy,
-            "prob_sell": prob_sell,
+            "prob_buy": signal.prob_buy,
+            "prob_sell": signal.prob_sell,
             "filter_pass": ok,
             "filter_reasons": list(normalized_reasons or []),  # 必ず list に正規化
             "filters": filters_dict,  # EntryContext + filter結果を含む
             "meta": meta_val or {},  # 必ず dict
+            "decision": decision,
+            "decision_detail": decision_detail,
         })
 
         # --- 4) フィルタでNGの場合ここで終了 ---
@@ -266,7 +312,8 @@ class ExecutionService:
         return {
             "ok": True,
             "reasons": [],
-            "prob_buy": prob_buy,
-            "prob_sell": prob_sell,
+            "prob_buy": signal.prob_buy,
+            "prob_sell": signal.prob_sell,
+            "signal": signal,
         }
 

@@ -670,12 +670,17 @@ def run_backtest(
     # v5.1 準拠の BacktestEngine を使用
     try:
         from app.core.backtest.backtest_engine import BacktestEngine
+        from app.services.edition_guard import EditionGuard
 
-        print(f"[bt] Initializing BacktestEngine (profile={profile})", flush=True)
+        # EditionGuard から filter_level を取得
+        guard = EditionGuard()
+        current_filter_level = guard.filter_level()
+
+        print(f"[bt] Initializing BacktestEngine (profile={profile}, filter_level={current_filter_level})", flush=True)
         engine = BacktestEngine(
             profile=profile,
             initial_capital=capital,
-            filter_level=3,  # Expert level
+            filter_level=current_filter_level,
         )
 
         print(f"[bt] Running backtest...", flush=True)
