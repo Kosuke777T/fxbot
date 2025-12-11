@@ -699,11 +699,35 @@ def run_backtest(
             json.dumps(base, ensure_ascii=False, indent=2)
         )
 
-        # monthly_returns.csv は BacktestEngine.run 内で既に生成済み
-        # _print_progress(95)  # iter_with_progress で5%刻みになるので削除
+        # 必須ファイルを必ず出力
+        # equity_curve.csv は既に生成済み（results["equity_curve"]）
+        eq_csv_path = results.get("equity_curve")
+        if eq_csv_path and not eq_csv_path.exists():
+            # 念のため再生成
+            eq_df.to_csv(eq_csv_path, index=False)
+            print(f"[bt] wrote equity_curve.csv: {eq_csv_path}", flush=True)
+
+        # monthly_returns.csv の生成を保証
+        monthly_csv = results.get("monthly_returns") or (out_dir / "monthly_returns.csv")
+        if not monthly_csv.exists() and eq_csv_path and eq_csv_path.exists():
+            compute_monthly_returns(eq_csv_path, monthly_csv)
+            print(f"[bt] wrote monthly_returns.csv: {monthly_csv}", flush=True)
+
+        # trades.csv の生成を保証
+        trades_csv = results.get("trades") or (out_dir / "trades.csv")
+        if not trades_csv.exists():
+            # 空のCSVを作成
+            pd.DataFrame(columns=["entry_time", "entry_price", "exit_time", "exit_price", "side", "lot", "pnl"]).to_csv(trades_csv, index=False)
+            print(f"[bt] wrote empty trades.csv: {trades_csv}", flush=True)
+
+        # decisions.jsonl の生成を保証
+        decisions_jsonl = results.get("decisions") or (out_dir / "decisions.jsonl")
+        if not decisions_jsonl.exists():
+            # 空のファイルを作成
+            decisions_jsonl.write_text("", encoding="utf-8")
+            print(f"[bt] wrote empty decisions.jsonl: {decisions_jsonl}", flush=True)
 
         print("[bt] done", flush=True)
-        # _print_progress(100)  # iter_with_progress で5%刻みになるので削除
         return eq_csv
 
     except Exception as e:
@@ -718,11 +742,22 @@ def run_backtest(
         eq_df["signal"] = 0
         eq_csv = out_dir / "equity_curve.csv"
         eq_df.to_csv(eq_csv, index=False)
+        print(f"[bt] wrote equity_curve.csv: {eq_csv}", flush=True)
+
+        # 必須ファイルを必ず出力
         monthly_path = out_dir / "monthly_returns.csv"
         compute_monthly_returns(eq_csv, monthly_path)
+        print(f"[bt] wrote monthly_returns.csv: {monthly_path}", flush=True)
 
         trades = trades_from_buyhold(df, capital)
-        trades.to_csv(out_dir / "trades.csv", index=False)
+        trades_csv = out_dir / "trades.csv"
+        trades.to_csv(trades_csv, index=False)
+        print(f"[bt] wrote trades.csv: {trades_csv}", flush=True)
+
+        # decisions.jsonl の生成を保証（空ファイル）
+        decisions_jsonl = out_dir / "decisions.jsonl"
+        decisions_jsonl.write_text("", encoding="utf-8")
+        print(f"[bt] wrote empty decisions.jsonl: {decisions_jsonl}", flush=True)
 
         base = metrics_from_equity(eq_df["equity"])
         tmet = trade_metrics(trades)
@@ -730,7 +765,9 @@ def run_backtest(
         (out_dir / "metrics.json").write_text(
             json.dumps(base, ensure_ascii=False, indent=2)
         )
+        print(f"[bt] wrote metrics.json: {out_dir / 'metrics.json'}", flush=True)
 
+        print("[bt] done", flush=True)
         return eq_csv
 
 

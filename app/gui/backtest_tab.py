@@ -1182,7 +1182,15 @@ class BacktestTab(QtWidgets.QWidget):
             if not line:
                 continue
 
-            # 1) bt_progress 行はプログレスバーだけ更新してログには出さない
+            # 1) "done" を検出したら bar を 100% へ強制セット
+            if "done" in line.lower() and "[bt]" in line.lower():
+                self._progress_target = 100
+                self._progress_value = 100
+                self.progress_bar.setValue(100)
+                if not self._progress_timer.isActive():
+                    self._progress_timer.start()
+
+            # 2) bt_progress 行はプログレスバーだけ更新してログには出さない
             if "[bt_progress]" in line:
                 m = re.search(r"\[bt_progress\]\s+(\d+)", line)
                 if m:
@@ -1200,7 +1208,7 @@ class BacktestTab(QtWidgets.QWidget):
                 # 進捗行はログに書かない
                 continue
 
-            # 2) AISvc.predict 系のエラースパムは Backtest タブでは非表示
+            # 3) AISvc.predict 系のエラースパムは Backtest タブでは非表示
             if "AISvc.predict" in line or "app.services.ai_service:predict" in line:
                 # コンソール側には出ているので GUI ログではミュート
                 continue
@@ -1215,7 +1223,15 @@ class BacktestTab(QtWidgets.QWidget):
             if not line:
                 continue
 
-            # bt_progress が stderr 側に来ることはあまりないはずだけど、
+            # 1) "done" を検出したら bar を 100% へ強制セット
+            if "done" in line.lower() and "[bt]" in line.lower():
+                self._progress_target = 100
+                self._progress_value = 100
+                self.progress_bar.setValue(100)
+                if not self._progress_timer.isActive():
+                    self._progress_timer.start()
+
+            # 2) bt_progress が stderr 側に来ることはあまりないはずだけど、
             # 念のため同じ処理を入れておく
             if "[bt_progress]" in line:
                 m = re.search(r"\[bt_progress\]\s+(\d+)", line)
@@ -1233,7 +1249,7 @@ class BacktestTab(QtWidgets.QWidget):
                         pass
                 continue
 
-            # AISvc.predict 系ログをミュート
+            # 3) AISvc.predict 系ログをミュート
             if "AISvc.predict" in line or "app.services.ai_service:predict" in line:
                 continue
 
@@ -1261,17 +1277,6 @@ class BacktestTab(QtWidgets.QWidget):
             self.label_meta.setText(f"出力CSVが見つかりません: {out_csv}")
             self._append_progress(f"[gui] missing file: {out_csv}")
             return
-
-        # === 集約 monthly_returns を backtests/{profile}/monthly_returns.csv に書く ===
-        try:
-            profile = self._profile_name   # __init__ で渡した "michibiki_std" など
-            out_monthly_csv = Path("backtests") / profile / "monthly_returns.csv"
-            out_monthly_csv.parent.mkdir(parents=True, exist_ok=True)
-
-            compute_monthly_returns(str(out_csv), str(out_monthly_csv))
-            self._append_progress(f"集約 monthly_returns を更新しました: {out_monthly_csv}")
-        except Exception as e:
-            self._append_progress(f"集約 monthly_returns 更新に失敗しました: {e!r}")
 
         self._load_plot(out_csv)  # Equity描画
 
@@ -1306,14 +1311,39 @@ class BacktestTab(QtWidgets.QWidget):
         # 月次リターン保存パスを控える
         self._last_monthly_returns = out_dir / ("monthly_returns.csv" if mode=="bt" else "monthly_returns_test.csv")
 
-        # === monthly_returns を再読込 ===
+        # ▼ monthly_returns 再計算
+        # equity_curve.csv が存在したら compute_monthly_returns() を強制実行
+        if out_csv.exists():
+            try:
+                profile = self._profile_name
+                out_monthly_csv = Path("backtests") / profile / "monthly_returns.csv"
+                out_monthly_csv.parent.mkdir(parents=True, exist_ok=True)
+                
+                # 強制的に monthly_returns.csv を生成
+                compute_monthly_returns(str(out_csv), str(out_monthly_csv))
+                self._append_progress(f"[gui] 集約 monthly_returns を更新しました: {out_monthly_csv}")
+            except Exception as e:
+                self._append_progress(f"[gui] 集約 monthly_returns 更新に失敗しました: {e!r}")
+
+        # decisions.jsonl の読み込み処理（あれば AIタブへ連動）
+        decisions_jsonl = out_dir / "decisions.jsonl"
+        if decisions_jsonl.exists():
+            try:
+                # AIタブへの連動処理（必要に応じて実装）
+                # 現時点ではログ出力のみ
+                self._append_progress(f"[gui] decisions.jsonl を検出しました: {decisions_jsonl}")
+                # TODO: AIタブへの連動処理を追加（必要に応じて）
+            except Exception as e:
+                self._append_progress(f"[gui] decisions.jsonl 処理に失敗しました: {e!r}")
+
+        # === monthly_returns を再読込（最後に統一） ===
         try:
             df = self._kpi_service.refresh_monthly_returns(self._profile_name)
             self._append_progress(
-                f"monthly_returns を再読込しました。行数: {len(df)}"
+                f"[gui] monthly_returns を再読込しました。行数: {len(df)}"
             )
         except Exception as e:
-            self._append_progress(f"monthly_returns 再読込に失敗しました: {e!r}")
+            self._append_progress(f"[gui] monthly_returns 再読込に失敗しました: {e!r}")
 
         self.label_meta.setText("完了")
 
