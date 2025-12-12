@@ -1,0 +1,107 @@
+$code = @'
+import random
+from datetime import datetime, timezone, timedelta
+
+from app.services.profile_stats_service import get_profile_stats_service
+from app.services.filter_service import StrategyFilterEngine
+from app.services.execution_service import ExecutionService
+
+# -------------------------------------
+# 設定
+# -------------------------------------
+symbol = "USDJPY-"
+profiles = ["michibiki_std", "michibiki_aggr"]
+
+# Dummy: プロファイルごとに勝率を固定
+WINRATE = {
+    "michibiki_std": 0.5,
+    "michibiki_aggr": 0.8,
+}
+
+# フィルタレベル（Expert = 3）
+FILTER_LEVEL = 3
+
+# Execution / Filter / Stats
+profile_stats_svc = get_profile_stats_service()
+execution_svc = ExecutionService()
+filter_engine = StrategyFilterEngine()
+
+# -------------------------------------
+# 初期状態
+# -------------------------------------
+print("\n=== 初期 ProfileStats ===")
+print(profile_stats_svc.get_summary_for_filter(symbol))
+
+# -------------------------------------
+# ダミートレード生成関数
+# -------------------------------------
+def simulate_trade(profile_name):
+    """指定プロファイルの勝率に基づいて、ランダムに勝ち負けを生成"""
+    wr = WINRATE.get(profile_name, 0.5)
+    win = random.random() < wr
+    pnl = random.uniform(5, 20) if win else -random.uniform(5, 20)
+    return pnl
+
+# -------------------------------------
+# ウォームアップ：各プロファイルに数トレード入れておく
+# -------------------------------------
+print("\n=== ウォームアップ: 各プロファイルにダミートレードを追加 ===")
+for name in profiles:
+    for _ in range(3):
+        pnl = simulate_trade(name)
+        profile_stats_svc.update_from_trade(symbol, name, pnl)
+
+print("ウォームアップ後 ProfileStats:")
+print(profile_stats_svc.get_summary_for_filter(symbol))
+
+# -------------------------------------
+# ダミー実行ループ
+# -------------------------------------
+for i in range(30):
+    # 現在プロファイル
+    summary = profile_stats_svc.get_summary_for_filter(symbol)
+    current = summary.get("current_profile")
+    if current is None:
+        current = "michibiki_std"
+
+    # ダミーのエントリーコンテキスト
+    entry_context = {
+        "timestamp": datetime.now(timezone(timedelta(hours=9))),
+        "atr": 0.0003,
+        "volatility": 0.5,
+        "trend_strength": 0.1,
+        "consecutive_losses": 0,
+        "profile_stats": summary,
+    }
+
+    # フィルタ評価（ここで profile_switch が出る可能性がある）
+    passed, reasons = filter_engine.evaluate(entry_context, FILTER_LEVEL)
+
+    print(f"\n--- ITER {i+1} ---")
+    print("フィルタ通過:", passed)
+    print("理由:", reasons)
+
+    # プロファイル切替理由があれば ExecutionService 側で適用
+    profile_switch = [r for r in reasons if isinstance(r, str) and r.startswith("profile_switch:")]
+    if profile_switch:
+        tag = profile_switch[0]
+        print(">>> プロファイル切替検出:", tag)
+        # ExecutionService 側で autoswitch を適用
+        execution_svc._apply_profile_autoswitch(symbol, tag)
+        print(">>> 現在プロファイル更新済")
+        # 再取得して確認
+        print(">>> 新しい ProfileStats summary:", profile_stats_svc.get_summary_for_filter(symbol))
+
+    # 価格決済としてダミートレードを反映
+    pnl = simulate_trade(current)
+    profile_stats_svc.update_from_trade(symbol, current, pnl)
+
+    # 更新後の stats
+    updated = profile_stats_svc.get_summary_for_filter(symbol)
+    print("更新後 profile:", updated)
+
+print("\n=== 最終 ProfileStats ===")
+print(profile_stats_svc.get_summary_for_filter(symbol))
+'@
+
+python -X utf8 -c "$code"
