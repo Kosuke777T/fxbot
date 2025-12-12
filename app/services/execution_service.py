@@ -150,6 +150,8 @@ class ExecutionService:
         self.profile_stats_service = get_profile_stats_service()
         self.filter_engine = StrategyFilterEngine()
         self.ai_service = get_ai_service()
+        # 擬似ポジション（dry_run モード用）
+        self._sim_pos: Optional[Dict[str, Any]] = None
 
     def _build_entry_context(
         self,
@@ -206,6 +208,7 @@ class ExecutionService:
         price: float,
         timestamp: datetime,
         features: Optional[Dict[str, float]] = None,
+        dry_run: bool = False,
     ) -> Dict[str, Any]:
         """
         1ティック分の処理をまとめて行うヘルパー。
@@ -223,6 +226,8 @@ class ExecutionService:
             タイムスタンプ
         features : dict, optional
             特徴量の辞書。指定されない場合は簡易版を構築
+        dry_run : bool, optional
+            True の場合、MT5発注を行わず擬似ポジションを保持する
 
         Returns
         -------
@@ -247,7 +252,7 @@ class ExecutionService:
                 features["price"] = float(price)
 
         # 2) execute_entry に委譲
-        result = self.execute_entry(features, symbol=symbol)
+        result = self.execute_entry(features, symbol=symbol, dry_run=dry_run)
         return result
 
     def _apply_profile_autoswitch(self, symbol: str, reasons: list[str]) -> None:
@@ -293,7 +298,7 @@ class ExecutionService:
                         r,
                     )
 
-    def execute_entry(self, features: Dict[str, float], *, symbol: Optional[str] = None) -> Dict[str, Any]:
+    def execute_entry(self, features: Dict[str, float], *, symbol: Optional[str] = None, dry_run: bool = False) -> Dict[str, Any]:
         """
         売買判断 → フィルタ判定 → decisions.jsonl 出力まで一貫処理
 
@@ -303,6 +308,8 @@ class ExecutionService:
             特徴量の辞書
         symbol : str, optional
             シンボル名（指定されない場合は設定から取得）
+        dry_run : bool, optional
+            True の場合、MT5発注を行わず擬似ポジションを保持する
 
         Returns
         -------
@@ -444,40 +451,115 @@ class ExecutionService:
         # logging 用のタイムスタンプ（ts_jst と timestamp は同じ値）
         ts_str = now_jst_iso()
 
+        # --- 4) フィルタでNGの場合ここで終了 ---
+        if not ok:
+            DecisionsLogger.log({
+                # 時刻・識別
+                "timestamp": ts_str,
+                "ts_jst": ts_str,
+                "type": "decision",
+                "symbol": symbol,
+                # 戦略情報
+                "strategy": strategy_name,
+                "prob_buy": getattr(signal, "prob_buy", None),
+                "prob_sell": getattr(signal, "prob_sell", None),
+                # フィルタ結果（トップレベル要約）
+                "filter_pass": ok,
+                "filter_reasons": normalized_reasons,
+                # 決定内容（トップレベル）
+                "decision": decision,
+                "side": getattr(signal, "side", None),
+                # 生フィルタ情報 / メタ情報
+                "filters": filters_dict,
+                "meta": meta_val or {},
+                # 詳細
+                "decision_detail": decision_detail,
+            })
+            return {"ok": False, "reasons": reasons}
+
+        # --- 5) dry_run モードの場合、MT5発注の直前で分岐 ---
+        if dry_run:
+            # decision_detail を更新
+            decision_detail["action"] = "ENTRY_SIMULATED"
+            decision = "ENTRY_SIMULATED"
+
+            # 擬似ポジションを保持
+            self._sim_pos = {
+                "symbol": symbol,
+                "side": signal.side,
+                "prob_buy": signal.prob_buy,
+                "prob_sell": signal.prob_sell,
+                "timestamp": ts_str,
+                "features": features,
+            }
+
+            # ログ出力
+            logger = logging.getLogger(__name__)
+            logger.info(
+                "[dry_run] Simulated ENTRY: symbol=%s, side=%s, prob_buy=%.4f, prob_sell=%.4f",
+                symbol,
+                signal.side,
+                signal.prob_buy,
+                signal.prob_sell,
+            )
+
+            # decisions.jsonl に出力（ENTRY_SIMULATED として）
+            DecisionsLogger.log({
+                "timestamp": ts_str,
+                "ts_jst": ts_str,
+                "type": "decision",
+                "symbol": symbol,
+                "strategy": strategy_name,
+                "prob_buy": getattr(signal, "prob_buy", None),
+                "prob_sell": getattr(signal, "prob_sell", None),
+                "filter_pass": ok,
+                "filter_reasons": normalized_reasons,
+                "decision": decision,
+                "side": getattr(signal, "side", None),
+                "filters": filters_dict,
+                "meta": meta_val or {},
+                "decision_detail": decision_detail,
+            })
+
+            return {
+                "ok": True,
+                "reasons": [],
+                "prob_buy": signal.prob_buy,
+                "prob_sell": signal.prob_sell,
+                "signal": signal,
+                "dry_run": True,
+                "simulated": True,
+            }
+
+        # 通常モードの場合、decision_detail は "ENTRY" のまま
         DecisionsLogger.log({
             # 時刻・識別
-            "timestamp": ts_str,   # 仕様書の正式フィールド名
-            "ts_jst": ts_str,      # 互換性のため当面残す
+            "timestamp": ts_str,
+            "ts_jst": ts_str,
             "type": "decision",
             "symbol": symbol,
-
             # 戦略情報
             "strategy": strategy_name,
             "prob_buy": getattr(signal, "prob_buy", None),
             "prob_sell": getattr(signal, "prob_sell", None),
-
             # フィルタ結果（トップレベル要約）
             "filter_pass": ok,
             "filter_reasons": normalized_reasons,
-
             # 決定内容（トップレベル）
             "decision": decision,
             "side": getattr(signal, "side", None),
-
             # 生フィルタ情報 / メタ情報
-            "filters": filters_dict,      # EntryContext + filter結果を含む
-            "meta": meta_val or {},       # 必ず dict
-
-            # 詳細 (BacktestEngine とほぼ同型)
+            "filters": filters_dict,
+            "meta": meta_val or {},
+            # 詳細
             "decision_detail": decision_detail,
         })
 
-        # --- 4) フィルタでNGの場合ここで終了 ---
-        if not ok:
-            return {"ok": False, "reasons": reasons}
+        # --- 6) 実際のMT5発注（dry_run=False の場合のみ） ---
+        # 発注ロジックはそのまま（TradeService などを呼び出す想定）
 
-        # --- 5) ここから先は売買判断（既存ロジック） ---
-        # 発注ロジックはそのまま
+        # --- 6) 実際のMT5発注（dry_run=False の場合のみ） ---
+        # 発注ロジックはそのまま（TradeService などを呼び出す想定）
 
         return {
             "ok": True,
@@ -485,5 +567,90 @@ class ExecutionService:
             "prob_buy": signal.prob_buy,
             "prob_sell": signal.prob_sell,
             "signal": signal,
+        }
+
+    def execute_exit(self, symbol: Optional[str] = None, dry_run: bool = False) -> Dict[str, Any]:
+        """
+        決済監視/クローズ処理
+
+        Parameters
+        ----------
+        symbol : str, optional
+            シンボル名（指定されない場合は設定から取得）
+        dry_run : bool, optional
+            True の場合、MT5決済を行わず擬似ポジションをクリアする
+
+        Returns
+        -------
+        dict
+            決済結果
+        """
+        # シンボルの取得
+        if not symbol:
+            try:
+                from app.core.config_loader import load_config
+                cfg = load_config()
+                runtime_cfg = cfg.get("runtime", {}) if isinstance(cfg, dict) else {}
+                symbol = runtime_cfg.get("symbol", "USDJPY-")
+            except Exception:
+                symbol = "USDJPY-"
+
+        logger = logging.getLogger(__name__)
+
+        # dry_run モードの場合、擬似ポジションをクリア
+        if dry_run and self._sim_pos:
+            sim_pos = self._sim_pos
+            self._sim_pos = None
+
+            ts_str = now_jst_iso()
+
+            logger.info(
+                "[dry_run] Simulated EXIT: symbol=%s, side=%s",
+                sim_pos.get("symbol"),
+                sim_pos.get("side"),
+            )
+
+            # decisions.jsonl に出力（EXIT_SIMULATED として）
+            decision_detail = {
+                "action": "EXIT_SIMULATED",
+                "side": sim_pos.get("side"),
+                "signal": {
+                    "side": sim_pos.get("side"),
+                    "confidence": sim_pos.get("prob_buy") if sim_pos.get("side") == "BUY" else sim_pos.get("prob_sell"),
+                },
+                "filter_pass": True,
+                "filter_reasons": [],
+            }
+
+            DecisionsLogger.log({
+                "timestamp": ts_str,
+                "ts_jst": ts_str,
+                "type": "decision",
+                "symbol": symbol,
+                "strategy": "unknown",
+                "prob_buy": sim_pos.get("prob_buy"),
+                "prob_sell": sim_pos.get("prob_sell"),
+                "filter_pass": True,
+                "filter_reasons": [],
+                "decision": "EXIT_SIMULATED",
+                "side": sim_pos.get("side"),
+                "filters": {},
+                "meta": {},
+                "decision_detail": decision_detail,
+            })
+
+            return {
+                "ok": True,
+                "dry_run": True,
+                "simulated": True,
+                "exited": True,
+            }
+
+        # 通常モードの場合、実際のMT5決済処理
+        # （TradeService などを呼び出す想定）
+
+        return {
+            "ok": True,
+            "exited": True,
         }
 
