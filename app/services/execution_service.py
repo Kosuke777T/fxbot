@@ -7,6 +7,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+# 注意: 将来 decision_logic が肥大化した場合、
+# services/decision_service.py 的な薄いラッパを挟む余地あり
 from app.core.trade.decision_logic import decide_signal
 from app.core.filter.strategy_filter_engine import StrategyFilterEngine
 from app.services.filter_service import evaluate_entry, _get_engine, extract_profile_switch
@@ -157,6 +159,7 @@ class ExecutionService:
         self,
         symbol: str,
         features: Dict[str, float],
+        timestamp: Optional[datetime] = None,
     ) -> Dict[str, Any]:
         """
         EntryContext を構築する
@@ -167,6 +170,8 @@ class ExecutionService:
             シンボル名
         features : dict
             特徴量の辞書
+        timestamp : datetime, optional
+            タイムスタンプ（指定されない場合は現在時刻）
 
         Returns
         -------
@@ -182,9 +187,13 @@ class ExecutionService:
         profile_name = profile_obj.name if hasattr(profile_obj, "name") and profile_obj else "michibiki_std"
         consecutive_losses = get_consecutive_losses(profile_name, symbol)
 
+        # タイムスタンプの処理（フィルタは datetime オブジェクトを期待）
+        if timestamp is None:
+            timestamp = datetime.now()
+
         # EntryContext を作成
         entry_context = {
-            "timestamp": datetime.now().isoformat(),  # ISO 形式に統一
+            "timestamp": timestamp,  # datetime オブジェクトとして保持（フィルタで使用）
             "atr": features.get("atr"),
             "volatility": features.get("volatility"),
             "trend_strength": features.get("trend_strength"),
@@ -298,7 +307,7 @@ class ExecutionService:
                         r,
                     )
 
-    def execute_entry(self, features: Dict[str, float], *, symbol: Optional[str] = None, dry_run: bool = False) -> Dict[str, Any]:
+    def execute_entry(self, features: Dict[str, float], *, symbol: Optional[str] = None, dry_run: bool = False, timestamp: Optional[datetime] = None) -> Dict[str, Any]:
         """
         売買判断 → フィルタ判定 → decisions.jsonl 出力まで一貫処理
 
@@ -335,7 +344,7 @@ class ExecutionService:
         # --- 1) モデル予測 ---
         pred = self.ai_service.predict(features)
 
-        # ProbOut オブジェクトから確率を取得
+        # ProbOut オブジェクトから確率を取得（確率は pred から取得）
         prob_buy = getattr(pred, "p_buy", None)
         prob_sell = getattr(pred, "p_sell", None)
 
@@ -347,6 +356,8 @@ class ExecutionService:
             best_threshold = 0.52  # フォールバック
 
         # decide_signal を使用してシグナル判定
+        # 注意: signal は意思決定結果（side/confidence/threshold判定）であり、
+        # 確率（prob_buy/prob_sell）は pred から取得する
         signal = decide_signal(
             prob_buy=prob_buy,
             prob_sell=prob_sell,
@@ -354,14 +365,18 @@ class ExecutionService:
         )
 
         # --- 2) EntryContext を構築（ProfileStats を含む） ---
-        entry_context = self._build_entry_context(symbol, features)
+        if timestamp is None:
+            timestamp = datetime.now()
+        entry_context = self._build_entry_context(symbol, features, timestamp=timestamp)
 
-        # EditionGuard から filter_level を取得
+        # EditionGuard から filter_level を取得（1箇所で取得して使い回す）
         guard = EditionGuard()
         current_filter_level = guard.filter_level()
 
         # --- 3) フィルタ評価 ---
         # StrategyFilterEngine を使用してフィルタ評価
+        # 注意: 現在の実装では Tuple[bool, List[str]] を返すが、
+        # v5.1 仕様では bool のみを返す設計の可能性があるため、将来の変更に注意
         ok, reasons = self.filter_engine.evaluate(entry_context, filter_level=current_filter_level)
 
         # ★ここで profile 自動切替を反映
@@ -379,8 +394,8 @@ class ExecutionService:
 
         # EntryContext の全フィールドを含む filters_dict を構築
         filters_dict = {
-            # filter_level（v5.1 仕様）
-            "filter_level": filter_level(),
+            # filter_level（v5.1 仕様）- current_filter_level を使い回す
+            "filter_level": current_filter_level,
             # filter 結果（v5.1 仕様）
             "filter_pass": ok,
             "filter_reasons": normalized_reasons,
@@ -388,7 +403,12 @@ class ExecutionService:
 
         # --- EntryContext を filters に統合 ---
         ctx = entry_context or {}
-        filters_dict["timestamp"] = ctx.get("timestamp")
+        # timestamp は datetime オブジェクトの可能性があるため、ISO形式に変換
+        ts_val = ctx.get("timestamp")
+        if isinstance(ts_val, datetime):
+            filters_dict["timestamp"] = ts_val.isoformat()
+        else:
+            filters_dict["timestamp"] = ts_val
         filters_dict["atr"] = ctx.get("atr")
         filters_dict["volatility"] = ctx.get("volatility")
         filters_dict["trend_strength"] = ctx.get("trend_strength")
@@ -461,8 +481,9 @@ class ExecutionService:
                 "symbol": symbol,
                 # 戦略情報
                 "strategy": strategy_name,
-                "prob_buy": getattr(signal, "prob_buy", None),
-                "prob_sell": getattr(signal, "prob_sell", None),
+                # 確率は pred から取得（signal は意思決定結果のみ）
+                "prob_buy": prob_buy,
+                "prob_sell": prob_sell,
                 # フィルタ結果（トップレベル要約）
                 "filter_pass": ok,
                 "filter_reasons": normalized_reasons,
@@ -487,8 +508,9 @@ class ExecutionService:
             self._sim_pos = {
                 "symbol": symbol,
                 "side": signal.side,
-                "prob_buy": signal.prob_buy,
-                "prob_sell": signal.prob_sell,
+                # 確率は pred から取得
+                "prob_buy": prob_buy,
+                "prob_sell": prob_sell,
                 "timestamp": ts_str,
                 "features": features,
             }
@@ -499,8 +521,8 @@ class ExecutionService:
                 "[dry_run] Simulated ENTRY: symbol=%s, side=%s, prob_buy=%.4f, prob_sell=%.4f",
                 symbol,
                 signal.side,
-                signal.prob_buy,
-                signal.prob_sell,
+                prob_buy or 0.0,
+                prob_sell or 0.0,
             )
 
             # decisions.jsonl に出力（ENTRY_SIMULATED として）
@@ -510,8 +532,9 @@ class ExecutionService:
                 "type": "decision",
                 "symbol": symbol,
                 "strategy": strategy_name,
-                "prob_buy": getattr(signal, "prob_buy", None),
-                "prob_sell": getattr(signal, "prob_sell", None),
+                # 確率は pred から取得
+                "prob_buy": prob_buy,
+                "prob_sell": prob_sell,
                 "filter_pass": ok,
                 "filter_reasons": normalized_reasons,
                 "decision": decision,
@@ -521,15 +544,16 @@ class ExecutionService:
                 "decision_detail": decision_detail,
             })
 
-            return {
-                "ok": True,
-                "reasons": [],
-                "prob_buy": signal.prob_buy,
-                "prob_sell": signal.prob_sell,
-                "signal": signal,
-                "dry_run": True,
-                "simulated": True,
-            }
+        return {
+            "ok": True,
+            "reasons": [],
+            # 確率は pred から取得
+            "prob_buy": prob_buy,
+            "prob_sell": prob_sell,
+            "signal": signal,
+            "dry_run": True,
+            "simulated": True,
+        }
 
         # 通常モードの場合、decision_detail は "ENTRY" のまま
         DecisionsLogger.log({
@@ -540,8 +564,9 @@ class ExecutionService:
             "symbol": symbol,
             # 戦略情報
             "strategy": strategy_name,
-            "prob_buy": getattr(signal, "prob_buy", None),
-            "prob_sell": getattr(signal, "prob_sell", None),
+            # 確率は pred から取得（signal は意思決定結果のみ）
+            "prob_buy": prob_buy,
+            "prob_sell": prob_sell,
             # フィルタ結果（トップレベル要約）
             "filter_pass": ok,
             "filter_reasons": normalized_reasons,
@@ -564,8 +589,9 @@ class ExecutionService:
         return {
             "ok": True,
             "reasons": [],
-            "prob_buy": signal.prob_buy,
-            "prob_sell": signal.prob_sell,
+            # 確率は pred から取得
+            "prob_buy": prob_buy,
+            "prob_sell": prob_sell,
             "signal": signal,
         }
 
