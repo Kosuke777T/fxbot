@@ -602,7 +602,16 @@ def main() -> int:
         help="モデル評価のみ行い、active_model.json などは一切更新しない",
     )
     ap.add_argument(
+        "--dry",
+        type=int,
+        choices=[0, 1],
+        default=None,
+        help="compat alias for --dry-run (0/1)",
+    )
+    ap.add_argument(
         "--json",
+        "--emit-json",
+        dest="emit_json",
         type=int,
         default=1,
         choices=[0, 1],
@@ -621,15 +630,95 @@ def main() -> int:
         default=None,
         help="profile name (alias for --model-name)",
     )
+    ap.add_argument(
+        "--profiles",
+        type=str,
+        default=None,
+        help="comma-separated profile names (takes precedence over --profile)",
+    )
     args = ap.parse_args()
+
+    # --dry を --dry-run にマップ（既存ロジックとの互換性）
+    if args.dry is not None:
+        args.dry_run = bool(args.dry)
+
+    # --json の後方互換性（emit_json に統一）
+    if not hasattr(args, "emit_json"):
+        args.emit_json = getattr(args, "json", 1)
+    # 既存コードが args.json を参照している場合の互換性
+    args.json = args.emit_json
+
+    # --profiles が指定されている場合はそれを優先
+    if args.profiles:
+        # カンマ区切りで分割して正規化
+        profile_list = [p.strip() for p in args.profiles.split(",") if p.strip()]
+        if not profile_list:
+            raise ValueError("--profiles に有効なプロファイルが指定されていません")
+        # 複数プロファイルモード
+        return _run_multiple_profiles(profile_list, args)
 
     # --profile を --model-name にマップ（既存の args.model_name に合わせる）
     if args.profile and not args.model_name:
         args.model_name = args.profile
 
+    # 単一プロファイルモード（既存の動作）
+    # 戦略プロファイル名を決定（args.profile が優先、なければ args.model_name、それもなければデフォルト）
+    profile_name = args.profile or args.model_name or "LightGBM_clf"
+    # 単一プロファイル時も JSON 出力とログ保存を行うため、_run_single_profile の結果を処理
+    rc, result = _run_single_profile(profile_name, args)
+
+    # JSON出力（最終行のみ）
+    if args.emit_json == 1:
+        json_line = json.dumps(
+            result, ensure_ascii=True, separators=(",", ":"), default=str
+        )
+        print(json_line, flush=True)
+
+    # ログファイル保存
+    retrain_log_dir = LOGS_DIR / "retrain"
+    retrain_log_dir.mkdir(parents=True, exist_ok=True)
+    last_json_path = retrain_log_dir / "weekly_retrain_last.json"
+    jsonl_path = retrain_log_dir / "weekly_retrain.jsonl"
+
+    try:
+        # last.json（上書き）
+        last_json_path.write_text(
+            json.dumps(result, ensure_ascii=True, indent=2, default=str),
+            encoding="utf-8",
+        )
+        # jsonl（追記）
+        jsonl_line = json.dumps(result, ensure_ascii=True, separators=(",", ":"), default=str)
+        with jsonl_path.open("a", encoding="utf-8") as f:
+            f.write(jsonl_line + "\n")
+    except Exception as e:
+        # ログ保存失敗は無視（stderrに出力）
+        print(f"[WFO][warn] failed to save logs: {e}", file=sys.stderr, flush=True)
+
+    # --out-json が指定されていればそこにも保存
+    if args.out_json:
+        try:
+            out_path = Path(args.out_json)
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            out_path.write_text(
+                json.dumps(result, ensure_ascii=True, indent=2, default=str),
+                encoding="utf-8",
+            )
+        except Exception as e:
+            print(f"[WFO][warn] failed to save --out-json: {e}", file=sys.stderr, flush=True)
+
+    return rc
+
+
+def _run_single_profile(profile_name: str, args: argparse.Namespace) -> tuple[int, dict]:
+    """
+    単一プロファイルのWFO実行
+
+    Returns:
+        (exit_code, result_dict)
+    """
     # 結果JSON構築用の変数
     started_at = jst_now_str()
-    profile = args.model_name  # 簡易的に model_name を profile として使用
+    profile = profile_name
     step = "init"
     ok = False
     rc = 30  # デフォルトは失敗
@@ -649,9 +738,13 @@ def main() -> int:
 
     try:
         safe_log(
-            f"[WFO] start walkforward retrain | symbol={args.symbol} tf={args.timeframe}"
+            f"[WFO] start walkforward retrain | profile={profile} symbol={args.symbol} tf={args.timeframe}"
         )
         step = "load_data"
+
+        # args.model_name を profile_name に一時的に上書き（既存ロジックとの互換性）
+        original_model_name = args.model_name
+        args.model_name = profile_name
 
         # CSV 探索 & 読み込み
         csv_path = find_csv(args.symbol, args.timeframe, data_dir=args.data_dir)
@@ -745,6 +838,7 @@ def main() -> int:
                 "active_model_json": str(MODELS_DIR / "active_model.json"),
                 "model_path": str(model_path),
                 "meta_path": str(meta_path),
+                "model_name": args.model_name,  # 実際に使用された model_name
             }
 
             # アクティブモデル更新（--apply のときだけ）
@@ -917,6 +1011,7 @@ def main() -> int:
             "active_model_json": str(MODELS_DIR / "active_model.json"),
             "model_path": str(model_path),
             "meta_path": str(meta_path),
+            "model_name": args.model_name,  # 実際に使用された model_name
         }
 
         safe_log(f"[WFO] wrote: {model_path.name}, {meta_path.name}")
@@ -965,29 +1060,15 @@ def main() -> int:
                     }
                     rc = 30
         safe_log("[WFO] done.")
-        return rc
 
-    except Exception as e:
-        # 例外発生時
-        step = step or "error"
-        ok = False
-        rc = 30
-        error_info = {
-            "code": "UNEXPECTED_ERROR",
-            "message": str(e),
-            "where": step,
-            "trace": traceback.format_exc(),
-        }
-        return rc
+        # args.model_name を元に戻す
+        args.model_name = original_model_name
 
-    finally:
-        # 最終行にJSON出力（必ず実行）
         ended_at = jst_now_str()
         elapsed_sec = (
             datetime.fromisoformat(ended_at.replace("Z", "+00:00"))
             - datetime.fromisoformat(started_at.replace("Z", "+00:00"))
         ).total_seconds()
-
         result = {
             "type": "weekly_retrain",
             "ok": ok,
@@ -1000,40 +1081,152 @@ def main() -> int:
             "outputs": outputs,
             "error": error_info,
         }
+        return rc, result
 
-        # JSON出力（最終行のみ）
-        if args.json == 1:
-            json_line = json.dumps(
-                result, ensure_ascii=True, separators=(",", ":"), default=str
-            )
-            print(json_line, flush=True)
+    except Exception as e:
+        # 例外発生時
+        step = step or "error"
+        ok = False
+        rc = 30
+        error_info = {
+            "code": "UNEXPECTED_ERROR",
+            "message": str(e),
+            "where": step,
+            "trace": traceback.format_exc(),
+        }
+        ended_at = jst_now_str()
+        elapsed_sec = (
+            datetime.fromisoformat(ended_at.replace("Z", "+00:00"))
+            - datetime.fromisoformat(started_at.replace("Z", "+00:00"))
+        ).total_seconds()
+        result = {
+            "type": "weekly_retrain",
+            "ok": ok,
+            "profile": profile,
+            "step": step,
+            "started_at": started_at,
+            "ended_at": ended_at,
+            "elapsed_sec": round(elapsed_sec, 1),
+            "apply": apply_info,
+            "outputs": outputs,
+            "error": error_info,
+        }
+        return rc, result
 
-        # ログファイル保存
+
+def _run_multiple_profiles(profile_list: list[str], args: argparse.Namespace) -> int:
+    """
+    複数プロファイルのWFO実行
+
+    Returns:
+        exit_code (最悪コードを採用: 30 > 13 > 11 > 0)
+    """
+    started_at = jst_now_str()
+    per_profile: dict[str, dict] = {}
+    all_rcs: list[int] = []
+
+    # 各プロファイルを実行
+    for profile_name in profile_list:
+        safe_log(f"[WFO] processing profile: {profile_name}")
         try:
-            # last.json（上書き）
-            last_json_path.write_text(
+            rc, result = _run_single_profile(profile_name, args)
+            per_profile[profile_name] = result
+            all_rcs.append(rc)
+        except Exception as e:
+            # プロファイル実行中の例外
+            error_result = {
+                "type": "weekly_retrain",
+                "ok": False,
+                "profile": profile_name,
+                "step": "exception",
+                "started_at": jst_now_str(),
+                "ended_at": jst_now_str(),
+                "elapsed_sec": 0.0,
+                "apply": {"performed": False, "reason": "exception"},
+                "outputs": {},
+                "error": {
+                    "code": "PROFILE_EXCEPTION",
+                    "message": str(e),
+                    "where": profile_name,
+                    "trace": traceback.format_exc(),
+                },
+            }
+            per_profile[profile_name] = error_result
+            all_rcs.append(30)
+
+    # 最悪コードを決定（優先順位: 30 > 13 > 11 > 0）
+    final_rc = 0
+    if 30 in all_rcs:
+        final_rc = 30
+    elif 13 in all_rcs:
+        final_rc = 13
+    elif 11 in all_rcs:
+        final_rc = 11
+
+    # 全プロファイル成功で ok=True
+    all_ok = all(r.get("ok", False) for r in per_profile.values())
+
+    # 最終結果JSON構築
+    ended_at = jst_now_str()
+    elapsed_sec = (
+        datetime.fromisoformat(ended_at.replace("Z", "+00:00"))
+        - datetime.fromisoformat(started_at.replace("Z", "+00:00"))
+    ).total_seconds()
+
+    result = {
+        "type": "weekly_retrain",
+        "ok": all_ok,
+        "profile": None,  # 複数プロファイル時は None
+        "step": "done" if all_ok else "partial_failure",
+        "started_at": started_at,
+        "ended_at": ended_at,
+        "elapsed_sec": round(elapsed_sec, 1),
+        "apply": {"performed": False, "reason": "multi_profile"},  # 複数時は apply は個別に記録
+        "outputs": {},
+        "error": None if all_ok else {"code": "PARTIAL_FAILURE", "message": "一部のプロファイルで失敗"},
+        "per_profile": per_profile,
+    }
+
+    # JSON出力（最終行のみ）
+    if args.emit_json == 1:
+        json_line = json.dumps(
+            result, ensure_ascii=True, separators=(",", ":"), default=str
+        )
+        print(json_line, flush=True)
+
+    # ログファイル保存
+    retrain_log_dir = LOGS_DIR / "retrain"
+    retrain_log_dir.mkdir(parents=True, exist_ok=True)
+    last_json_path = retrain_log_dir / "weekly_retrain_last.json"
+    jsonl_path = retrain_log_dir / "weekly_retrain.jsonl"
+
+    try:
+        # last.json（上書き）
+        last_json_path.write_text(
+            json.dumps(result, ensure_ascii=True, indent=2, default=str),
+            encoding="utf-8",
+        )
+        # jsonl（追記）
+        jsonl_line = json.dumps(result, ensure_ascii=True, separators=(",", ":"), default=str)
+        with jsonl_path.open("a", encoding="utf-8") as f:
+            f.write(jsonl_line + "\n")
+    except Exception as e:
+        # ログ保存失敗は無視（stderrに出力）
+        print(f"[WFO][warn] failed to save logs: {e}", file=sys.stderr, flush=True)
+
+    # --out-json が指定されていればそこにも保存
+    if args.out_json:
+        try:
+            out_path = Path(args.out_json)
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            out_path.write_text(
                 json.dumps(result, ensure_ascii=True, indent=2, default=str),
                 encoding="utf-8",
             )
-            # jsonl（追記）
-            jsonl_line = json.dumps(result, ensure_ascii=True, separators=(",", ":"), default=str)
-            with jsonl_path.open("a", encoding="utf-8") as f:
-                f.write(jsonl_line + "\n")
         except Exception as e:
-            # ログ保存失敗は無視（stderrに出力）
-            print(f"[WFO][warn] failed to save logs: {e}", file=sys.stderr, flush=True)
+            print(f"[WFO][warn] failed to save --out-json: {e}", file=sys.stderr, flush=True)
 
-        # --out-json が指定されていればそこにも保存
-        if args.out_json:
-            try:
-                out_path = Path(args.out_json)
-                out_path.parent.mkdir(parents=True, exist_ok=True)
-                out_path.write_text(
-                    json.dumps(result, ensure_ascii=True, indent=2, default=str),
-                    encoding="utf-8",
-                )
-            except Exception as e:
-                print(f"[WFO][warn] failed to save --out-json: {e}", file=sys.stderr, flush=True)
+    return final_rc
 
 
 def _emit_result_json(result: dict, emit_json: bool) -> None:
@@ -1065,13 +1258,16 @@ def _entry() -> int:
         "error": None,
     }
 
-    # --json の有無は argparse 前に軽く見る（最小）
+    # --json / --emit-json の有無は argparse 前に軽く見る（最小）
     emit_json = True
     try:
-        if "--json" in sys.argv:
-            i = sys.argv.index("--json")
-            if i + 1 < len(sys.argv):
-                emit_json = (sys.argv[i + 1] != "0")
+        # --json または --emit-json を探す
+        for opt in ["--json", "--emit-json"]:
+            if opt in sys.argv:
+                i = sys.argv.index(opt)
+                if i + 1 < len(sys.argv):
+                    emit_json = (sys.argv[i + 1] != "0")
+                break
     except Exception:
         emit_json = True
 
