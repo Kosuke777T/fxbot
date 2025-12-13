@@ -5510,6 +5510,16 @@
     "doc": ""
   },
   {
+    "kind": "function",
+    "name": "main",
+    "qualname": "main",
+    "file": "tools/ops_start.py",
+    "lineno": 38,
+    "signature": "()",
+    "returns": "int",
+    "doc": ""
+  },
+  {
     "kind": "class",
     "name": "SwitchRecord",
     "qualname": "SwitchRecord",

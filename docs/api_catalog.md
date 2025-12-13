@@ -681,6 +681,9 @@
 ## tools/mt5_smoke.py
 - **def main() -> int**  (L55)  — 
 
+## tools/ops_start.py
+- **def main() -> int**  (L38)  — 
+
 ## tools/profile_switch_analyzer.py
 - **class SwitchRecord**  (L11)  — 
 - **def _iter_decisions(path: Path) -> Iterable[dict]**  (L19)  — 
