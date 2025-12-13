@@ -5504,7 +5504,7 @@
     "name": "main",
     "qualname": "main",
     "file": "tools/mt5_smoke.py",
-    "lineno": 49,
+    "lineno": 55,
     "signature": "()",
     "returns": "int",
     "doc": ""

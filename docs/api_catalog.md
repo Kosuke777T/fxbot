@@ -679,7 +679,7 @@
 - **def main() -> None**  (L149)  — 
 
 ## tools/mt5_smoke.py
-- **def main() -> int**  (L49)  — 
+- **def main() -> int**  (L55)  — 
 
 ## tools/profile_switch_analyzer.py
 - **class SwitchRecord**  (L11)  — 
