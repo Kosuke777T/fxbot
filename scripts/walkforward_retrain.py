@@ -12,9 +12,10 @@ from pathlib import Path
 import lightgbm as lgbm
 import numpy as np
 import pandas as pd
-from joblib import dump
+from joblib import dump, load
 from sklearn.metrics import log_loss, precision_recall_curve, roc_auc_score
 from sklearn.model_selection import train_test_split
+import traceback
 
 # ------------------------------------------------------------
 # 基本設定（フォルダなど）
@@ -37,6 +38,111 @@ def _write_json_atomic(path: Path, obj: dict) -> None:
     tmp.write_text(payload, encoding="utf-8")
     # Windowsでも同一ボリュームなら原子的に置換される
     tmp.replace(path)
+
+
+# ✅ apply安全装置
+def _safe_apply_active_model(
+    model_path: Path,
+    meta_path: Path,
+    best_threshold: float,
+    expected_features: list[str],
+) -> dict:
+    """
+    active_model.json を安全に更新するためのチェックと実行
+
+    Returns:
+        {
+            "ok": bool,
+            "reason": str,  # "updated" / "same_model" / "bad_features" / "model_missing" / "model_load_failed"
+            "code": str,     # エラーコード（失敗時のみ）
+            "message": str,  # エラーメッセージ（失敗時のみ）
+            "trace": str,    # トレースバック（失敗時のみ）
+        }
+    """
+    try:
+        # 1. 新モデルファイルの存在チェック
+        if not model_path.exists():
+            return {
+                "ok": False,
+                "reason": "model_missing",
+                "code": "MODEL_FILE_MISSING",
+                "message": f"Model file not found: {model_path}",
+                "trace": "",
+            }
+
+        # 2. expected_features のチェック
+        if not expected_features or len(expected_features) == 0:
+            return {
+                "ok": False,
+                "reason": "bad_features",
+                "code": "BAD_EXPECTED_FEATURES",
+                "message": "expected_features is empty or None",
+                "trace": "",
+            }
+
+        # 3. 既存 active_model.json との比較（同一モデルチェック）
+        active_path = MODELS_DIR / "active_model.json"
+        if active_path.exists():
+            try:
+                existing = json.loads(active_path.read_text(encoding="utf-8"))
+                existing_model_file = existing.get("model_file") or existing.get("file")
+                if existing_model_file == model_path.name:
+                    return {
+                        "ok": False,
+                        "reason": "same_model",
+                        "code": "SAME_MODEL",
+                        "message": f"Model file is same as existing: {model_path.name}",
+                        "trace": "",
+                    }
+            except Exception:
+                # 既存ファイルが壊れていても続行（上書きする）
+                pass
+
+        # 4. 新モデルのロードとダミー予測チェック
+        try:
+            model = load(model_path)
+            # ダミー予測（shape 合わせ）
+            # expected_features の数だけ 0.0 の配列を作成
+            dummy_X = np.array([[0.0] * len(expected_features)], dtype=np.float32)
+            if hasattr(model, "predict_proba"):
+                _ = model.predict_proba(dummy_X)
+            elif hasattr(model, "predict"):
+                _ = model.predict(dummy_X)
+            # 例外が出なければOK
+        except Exception as e:
+            return {
+                "ok": False,
+                "reason": "model_load_failed",
+                "code": "MODEL_LOAD_FAIL",
+                "message": f"Model load or predict failed: {e}",
+                "trace": traceback.format_exc(),
+            }
+
+        # 5. すべてのチェックOK → 更新実行
+        active = {
+            "model_file": str(model_path.name),
+            "meta_file": str(meta_path.name),
+            "best_threshold": best_threshold,
+            "updated_at": jst_now_str(),
+            "features": expected_features,
+        }
+        _write_json_atomic(active_path, active)
+        return {
+            "ok": True,
+            "reason": "updated",
+            "code": None,
+            "message": None,
+            "trace": None,
+        }
+
+    except Exception as e:
+        return {
+            "ok": False,
+            "reason": "unexpected_error",
+            "code": "UNEXPECTED_ERROR",
+            "message": str(e),
+            "trace": traceback.format_exc(),
+        }
 
 
 def resolve_data_root(cli_data_dir: str | None) -> Path:
@@ -429,7 +535,16 @@ def train_lgbm(X: pd.DataFrame, y: pd.Series) -> lgbm.LGBMClassifier:
 # ------------------------------------------------------------
 # メイン
 # ------------------------------------------------------------
-def main():
+def main() -> int:
+    """
+    メイン関数。最終行にJSONを出力し、exit codeを返す。
+
+    Returns:
+        0: 成功（ok=true, step=done）
+        11: 実行スキップ（データ不足/期間ゼロ等）
+        13: apply スキップ（同一モデル等）
+        30: 失敗（ok=false）
+    """
     # 引数なしでも安全に動くように、デフォルト値と説明を追加
     ap = argparse.ArgumentParser(
         description="LightGBM walk-forward retrain",
@@ -486,251 +601,512 @@ def main():
         action="store_true",
         help="モデル評価のみ行い、active_model.json などは一切更新しない",
     )
+    ap.add_argument(
+        "--json",
+        type=int,
+        default=1,
+        choices=[0, 1],
+        help="最終行に result JSON を出力するか (0=なし, 1=出力)",
+    )
+    ap.add_argument(
+        "--out-json",
+        type=str,
+        default=None,
+        help="結果JSONを保存するパス（未指定なら logs/retrain/ に保存）",
+    )
+    # 既存に profile 系オプションがあるなら、それに寄せる
+    ap.add_argument(
+        "--profile",
+        type=str,
+        default=None,
+        help="profile name (alias for --model-name)",
+    )
     args = ap.parse_args()
 
-    safe_log(
-        f"[WFO] start walkforward retrain | symbol={args.symbol} tf={args.timeframe}"
-    )
+    # --profile を --model-name にマップ（既存の args.model_name に合わせる）
+    if args.profile and not args.model_name:
+        args.model_name = args.profile
 
-    # CSV 探索 & 読み込み
-    csv_path = find_csv(args.symbol, args.timeframe, data_dir=args.data_dir)
-    print(f"[retrain] using CSV: {csv_path}")
-    safe_log(f"[WFO] load csv: {csv_path}")
-    df_raw = pd.read_csv(csv_path)
+    # 結果JSON構築用の変数
+    started_at = jst_now_str()
+    profile = args.model_name  # 簡易的に model_name を profile として使用
+    step = "init"
+    ok = False
+    rc = 30  # デフォルトは失敗
+    error_info = None
+    apply_info = {"performed": False, "reason": "not_applied"}
+    outputs = {}
+    model_path = None
+    meta_path = None
+    best_threshold = None
+    expected_features = None
 
-    # 最低限の列チェック
-    need_cols = {"time", "open", "high", "low", "close"}
-    missing = need_cols - set(df_raw.columns)
-    if missing:
-        raise ValueError(f"CSV に必要な列が不足しています: {missing}")
+    # logs/retrain ディレクトリ準備
+    retrain_log_dir = LOGS_DIR / "retrain"
+    retrain_log_dir.mkdir(parents=True, exist_ok=True)
+    last_json_path = retrain_log_dir / "weekly_retrain_last.json"
+    jsonl_path = retrain_log_dir / "weekly_retrain.jsonl"
 
-    # 特徴量
-    feats = build_features(df_raw)
-    if feats.empty:
-        safe_log("[WFO] feature building aborted (not enough rows).")
-        sys.exit(1)
-
-    # ラベル
-    y = make_label(feats, args.horizon)
-    feats = feats.iloc[: -args.horizon, :].reset_index(drop=True)
-    y = y.iloc[: -args.horizon].reset_index(drop=True)
-
-    # 特徴量行数チェック
-    if feats.shape[0] == 0:
+    try:
         safe_log(
-            "[WFO][error] no rows after feature engineering + horizon alignment. "
-            "Likely because rows <= horizon. Provide a longer CSV or reduce --horizon."
+            f"[WFO] start walkforward retrain | symbol={args.symbol} tf={args.timeframe}"
         )
-        sys.exit(1)
+        step = "load_data"
 
-    # 説明変数
-    drop_cols = ["time", "open", "high", "low", "close"]
-    X = feats.drop(columns=[c for c in drop_cols if c in feats.columns])
+        # CSV 探索 & 読み込み
+        csv_path = find_csv(args.symbol, args.timeframe, data_dir=args.data_dir)
+        print(f"[retrain] using CSV: {csv_path}", file=sys.stderr)
+        safe_log(f"[WFO] load csv: {csv_path}")
+        df_raw = pd.read_csv(csv_path)
 
-    # 念のための欠損除去
-    mask = ~X.isna().any(axis=1)
-    X, y = X[mask], y[mask]
-    X = X.astype(np.float32)
+        # 最低限の列チェック
+        need_cols = {"time", "open", "high", "low", "close"}
+        missing = need_cols - set(df_raw.columns)
+        if missing:
+            raise ValueError(f"CSV に必要な列が不足しています: {missing}")
 
-    n_total = len(X)
-    if n_total < (args.train_bars + args.test_bars + 1):
-        # データが少ない場合は 80/20 の単純スプリットで学習→保存のみ
-        safe_log("[WFO] dataset is small; using simple 80/20 split instead of WFO.")
-        Xtr, Xte, ytr, yte = train_test_split(X, y, test_size=0.2, shuffle=False)
+        # 特徴量
+        step = "build_features"
+        feats = build_features(df_raw)
+        if feats.empty:
+            safe_log("[WFO] feature building aborted (not enough rows).")
+            step = "skipped"
+            ok = True
+            rc = 11
+            return rc
 
-        clf = train_lgbm(Xtr, ytr)
-        prob = clf.predict_proba(Xte)[:, 1]  # DataFrameのまま渡している
-        auc = float(roc_auc_score(yte, prob))
-        ll = float(log_loss(yte, np.clip(prob, 1e-6, 1 - 1e-6)))
+        # ラベル
+        step = "make_label"
+        y = make_label(feats, args.horizon)
+        feats = feats.iloc[: -args.horizon, :].reset_index(drop=True)
+        y = y.iloc[: -args.horizon].reset_index(drop=True)
 
-        thr, f1 = pick_threshold(yte.values, prob)
+        # 特徴量行数チェック
+        if feats.shape[0] == 0:
+            safe_log(
+                "[WFO][error] no rows after feature engineering + horizon alignment. "
+                "Likely because rows <= horizon. Provide a longer CSV or reduce --horizon."
+            )
+            step = "skipped"
+            ok = True
+            rc = 11
+            return rc
+
+        # 説明変数
+        step = "prepare_X"
+        drop_cols = ["time", "open", "high", "low", "close"]
+        X = feats.drop(columns=[c for c in drop_cols if c in feats.columns])
+
+        # 念のための欠損除去
+        mask = ~X.isna().any(axis=1)
+        X, y = X[mask], y[mask]
+        X = X.astype(np.float32)
+
+        n_total = len(X)
+        expected_features = list(X.columns)
+
+        if n_total < (args.train_bars + args.test_bars + 1):
+            # データが少ない場合は 80/20 の単純スプリットで学習→保存のみ
+            step = "train_simple"
+            safe_log("[WFO] dataset is small; using simple 80/20 split instead of WFO.")
+            Xtr, Xte, ytr, yte = train_test_split(X, y, test_size=0.2, shuffle=False)
+
+            clf = train_lgbm(Xtr, ytr)
+            prob = clf.predict_proba(Xte)[:, 1]  # DataFrameのまま渡している
+            auc = float(roc_auc_score(yte, prob))
+            ll = float(log_loss(yte, np.clip(prob, 1e-6, 1 - 1e-6)))
+
+            thr, f1 = pick_threshold(yte.values, prob)
+            best_threshold = thr
+            safe_log(
+                f"[WFO] simple-split auc={auc:.4f} logloss={ll:.4f} thr={thr:.3f} f1={f1:.3f}"
+            )
+
+            # 全データ再学習→保存
+            step = "train_final"
+            final_clf = train_lgbm(X, y)
+            model_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            model_path = MODELS_DIR / f"{args.model_name}_{model_ts}.pkl"
+            dump(final_clf, model_path)
+            meta = {
+                "model_name": args.model_name,
+                "version": model_ts,
+                "features": list(X.columns),
+                "horizon": args.horizon,
+                "metrics": {"auc": auc, "logloss": ll, "thr": thr, "f1": f1},
+                "source_csv": str(csv_path.name),
+            }
+            meta_path = MODELS_DIR / f"{args.model_name}_{model_ts}.meta.json"
+            meta_path.write_text(
+                json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+
+            outputs = {
+                "active_model_json": str(MODELS_DIR / "active_model.json"),
+                "model_path": str(model_path),
+                "meta_path": str(meta_path),
+            }
+
+            # アクティブモデル更新（--apply のときだけ）
+            step = "apply"
+            safe_log(f"[WFO] wrote: {model_path.name}, {meta_path.name}")
+            if args.dry_run:
+                safe_log(
+                    "[WFO] DRY-RUN のため active_model.json は更新しません。"
+                )
+                apply_info = {"performed": False, "reason": "dry_run"}
+                step = "done"
+                ok = True
+                rc = 0
+            elif not args.apply:
+                safe_log(
+                    "[WFO] --apply が指定されていないため active_model.json は更新しません。"
+                )
+                apply_info = {"performed": False, "reason": "not_specified"}
+                step = "done"
+                ok = True
+                rc = 0
+            else:
+                # ✅ apply安全装置
+                apply_result = _safe_apply_active_model(
+                    model_path, meta_path, best_threshold, expected_features
+                )
+                if apply_result["ok"]:
+                    apply_info = {"performed": True, "reason": "updated"}
+                    step = "done"
+                    ok = True
+                    rc = 0
+                else:
+                    apply_info = {"performed": False, "reason": apply_result["reason"]}
+                    if apply_result["reason"] == "same_model":
+                        step = "apply_skipped"
+                        ok = True
+                        rc = 13
+                    else:
+                        step = "apply"
+                        error_info = {
+                            "code": apply_result.get("code", "APPLY_FAILED"),
+                            "message": apply_result.get("message", "apply failed"),
+                            "where": "apply",
+                            "trace": apply_result.get("trace", ""),
+                        }
+                        rc = 30
+            return rc
+
+        # --- WFO ---
+        step = "wfo"
         safe_log(
-            f"[WFO] simple-split auc={auc:.4f} logloss={ll:.4f} thr={thr:.3f} f1={f1:.3f}"
+            f"[WFO] bars: total={n_total} train={args.train_bars} "
+            f"test={args.test_bars} step={args.step_bars}"
         )
 
-        # 全データ再学習→保存
+        metrics: list[WFOMetrics] = []
+        prob_oof = np.full(n_total, np.nan, dtype=np.float64)
+        thr_list: list[float] = []
+
+        for fold, s_tr, s_te in iter_wfo_slices(
+            X, args.train_bars, args.test_bars, args.step_bars
+        ):
+            Xtr, ytr = X.iloc[s_tr], y.iloc[s_tr]
+            Xte, yte = X.iloc[s_te], y.iloc[s_te]
+
+            # 学習
+            clf = train_lgbm(Xtr, ytr)
+
+            # 予測（DataFrameのまま）
+            proba = clf.predict_proba(Xte)[:, 1]
+
+            # メトリクス
+            try:
+                auc = float(roc_auc_score(yte, proba))
+            except ValueError:
+                auc = float("nan")
+
+            ll = float(log_loss(yte, np.clip(proba, 1e-6, 1 - 1e-6)))
+            thr, f1 = pick_threshold(yte.values, proba)
+
+            # OOF へ
+            prob_oof[s_te] = proba
+            thr_list.append(thr)
+
+            # 期間情報
+            t_idx = feats.iloc[s_tr, :]["time"]
+            tr_start = str(t_idx.iloc[0]) if len(t_idx) else ""
+            tr_end = str(t_idx.iloc[-1]) if len(t_idx) else ""
+            t_idx2 = feats.iloc[s_te, :]["time"]
+            te_start = str(t_idx2.iloc[0]) if len(t_idx2) else ""
+            te_end = str(t_idx2.iloc[-1]) if len(t_idx2) else ""
+
+            m = WFOMetrics(
+                fold=fold,
+                train_start=tr_start,
+                train_end=tr_end,
+                test_start=te_start,
+                test_end=te_end,
+                n_train=len(Xtr),
+                n_test=len(Xte),
+                auc=auc,
+                logloss=ll,
+                f1_at_thr=f1,
+                thr=thr,
+            )
+            metrics.append(m)
+            safe_log(
+                f"[WFO][fold {fold}] auc={auc:.4f} logloss={ll:.4f} "
+                f"thr={thr:.3f} f1={f1:.3f} n={len(Xtr)}/{len(Xte)}"
+            )
+
+        # WFO 全体まとめ
+        valid_idx = ~np.isnan(prob_oof)
+        if valid_idx.sum() == 0:
+            safe_log("[WFO] no valid test predictions; abort.")
+            step = "skipped"
+            ok = True
+            rc = 11
+            return rc
+
+        y_oof = y.values[valid_idx]
+        p_oof = prob_oof[valid_idx]
+        auc_oof = float(roc_auc_score(y_oof, p_oof))
+        ll_oof = float(log_loss(y_oof, np.clip(p_oof, 1e-6, 1 - 1e-6)))
+        thr_oof, f1_oof = pick_threshold(y_oof, p_oof)
+
+        # 少し引き気味に（過適合/ズレ対策で 0.95 を掛ける）
+        best_thr = float(np.clip(thr_oof * 0.95, 0.05, 0.95))
+        best_threshold = best_thr
+
+        safe_log(
+            f"[WFO][OOF] auc={auc_oof:.4f} logloss={ll_oof:.4f} "
+            f"thr*={best_thr:.3f} (raw={thr_oof:.3f}) f1={f1_oof:.3f}"
+        )
+
+        # 全データで最終モデル
+        step = "train_final"
         final_clf = train_lgbm(X, y)
         model_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         model_path = MODELS_DIR / f"{args.model_name}_{model_ts}.pkl"
         dump(final_clf, model_path)
+
         meta = {
             "model_name": args.model_name,
             "version": model_ts,
             "features": list(X.columns),
             "horizon": args.horizon,
-            "metrics": {"auc": auc, "logloss": ll, "thr": thr, "f1": f1},
+            "oof_metrics": {
+                "auc": auc_oof,
+                "logloss": ll_oof,
+                "thr_oof": thr_oof,
+                "f1_oof": f1_oof,
+                "thr_final": best_thr,
+            },
+            "folds": [asdict(m) for m in metrics],
             "source_csv": str(csv_path.name),
+            "bars": {
+                "total": n_total,
+                "train": args.train_bars,
+                "test": args.test_bars,
+                "step": args.step_bars,
+            },
         }
         meta_path = MODELS_DIR / f"{args.model_name}_{model_ts}.meta.json"
         meta_path.write_text(
             json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8"
         )
 
-        # アクティブモデル更新（--apply のときだけ）
+        outputs = {
+            "active_model_json": str(MODELS_DIR / "active_model.json"),
+            "model_path": str(model_path),
+            "meta_path": str(meta_path),
+        }
+
         safe_log(f"[WFO] wrote: {model_path.name}, {meta_path.name}")
+
+        # active_model.json 更新（GUI/実運用が読むファイル）: --apply のときだけ
+        step = "apply"
         if args.dry_run:
             safe_log(
                 "[WFO] DRY-RUN のため active_model.json は更新しません。"
             )
+            apply_info = {"performed": False, "reason": "dry_run"}
+            step = "done"
+            ok = True
+            rc = 0
         elif not args.apply:
             safe_log(
                 "[WFO] --apply が指定されていないため active_model.json は更新しません。"
             )
+            apply_info = {"performed": False, "reason": "not_specified"}
+            step = "done"
+            ok = True
+            rc = 0
         else:
-            active = {
-                "model_file": str(model_path.name),
-                "meta_file": str(meta_path.name),
-                "best_threshold": thr,
-                "updated_at": jst_now_str(),
-            }
-            # ✅ features も入れて強化（後方互換: 既存キーは維持）
-            active["features"] = list(X.columns)
-            _write_json_atomic(MODELS_DIR / "active_model.json", active)
-            safe_log(
-                f"[WFO] active_model.json updated (best_threshold={thr:.3f})"
+            # ✅ apply安全装置
+            apply_result = _safe_apply_active_model(
+                model_path, meta_path, best_threshold, expected_features
             )
-        return
+            if apply_result["ok"]:
+                apply_info = {"performed": True, "reason": "updated"}
+                step = "done"
+                ok = True
+                rc = 0
+            else:
+                apply_info = {"performed": False, "reason": apply_result["reason"]}
+                if apply_result["reason"] == "same_model":
+                    step = "apply_skipped"
+                    ok = True
+                    rc = 13
+                else:
+                    step = "apply"
+                    error_info = {
+                        "code": apply_result.get("code", "APPLY_FAILED"),
+                        "message": apply_result.get("message", "apply failed"),
+                        "where": "apply",
+                        "trace": apply_result.get("trace", ""),
+                    }
+                    rc = 30
+        safe_log("[WFO] done.")
+        return rc
 
-    # --- WFO ---
-    safe_log(
-        f"[WFO] bars: total={n_total} train={args.train_bars} "
-        f"test={args.test_bars} step={args.step_bars}"
-    )
-
-    metrics: list[WFOMetrics] = []
-    prob_oof = np.full(n_total, np.nan, dtype=np.float64)
-    thr_list: list[float] = []
-
-    for fold, s_tr, s_te in iter_wfo_slices(
-        X, args.train_bars, args.test_bars, args.step_bars
-    ):
-        Xtr, ytr = X.iloc[s_tr], y.iloc[s_tr]
-        Xte, yte = X.iloc[s_te], y.iloc[s_te]
-
-        # 学習
-        clf = train_lgbm(Xtr, ytr)
-
-        # 予測（DataFrameのまま）
-        proba = clf.predict_proba(Xte)[:, 1]
-
-        # メトリクス
-        try:
-            auc = float(roc_auc_score(yte, proba))
-        except ValueError:
-            auc = float("nan")
-
-        ll = float(log_loss(yte, np.clip(proba, 1e-6, 1 - 1e-6)))
-        thr, f1 = pick_threshold(yte.values, proba)
-
-        # OOF へ
-        prob_oof[s_te] = proba
-        thr_list.append(thr)
-
-        # 期間情報
-        t_idx = feats.iloc[s_tr, :]["time"]
-        tr_start = str(t_idx.iloc[0]) if len(t_idx) else ""
-        tr_end = str(t_idx.iloc[-1]) if len(t_idx) else ""
-        t_idx2 = feats.iloc[s_te, :]["time"]
-        te_start = str(t_idx2.iloc[0]) if len(t_idx2) else ""
-        te_end = str(t_idx2.iloc[-1]) if len(t_idx2) else ""
-
-        m = WFOMetrics(
-            fold=fold,
-            train_start=tr_start,
-            train_end=tr_end,
-            test_start=te_start,
-            test_end=te_end,
-            n_train=len(Xtr),
-            n_test=len(Xte),
-            auc=auc,
-            logloss=ll,
-            f1_at_thr=f1,
-            thr=thr,
-        )
-        metrics.append(m)
-        safe_log(
-            f"[WFO][fold {fold}] auc={auc:.4f} logloss={ll:.4f} "
-            f"thr={thr:.3f} f1={f1:.3f} n={len(Xtr)}/{len(Xte)}"
-        )
-
-    # WFO 全体まとめ
-    valid_idx = ~np.isnan(prob_oof)
-    if valid_idx.sum() == 0:
-        safe_log("[WFO] no valid test predictions; abort.")
-        sys.exit(1)
-
-    y_oof = y.values[valid_idx]
-    p_oof = prob_oof[valid_idx]
-    auc_oof = float(roc_auc_score(y_oof, p_oof))
-    ll_oof = float(log_loss(y_oof, np.clip(p_oof, 1e-6, 1 - 1e-6)))
-    thr_oof, f1_oof = pick_threshold(y_oof, p_oof)
-
-    # 少し引き気味に（過適合/ズレ対策で 0.95 を掛ける）
-    best_thr = float(np.clip(thr_oof * 0.95, 0.05, 0.95))
-
-    safe_log(
-        f"[WFO][OOF] auc={auc_oof:.4f} logloss={ll_oof:.4f} "
-        f"thr*={best_thr:.3f} (raw={thr_oof:.3f}) f1={f1_oof:.3f}"
-    )
-
-    # 全データで最終モデル
-    final_clf = train_lgbm(X, y)
-    model_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    model_path = MODELS_DIR / f"{args.model_name}_{model_ts}.pkl"
-    dump(final_clf, model_path)
-
-    meta = {
-        "model_name": args.model_name,
-        "version": model_ts,
-        "features": list(X.columns),
-        "horizon": args.horizon,
-        "oof_metrics": {
-            "auc": auc_oof,
-            "logloss": ll_oof,
-            "thr_oof": thr_oof,
-            "f1_oof": f1_oof,
-            "thr_final": best_thr,
-        },
-        "folds": [asdict(m) for m in metrics],
-        "source_csv": str(csv_path.name),
-        "bars": {
-            "total": n_total,
-            "train": args.train_bars,
-            "test": args.test_bars,
-            "step": args.step_bars,
-        },
-    }
-    meta_path = MODELS_DIR / f"{args.model_name}_{model_ts}.meta.json"
-    meta_path.write_text(
-        json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
-
-    safe_log(f"[WFO] wrote: {model_path.name}, {meta_path.name}")
-
-    # active_model.json 更新（GUI/実運用が読むファイル）: --apply のときだけ
-    if args.dry_run:
-        safe_log(
-            "[WFO] DRY-RUN のため active_model.json は更新しません。"
-        )
-    elif not args.apply:
-        safe_log(
-            "[WFO] --apply が指定されていないため active_model.json は更新しません。"
-        )
-    else:
-        active = {
-            "model_file": str(model_path.name),
-            "meta_file": str(meta_path.name),
-            "best_threshold": best_thr,
-            "updated_at": jst_now_str(),
+    except Exception as e:
+        # 例外発生時
+        step = step or "error"
+        ok = False
+        rc = 30
+        error_info = {
+            "code": "UNEXPECTED_ERROR",
+            "message": str(e),
+            "where": step,
+            "trace": traceback.format_exc(),
         }
-        # ✅ features も入れて強化（後方互換: 既存キーは維持）
-        active["features"] = list(X.columns)
-        _write_json_atomic(MODELS_DIR / "active_model.json", active)
-        safe_log(
-            f"[WFO] active_model.json updated (best_threshold={best_thr:.3f})"
-        )
-    safe_log("[WFO] done.")
+        return rc
+
+    finally:
+        # 最終行にJSON出力（必ず実行）
+        ended_at = jst_now_str()
+        elapsed_sec = (
+            datetime.fromisoformat(ended_at.replace("Z", "+00:00"))
+            - datetime.fromisoformat(started_at.replace("Z", "+00:00"))
+        ).total_seconds()
+
+        result = {
+            "type": "weekly_retrain",
+            "ok": ok,
+            "profile": profile,
+            "step": step,
+            "started_at": started_at,
+            "ended_at": ended_at,
+            "elapsed_sec": round(elapsed_sec, 1),
+            "apply": apply_info,
+            "outputs": outputs,
+            "error": error_info,
+        }
+
+        # JSON出力（最終行のみ）
+        if args.json == 1:
+            json_line = json.dumps(
+                result, ensure_ascii=True, separators=(",", ":"), default=str
+            )
+            print(json_line, flush=True)
+
+        # ログファイル保存
+        try:
+            # last.json（上書き）
+            last_json_path.write_text(
+                json.dumps(result, ensure_ascii=True, indent=2, default=str),
+                encoding="utf-8",
+            )
+            # jsonl（追記）
+            jsonl_line = json.dumps(result, ensure_ascii=True, separators=(",", ":"), default=str)
+            with jsonl_path.open("a", encoding="utf-8") as f:
+                f.write(jsonl_line + "\n")
+        except Exception as e:
+            # ログ保存失敗は無視（stderrに出力）
+            print(f"[WFO][warn] failed to save logs: {e}", file=sys.stderr, flush=True)
+
+        # --out-json が指定されていればそこにも保存
+        if args.out_json:
+            try:
+                out_path = Path(args.out_json)
+                out_path.parent.mkdir(parents=True, exist_ok=True)
+                out_path.write_text(
+                    json.dumps(result, ensure_ascii=True, indent=2, default=str),
+                    encoding="utf-8",
+                )
+            except Exception as e:
+                print(f"[WFO][warn] failed to save --out-json: {e}", file=sys.stderr, flush=True)
+
+
+def _emit_result_json(result: dict, emit_json: bool) -> None:
+    """最終行にJSONを出力（argparseエラー時など）"""
+    if not emit_json:
+        return
+    json_line = json.dumps(
+        result, ensure_ascii=True, separators=(",", ":"), default=str
+    )
+    sys.stdout.write(json_line + "\n")
+    sys.stdout.flush()
+
+
+def _entry() -> int:
+    """
+    エントリポイント。argparseエラーでも拾えるように、main()呼び出し自体を try で囲う
+    """
+    started_at = None
+    result = {
+        "type": "weekly_retrain",
+        "ok": False,
+        "profile": None,
+        "step": "init",
+        "started_at": None,
+        "ended_at": None,
+        "elapsed_sec": None,
+        "apply": {"performed": False, "reason": ""},
+        "outputs": {},
+        "error": None,
+    }
+
+    # --json の有無は argparse 前に軽く見る（最小）
+    emit_json = True
+    try:
+        if "--json" in sys.argv:
+            i = sys.argv.index("--json")
+            if i + 1 < len(sys.argv):
+                emit_json = (sys.argv[i + 1] != "0")
+    except Exception:
+        emit_json = True
+
+    try:
+        # 既存の main() を呼ぶ（main側で result を組み立てて return code を返す設計ならそれを使う）
+        rc = main()
+        return int(rc) if rc is not None else 0
+    except SystemExit as e:
+        # argparse は SystemExit(2) を投げる
+        code = int(getattr(e, "code", 1) or 1)
+        mapped = 30 if code == 2 else code  # argparseは運用失敗扱いに統一
+        result["ok"] = False
+        result["step"] = "argparse"
+        result["error"] = {
+            "code": "ARGPARSE",
+            "message": f"SystemExit({code})",
+            "where": "argparse",
+            "trace": "",
+        }
+        # JSONには元codeも入れておくと調査が楽
+        result["error"]["message"] = f"SystemExit({code})"
+        _emit_result_json(result, emit_json)
+        return mapped
+    except Exception as ex:
+        result["ok"] = False
+        result["step"] = "exception"
+        result["error"] = {
+            "code": "EXCEPTION",
+            "message": str(ex),
+            "where": "entry",
+            "trace": traceback.format_exc(),
+        }
+        _emit_result_json(result, emit_json)
+        return 30
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(_entry())
