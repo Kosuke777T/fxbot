@@ -3571,10 +3571,20 @@
   },
   {
     "kind": "function",
+    "name": "_json_safe_str",
+    "qualname": "_json_safe_str",
+    "file": "app/services/mt5_selftest.py",
+    "lineno": 22,
+    "signature": "(s: object)",
+    "returns": "str",
+    "doc": "JSON安全な文字列に正規化する。"
+  },
+  {
+    "kind": "function",
     "name": "_get_attr",
     "qualname": "_get_attr",
     "file": "app/services/mt5_selftest.py",
-    "lineno": 15,
+    "lineno": 34,
     "signature": "(obj: Any, name: str, default: Any='(n/a)')",
     "returns": "Any",
     "doc": "dict / MT5 の AccountInfo のどちらでも安全に属性を取り出すヘルパー。"
@@ -3584,7 +3594,7 @@
     "name": "run_mt5_selftest",
     "qualname": "run_mt5_selftest",
     "file": "app/services/mt5_selftest.py",
-    "lineno": 28,
+    "lineno": 47,
     "signature": "()",
     "returns": "Tuple[bool, str]",
     "doc": "MT5 自己診断を実行して、(成功フラグ, ログ文字列) を返す。"
@@ -3594,10 +3604,20 @@
     "name": "run_mt5_orderflow_selftest",
     "qualname": "run_mt5_orderflow_selftest",
     "file": "app/services/mt5_selftest.py",
-    "lineno": 144,
+    "lineno": 163,
     "signature": "()",
     "returns": "Tuple[bool, str]",
     "doc": "scripts/selftest_order_flow.py をサブプロセスとして実行し、"
+  },
+  {
+    "kind": "function",
+    "name": "mt5_smoke",
+    "qualname": "mt5_smoke",
+    "file": "app/services/mt5_selftest.py",
+    "lineno": 252,
+    "signature": "(symbol: str='USDJPY-', lot: float=0.01, close_now: bool=True, dry: bool=False)",
+    "returns": "Dict[str, Any]",
+    "doc": "MT5 接続・テスト発注のスモークテストを実行し、結果を安全なdictで返す。"
   },
   {
     "kind": "class",
@@ -5477,6 +5497,16 @@
     "lineno": 149,
     "signature": "()",
     "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "main",
+    "qualname": "main",
+    "file": "tools/mt5_smoke.py",
+    "lineno": 49,
+    "signature": "()",
+    "returns": "int",
     "doc": ""
   },
   {

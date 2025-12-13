@@ -1,15 +1,34 @@
 # app/services/mt5_selftest.py
 from __future__ import annotations
 
-from typing import Any, List, Tuple
+from typing import Any, Dict, List, Tuple
 import traceback
 import subprocess
 import sys
 import os  # ★ 追加
+import time
+import re
 from pathlib import Path
 
 from app.core import mt5_client
+from app.core.mt5_client import MT5Client
 from app.services import mt5_account_store  # ★ 追加
+
+
+# JSON安全な文字列に正規化するヘルパー
+_CTRL = re.compile(r"[\x00-\x1F\x7F]")
+
+
+def _json_safe_str(s: object) -> str:
+    """
+    JSON安全な文字列に正規化する。
+    - None等も安全に処理
+    - 制御文字（改行/タブ等）を除去
+    """
+    t = "" if s is None else str(s)
+    # 制御文字は除去（改行/タブも全部落とす方がCLI用途では安全）
+    t = _CTRL.sub("", t)
+    return t
 
 
 def _get_attr(obj: Any, name: str, default: Any = "(n/a)") -> Any:
@@ -228,3 +247,221 @@ def run_mt5_orderflow_selftest() -> Tuple[bool, str]:
         lines.append("ERROR: selftest_order_flow 実行中に例外が発生しました。")
         lines.append(traceback.format_exc())
         return False, "\n".join(lines)
+
+
+def mt5_smoke(
+    symbol: str = "USDJPY-",
+    lot: float = 0.01,
+    close_now: bool = True,
+    dry: bool = False,
+) -> Dict[str, Any]:
+    """
+    MT5 接続・テスト発注のスモークテストを実行し、結果を安全なdictで返す。
+
+    Parameters
+    ----------
+    symbol : str
+        テスト対象のシンボル（デフォルト: "USDJPY-"）
+    lot : float
+        テスト発注のロット（デフォルト: 0.01）
+    close_now : bool
+        True の場合、発注後に即座にクローズする（デフォルト: True）
+    dry : bool
+        True の場合、実際の発注は行わない（デフォルト: False）
+
+    Returns
+    -------
+    Dict[str, Any]
+        {
+            "ok": bool,           # 全体の成功/失敗
+            "step": str,          # 最後に到達したステップ名
+            "details": {...},     # 各ステップの詳細情報
+            "error": {...}        # エラー情報（あれば）
+        }
+    """
+    result: Dict[str, Any] = {
+        "ok": False,
+        "step": "init",
+        "details": {},
+        "error": {},
+    }
+
+    try:
+        # 0) アクティブプロファイルから環境変数を適用
+        active = mt5_account_store.get_active_profile_name()
+        result["details"]["active_profile"] = _json_safe_str(active or "(未設定)")
+        if not active:
+            result["step"] = "apply_env"
+            result["error"] = {
+                "code": "NO_ACTIVE_PROFILE",
+                "message": _json_safe_str("アクティブなMT5口座プロファイルが設定されていません。"),
+            }
+            return result
+
+        mt5_account_store.set_active_profile(active, apply_env=True)
+        result["step"] = "apply_env"
+        result["details"]["env_applied"] = True
+
+        # 念のため毎回クリーンな状態から始める
+        try:
+            mt5_client.shutdown()
+        except Exception:
+            pass
+
+        # 環境変数から MT5Client インスタンスを作成（services層から core を呼ぶのはOK）
+        login_val = int(os.getenv("MT5_LOGIN", "0"))
+        password_val = os.getenv("MT5_PASSWORD", "")
+        server_val = os.getenv("MT5_SERVER", "")
+        if not login_val or not password_val or not server_val:
+            result["step"] = "create_client"
+            result["error"] = {
+                "code": "ENV_NOT_SET",
+                "message": _json_safe_str("環境変数 MT5_LOGIN/PASSWORD/SERVER が設定されていません。"),
+            }
+            return result
+
+        client = MT5Client(login=login_val, password=password_val, server=server_val)
+
+        # 1) initialize
+        ok = client.initialize()
+        result["details"]["initialize"] = {"success": ok}
+        if not ok:
+            result["step"] = "initialize"
+            result["error"] = {
+                "code": "INIT_FAILED",
+                "message": _json_safe_str("MT5 の初期化に失敗しました。"),
+            }
+            return result
+
+        result["step"] = "initialize"
+        result["details"]["initialize"]["success"] = True
+
+        # 2) login_account
+        ok = client.login_account()
+        result["details"]["login"] = {"success": ok}
+        if not ok:
+            result["step"] = "login"
+            result["error"] = {
+                "code": "LOGIN_FAILED",
+                "message": _json_safe_str("MT5 へのログインに失敗しました。"),
+            }
+            return result
+
+        result["step"] = "login"
+        result["details"]["login"]["success"] = True
+
+        # 3) account_info
+        info = mt5_client.get_account_info()
+        if not info:
+            result["step"] = "account_info"
+            result["error"] = {
+                "code": "ACCOUNT_INFO_FAILED",
+                "message": _json_safe_str("get_account_info() が None を返しました。"),
+            }
+            return result
+
+        login = _get_attr(info, "login")
+        name = _get_attr(info, "name")
+        server = _get_attr(info, "server")
+        balance = _get_attr(info, "balance")
+        equity = _get_attr(info, "equity")
+
+        result["step"] = "account_info"
+        result["details"]["account_info"] = {
+            "login": login,
+            "name": _json_safe_str(name),  # 制御文字を除去
+            "server": _json_safe_str(server),  # 念のため server も正規化
+            "balance": balance,
+            "equity": equity,
+        }
+
+        # 4) get_tick_spec
+        try:
+            tick_spec = client.get_tick_spec(symbol)
+            result["step"] = "get_tick_spec"
+            result["details"]["tick_spec"] = {
+                "symbol": _json_safe_str(symbol),  # 念のため symbol も正規化
+                "tick_size": tick_spec.tick_size,
+                "tick_value": tick_spec.tick_value,
+            }
+        except Exception as e:
+            result["step"] = "get_tick_spec"
+            result["error"] = {
+                "code": "TICK_SPEC_FAILED",
+                "message": _json_safe_str(str(e)),
+            }
+            return result
+
+        # 5) (dry=False の場合のみ) 成行発注
+        if not dry:
+            ticket = client.order_send(symbol=symbol, order_type="BUY", lot=lot)
+            result["details"]["order_send"] = {"ticket": ticket}
+            if not ticket:
+                result["step"] = "order_send"
+                result["error"] = {
+                    "code": "ORDER_SEND_FAILED",
+                    "message": _json_safe_str("order_send() が ticket を返しませんでした。"),
+                }
+                return result
+
+            result["step"] = "order_send"
+            result["details"]["order_send"]["success"] = True
+            result["details"]["order_send"]["symbol"] = _json_safe_str(symbol)
+            result["details"]["order_send"]["lot"] = lot
+
+            # 6) (close_now=True の場合) 即クローズ
+            if close_now:
+                # ポジション出現待ち（最大10秒）
+                deadline = time.time() + 10.0
+                position_found = False
+                while time.time() < deadline:
+                    import MetaTrader5 as MT5  # type: ignore[import]
+                    pos = MT5.positions_get(ticket=ticket)
+                    if pos:
+                        position_found = True
+                        break
+                    time.sleep(0.5)
+
+                if not position_found:
+                    result["step"] = "wait_position"
+                    result["error"] = {
+                        "code": "POSITION_NOT_FOUND",
+                        "message": _json_safe_str("発注後、ポジションが見つかりませんでした。"),
+                    }
+                    return result
+
+                ok = client.close_position(ticket=ticket, symbol=symbol)
+                result["details"]["close_position"] = {"success": ok}
+                if not ok:
+                    result["step"] = "close_position"
+                    result["error"] = {
+                        "code": "CLOSE_POSITION_FAILED",
+                        "message": _json_safe_str("close_position() が失敗しました。"),
+                    }
+                    return result
+
+                result["step"] = "close_position"
+                result["details"]["close_position"]["success"] = True
+        else:
+            result["step"] = "order_send"
+            result["details"]["order_send"] = {"skipped": True, "reason": "dry_run"}
+
+        # 成功
+        result["ok"] = True
+        return result
+
+    except Exception as e:
+        # 例外は握り、安全なdictを返す
+        result["error"] = {
+            "code": "EXCEPTION",
+            "message": _json_safe_str(str(e)),
+            "traceback": _json_safe_str(traceback.format_exc()),
+        }
+        return result
+
+    finally:
+        # 毎回 shutdown しておく
+        try:
+            mt5_client.shutdown()
+        except Exception:
+            pass

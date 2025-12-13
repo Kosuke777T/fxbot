@@ -450,9 +450,11 @@
 - **def get_active_profile_name() -> str**  (L108)  — 
 
 ## app/services/mt5_selftest.py
-- **def _get_attr(obj: Any, name: str, default: Any='(n/a)') -> Any**  (L15)  — dict / MT5 の AccountInfo のどちらでも安全に属性を取り出すヘルパー。
-- **def run_mt5_selftest() -> Tuple[bool, str]**  (L28)  — MT5 自己診断を実行して、(成功フラグ, ログ文字列) を返す。
-- **def run_mt5_orderflow_selftest() -> Tuple[bool, str]**  (L144)  — scripts/selftest_order_flow.py をサブプロセスとして実行し、
+- **def _json_safe_str(s: object) -> str**  (L22)  — JSON安全な文字列に正規化する。
+- **def _get_attr(obj: Any, name: str, default: Any='(n/a)') -> Any**  (L34)  — dict / MT5 の AccountInfo のどちらでも安全に属性を取り出すヘルパー。
+- **def run_mt5_selftest() -> Tuple[bool, str]**  (L47)  — MT5 自己診断を実行して、(成功フラグ, ログ文字列) を返す。
+- **def run_mt5_orderflow_selftest() -> Tuple[bool, str]**  (L163)  — scripts/selftest_order_flow.py をサブプロセスとして実行し、
+- **def mt5_smoke(symbol: str='USDJPY-', lot: float=0.01, close_now: bool=True, dry: bool=False) -> Dict[str, Any]**  (L252)  — MT5 接続・テスト発注のスモークテストを実行し、結果を安全なdictで返す。
 
 ## app/services/mt5_service.py
 - **class BrokerConstraints**  (L10)  — 
@@ -675,6 +677,9 @@
 - **def find_wfo_reports(root: Path | None=None) -> list[WFOReportSummary]**  (L88)  — 
 - **def print_table(reports: list[WFOReportSummary]) -> None**  (L110)  — 
 - **def main() -> None**  (L149)  — 
+
+## tools/mt5_smoke.py
+- **def main() -> int**  (L49)  — 
 
 ## tools/profile_switch_analyzer.py
 - **class SwitchRecord**  (L11)  — 

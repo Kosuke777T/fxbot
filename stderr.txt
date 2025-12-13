@@ -1,0 +1,8 @@
+2025-12-13 16:01:41.932 | INFO     | app.services.mt5_account_store:save_config:53 - [mt5_account_store] saved config: D:\fxbot\config\mt5_accounts.json
+2025-12-13 16:01:41.932 | INFO     | app.services.mt5_account_store:set_active_profile:105 - [mt5_account_store] applied env for profile 'demo'
+2025-12-13 16:01:41.932 | INFO     | app.core.mt5_client:shutdown:403 - [mt5_client] shutdown() called
+2025-12-13 16:01:41.932 | INFO     | app.core.mt5_client:initialize:50 - MT5 initialize() called...
+2025-12-13 16:01:41.945 | INFO     | app.core.mt5_client:initialize:58 - MT5 initialize() succeeded
+2025-12-13 16:01:41.945 | INFO     | app.core.mt5_client:login_account:64 - MT5 login() called with login=22004581, server=GaitameFinest-Demo
+2025-12-13 16:01:41.945 | INFO     | app.core.mt5_client:login_account:78 - MT5 login() succeeded
+2025-12-13 16:01:41.945 | INFO     | app.core.mt5_client:shutdown:403 - [mt5_client] shutdown() called
