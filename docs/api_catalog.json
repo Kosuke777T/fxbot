@@ -2214,7 +2214,7 @@
     "name": "ProbOut",
     "qualname": "AISvc.ProbOut",
     "file": "app/services/ai_service.py",
-    "lineno": 228,
+    "lineno": 246,
     "signature": "",
     "returns": "",
     "doc": "AISvc 内部で使うだけのシンプルな入出力コンテナ。"
@@ -2224,7 +2224,7 @@
     "name": "__init__",
     "qualname": "AISvc.ProbOut.__init__",
     "file": "app/services/ai_service.py",
-    "lineno": 233,
+    "lineno": 251,
     "signature": "(self, p_buy: float, p_sell: float, p_skip: float=0.0)",
     "returns": "None",
     "doc": ""
@@ -2234,7 +2234,7 @@
     "name": "_ensure_model_loaded",
     "qualname": "AISvc._ensure_model_loaded",
     "file": "app/services/ai_service.py",
-    "lineno": 238,
+    "lineno": 256,
     "signature": "(self)",
     "returns": "None",
     "doc": "self.models に推論用モデルが未ロードなら、active_model.json を見てロードする。"
@@ -2244,7 +2244,7 @@
     "name": "predict",
     "qualname": "AISvc.predict",
     "file": "app/services/ai_service.py",
-    "lineno": 302,
+    "lineno": 320,
     "signature": "(self, X: np.ndarray | Dict[str, float], *, no_metrics: bool=False)",
     "returns": "'AISvc.ProbOut'",
     "doc": "単一サンプルの特徴量を受け取り、p_buy / p_sell / p_skip を返す。"
@@ -2254,7 +2254,7 @@
     "name": "get_feature_importance",
     "qualname": "AISvc.get_feature_importance",
     "file": "app/services/ai_service.py",
-    "lineno": 389,
+    "lineno": 407,
     "signature": "(self, method: str='gain', top_n: int=20, cache_sec: int=300)",
     "returns": "pd.DataFrame",
     "doc": "GUI から呼び出して Feature Importance を取得する API。"
@@ -2264,7 +2264,7 @@
     "name": "_load_shap_background_features",
     "qualname": "AISvc._load_shap_background_features",
     "file": "app/services/ai_service.py",
-    "lineno": 477,
+    "lineno": 495,
     "signature": "(self, max_rows: int=2000, *, csv_path: Path | None=None)",
     "returns": "pd.DataFrame",
     "doc": "SHAP計算用の背景特徴量を読み込むヘルパ。"
@@ -2274,7 +2274,7 @@
     "name": "get_shap_top_features",
     "qualname": "AISvc.get_shap_top_features",
     "file": "app/services/ai_service.py",
-    "lineno": 519,
+    "lineno": 537,
     "signature": "(self, *, top_n: int=20, max_background: int=2000, csv_path: Path | None=None, cache_sec: int=300)",
     "returns": "pd.DataFrame",
     "doc": "LightGBMモデルに対する SHAP グローバル重要度（平均絶対SHAP）を計算し、"
@@ -2284,7 +2284,7 @@
     "name": "get_shap_values",
     "qualname": "AISvc.get_shap_values",
     "file": "app/services/ai_service.py",
-    "lineno": 631,
+    "lineno": 649,
     "signature": "(self)",
     "returns": "",
     "doc": "SHAP 結果を EditionGuard に従って制限して返す。"
@@ -2294,7 +2294,7 @@
     "name": "feature_importance",
     "qualname": "AISvc.feature_importance",
     "file": "app/services/ai_service.py",
-    "lineno": 687,
+    "lineno": 705,
     "signature": "(self)",
     "returns": "pd.DataFrame",
     "doc": "FI を edition に応じて TopN で返す。"
@@ -2304,7 +2304,7 @@
     "name": "shap_summary",
     "qualname": "AISvc.shap_summary",
     "file": "app/services/ai_service.py",
-    "lineno": 741,
+    "lineno": 759,
     "signature": "(self)",
     "returns": "Dict[str, Any]",
     "doc": "SHAP を edition に応じて TopN で返す。"
@@ -2314,7 +2314,7 @@
     "name": "get_live_probs",
     "qualname": "AISvc.get_live_probs",
     "file": "app/services/ai_service.py",
-    "lineno": 813,
+    "lineno": 831,
     "signature": "(self, symbol: str)",
     "returns": "dict[str, float]",
     "doc": "Live 用：execution_stub と同じ特徴量パイプラインを使って"
@@ -2324,7 +2324,7 @@
     "name": "build_decision_from_probs",
     "qualname": "AISvc.build_decision_from_probs",
     "file": "app/services/ai_service.py",
-    "lineno": 920,
+    "lineno": 938,
     "signature": "(self, probs: dict, symbol: str)",
     "returns": "dict",
     "doc": "Live 用：execution_stub の ENTRY/SKIP 判定を最小限で再現。"
@@ -2334,7 +2334,7 @@
     "name": "get_ai_service",
     "qualname": "get_ai_service",
     "file": "app/services/ai_service.py",
-    "lineno": 962,
+    "lineno": 980,
     "signature": "()",
     "returns": "AISvc",
     "doc": "AISvc のシングルトンインスタンスを返す。"

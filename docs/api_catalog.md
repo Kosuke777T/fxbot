@@ -282,19 +282,19 @@
   - **AISvc.__init__(self) -> None**  (L145)  — 
   - **AISvc._normalize_features_for_model(self, feats: 'Mapping[str, float]') -> 'dict[str, float]'**  (L166)  — モデルの expected_features に合わせて特徴量を揃える。
   - **AISvc._sync_expected_features(self) -> None**  (L193)  — active_model.json / モデル本体から expected_features を
-- **class ProbOut**  (L228)  — AISvc 内部で使うだけのシンプルな入出力コンテナ。
-  - **AISvc.ProbOut.__init__(self, p_buy: float, p_sell: float, p_skip: float=0.0) -> None**  (L233)  — 
-  - **AISvc._ensure_model_loaded(self) -> None**  (L238)  — self.models に推論用モデルが未ロードなら、active_model.json を見てロードする。
-  - **AISvc.predict(self, X: np.ndarray | Dict[str, float], *, no_metrics: bool=False) -> 'AISvc.ProbOut'**  (L302)  — 単一サンプルの特徴量を受け取り、p_buy / p_sell / p_skip を返す。
-  - **AISvc.get_feature_importance(self, method: str='gain', top_n: int=20, cache_sec: int=300) -> pd.DataFrame**  (L389)  — GUI から呼び出して Feature Importance を取得する API。
-  - **AISvc._load_shap_background_features(self, max_rows: int=2000, *, csv_path: Path | None=None) -> pd.DataFrame**  (L477)  — SHAP計算用の背景特徴量を読み込むヘルパ。
-  - **AISvc.get_shap_top_features(self, *, top_n: int=20, max_background: int=2000, csv_path: Path | None=None, cache_sec: int=300) -> pd.DataFrame**  (L519)  — LightGBMモデルに対する SHAP グローバル重要度（平均絶対SHAP）を計算し、
-  - **AISvc.get_shap_values(self)**  (L631)  — SHAP 結果を EditionGuard に従って制限して返す。
-  - **AISvc.feature_importance(self) -> pd.DataFrame**  (L687)  — FI を edition に応じて TopN で返す。
-  - **AISvc.shap_summary(self) -> Dict[str, Any]**  (L741)  — SHAP を edition に応じて TopN で返す。
-  - **AISvc.get_live_probs(self, symbol: str) -> dict[str, float]**  (L813)  — Live 用：execution_stub と同じ特徴量パイプラインを使って
-  - **AISvc.build_decision_from_probs(self, probs: dict, symbol: str) -> dict**  (L920)  — Live 用：execution_stub の ENTRY/SKIP 判定を最小限で再現。
-- **def get_ai_service() -> AISvc**  (L962)  — AISvc のシングルトンインスタンスを返す。
+- **class ProbOut**  (L246)  — AISvc 内部で使うだけのシンプルな入出力コンテナ。
+  - **AISvc.ProbOut.__init__(self, p_buy: float, p_sell: float, p_skip: float=0.0) -> None**  (L251)  — 
+  - **AISvc._ensure_model_loaded(self) -> None**  (L256)  — self.models に推論用モデルが未ロードなら、active_model.json を見てロードする。
+  - **AISvc.predict(self, X: np.ndarray | Dict[str, float], *, no_metrics: bool=False) -> 'AISvc.ProbOut'**  (L320)  — 単一サンプルの特徴量を受け取り、p_buy / p_sell / p_skip を返す。
+  - **AISvc.get_feature_importance(self, method: str='gain', top_n: int=20, cache_sec: int=300) -> pd.DataFrame**  (L407)  — GUI から呼び出して Feature Importance を取得する API。
+  - **AISvc._load_shap_background_features(self, max_rows: int=2000, *, csv_path: Path | None=None) -> pd.DataFrame**  (L495)  — SHAP計算用の背景特徴量を読み込むヘルパ。
+  - **AISvc.get_shap_top_features(self, *, top_n: int=20, max_background: int=2000, csv_path: Path | None=None, cache_sec: int=300) -> pd.DataFrame**  (L537)  — LightGBMモデルに対する SHAP グローバル重要度（平均絶対SHAP）を計算し、
+  - **AISvc.get_shap_values(self)**  (L649)  — SHAP 結果を EditionGuard に従って制限して返す。
+  - **AISvc.feature_importance(self) -> pd.DataFrame**  (L705)  — FI を edition に応じて TopN で返す。
+  - **AISvc.shap_summary(self) -> Dict[str, Any]**  (L759)  — SHAP を edition に応じて TopN で返す。
+  - **AISvc.get_live_probs(self, symbol: str) -> dict[str, float]**  (L831)  — Live 用：execution_stub と同じ特徴量パイプラインを使って
+  - **AISvc.build_decision_from_probs(self, probs: dict, symbol: str) -> dict**  (L938)  — Live 用：execution_stub の ENTRY/SKIP 判定を最小限で再現。
+- **def get_ai_service() -> AISvc**  (L980)  — AISvc のシングルトンインスタンスを返す。
 
 ## app/services/aisvc_loader.py
 - **class ActiveModelInfo**  (L10)  — 
