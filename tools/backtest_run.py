@@ -625,7 +625,7 @@ def run_backtest(
     capital: float,
     out_dir: Path,
     profile: str = "michibiki_std",
-    symbol: str = "USDJPY",
+    symbol: str = "USDJPY-",
 ) -> Path:
     """
     v5.1 準拠のバックテストを実行する
@@ -977,7 +977,7 @@ def main() -> None:
 
     ap.add_argument("--capital", type=float, default=100000.0)
     ap.add_argument("--mode", choices=["bt", "wfo"], default="bt")
-    ap.add_argument("--symbol", default="USDJPY")
+    ap.add_argument("--symbol", default="USDJPY-")
     ap.add_argument("--timeframe", default="M5")
     ap.add_argument("--layout", choices=["flat", "per-symbol"], default="per-symbol")
     ap.add_argument("--train-ratio", type=float, default=0.7)

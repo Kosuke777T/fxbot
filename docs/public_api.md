@@ -58,7 +58,7 @@
 ## Core Layer
 
 ### BacktestEngine
-- `BacktestEngine.run(self, df: pd.DataFrame, out_dir: Path, symbol: str='USDJPY') -> Dict[str, Any]`  (app/core/backtest/backtest_engine.py:L93) — バックテストを実行する
+- `BacktestEngine.run(self, df: pd.DataFrame, out_dir: Path, symbol: str='USDJPY-') -> Dict[str, Any]`  (app/core/backtest/backtest_engine.py:L93) — バックテストを実行する
 
 ### MT5Client
 - `MT5Client.initialize(self) -> bool`  (app/core/mt5_client.py:L48) — MT5ターミナルの初期化（ログインは login_account()）

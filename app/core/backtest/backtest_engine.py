@@ -94,7 +94,7 @@ class BacktestEngine:
         self,
         df: pd.DataFrame,
         out_dir: Path,
-        symbol: str = "USDJPY",
+        symbol: str = "USDJPY-",
     ) -> Dict[str, Any]:
         """
         バックテストを実行する
@@ -506,11 +506,33 @@ class BacktestEngine:
 
         # decisions.jsonl を出力
         decisions_jsonl = out_dir / "decisions.jsonl"
+        print(f"[BacktestEngine] _generate_outputs symbol(arg)={symbol!r}")
+        if self.decisions:
+            print(f"[BacktestEngine] decisions[0] type={type(self.decisions[0])} keys={list(self.decisions[0].keys())[:5] if isinstance(self.decisions[0], dict) else 'N/A'}")
+        # decisions.jsonl の最終整形：symbol は run() 引数を絶対優先（運用ログと整合させる）
+        # （生成側が USDJPY を入れても成果物は USDJPY- に統一される）
+        for rec in self.decisions:
+            if isinstance(rec, dict):
+                rec["symbol"] = symbol
+        if self.decisions and isinstance(self.decisions[0], dict):
+            print(f"[BacktestEngine] decisions[0].symbol(after)={self.decisions[0].get('symbol')!r}")
         with open(decisions_jsonl, "w", encoding="utf-8") as f:
             for decision in self.decisions:
                 normalized = self._normalize_for_json_recursive(decision)
                 f.write(json.dumps(normalized, ensure_ascii=False) + "\n")
         print(f"[BacktestEngine] Wrote {decisions_jsonl}", flush=True)
+
+        # --- 集約 decisions.jsonl を更新（M5直下） ---
+        # 期間dir配下の decisions.jsonl が正なので、それを M5直下へ上書きして整合性を保つ
+        agg_decisions_jsonl = out_dir.parent / "decisions.jsonl"
+        try:
+            with open(agg_decisions_jsonl, "w", encoding="utf-8") as f:
+                for decision in self.decisions:
+                    normalized = self._normalize_for_json_recursive(decision)
+                    f.write(json.dumps(normalized, ensure_ascii=False) + "\n")
+            print(f"[BacktestEngine] Wrote {agg_decisions_jsonl}", flush=True)
+        except Exception as e:
+            print(f"[BacktestEngine][warn] could not update aggregate decisions.jsonl: {e!r}", flush=True)
 
         return {
             "equity_curve": equity_csv,

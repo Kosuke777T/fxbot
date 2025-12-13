@@ -352,6 +352,9 @@ def _symbol_to_filename(symbol: str) -> str:
 
 
 def _write_decision_log(symbol: str, record: Dict[str, Any]) -> None:
+    # decisions.jsonl の最終整形：symbol は引数を絶対優先（運用/BTで統一）
+    if isinstance(record, dict):
+        record["symbol"] = symbol
     fname = LOG_DIR / f"decisions_{_symbol_to_filename(symbol)}.jsonl"
     with open(fname, "a", encoding="utf-8") as fp:
         fp.write(json.dumps(record, ensure_ascii=False) + "\n")

@@ -142,7 +142,7 @@ class ControlTab(QWidget):
 
     def _close_all_mock(self):
         cfg = load_config()
-        symbol = cfg.get("runtime", {}).get("symbol", "USDJPY")
+        symbol = cfg.get("runtime", {}).get("symbol", "USDJPY-")
         orderbook().close_all(symbol)
 
     def _cb_reset(self):

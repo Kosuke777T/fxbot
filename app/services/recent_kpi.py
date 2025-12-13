@@ -219,7 +219,7 @@ class KPIService:
         """
         backtests/{profile}/**/monthly_returns.csv を探索し、最新の1つを返す。
         """
-        base = self.root / "logs" / "backtest" / "USDJPY"  # TODO: symbol固定 → 後で改善
+        base = self.root / "logs" / "backtest" / "USDJPY-"  # TODO: symbol固定 → 後で改善
         candidates = list(base.rglob("monthly_returns.csv"))
         if not candidates:
             return None

@@ -35,7 +35,7 @@
     "qualname": "BacktestEngine.run",
     "file": "app/core/backtest/backtest_engine.py",
     "lineno": 93,
-    "signature": "(self, df: pd.DataFrame, out_dir: Path, symbol: str='USDJPY')",
+    "signature": "(self, df: pd.DataFrame, out_dir: Path, symbol: str='USDJPY-')",
     "returns": "Dict[str, Any]",
     "doc": "バックテストを実行する"
   },
@@ -1204,7 +1204,7 @@
     "name": "_run_test",
     "qualname": "BacktestTab._run_test",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 1092,
+    "lineno": 1095,
     "signature": "(self)",
     "returns": "",
     "doc": ""
@@ -1214,7 +1214,7 @@
     "name": "_on_proc_ready_read_stdout",
     "qualname": "BacktestTab._on_proc_ready_read_stdout",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 1178,
+    "lineno": 1184,
     "signature": "(self)",
     "returns": "",
     "doc": ""
@@ -1224,7 +1224,7 @@
     "name": "_on_proc_ready_read_stderr",
     "qualname": "BacktestTab._on_proc_ready_read_stderr",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 1219,
+    "lineno": 1225,
     "signature": "(self)",
     "returns": "",
     "doc": ""
@@ -1234,7 +1234,7 @@
     "name": "_on_proc_finished",
     "qualname": "BacktestTab._on_proc_finished",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 1258,
+    "lineno": 1264,
     "signature": "(self, code: int, status: QtCore.QProcess.ExitStatus, sym: str, tf: str, mode: str)",
     "returns": "",
     "doc": ""
@@ -1244,7 +1244,7 @@
     "name": "_pick_file",
     "qualname": "BacktestTab._pick_file",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 1351,
+    "lineno": 1357,
     "signature": "(self)",
     "returns": "",
     "doc": ""
@@ -1254,7 +1254,7 @@
     "name": "_save_png",
     "qualname": "BacktestTab._save_png",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 1357,
+    "lineno": 1363,
     "signature": "(self)",
     "returns": "",
     "doc": ""
@@ -1264,7 +1264,7 @@
     "name": "_export_result_json",
     "qualname": "BacktestTab._export_result_json",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 1366,
+    "lineno": 1372,
     "signature": "(self)",
     "returns": "",
     "doc": ""
@@ -1274,7 +1274,7 @@
     "name": "_show_heatmap",
     "qualname": "BacktestTab._show_heatmap",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 1394,
+    "lineno": 1403,
     "signature": "(self)",
     "returns": "",
     "doc": ""
@@ -1284,7 +1284,7 @@
     "name": "_pop_out",
     "qualname": "BacktestTab._pop_out",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 1428,
+    "lineno": 1437,
     "signature": "(self)",
     "returns": "",
     "doc": ""
@@ -1294,7 +1294,7 @@
     "name": "_load_plot",
     "qualname": "BacktestTab._load_plot",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 1450,
+    "lineno": 1459,
     "signature": "(self, path_or_csv)",
     "returns": "",
     "doc": ""
@@ -1304,7 +1304,7 @@
     "name": "_load_metrics",
     "qualname": "BacktestTab._load_metrics",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 1497,
+    "lineno": 1506,
     "signature": "(self, metrics_path: Path)",
     "returns": "",
     "doc": ""
@@ -1314,7 +1314,7 @@
     "name": "_on_range_jump",
     "qualname": "BacktestTab._on_range_jump",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 1540,
+    "lineno": 1549,
     "signature": "(self, mode: str)",
     "returns": "None",
     "doc": "Backtestタブのインライン描画と、ポップアウト済みウィンドウの両方に期間ジャンプを適用する。"
@@ -3174,7 +3174,7 @@
     "name": "_ai_to_dict",
     "qualname": "_ai_to_dict",
     "file": "app/services/execution_stub.py",
-    "lineno": 360,
+    "lineno": 363,
     "signature": "(ai_out: Any)",
     "returns": "Dict[str, Any]",
     "doc": "AISvc.predict() の戻り値（ProbOut など）を安全に dict 化する。"
@@ -3184,7 +3184,7 @@
     "name": "_normalize_filter_reasons",
     "qualname": "_normalize_filter_reasons",
     "file": "app/services/execution_stub.py",
-    "lineno": 400,
+    "lineno": 403,
     "signature": "(reasons: Any)",
     "returns": "list[str]",
     "doc": "filter_reasons を必ず list[str] に正規化する（v5.1 仕様）"
@@ -3194,7 +3194,7 @@
     "name": "_build_decision_trace",
     "qualname": "_build_decision_trace",
     "file": "app/services/execution_stub.py",
-    "lineno": 424,
+    "lineno": 427,
     "signature": "(*, ts_jst: str, symbol: str, ai_out: 'ProbOut', cb_status: Dict[str, Any], filters_ctx: Dict[str, Any], decision: Dict[str, Any], prob_threshold: float, calibrator_name: str, entry_context: Optional[Dict[str, Any]]=None)",
     "returns": "Dict[str, Any]",
     "doc": "v5.1 仕様に準拠した決定トレースを構築する"
@@ -3204,7 +3204,7 @@
     "name": "_collect_features",
     "qualname": "_collect_features",
     "file": "app/services/execution_stub.py",
-    "lineno": 555,
+    "lineno": 558,
     "signature": "(symbol: str, base_features: Tuple[str, ...], tick: Optional[Tuple[float, float]], spread_pips: Optional[float], open_positions: int)",
     "returns": "Dict[str, float]",
     "doc": "Live 用の軽量なフィーチャ生成。"
@@ -3214,7 +3214,7 @@
     "name": "ExecutionStub",
     "qualname": "ExecutionStub",
     "file": "app/services/execution_stub.py",
-    "lineno": 628,
+    "lineno": 631,
     "signature": "",
     "returns": "",
     "doc": "ドライラン用の実行スタブ："
@@ -3224,7 +3224,7 @@
     "name": "__post_init__",
     "qualname": "ExecutionStub.__post_init__",
     "file": "app/services/execution_stub.py",
-    "lineno": 638,
+    "lineno": 641,
     "signature": "(self)",
     "returns": "None",
     "doc": ""
@@ -3234,7 +3234,7 @@
     "name": "on_tick",
     "qualname": "ExecutionStub.on_tick",
     "file": "app/services/execution_stub.py",
-    "lineno": 654,
+    "lineno": 657,
     "signature": "(self, symbol: str, features: Dict[str, float], runtime_cfg: Dict[str, Any])",
     "returns": "Dict[str, Any]",
     "doc": ""
@@ -3244,7 +3244,7 @@
     "name": "evaluate_and_log_once",
     "qualname": "evaluate_and_log_once",
     "file": "app/services/execution_stub.py",
-    "lineno": 1234,
+    "lineno": 1237,
     "signature": "()",
     "returns": "None",
     "doc": "Dry-run evaluation that mirrors the live decision path."
@@ -3254,7 +3254,7 @@
     "name": "debug_emit_single_decision",
     "qualname": "debug_emit_single_decision",
     "file": "app/services/execution_stub.py",
-    "lineno": 1400,
+    "lineno": 1403,
     "signature": "()",
     "returns": "None",
     "doc": "フィルタ + decisions.jsonl ログを 1 回だけテスト出力するデバッグ関数。"
@@ -5095,7 +5095,7 @@
     "qualname": "run_backtest",
     "file": "tools/backtest_run.py",
     "lineno": 621,
-    "signature": "(data_csv: Path, start: str | None, end: str | None, capital: float, out_dir: Path, profile: str='michibiki_std', symbol: str='USDJPY')",
+    "signature": "(data_csv: Path, start: str | None, end: str | None, capital: float, out_dir: Path, profile: str='michibiki_std', symbol: str='USDJPY-')",
     "returns": "Path",
     "doc": "v5.1 準拠のバックテストを実行する"
   },

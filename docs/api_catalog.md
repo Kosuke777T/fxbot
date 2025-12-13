@@ -4,7 +4,7 @@
 - **class BacktestEngine**  (L20)  — v5.1 準拠のバックテストエンジン
   - **BacktestEngine.__init__(self, profile: str='michibiki_std', initial_capital: float=100000.0, contract_size: int=100000, filter_level: int=3)**  (L27)  — Parameters
   - **BacktestEngine._normalize_filter_ctx(self, filters_ctx: dict | None) -> dict**  (L69)  — Backtest 用 filters_ctx を v5.1 仕様に揃える:
-  - **BacktestEngine.run(self, df: pd.DataFrame, out_dir: Path, symbol: str='USDJPY') -> Dict[str, Any]**  (L93)  — バックテストを実行する
+  - **BacktestEngine.run(self, df: pd.DataFrame, out_dir: Path, symbol: str='USDJPY-') -> Dict[str, Any]**  (L93)  — バックテストを実行する
   - **BacktestEngine._build_entry_context(self, row: pd.Series, timestamp: pd.Timestamp) -> Dict[str, Any]**  (L240)  — EntryContext を作成する
   - **BacktestEngine._build_decision(self, ai_out: Any, filter_pass: bool, filter_reasons: List[str], entry_context: Dict[str, Any]) -> Dict[str, Any]**  (L274)  — 決定を構築する
   - **BacktestEngine._build_decision_trace(self, timestamp: pd.Timestamp, symbol: str, ai_out: Any, decision: Dict[str, Any], entry_context: Dict[str, Any]) -> Dict[str, Any]**  (L332)  — decisions.jsonl 用のトレースを構築する
@@ -147,18 +147,18 @@
   - **BacktestTab._debug_print_wfo_summary(self, wfo: '_WFOResult') -> None**  (L1024)  — とりあえず「ちゃんと読めたか」を確認するために、
   - **BacktestTab._load_model_info(self)**  (L1046)  — 
   - **BacktestTab._update_data(self)**  (L1061)  — 
-  - **BacktestTab._run_test(self)**  (L1092)  — 
-  - **BacktestTab._on_proc_ready_read_stdout(self)**  (L1178)  — 
-  - **BacktestTab._on_proc_ready_read_stderr(self)**  (L1219)  — 
-  - **BacktestTab._on_proc_finished(self, code: int, status: QtCore.QProcess.ExitStatus, sym: str, tf: str, mode: str)**  (L1258)  — 
-  - **BacktestTab._pick_file(self)**  (L1351)  — 
-  - **BacktestTab._save_png(self)**  (L1357)  — 
-  - **BacktestTab._export_result_json(self)**  (L1366)  — 
-  - **BacktestTab._show_heatmap(self)**  (L1394)  — 
-  - **BacktestTab._pop_out(self)**  (L1428)  — 
-  - **BacktestTab._load_plot(self, path_or_csv)**  (L1450)  — 
-  - **BacktestTab._load_metrics(self, metrics_path: Path)**  (L1497)  — 
-  - **BacktestTab._on_range_jump(self, mode: str) -> None**  (L1540)  — Backtestタブのインライン描画と、ポップアウト済みウィンドウの両方に期間ジャンプを適用する。
+  - **BacktestTab._run_test(self)**  (L1095)  — 
+  - **BacktestTab._on_proc_ready_read_stdout(self)**  (L1184)  — 
+  - **BacktestTab._on_proc_ready_read_stderr(self)**  (L1225)  — 
+  - **BacktestTab._on_proc_finished(self, code: int, status: QtCore.QProcess.ExitStatus, sym: str, tf: str, mode: str)**  (L1264)  — 
+  - **BacktestTab._pick_file(self)**  (L1357)  — 
+  - **BacktestTab._save_png(self)**  (L1363)  — 
+  - **BacktestTab._export_result_json(self)**  (L1372)  — 
+  - **BacktestTab._show_heatmap(self)**  (L1403)  — 
+  - **BacktestTab._pop_out(self)**  (L1437)  — 
+  - **BacktestTab._load_plot(self, path_or_csv)**  (L1459)  — 
+  - **BacktestTab._load_metrics(self, metrics_path: Path)**  (L1506)  — 
+  - **BacktestTab._on_range_jump(self, mode: str) -> None**  (L1549)  — Backtestタブのインライン描画と、ポップアウト済みウィンドウの両方に期間ジャンプを適用する。
 
 ## app/gui/control_tab.py
 - **class ControlTab**  (L20)  — 
@@ -396,15 +396,15 @@
 - **def _session_hour_allowed() -> bool**  (L320)  — config.session.allow_hours_jst ??????????????????????
 - **def _symbol_to_filename(symbol: str) -> str**  (L349)  — 
 - **def _write_decision_log(symbol: str, record: Dict[str, Any]) -> None**  (L354)  — 
-- **def _ai_to_dict(ai_out: Any) -> Dict[str, Any]**  (L360)  — AISvc.predict() の戻り値（ProbOut など）を安全に dict 化する。
-- **def _normalize_filter_reasons(reasons: Any) -> list[str]**  (L400)  — filter_reasons を必ず list[str] に正規化する（v5.1 仕様）
-- **def _build_decision_trace(*, ts_jst: str, symbol: str, ai_out: 'ProbOut', cb_status: Dict[str, Any], filters_ctx: Dict[str, Any], decision: Dict[str, Any], prob_threshold: float, calibrator_name: str, entry_context: Optional[Dict[str, Any]]=None) -> Dict[str, Any]**  (L424)  — v5.1 仕様に準拠した決定トレースを構築する
-- **def _collect_features(symbol: str, base_features: Tuple[str, ...], tick: Optional[Tuple[float, float]], spread_pips: Optional[float], open_positions: int) -> Dict[str, float]**  (L555)  — Live 用の軽量なフィーチャ生成。
-- **class ExecutionStub**  (L628)  — ドライラン用の実行スタブ：
-  - **ExecutionStub.__post_init__(self) -> None**  (L638)  — 
-  - **ExecutionStub.on_tick(self, symbol: str, features: Dict[str, float], runtime_cfg: Dict[str, Any]) -> Dict[str, Any]**  (L654)  — 
-- **def evaluate_and_log_once() -> None**  (L1234)  — Dry-run evaluation that mirrors the live decision path.
-- **def debug_emit_single_decision() -> None**  (L1400)  — フィルタ + decisions.jsonl ログを 1 回だけテスト出力するデバッグ関数。
+- **def _ai_to_dict(ai_out: Any) -> Dict[str, Any]**  (L363)  — AISvc.predict() の戻り値（ProbOut など）を安全に dict 化する。
+- **def _normalize_filter_reasons(reasons: Any) -> list[str]**  (L403)  — filter_reasons を必ず list[str] に正規化する（v5.1 仕様）
+- **def _build_decision_trace(*, ts_jst: str, symbol: str, ai_out: 'ProbOut', cb_status: Dict[str, Any], filters_ctx: Dict[str, Any], decision: Dict[str, Any], prob_threshold: float, calibrator_name: str, entry_context: Optional[Dict[str, Any]]=None) -> Dict[str, Any]**  (L427)  — v5.1 仕様に準拠した決定トレースを構築する
+- **def _collect_features(symbol: str, base_features: Tuple[str, ...], tick: Optional[Tuple[float, float]], spread_pips: Optional[float], open_positions: int) -> Dict[str, float]**  (L558)  — Live 用の軽量なフィーチャ生成。
+- **class ExecutionStub**  (L631)  — ドライラン用の実行スタブ：
+  - **ExecutionStub.__post_init__(self) -> None**  (L641)  — 
+  - **ExecutionStub.on_tick(self, symbol: str, features: Dict[str, float], runtime_cfg: Dict[str, Any]) -> Dict[str, Any]**  (L657)  — 
+- **def evaluate_and_log_once() -> None**  (L1237)  — Dry-run evaluation that mirrors the live decision path.
+- **def debug_emit_single_decision() -> None**  (L1403)  — フィルタ + decisions.jsonl ログを 1 回だけテスト出力するデバッグ関数。
 
 ## app/services/feature_importance.py
 - **class FeatureImportanceItem**  (L24)  — 1つの特徴量についての FI 情報.
@@ -628,7 +628,7 @@
 - **def trades_from_buyhold(df: pd.DataFrame, capital: float) -> pd.DataFrame**  (L526)  — 
 - **def trade_metrics(trades: pd.DataFrame) -> dict**  (L561)  — 
 - **def slice_period(df: pd.DataFrame, start: str | None=None, end: str | None=None) -> pd.DataFrame**  (L602)  — 指定期間で DataFrame をスライスする。
-- **def run_backtest(data_csv: Path, start: str | None, end: str | None, capital: float, out_dir: Path, profile: str='michibiki_std', symbol: str='USDJPY') -> Path**  (L621)  — v5.1 準拠のバックテストを実行する
+- **def run_backtest(data_csv: Path, start: str | None, end: str | None, capital: float, out_dir: Path, profile: str='michibiki_std', symbol: str='USDJPY-') -> Path**  (L621)  — v5.1 準拠のバックテストを実行する
 - **def run_wfo(data_csv: Path, start: str | None, end: str | None, capital: float, out_dir: Path, train_ratio: float=0.7) -> Path**  (L779)  — 
 - **def _normalize_dates_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> tuple[str | None, str | None]**  (L886)  — --start-date / --end-date を優先しつつ、
 - **def _build_period_tag(start: str | None, end: str | None) -> str**  (L918)  — ログ用の期間タグを生成する。

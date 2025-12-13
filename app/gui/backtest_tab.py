@@ -601,7 +601,7 @@ class BacktestTab(QtWidgets.QWidget):
         self._profile_name = profile_name
 
         # === 入力フォーム ===
-        self.symbol_edit = QtWidgets.QLineEdit("USDJPY")
+        self.symbol_edit = QtWidgets.QLineEdit("USDJPY-")
         self.tf_combo = QtWidgets.QComboBox(); self.tf_combo.addItems(["M5", "M15", "H1"])
 
         # 実行／表示モード（Backtest / Walk-Forward / Overlay）
@@ -1060,6 +1060,9 @@ class BacktestTab(QtWidgets.QWidget):
     # ------------------ データ更新 ------------------
     def _update_data(self):
         sym = self.symbol_edit.text().strip().upper()
+        # "USDJPY" → "USDJPY-" に変換（symbol は 'USDJPY-' が正）
+        if sym == "USDJPY":
+            sym = "USDJPY-"
         tf  = self.tf_combo.currentText()
         mode_text = self._current_mode_text()
         layout = self.layout_combo.currentText()
@@ -1091,6 +1094,9 @@ class BacktestTab(QtWidgets.QWidget):
     # ------------------ 実行（QProcess） ------------------
     def _run_test(self):
         sym = self.symbol_edit.text().strip().upper()
+        # "USDJPY" → "USDJPY-" に変換（symbol は 'USDJPY-' が正）
+        if sym == "USDJPY":
+            sym = "USDJPY-"
         tf  = self.tf_combo.currentText()
 
         # モード文字列（Backtest / Walk-Forward / Overlay）
@@ -1155,13 +1161,13 @@ class BacktestTab(QtWidgets.QWidget):
             lambda code, status: self._on_proc_finished(code, status, sym, tf, mode)
         )
         self.label_meta.setText("実行中…")
-        
+
         # ★進捗状態を初期化してタイマー開始
         self._progress_value = 0
         self._progress_target = 0
         self.progress_bar.setValue(0)
         self._progress_timer.start()
-        
+
         self.proc.start()
 
         # Walk-Forward の場合は、学習側WFOの最新レポートをコンソールにサマリ表示
@@ -1264,7 +1270,7 @@ class BacktestTab(QtWidgets.QWidget):
         self._progress_target = 100
         self._progress_value = 100
         self.progress_bar.setValue(100)
-        
+
         if code != 0:
             self.label_meta.setText(f"失敗(code={code})")
             self._append_progress(f"[gui] process failed code={code}")
@@ -1318,7 +1324,7 @@ class BacktestTab(QtWidgets.QWidget):
                 profile = self._profile_name
                 out_monthly_csv = Path("backtests") / profile / "monthly_returns.csv"
                 out_monthly_csv.parent.mkdir(parents=True, exist_ok=True)
-                
+
                 # 強制的に monthly_returns.csv を生成
                 compute_monthly_returns(str(out_csv), str(out_monthly_csv))
                 self._append_progress(f"[gui] 集約 monthly_returns を更新しました: {out_monthly_csv}")
@@ -1366,6 +1372,9 @@ class BacktestTab(QtWidgets.QWidget):
     def _export_result_json(self):
         # 画面パラメータ＋メトリクス＋モデル情報をまとめて保存
         sym = self.symbol_edit.text().strip().upper()
+        # "USDJPY" → "USDJPY-" に変換（symbol は 'USDJPY-' が正）
+        if sym == "USDJPY":
+            sym = "USDJPY-"
         tf  = self.tf_combo.currentText()
         mode = self._current_mode_text()
         payload = {
