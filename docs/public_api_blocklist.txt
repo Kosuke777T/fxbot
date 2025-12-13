@@ -1,0 +1,4 @@
+# public_api_blocklist.txt
+# 例:
+# ExecutionService._internal_helper
+# app/core/xxx.py:SomeClass.debug_dump

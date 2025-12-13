@@ -1,0 +1,5 @@
+# public_api_allowlist.txt
+# 例:
+# ExecutionService.execute_entry
+# AISvc.predict
+# app/services/execution_service.py:ExecutionService.execute_entry

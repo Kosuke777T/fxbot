@@ -1,0 +1,5542 @@
+[
+  {
+    "kind": "class",
+    "name": "BacktestEngine",
+    "qualname": "BacktestEngine",
+    "file": "app/core/backtest/backtest_engine.py",
+    "lineno": 20,
+    "signature": "",
+    "returns": "",
+    "doc": "v5.1 準拠のバックテストエンジン"
+  },
+  {
+    "kind": "method",
+    "name": "__init__",
+    "qualname": "BacktestEngine.__init__",
+    "file": "app/core/backtest/backtest_engine.py",
+    "lineno": 27,
+    "signature": "(self, profile: str='michibiki_std', initial_capital: float=100000.0, contract_size: int=100000, filter_level: int=3)",
+    "returns": "",
+    "doc": "Parameters"
+  },
+  {
+    "kind": "method",
+    "name": "_normalize_filter_ctx",
+    "qualname": "BacktestEngine._normalize_filter_ctx",
+    "file": "app/core/backtest/backtest_engine.py",
+    "lineno": 69,
+    "signature": "(self, filters_ctx: dict | None)",
+    "returns": "dict",
+    "doc": "Backtest 用 filters_ctx を v5.1 仕様に揃える:"
+  },
+  {
+    "kind": "method",
+    "name": "run",
+    "qualname": "BacktestEngine.run",
+    "file": "app/core/backtest/backtest_engine.py",
+    "lineno": 93,
+    "signature": "(self, df: pd.DataFrame, out_dir: Path, symbol: str='USDJPY')",
+    "returns": "Dict[str, Any]",
+    "doc": "バックテストを実行する"
+  },
+  {
+    "kind": "method",
+    "name": "_build_entry_context",
+    "qualname": "BacktestEngine._build_entry_context",
+    "file": "app/core/backtest/backtest_engine.py",
+    "lineno": 240,
+    "signature": "(self, row: pd.Series, timestamp: pd.Timestamp)",
+    "returns": "Dict[str, Any]",
+    "doc": "EntryContext を作成する"
+  },
+  {
+    "kind": "method",
+    "name": "_build_decision",
+    "qualname": "BacktestEngine._build_decision",
+    "file": "app/core/backtest/backtest_engine.py",
+    "lineno": 274,
+    "signature": "(self, ai_out: Any, filter_pass: bool, filter_reasons: List[str], entry_context: Dict[str, Any])",
+    "returns": "Dict[str, Any]",
+    "doc": "決定を構築する"
+  },
+  {
+    "kind": "method",
+    "name": "_build_decision_trace",
+    "qualname": "BacktestEngine._build_decision_trace",
+    "file": "app/core/backtest/backtest_engine.py",
+    "lineno": 332,
+    "signature": "(self, timestamp: pd.Timestamp, symbol: str, ai_out: Any, decision: Dict[str, Any], entry_context: Dict[str, Any])",
+    "returns": "Dict[str, Any]",
+    "doc": "decisions.jsonl 用のトレースを構築する"
+  },
+  {
+    "kind": "method",
+    "name": "_normalize_for_json",
+    "qualname": "BacktestEngine._normalize_for_json",
+    "file": "app/core/backtest/backtest_engine.py",
+    "lineno": 401,
+    "signature": "(self, obj: Any)",
+    "returns": "Any",
+    "doc": "JSON シリアライズ可能な形式に変換する"
+  },
+  {
+    "kind": "method",
+    "name": "_normalize_for_json_recursive",
+    "qualname": "BacktestEngine._normalize_for_json_recursive",
+    "file": "app/core/backtest/backtest_engine.py",
+    "lineno": 428,
+    "signature": "(self, obj: Any)",
+    "returns": "Any",
+    "doc": "JSON シリアライズ可能な形式に再帰的に変換する"
+  },
+  {
+    "kind": "method",
+    "name": "_generate_outputs",
+    "qualname": "BacktestEngine._generate_outputs",
+    "file": "app/core/backtest/backtest_engine.py",
+    "lineno": 450,
+    "signature": "(self, df_features: pd.DataFrame, out_dir: Path, symbol: str)",
+    "returns": "Dict[str, Any]",
+    "doc": "出力ファイルを生成する"
+  },
+  {
+    "kind": "class",
+    "name": "SimulatedTrade",
+    "qualname": "SimulatedTrade",
+    "file": "app/core/backtest/simulated_execution.py",
+    "lineno": 12,
+    "signature": "",
+    "returns": "",
+    "doc": "シミュレートされたトレード"
+  },
+  {
+    "kind": "class",
+    "name": "SimulatedExecution",
+    "qualname": "SimulatedExecution",
+    "file": "app/core/backtest/simulated_execution.py",
+    "lineno": 26,
+    "signature": "",
+    "returns": "",
+    "doc": "バックテスト用のシミュレート実行エンジン"
+  },
+  {
+    "kind": "method",
+    "name": "__init__",
+    "qualname": "SimulatedExecution.__init__",
+    "file": "app/core/backtest/simulated_execution.py",
+    "lineno": 34,
+    "signature": "(self, initial_capital: float=100000.0, contract_size: int=100000)",
+    "returns": "",
+    "doc": "Parameters"
+  },
+  {
+    "kind": "method",
+    "name": "open_position",
+    "qualname": "SimulatedExecution.open_position",
+    "file": "app/core/backtest/simulated_execution.py",
+    "lineno": 49,
+    "signature": "(self, side: str, price: float, timestamp: pd.Timestamp, lot: float=0.1, atr: Optional[float]=None, sl: Optional[float]=None, tp: Optional[float]=None)",
+    "returns": "None",
+    "doc": "ポジションを開く"
+  },
+  {
+    "kind": "method",
+    "name": "close_position",
+    "qualname": "SimulatedExecution.close_position",
+    "file": "app/core/backtest/simulated_execution.py",
+    "lineno": 96,
+    "signature": "(self, price: float, timestamp: pd.Timestamp)",
+    "returns": "Optional[SimulatedTrade]",
+    "doc": "ポジションをクローズする"
+  },
+  {
+    "kind": "method",
+    "name": "force_close_all",
+    "qualname": "SimulatedExecution.force_close_all",
+    "file": "app/core/backtest/simulated_execution.py",
+    "lineno": 133,
+    "signature": "(self, price: float, timestamp: pd.Timestamp)",
+    "returns": "None",
+    "doc": "最終バーで強制的にすべてのポジションをクローズする"
+  },
+  {
+    "kind": "method",
+    "name": "get_trades_df",
+    "qualname": "SimulatedExecution.get_trades_df",
+    "file": "app/core/backtest/simulated_execution.py",
+    "lineno": 140,
+    "signature": "(self)",
+    "returns": "pd.DataFrame",
+    "doc": "トレード履歴をDataFrame形式で返す"
+  },
+  {
+    "kind": "method",
+    "name": "get_equity_curve",
+    "qualname": "SimulatedExecution.get_equity_curve",
+    "file": "app/core/backtest/simulated_execution.py",
+    "lineno": 172,
+    "signature": "(self, timestamps: pd.Series, prices: pd.Series)",
+    "returns": "pd.Series",
+    "doc": "エクイティ曲線を生成する"
+  },
+  {
+    "kind": "function",
+    "name": "_deep_merge",
+    "qualname": "_deep_merge",
+    "file": "app/core/config_loader.py",
+    "lineno": 7,
+    "signature": "(a: Dict[str, Any], b: Dict[str, Any])",
+    "returns": "Dict[str, Any]",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "load_config",
+    "qualname": "load_config",
+    "file": "app/core/config_loader.py",
+    "lineno": 16,
+    "signature": "()",
+    "returns": "Dict[str, Any]",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_expand_path",
+    "qualname": "_expand_path",
+    "file": "app/core/data_finder.py",
+    "lineno": 8,
+    "signature": "(p: str)",
+    "returns": "Iterable[Path]",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_load_csv",
+    "qualname": "_load_csv",
+    "file": "app/core/data_finder.py",
+    "lineno": 15,
+    "signature": "(path: Path)",
+    "returns": "Optional[pd.DataFrame]",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "resolve_csv",
+    "qualname": "resolve_csv",
+    "file": "app/core/data_finder.py",
+    "lineno": 26,
+    "signature": "(symbol: str, timeframe: str, search_paths: Iterable[str])",
+    "returns": "Tuple[Optional[Path], Optional[pd.DataFrame]]",
+    "doc": "search_paths から {SYMBOL}_{TF}.csv を探して返す。最初に見つかったものを採用。"
+  },
+  {
+    "kind": "class",
+    "name": "EditionCapability",
+    "qualname": "EditionCapability",
+    "file": "app/core/edition.py",
+    "lineno": 17,
+    "signature": "",
+    "returns": "",
+    "doc": "各エディションごとの「できる・できない」をまとめた能力値。"
+  },
+  {
+    "kind": "function",
+    "name": "_load_edition_yaml",
+    "qualname": "_load_edition_yaml",
+    "file": "app/core/edition.py",
+    "lineno": 119,
+    "signature": "()",
+    "returns": "Dict[str, Any]",
+    "doc": "configs/edition.yaml を読み込んで dict を返す。"
+  },
+  {
+    "kind": "function",
+    "name": "get_current_edition_name",
+    "qualname": "get_current_edition_name",
+    "file": "app/core/edition.py",
+    "lineno": 140,
+    "signature": "()",
+    "returns": "str",
+    "doc": "edition.yaml の `edition` キーから現在のエディション名を取得。"
+  },
+  {
+    "kind": "function",
+    "name": "get_capability",
+    "qualname": "get_capability",
+    "file": "app/core/edition.py",
+    "lineno": 152,
+    "signature": "(name: Optional[str]=None)",
+    "returns": "EditionCapability",
+    "doc": "エディション名から EditionCapability を取得。"
+  },
+  {
+    "kind": "class",
+    "name": "EditionGuard",
+    "qualname": "EditionGuard",
+    "file": "app/core/edition.py",
+    "lineno": 173,
+    "signature": "",
+    "returns": "",
+    "doc": "アプリ全体から利用する「現在のエディション情報」のフロントエンド。"
+  },
+  {
+    "kind": "method",
+    "name": "__init__",
+    "qualname": "EditionGuard.__init__",
+    "file": "app/core/edition.py",
+    "lineno": 181,
+    "signature": "(self, name: Optional[str]=None)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "demo_only",
+    "qualname": "EditionGuard.demo_only",
+    "file": "app/core/edition.py",
+    "lineno": 190,
+    "signature": "(self)",
+    "returns": "bool",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "lot_limit",
+    "qualname": "EditionGuard.lot_limit",
+    "file": "app/core/edition.py",
+    "lineno": 194,
+    "signature": "(self)",
+    "returns": "Optional[float]",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "scheduler_jobs_max",
+    "qualname": "EditionGuard.scheduler_jobs_max",
+    "file": "app/core/edition.py",
+    "lineno": 198,
+    "signature": "(self)",
+    "returns": "Optional[int]",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "diagnosis_level",
+    "qualname": "EditionGuard.diagnosis_level",
+    "file": "app/core/edition.py",
+    "lineno": 202,
+    "signature": "(self)",
+    "returns": "str",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "filter_level",
+    "qualname": "EditionGuard.filter_level",
+    "file": "app/core/edition.py",
+    "lineno": 206,
+    "signature": "(self)",
+    "returns": "str",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "shap_limit",
+    "qualname": "EditionGuard.shap_limit",
+    "file": "app/core/edition.py",
+    "lineno": 210,
+    "signature": "(self)",
+    "returns": "Optional[int]",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "fi_limit",
+    "qualname": "EditionGuard.fi_limit",
+    "file": "app/core/edition.py",
+    "lineno": 214,
+    "signature": "(self)",
+    "returns": "Optional[int]",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "profile_multi",
+    "qualname": "EditionGuard.profile_multi",
+    "file": "app/core/edition.py",
+    "lineno": 218,
+    "signature": "(self)",
+    "returns": "bool",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "profile_auto_switch",
+    "qualname": "EditionGuard.profile_auto_switch",
+    "file": "app/core/edition.py",
+    "lineno": 222,
+    "signature": "(self)",
+    "returns": "bool",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "get_guard",
+    "qualname": "get_guard",
+    "file": "app/core/edition.py",
+    "lineno": 227,
+    "signature": "()",
+    "returns": "EditionGuard",
+    "doc": "アプリ全体から使うためのシングルトン EditionGuard。"
+  },
+  {
+    "kind": "function",
+    "name": "_print_capabilities_table",
+    "qualname": "_print_capabilities_table",
+    "file": "app/core/edition.py",
+    "lineno": 239,
+    "signature": "()",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_print_current",
+    "qualname": "_print_current",
+    "file": "app/core/edition.py",
+    "lineno": 245,
+    "signature": "()",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "class",
+    "name": "FilterConfig",
+    "qualname": "FilterConfig",
+    "file": "app/core/filter/strategy_filter_engine.py",
+    "lineno": 10,
+    "signature": "",
+    "returns": "",
+    "doc": "フィルタエンジンの設定"
+  },
+  {
+    "kind": "class",
+    "name": "StrategyFilterEngine",
+    "qualname": "StrategyFilterEngine",
+    "file": "app/core/filter/strategy_filter_engine.py",
+    "lineno": 25,
+    "signature": "",
+    "returns": "",
+    "doc": "ミチビキ v5.1 フィルタエンジン（コア層）"
+  },
+  {
+    "kind": "method",
+    "name": "__init__",
+    "qualname": "StrategyFilterEngine.__init__",
+    "file": "app/core/filter/strategy_filter_engine.py",
+    "lineno": 39,
+    "signature": "(self, config: FilterConfig | None=None)",
+    "returns": "",
+    "doc": "初期化"
+  },
+  {
+    "kind": "method",
+    "name": "evaluate",
+    "qualname": "StrategyFilterEngine.evaluate",
+    "file": "app/core/filter/strategy_filter_engine.py",
+    "lineno": 49,
+    "signature": "(self, ctx: Dict, filter_level: int)",
+    "returns": "Tuple[bool, List[str]]",
+    "doc": "エントリー可否を評価する"
+  },
+  {
+    "kind": "method",
+    "name": "_check_time_window",
+    "qualname": "StrategyFilterEngine._check_time_window",
+    "file": "app/core/filter/strategy_filter_engine.py",
+    "lineno": 130,
+    "signature": "(self, ctx: Dict)",
+    "returns": "bool",
+    "doc": "取引時間帯フィルタ"
+  },
+  {
+    "kind": "method",
+    "name": "_check_atr",
+    "qualname": "StrategyFilterEngine._check_atr",
+    "file": "app/core/filter/strategy_filter_engine.py",
+    "lineno": 149,
+    "signature": "(self, ctx: Dict)",
+    "returns": "bool",
+    "doc": "ATR フィルタ"
+  },
+  {
+    "kind": "method",
+    "name": "_check_volatility",
+    "qualname": "StrategyFilterEngine._check_volatility",
+    "file": "app/core/filter/strategy_filter_engine.py",
+    "lineno": 167,
+    "signature": "(self, ctx: Dict)",
+    "returns": "bool",
+    "doc": "ボラティリティ帯フィルタ"
+  },
+  {
+    "kind": "method",
+    "name": "_check_trend",
+    "qualname": "StrategyFilterEngine._check_trend",
+    "file": "app/core/filter/strategy_filter_engine.py",
+    "lineno": 187,
+    "signature": "(self, ctx: Dict)",
+    "returns": "bool",
+    "doc": "トレンド強度フィルタ"
+  },
+  {
+    "kind": "method",
+    "name": "_check_losing_streak",
+    "qualname": "StrategyFilterEngine._check_losing_streak",
+    "file": "app/core/filter/strategy_filter_engine.py",
+    "lineno": 201,
+    "signature": "(self, ctx: Dict, reasons: List[str])",
+    "returns": "bool",
+    "doc": "連敗回避フィルタ（T-21 本番仕様）:"
+  },
+  {
+    "kind": "method",
+    "name": "_check_profile_autoswitch",
+    "qualname": "StrategyFilterEngine._check_profile_autoswitch",
+    "file": "app/core/filter/strategy_filter_engine.py",
+    "lineno": 252,
+    "signature": "(self, ctx: dict, reasons: list[str])",
+    "returns": "None",
+    "doc": "profile_stats から最適プロファイルを推奨し、"
+  },
+  {
+    "kind": "function",
+    "name": "setup",
+    "qualname": "setup",
+    "file": "app/core/logger.py",
+    "lineno": 9,
+    "signature": "()",
+    "returns": "",
+    "doc": "Loguru ロガーの共通設定"
+  },
+  {
+    "kind": "function",
+    "name": "_pip_from_symbol_info",
+    "qualname": "_pip_from_symbol_info",
+    "file": "app/core/market.py",
+    "lineno": 5,
+    "signature": "(si: Any)",
+    "returns": "float",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "select_symbol",
+    "qualname": "select_symbol",
+    "file": "app/core/market.py",
+    "lineno": 12,
+    "signature": "(symbol: str)",
+    "returns": "bool",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "spread_pips",
+    "qualname": "spread_pips",
+    "file": "app/core/market.py",
+    "lineno": 21,
+    "signature": "(symbol: str)",
+    "returns": "Optional[float]",
+    "doc": "現在のスプレッドを pips 単位で返す。"
+  },
+  {
+    "kind": "function",
+    "name": "tick",
+    "qualname": "tick",
+    "file": "app/core/market.py",
+    "lineno": 53,
+    "signature": "(symbol: str)",
+    "returns": "Optional[Tuple[float, float]]",
+    "doc": "(bid, ask) を返す。"
+  },
+  {
+    "kind": "function",
+    "name": "pips_to_price",
+    "qualname": "pips_to_price",
+    "file": "app/core/market.py",
+    "lineno": 74,
+    "signature": "(symbol: str, pips: float)",
+    "returns": "Optional[float]",
+    "doc": ""
+  },
+  {
+    "kind": "class",
+    "name": "TickSpec",
+    "qualname": "TickSpec",
+    "file": "app/core/mt5_client.py",
+    "lineno": 29,
+    "signature": "",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "class",
+    "name": "MT5Client",
+    "qualname": "MT5Client",
+    "file": "app/core/mt5_client.py",
+    "lineno": 34,
+    "signature": "",
+    "returns": "",
+    "doc": "MT5 発注・接続ラッパー（最小構成）"
+  },
+  {
+    "kind": "method",
+    "name": "__init__",
+    "qualname": "MT5Client.__init__",
+    "file": "app/core/mt5_client.py",
+    "lineno": 37,
+    "signature": "(self, login: int, password: str, server: str, timeout: float=5.0)",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "initialize",
+    "qualname": "MT5Client.initialize",
+    "file": "app/core/mt5_client.py",
+    "lineno": 48,
+    "signature": "(self)",
+    "returns": "bool",
+    "doc": "MT5ターミナルの初期化（ログインは login_account()）"
+  },
+  {
+    "kind": "method",
+    "name": "login_account",
+    "qualname": "MT5Client.login_account",
+    "file": "app/core/mt5_client.py",
+    "lineno": 62,
+    "signature": "(self)",
+    "returns": "bool",
+    "doc": "設定されたログイン情報で MT5.login() を実行"
+  },
+  {
+    "kind": "method",
+    "name": "shutdown",
+    "qualname": "MT5Client.shutdown",
+    "file": "app/core/mt5_client.py",
+    "lineno": 81,
+    "signature": "(self)",
+    "returns": "",
+    "doc": "MT5 をシャットダウン"
+  },
+  {
+    "kind": "method",
+    "name": "order_send",
+    "qualname": "MT5Client.order_send",
+    "file": "app/core/mt5_client.py",
+    "lineno": 90,
+    "signature": "(self, symbol: str, order_type: str, lot: float, sl: Optional[float]=None, tp: Optional[float]=None, retries: int=3)",
+    "returns": "Optional[int]",
+    "doc": "成行発注（BUY / SELL）"
+  },
+  {
+    "kind": "method",
+    "name": "close_position",
+    "qualname": "MT5Client.close_position",
+    "file": "app/core/mt5_client.py",
+    "lineno": 207,
+    "signature": "(self, ticket: int, symbol: str, retries: int=3)",
+    "returns": "bool",
+    "doc": "指定チケットの成行クローズ"
+  },
+  {
+    "kind": "method",
+    "name": "get_positions",
+    "qualname": "MT5Client.get_positions",
+    "file": "app/core/mt5_client.py",
+    "lineno": 261,
+    "signature": "(self)",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "get_positions_by_symbol",
+    "qualname": "MT5Client.get_positions_by_symbol",
+    "file": "app/core/mt5_client.py",
+    "lineno": 272,
+    "signature": "(self, symbol: str)",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "get_positions_df",
+    "qualname": "MT5Client.get_positions_df",
+    "file": "app/core/mt5_client.py",
+    "lineno": 278,
+    "signature": "(self, symbol: Optional[str]=None)",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "get_equity",
+    "qualname": "MT5Client.get_equity",
+    "file": "app/core/mt5_client.py",
+    "lineno": 310,
+    "signature": "(self)",
+    "returns": "float",
+    "doc": "現在口座の有効証拠金（equity）を返す。"
+  },
+  {
+    "kind": "method",
+    "name": "get_tick_spec",
+    "qualname": "MT5Client.get_tick_spec",
+    "file": "app/core/mt5_client.py",
+    "lineno": 318,
+    "signature": "(self, symbol: str)",
+    "returns": "TickSpec",
+    "doc": "指定シンボルの tick_size / tick_value を返す。"
+  },
+  {
+    "kind": "function",
+    "name": "_get_env",
+    "qualname": "_get_env",
+    "file": "app/core/mt5_client.py",
+    "lineno": 348,
+    "signature": "(name: str)",
+    "returns": "str",
+    "doc": "必須の環境変数を取得（なければ RuntimeError）"
+  },
+  {
+    "kind": "function",
+    "name": "_get_client",
+    "qualname": "_get_client",
+    "file": "app/core/mt5_client.py",
+    "lineno": 360,
+    "signature": "()",
+    "returns": "MT5Client",
+    "doc": "環境変数 MT5_LOGIN / PASSWORD / SERVER から MT5Client の"
+  },
+  {
+    "kind": "function",
+    "name": "initialize",
+    "qualname": "initialize",
+    "file": "app/core/mt5_client.py",
+    "lineno": 381,
+    "signature": "()",
+    "returns": "bool",
+    "doc": "scripts/selftest_mt5.py などから呼ばれる想定のラッパー。"
+  },
+  {
+    "kind": "function",
+    "name": "login",
+    "qualname": "login",
+    "file": "app/core/mt5_client.py",
+    "lineno": 390,
+    "signature": "()",
+    "returns": "bool",
+    "doc": "必要なら MT5Client.login_account() を呼ぶためのラッパー。"
+  },
+  {
+    "kind": "function",
+    "name": "shutdown",
+    "qualname": "shutdown",
+    "file": "app/core/mt5_client.py",
+    "lineno": 396,
+    "signature": "()",
+    "returns": "None",
+    "doc": "MT5 のシャットダウンラッパー。"
+  },
+  {
+    "kind": "function",
+    "name": "get_account_info",
+    "qualname": "get_account_info",
+    "file": "app/core/mt5_client.py",
+    "lineno": 413,
+    "signature": "()",
+    "returns": "",
+    "doc": "アカウント情報を取得するラッパー。"
+  },
+  {
+    "kind": "function",
+    "name": "get_positions",
+    "qualname": "get_positions",
+    "file": "app/core/mt5_client.py",
+    "lineno": 425,
+    "signature": "()",
+    "returns": "",
+    "doc": "オープンポジション一覧（Rawのリスト）を返すラッパー。"
+  },
+  {
+    "kind": "function",
+    "name": "get_positions_df",
+    "qualname": "get_positions_df",
+    "file": "app/core/mt5_client.py",
+    "lineno": 433,
+    "signature": "(symbol: Optional[str]=None)",
+    "returns": "",
+    "doc": "オープンポジションを pandas.DataFrame で返すラッパー。"
+  },
+  {
+    "kind": "function",
+    "name": "get_equity",
+    "qualname": "get_equity",
+    "file": "app/core/mt5_client.py",
+    "lineno": 441,
+    "signature": "()",
+    "returns": "float",
+    "doc": "有効証拠金（equity）を float で返すラッパー。"
+  },
+  {
+    "kind": "function",
+    "name": "get_tick_spec",
+    "qualname": "get_tick_spec",
+    "file": "app/core/mt5_client.py",
+    "lineno": 449,
+    "signature": "(symbol: str)",
+    "returns": "TickSpec",
+    "doc": "指定シンボルの TickSpec を返すラッパー。"
+  },
+  {
+    "kind": "class",
+    "name": "StrategyProfile",
+    "qualname": "StrategyProfile",
+    "file": "app/core/strategy_profile.py",
+    "lineno": 25,
+    "signature": "",
+    "returns": "",
+    "doc": "戦略プロファイル 1 件分の定義。"
+  },
+  {
+    "kind": "method",
+    "name": "backtest_root",
+    "qualname": "StrategyProfile.backtest_root",
+    "file": "app/core/strategy_profile.py",
+    "lineno": 59,
+    "signature": "(self)",
+    "returns": "Path",
+    "doc": "バックテスト結果を置くルートフォルダを返す。"
+  },
+  {
+    "kind": "method",
+    "name": "monthly_returns_path",
+    "qualname": "StrategyProfile.monthly_returns_path",
+    "file": "app/core/strategy_profile.py",
+    "lineno": 68,
+    "signature": "(self)",
+    "returns": "Path",
+    "doc": "monthly_returns.csv の標準パス。"
+  },
+  {
+    "kind": "method",
+    "name": "compute_lot_size_from_atr",
+    "qualname": "StrategyProfile.compute_lot_size_from_atr",
+    "file": "app/core/strategy_profile.py",
+    "lineno": 75,
+    "signature": "(self, *, equity: float, atr: float, tick_value: float, tick_size: float, expected_trades_per_month: int=40, worst_case_trades_for_dd: int=10, avg_r_multiple: float=0.6, min_lot: float=0.01, max_lot: float=1.0)",
+    "returns": "LotSizingResult",
+    "doc": "このプロファイルに設定された target_monthly_return / max_monthly_dd / atr_mult_sl を使用して"
+  },
+  {
+    "kind": "function",
+    "name": "get_profile",
+    "qualname": "get_profile",
+    "file": "app/core/strategy_profile.py",
+    "lineno": 150,
+    "signature": "(name: str='michibiki_std')",
+    "returns": "StrategyProfile",
+    "doc": "プロファイル ID から StrategyProfile を取得する。"
+  },
+  {
+    "kind": "function",
+    "name": "list_profiles",
+    "qualname": "list_profiles",
+    "file": "app/core/strategy_profile.py",
+    "lineno": 163,
+    "signature": "()",
+    "returns": "Dict[str, StrategyProfile]",
+    "doc": "定義済みプロファイル一覧を dict で返す（読み取り専用想定）。"
+  },
+  {
+    "kind": "function",
+    "name": "_load_preferred_map",
+    "qualname": "_load_preferred_map",
+    "file": "app/core/symbol_map.py",
+    "lineno": 13,
+    "signature": "()",
+    "returns": "Dict[str, str]",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "resolve_symbol",
+    "qualname": "resolve_symbol",
+    "file": "app/core/symbol_map.py",
+    "lineno": 29,
+    "signature": "(pair: str)",
+    "returns": "str",
+    "doc": "'USDJPY' のような論理ペア名を、実際のMT5シンボル名に解決する。"
+  },
+  {
+    "kind": "class",
+    "name": "SignalDecision",
+    "qualname": "SignalDecision",
+    "file": "app/core/trade/decision_logic.py",
+    "lineno": 12,
+    "signature": "",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "decide_signal",
+    "qualname": "decide_signal",
+    "file": "app/core/trade/decision_logic.py",
+    "lineno": 22,
+    "signature": "(prob_buy: Optional[float], prob_sell: Optional[float], best_threshold: float)",
+    "returns": "SignalDecision",
+    "doc": "best_threshold に基づくシグナル判定を共通化する関数。"
+  },
+  {
+    "kind": "class",
+    "name": "AITab",
+    "qualname": "AITab",
+    "file": "app/gui/ai_tab.py",
+    "lineno": 34,
+    "signature": "",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "__init__",
+    "qualname": "AITab.__init__",
+    "file": "app/gui/ai_tab.py",
+    "lineno": 35,
+    "signature": "(self, ai_service: AISvc | None=None, parent: QWidget | None=None)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "refresh_kpi",
+    "qualname": "AITab.refresh_kpi",
+    "file": "app/gui/ai_tab.py",
+    "lineno": 177,
+    "signature": "(self)",
+    "returns": "None",
+    "doc": "recent_kpi.compute_recent_kpi_from_decisions を呼び出し、"
+  },
+  {
+    "kind": "method",
+    "name": "refresh_model_metrics",
+    "qualname": "AITab.refresh_model_metrics",
+    "file": "app/gui/ai_tab.py",
+    "lineno": 224,
+    "signature": "(self)",
+    "returns": "None",
+    "doc": "モデル指標ウィジェットを再読込する。"
+  },
+  {
+    "kind": "function",
+    "name": "_thousands",
+    "qualname": "_thousands",
+    "file": "app/gui/backtest_tab.py",
+    "lineno": 28,
+    "signature": "(x, pos)",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_find_trades_csv",
+    "qualname": "_find_trades_csv",
+    "file": "app/gui/backtest_tab.py",
+    "lineno": 34,
+    "signature": "(equity_csv: Path)",
+    "returns": "",
+    "doc": "equity_curve.csv と同じフォルダにある trades*.csv を探す（優先: test -> train -> trades）"
+  },
+  {
+    "kind": "function",
+    "name": "plot_equity_with_markers_to_figure",
+    "qualname": "plot_equity_with_markers_to_figure",
+    "file": "app/gui/backtest_tab.py",
+    "lineno": 46,
+    "signature": "(fig: Figure, csv_path: str, note: str='')",
+    "returns": "",
+    "doc": "equity_curve.csv を描画。signal変化点でマーク。変化が無ければ trades*.csv の entry_time でマーク。"
+  },
+  {
+    "kind": "class",
+    "name": "PlotWindow",
+    "qualname": "PlotWindow",
+    "file": "app/gui/backtest_tab.py",
+    "lineno": 147,
+    "signature": "",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "__init__",
+    "qualname": "PlotWindow.__init__",
+    "file": "app/gui/backtest_tab.py",
+    "lineno": 148,
+    "signature": "(self, parent=None)",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "plot_equity_csv",
+    "qualname": "PlotWindow.plot_equity_csv",
+    "file": "app/gui/backtest_tab.py",
+    "lineno": 169,
+    "signature": "(self, csv_path: str)",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "overlay_wfo_equity",
+    "qualname": "PlotWindow.overlay_wfo_equity",
+    "file": "app/gui/backtest_tab.py",
+    "lineno": 233,
+    "signature": "(self, df_train: Optional[pd.DataFrame], df_test: Optional[pd.DataFrame])",
+    "returns": "None",
+    "doc": "Overlay WFO train/test equity lines on this window's axes."
+  },
+  {
+    "kind": "method",
+    "name": "plot_price_preview",
+    "qualname": "PlotWindow.plot_price_preview",
+    "file": "app/gui/backtest_tab.py",
+    "lineno": 294,
+    "signature": "(self, csv_path: str, note: str='')",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "plot_heatmap",
+    "qualname": "PlotWindow.plot_heatmap",
+    "file": "app/gui/backtest_tab.py",
+    "lineno": 325,
+    "signature": "(self, df, note: str='')",
+    "returns": "",
+    "doc": "tools/backtest_run が生成する monthly_returns_*.csv の形式に対応したヒートマップ描画。"
+  },
+  {
+    "kind": "method",
+    "name": "jump_range",
+    "qualname": "PlotWindow.jump_range",
+    "file": "app/gui/backtest_tab.py",
+    "lineno": 425,
+    "signature": "(self, mode: str)",
+    "returns": "None",
+    "doc": "ポップアウト表示で 1W / 1M / ALL の X 範囲を切り替える。"
+  },
+  {
+    "kind": "class",
+    "name": "BacktestTab",
+    "qualname": "BacktestTab",
+    "file": "app/gui/backtest_tab.py",
+    "lineno": 590,
+    "signature": "",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "__init__",
+    "qualname": "BacktestTab.__init__",
+    "file": "app/gui/backtest_tab.py",
+    "lineno": 591,
+    "signature": "(self, parent: QtWidgets.QWidget | None=None, kpi_service: Optional[Any]=None, profile_name: str='michibiki_std')",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_on_progress_timer",
+    "qualname": "BacktestTab._on_progress_timer",
+    "file": "app/gui/backtest_tab.py",
+    "lineno": 791,
+    "signature": "(self)",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_append_progress",
+    "qualname": "BacktestTab._append_progress",
+    "file": "app/gui/backtest_tab.py",
+    "lineno": 800,
+    "signature": "(self, text: str)",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_on_mode_changed",
+    "qualname": "BacktestTab._on_mode_changed",
+    "file": "app/gui/backtest_tab.py",
+    "lineno": 803,
+    "signature": "(self, checked: bool=False)",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_current_mode_text",
+    "qualname": "BacktestTab._current_mode_text",
+    "file": "app/gui/backtest_tab.py",
+    "lineno": 808,
+    "signature": "(self)",
+    "returns": "str",
+    "doc": "UI 上のモード文字列を返す（Backtest / Walk-Forward / Overlay）。"
+  },
+  {
+    "kind": "method",
+    "name": "_find_latest_wfo_dir",
+    "qualname": "BacktestTab._find_latest_wfo_dir",
+    "file": "app/gui/backtest_tab.py",
+    "lineno": 816,
+    "signature": "(self)",
+    "returns": "Optional[pathlib.Path]",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_load_latest_wfo_data",
+    "qualname": "BacktestTab._load_latest_wfo_data",
+    "file": "app/gui/backtest_tab.py",
+    "lineno": 828,
+    "signature": "(self)",
+    "returns": "Optional[Dict[str, object]]",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_update_wfo_stats_panel",
+    "qualname": "BacktestTab._update_wfo_stats_panel",
+    "file": "app/gui/backtest_tab.py",
+    "lineno": 850,
+    "signature": "(self, metrics: Dict[str, object])",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_overlay_wfo_equity",
+    "qualname": "BacktestTab._overlay_wfo_equity",
+    "file": "app/gui/backtest_tab.py",
+    "lineno": 875,
+    "signature": "(self, df_train: Optional[pd.DataFrame], df_test: Optional[pd.DataFrame])",
+    "returns": "None",
+    "doc": "Overlay Train/Test equity lines onto the current plot axes."
+  },
+  {
+    "kind": "class",
+    "name": "_WFOResult",
+    "qualname": "BacktestTab._WFOResult",
+    "file": "app/gui/backtest_tab.py",
+    "lineno": 924,
+    "signature": "",
+    "returns": "",
+    "doc": "Walk-Forward 検証の結果セットをまとめて持つだけの小さな入れ物。"
+  },
+  {
+    "kind": "method",
+    "name": "__init__",
+    "qualname": "BacktestTab._WFOResult.__init__",
+    "file": "app/gui/backtest_tab.py",
+    "lineno": 933,
+    "signature": "(self, report_json: Dict[str, Any], equity_train: Optional[pd.DataFrame], equity_test: Optional[pd.DataFrame], run_id: str, parent: Optional[QtCore.QObject]=None)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_find_latest_wfo_files",
+    "qualname": "BacktestTab._find_latest_wfo_files",
+    "file": "app/gui/backtest_tab.py",
+    "lineno": 951,
+    "signature": "(self)",
+    "returns": "Optional['_WFOResult']",
+    "doc": "logs/retrain/ 配下から最新の report_*.json を探し、"
+  },
+  {
+    "kind": "method",
+    "name": "_debug_print_wfo_summary",
+    "qualname": "BacktestTab._debug_print_wfo_summary",
+    "file": "app/gui/backtest_tab.py",
+    "lineno": 1024,
+    "signature": "(self, wfo: '_WFOResult')",
+    "returns": "None",
+    "doc": "とりあえず「ちゃんと読めたか」を確認するために、"
+  },
+  {
+    "kind": "method",
+    "name": "_load_model_info",
+    "qualname": "BacktestTab._load_model_info",
+    "file": "app/gui/backtest_tab.py",
+    "lineno": 1046,
+    "signature": "(self)",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_update_data",
+    "qualname": "BacktestTab._update_data",
+    "file": "app/gui/backtest_tab.py",
+    "lineno": 1061,
+    "signature": "(self)",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_run_test",
+    "qualname": "BacktestTab._run_test",
+    "file": "app/gui/backtest_tab.py",
+    "lineno": 1092,
+    "signature": "(self)",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_on_proc_ready_read_stdout",
+    "qualname": "BacktestTab._on_proc_ready_read_stdout",
+    "file": "app/gui/backtest_tab.py",
+    "lineno": 1178,
+    "signature": "(self)",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_on_proc_ready_read_stderr",
+    "qualname": "BacktestTab._on_proc_ready_read_stderr",
+    "file": "app/gui/backtest_tab.py",
+    "lineno": 1219,
+    "signature": "(self)",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_on_proc_finished",
+    "qualname": "BacktestTab._on_proc_finished",
+    "file": "app/gui/backtest_tab.py",
+    "lineno": 1258,
+    "signature": "(self, code: int, status: QtCore.QProcess.ExitStatus, sym: str, tf: str, mode: str)",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_pick_file",
+    "qualname": "BacktestTab._pick_file",
+    "file": "app/gui/backtest_tab.py",
+    "lineno": 1351,
+    "signature": "(self)",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_save_png",
+    "qualname": "BacktestTab._save_png",
+    "file": "app/gui/backtest_tab.py",
+    "lineno": 1357,
+    "signature": "(self)",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_export_result_json",
+    "qualname": "BacktestTab._export_result_json",
+    "file": "app/gui/backtest_tab.py",
+    "lineno": 1366,
+    "signature": "(self)",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_show_heatmap",
+    "qualname": "BacktestTab._show_heatmap",
+    "file": "app/gui/backtest_tab.py",
+    "lineno": 1394,
+    "signature": "(self)",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_pop_out",
+    "qualname": "BacktestTab._pop_out",
+    "file": "app/gui/backtest_tab.py",
+    "lineno": 1428,
+    "signature": "(self)",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_load_plot",
+    "qualname": "BacktestTab._load_plot",
+    "file": "app/gui/backtest_tab.py",
+    "lineno": 1450,
+    "signature": "(self, path_or_csv)",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_load_metrics",
+    "qualname": "BacktestTab._load_metrics",
+    "file": "app/gui/backtest_tab.py",
+    "lineno": 1497,
+    "signature": "(self, metrics_path: Path)",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_on_range_jump",
+    "qualname": "BacktestTab._on_range_jump",
+    "file": "app/gui/backtest_tab.py",
+    "lineno": 1540,
+    "signature": "(self, mode: str)",
+    "returns": "None",
+    "doc": "Backtestタブのインライン描画と、ポップアウト済みウィンドウの両方に期間ジャンプを適用する。"
+  },
+  {
+    "kind": "class",
+    "name": "ControlTab",
+    "qualname": "ControlTab",
+    "file": "app/gui/control_tab.py",
+    "lineno": 20,
+    "signature": "",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "__init__",
+    "qualname": "ControlTab.__init__",
+    "file": "app/gui/control_tab.py",
+    "lineno": 21,
+    "signature": "(self, parent=None)",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_sync_from_state",
+    "qualname": "ControlTab._sync_from_state",
+    "file": "app/gui/control_tab.py",
+    "lineno": 98,
+    "signature": "(self)",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_refresh_status",
+    "qualname": "ControlTab._refresh_status",
+    "file": "app/gui/control_tab.py",
+    "lineno": 110,
+    "signature": "(self)",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_toggle_trading",
+    "qualname": "ControlTab._toggle_trading",
+    "file": "app/gui/control_tab.py",
+    "lineno": 118,
+    "signature": "(self)",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_on_thr_changed",
+    "qualname": "ControlTab._on_thr_changed",
+    "file": "app/gui/control_tab.py",
+    "lineno": 131,
+    "signature": "(self, *_)",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_on_exit_changed",
+    "qualname": "ControlTab._on_exit_changed",
+    "file": "app/gui/control_tab.py",
+    "lineno": 139,
+    "signature": "(self, *_)",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_close_all_mock",
+    "qualname": "ControlTab._close_all_mock",
+    "file": "app/gui/control_tab.py",
+    "lineno": 143,
+    "signature": "(self)",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_cb_reset",
+    "qualname": "ControlTab._cb_reset",
+    "file": "app/gui/control_tab.py",
+    "lineno": 148,
+    "signature": "(self)",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "class",
+    "name": "DashboardTab",
+    "qualname": "DashboardTab",
+    "file": "app/gui/dashboard_tab.py",
+    "lineno": 22,
+    "signature": "",
+    "returns": "",
+    "doc": "Realtime Metrics (ATR / Grace / Trail) を表示するだけの軽量パネル。"
+  },
+  {
+    "kind": "method",
+    "name": "__init__",
+    "qualname": "DashboardTab.__init__",
+    "file": "app/gui/dashboard_tab.py",
+    "lineno": 27,
+    "signature": "(self, master, *args, **kwargs)",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_refresh_metrics",
+    "qualname": "DashboardTab._refresh_metrics",
+    "file": "app/gui/dashboard_tab.py",
+    "lineno": 72,
+    "signature": "(self)",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "class",
+    "name": "DashboardTab",
+    "qualname": "DashboardTab",
+    "file": "app/gui/dashboard_tab_qt.py",
+    "lineno": 10,
+    "signature": "",
+    "returns": "",
+    "doc": "PyQt6版 Dashboard。runtime/metrics.json を1秒ごとに再読込し、"
+  },
+  {
+    "kind": "method",
+    "name": "__init__",
+    "qualname": "DashboardTab.__init__",
+    "file": "app/gui/dashboard_tab_qt.py",
+    "lineno": 15,
+    "signature": "(self, parent: QtWidgets.QWidget | None=None)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_refresh_metrics",
+    "qualname": "DashboardTab._refresh_metrics",
+    "file": "app/gui/dashboard_tab_qt.py",
+    "lineno": 66,
+    "signature": "(self)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_set",
+    "qualname": "DashboardTab._set",
+    "file": "app/gui/dashboard_tab_qt.py",
+    "lineno": 95,
+    "signature": "(self, key: str, val: str)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "class",
+    "name": "HistoryTab",
+    "qualname": "HistoryTab",
+    "file": "app/gui/history_tab.py",
+    "lineno": 13,
+    "signature": "",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "__init__",
+    "qualname": "HistoryTab.__init__",
+    "file": "app/gui/history_tab.py",
+    "lineno": 14,
+    "signature": "(self, parent=None)",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "refresh",
+    "qualname": "HistoryTab.refresh",
+    "file": "app/gui/history_tab.py",
+    "lineno": 43,
+    "signature": "(self)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_export_csv",
+    "qualname": "HistoryTab._export_csv",
+    "file": "app/gui/history_tab.py",
+    "lineno": 52,
+    "signature": "(self)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "class",
+    "name": "KPITab",
+    "qualname": "KPITab",
+    "file": "app/gui/kpi_tab.py",
+    "lineno": 11,
+    "signature": "",
+    "returns": "",
+    "doc": "運用KPIタブ（メインタブ）"
+  },
+  {
+    "kind": "method",
+    "name": "__init__",
+    "qualname": "KPITab.__init__",
+    "file": "app/gui/kpi_tab.py",
+    "lineno": 19,
+    "signature": "(self, parent: Optional[QWidget]=None, kpi_service: Optional[KPIService]=None, profile_name: str='michibiki_std')",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "refresh",
+    "qualname": "KPITab.refresh",
+    "file": "app/gui/kpi_tab.py",
+    "lineno": 46,
+    "signature": "(self, profile: Optional[str]=None)",
+    "returns": "None",
+    "doc": "KPIダッシュボードを更新する。"
+  },
+  {
+    "kind": "class",
+    "name": "MainWindow",
+    "qualname": "MainWindow",
+    "file": "app/gui/main.py",
+    "lineno": 29,
+    "signature": "",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "__init__",
+    "qualname": "MainWindow.__init__",
+    "file": "app/gui/main.py",
+    "lineno": 30,
+    "signature": "(self)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_on_tab_changed",
+    "qualname": "MainWindow._on_tab_changed",
+    "file": "app/gui/main.py",
+    "lineno": 123,
+    "signature": "(self, index: int)",
+    "returns": "None",
+    "doc": "タブが切り替わったときに呼ばれる。"
+  },
+  {
+    "kind": "function",
+    "name": "main",
+    "qualname": "main",
+    "file": "app/gui/main.py",
+    "lineno": 142,
+    "signature": "()",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "class",
+    "name": "SettingsTab",
+    "qualname": "SettingsTab",
+    "file": "app/gui/settings_tab.py",
+    "lineno": 25,
+    "signature": "",
+    "returns": "",
+    "doc": "MT5 口座設定タブ。"
+  },
+  {
+    "kind": "method",
+    "name": "__init__",
+    "qualname": "SettingsTab.__init__",
+    "file": "app/gui/settings_tab.py",
+    "lineno": 33,
+    "signature": "(self, parent: Optional[QWidget]=None)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_setup_ui",
+    "qualname": "SettingsTab._setup_ui",
+    "file": "app/gui/settings_tab.py",
+    "lineno": 42,
+    "signature": "(self)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_load_profiles",
+    "qualname": "SettingsTab._load_profiles",
+    "file": "app/gui/settings_tab.py",
+    "lineno": 124,
+    "signature": "(self)",
+    "returns": "None",
+    "doc": "設定ファイルからプロファイル一覧を読み込み、コンボボックスに反映。"
+  },
+  {
+    "kind": "method",
+    "name": "_apply_profile_to_fields",
+    "qualname": "SettingsTab._apply_profile_to_fields",
+    "file": "app/gui/settings_tab.py",
+    "lineno": 154,
+    "signature": "(self, profile_name: str)",
+    "returns": "None",
+    "doc": "指定プロファイルの情報を入力欄に反映。"
+  },
+  {
+    "kind": "method",
+    "name": "_on_profile_changed",
+    "qualname": "SettingsTab._on_profile_changed",
+    "file": "app/gui/settings_tab.py",
+    "lineno": 174,
+    "signature": "(self, name: str)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_on_save_clicked",
+    "qualname": "SettingsTab._on_save_clicked",
+    "file": "app/gui/settings_tab.py",
+    "lineno": 177,
+    "signature": "(self)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_on_switch_clicked",
+    "qualname": "SettingsTab._on_switch_clicked",
+    "file": "app/gui/settings_tab.py",
+    "lineno": 203,
+    "signature": "(self)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_on_selftest_clicked",
+    "qualname": "SettingsTab._on_selftest_clicked",
+    "file": "app/gui/settings_tab.py",
+    "lineno": 237,
+    "signature": "(self)",
+    "returns": "None",
+    "doc": "「MT5 接続テスト（自己診断）」ボタン押下時のハンドラ。"
+  },
+  {
+    "kind": "method",
+    "name": "_on_orderflow_selftest_clicked",
+    "qualname": "SettingsTab._on_orderflow_selftest_clicked",
+    "file": "app/gui/settings_tab.py",
+    "lineno": 286,
+    "signature": "(self)",
+    "returns": "None",
+    "doc": "「テスト発注（selftest_order_flow）」ボタン押下時のハンドラ。"
+  },
+  {
+    "kind": "method",
+    "name": "_refresh_active_label",
+    "qualname": "SettingsTab._refresh_active_label",
+    "file": "app/gui/settings_tab.py",
+    "lineno": 340,
+    "signature": "(self)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "class",
+    "name": "DiagnosisAIWidget",
+    "qualname": "DiagnosisAIWidget",
+    "file": "app/gui/widgets/diagnosis_ai_widget.py",
+    "lineno": 9,
+    "signature": "",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "__init__",
+    "qualname": "DiagnosisAIWidget.__init__",
+    "file": "app/gui/widgets/diagnosis_ai_widget.py",
+    "lineno": 10,
+    "signature": "(self, parent=None)",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "update_data",
+    "qualname": "DiagnosisAIWidget.update_data",
+    "file": "app/gui/widgets/diagnosis_ai_widget.py",
+    "lineno": 60,
+    "signature": "(self, data: Any)",
+    "returns": "None",
+    "doc": "診断結果を各タブに反映する"
+  },
+  {
+    "kind": "method",
+    "name": "_update_time_of_day_tab",
+    "qualname": "DiagnosisAIWidget._update_time_of_day_tab",
+    "file": "app/gui/widgets/diagnosis_ai_widget.py",
+    "lineno": 79,
+    "signature": "(self, stats: Any)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_update_winning_tab",
+    "qualname": "DiagnosisAIWidget._update_winning_tab",
+    "file": "app/gui/widgets/diagnosis_ai_widget.py",
+    "lineno": 134,
+    "signature": "(self, data: Any)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_update_dd_tab",
+    "qualname": "DiagnosisAIWidget._update_dd_tab",
+    "file": "app/gui/widgets/diagnosis_ai_widget.py",
+    "lineno": 205,
+    "signature": "(self, data: Any)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_update_anomaly_tab",
+    "qualname": "DiagnosisAIWidget._update_anomaly_tab",
+    "file": "app/gui/widgets/diagnosis_ai_widget.py",
+    "lineno": 262,
+    "signature": "(self, data: Any)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "class",
+    "name": "FeatureImportanceWidget",
+    "qualname": "FeatureImportanceWidget",
+    "file": "app/gui/widgets/feature_importance.py",
+    "lineno": 15,
+    "signature": "",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "__init__",
+    "qualname": "FeatureImportanceWidget.__init__",
+    "file": "app/gui/widgets/feature_importance.py",
+    "lineno": 16,
+    "signature": "(self, ai_service, parent: Optional[QtWidgets.QWidget]=None)",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "refresh",
+    "qualname": "FeatureImportanceWidget.refresh",
+    "file": "app/gui/widgets/feature_importance.py",
+    "lineno": 70,
+    "signature": "(self)",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_plot_current",
+    "qualname": "FeatureImportanceWidget._plot_current",
+    "file": "app/gui/widgets/feature_importance.py",
+    "lineno": 101,
+    "signature": "(self)",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_fill_table",
+    "qualname": "FeatureImportanceWidget._fill_table",
+    "file": "app/gui/widgets/feature_importance.py",
+    "lineno": 116,
+    "signature": "(self, df: pd.DataFrame)",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_render_empty",
+    "qualname": "FeatureImportanceWidget._render_empty",
+    "file": "app/gui/widgets/feature_importance.py",
+    "lineno": 158,
+    "signature": "(self)",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_load_alias",
+    "qualname": "FeatureImportanceWidget._load_alias",
+    "file": "app/gui/widgets/feature_importance.py",
+    "lineno": 166,
+    "signature": "(self)",
+    "returns": "Dict[str, str]",
+    "doc": ""
+  },
+  {
+    "kind": "class",
+    "name": "FutureScenarioWidget",
+    "qualname": "FutureScenarioWidget",
+    "file": "app/gui/widgets/future_scenario_widget.py",
+    "lineno": 9,
+    "signature": "",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "__init__",
+    "qualname": "FutureScenarioWidget.__init__",
+    "file": "app/gui/widgets/future_scenario_widget.py",
+    "lineno": 10,
+    "signature": "(self, parent=None)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "update_data",
+    "qualname": "FutureScenarioWidget.update_data",
+    "file": "app/gui/widgets/future_scenario_widget.py",
+    "lineno": 20,
+    "signature": "(self, data: Optional[dict])",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "class",
+    "name": "KPIDashboardWidget",
+    "qualname": "KPIDashboardWidget",
+    "file": "app/gui/widgets/kpi_dashboard.py",
+    "lineno": 24,
+    "signature": "",
+    "returns": "",
+    "doc": "正式KPIダッシュボード（v5.1 仕様準拠）"
+  },
+  {
+    "kind": "method",
+    "name": "__init__",
+    "qualname": "KPIDashboardWidget.__init__",
+    "file": "app/gui/widgets/kpi_dashboard.py",
+    "lineno": 35,
+    "signature": "(self, profile: str='std', parent: Optional[QWidget]=None)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "refresh",
+    "qualname": "KPIDashboardWidget.refresh",
+    "file": "app/gui/widgets/kpi_dashboard.py",
+    "lineno": 124,
+    "signature": "(self)",
+    "returns": "None",
+    "doc": "KPIServiceからデータを取得してダッシュボードを更新"
+  },
+  {
+    "kind": "method",
+    "name": "_show_no_data",
+    "qualname": "KPIDashboardWidget._show_no_data",
+    "file": "app/gui/widgets/kpi_dashboard.py",
+    "lineno": 139,
+    "signature": "(self)",
+    "returns": "None",
+    "doc": "データがない場合の表示"
+  },
+  {
+    "kind": "method",
+    "name": "_show_data",
+    "qualname": "KPIDashboardWidget._show_data",
+    "file": "app/gui/widgets/kpi_dashboard.py",
+    "lineno": 152,
+    "signature": "(self, data: dict)",
+    "returns": "None",
+    "doc": "データがある場合の表示"
+  },
+  {
+    "kind": "method",
+    "name": "set_trade_stats",
+    "qualname": "KPIDashboardWidget.set_trade_stats",
+    "file": "app/gui/widgets/kpi_dashboard.py",
+    "lineno": 192,
+    "signature": "(self, win_rate: float, pf: float, avg_rr: float, total_trades: int)",
+    "returns": "None",
+    "doc": "トレード統計を表示する。"
+  },
+  {
+    "kind": "method",
+    "name": "_draw_chart",
+    "qualname": "KPIDashboardWidget._draw_chart",
+    "file": "app/gui/widgets/kpi_dashboard.py",
+    "lineno": 215,
+    "signature": "(self, data: dict)",
+    "returns": "None",
+    "doc": "12ヶ月折れ線グラフを描画"
+  },
+  {
+    "kind": "function",
+    "name": "get_model_info",
+    "qualname": "get_model_info",
+    "file": "app/gui/widgets/model_info_widget.py",
+    "lineno": 9,
+    "signature": "()",
+    "returns": "",
+    "doc": "get_model_metrics() のエイリアス（後方互換性のため）"
+  },
+  {
+    "kind": "class",
+    "name": "ModelInfoWidget",
+    "qualname": "ModelInfoWidget",
+    "file": "app/gui/widgets/model_info_widget.py",
+    "lineno": 14,
+    "signature": "",
+    "returns": "",
+    "doc": "モデル指標表示ウィジェット"
+  },
+  {
+    "kind": "method",
+    "name": "__init__",
+    "qualname": "ModelInfoWidget.__init__",
+    "file": "app/gui/widgets/model_info_widget.py",
+    "lineno": 17,
+    "signature": "(self, parent=None)",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "update_view",
+    "qualname": "ModelInfoWidget.update_view",
+    "file": "app/gui/widgets/model_info_widget.py",
+    "lineno": 47,
+    "signature": "(self)",
+    "returns": "None",
+    "doc": "ラベル更新用メソッド"
+  },
+  {
+    "kind": "method",
+    "name": "reload",
+    "qualname": "ModelInfoWidget.reload",
+    "file": "app/gui/widgets/model_info_widget.py",
+    "lineno": 73,
+    "signature": "(self)",
+    "returns": "None",
+    "doc": "モデル情報を再読込して表示を更新"
+  },
+  {
+    "kind": "class",
+    "name": "MonthlyDashboardGroup",
+    "qualname": "MonthlyDashboardGroup",
+    "file": "app/gui/widgets/monthly_dashboard.py",
+    "lineno": 8,
+    "signature": "",
+    "returns": "",
+    "doc": "月次3%ダッシュボード（AIタブ用）"
+  },
+  {
+    "kind": "method",
+    "name": "__init__",
+    "qualname": "MonthlyDashboardGroup.__init__",
+    "file": "app/gui/widgets/monthly_dashboard.py",
+    "lineno": 11,
+    "signature": "(self, parent: QWidget | None=None)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "refresh",
+    "qualname": "MonthlyDashboardGroup.refresh",
+    "file": "app/gui/widgets/monthly_dashboard.py",
+    "lineno": 35,
+    "signature": "(self)",
+    "returns": "None",
+    "doc": "今月リターン（backtest + live があれば）と3%目標の比較、グラフ更新"
+  },
+  {
+    "kind": "class",
+    "name": "MonthlyReturnsWidget",
+    "qualname": "MonthlyReturnsWidget",
+    "file": "app/gui/widgets/monthly_returns_widget.py",
+    "lineno": 15,
+    "signature": "",
+    "returns": "",
+    "doc": "backtests/{profile}/monthly_returns.csv を読み込んで、"
+  },
+  {
+    "kind": "method",
+    "name": "__init__",
+    "qualname": "MonthlyReturnsWidget.__init__",
+    "file": "app/gui/widgets/monthly_returns_widget.py",
+    "lineno": 27,
+    "signature": "(self, parent: Optional[QtWidgets.QWidget]=None)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_load_monthly_df",
+    "qualname": "MonthlyReturnsWidget._load_monthly_df",
+    "file": "app/gui/widgets/monthly_returns_widget.py",
+    "lineno": 57,
+    "signature": "(self)",
+    "returns": "Optional[pd.DataFrame]",
+    "doc": "StrategyProfile から monthly_returns.csv を探して読み込む。"
+  },
+  {
+    "kind": "method",
+    "name": "refresh",
+    "qualname": "MonthlyReturnsWidget.refresh",
+    "file": "app/gui/widgets/monthly_returns_widget.py",
+    "lineno": 105,
+    "signature": "(self)",
+    "returns": "None",
+    "doc": "monthly_returns.csv を読み込み直してグラフを更新。"
+  },
+  {
+    "kind": "class",
+    "name": "ShapBarWidget",
+    "qualname": "ShapBarWidget",
+    "file": "app/gui/widgets/shap_bar.py",
+    "lineno": 18,
+    "signature": "",
+    "returns": "",
+    "doc": "AISvc.get_shap_top_features() の結果を棒グラフ＋テーブルで表示するウィジェット。"
+  },
+  {
+    "kind": "method",
+    "name": "__init__",
+    "qualname": "ShapBarWidget.__init__",
+    "file": "app/gui/widgets/shap_bar.py",
+    "lineno": 23,
+    "signature": "(self, ai_service: AISvc, parent: Optional[QtWidgets.QWidget]=None)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "refresh",
+    "qualname": "ShapBarWidget.refresh",
+    "file": "app/gui/widgets/shap_bar.py",
+    "lineno": 93,
+    "signature": "(self, force: bool=False)",
+    "returns": "None",
+    "doc": "AISvc.get_shap_top_features() を呼び出して再描画する。"
+  },
+  {
+    "kind": "method",
+    "name": "_plot",
+    "qualname": "ShapBarWidget._plot",
+    "file": "app/gui/widgets/shap_bar.py",
+    "lineno": 128,
+    "signature": "(self, df: pd.DataFrame)",
+    "returns": "None",
+    "doc": "SHAPグローバル重要度の水平棒グラフを描画。"
+  },
+  {
+    "kind": "method",
+    "name": "_fill_table",
+    "qualname": "ShapBarWidget._fill_table",
+    "file": "app/gui/widgets/shap_bar.py",
+    "lineno": 149,
+    "signature": "(self, df: pd.DataFrame)",
+    "returns": "None",
+    "doc": "テーブルに SHAP 順位を表示。"
+  },
+  {
+    "kind": "method",
+    "name": "_update_top3",
+    "qualname": "ShapBarWidget._update_top3",
+    "file": "app/gui/widgets/shap_bar.py",
+    "lineno": 174,
+    "signature": "(self, df: Optional[pd.DataFrame])",
+    "returns": "None",
+    "doc": "上位3特徴量の簡易サマリをラベルに表示。"
+  },
+  {
+    "kind": "method",
+    "name": "_render_empty",
+    "qualname": "ShapBarWidget._render_empty",
+    "file": "app/gui/widgets/shap_bar.py",
+    "lineno": 206,
+    "signature": "(self, message: str)",
+    "returns": "None",
+    "doc": "データが無い or エラー時の簡単な表示。"
+  },
+  {
+    "kind": "method",
+    "name": "_load_alias",
+    "qualname": "ShapBarWidget._load_alias",
+    "file": "app/gui/widgets/shap_bar.py",
+    "lineno": 225,
+    "signature": "(self)",
+    "returns": "Dict[str, str]",
+    "doc": "configs/feature_alias.json から feature 名のエイリアスを読み出す。"
+  },
+  {
+    "kind": "function",
+    "name": "main",
+    "qualname": "main",
+    "file": "app/main_tk.py",
+    "lineno": 6,
+    "signature": "()",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_safe_float",
+    "qualname": "_safe_float",
+    "file": "app/services/ai_service.py",
+    "lineno": 26,
+    "signature": "(value: Any)",
+    "returns": "Optional[float]",
+    "doc": "数値 or 数値っぽい文字列だけ float に変換し、それ以外は None を返す小さいユーティリティ。"
+  },
+  {
+    "kind": "function",
+    "name": "get_model_metrics",
+    "qualname": "get_model_metrics",
+    "file": "app/services/ai_service.py",
+    "lineno": 38,
+    "signature": "(models_dir: str | Path='models')",
+    "returns": "Dict[str, Any]",
+    "doc": "active_model.json からモデル指標情報を取得する。"
+  },
+  {
+    "kind": "class",
+    "name": "AISvc",
+    "qualname": "AISvc",
+    "file": "app/services/ai_service.py",
+    "lineno": 139,
+    "signature": "",
+    "returns": "",
+    "doc": "既存の推論サービス想定。モデル群は self.models に格納されている想定。"
+  },
+  {
+    "kind": "method",
+    "name": "__init__",
+    "qualname": "AISvc.__init__",
+    "file": "app/services/ai_service.py",
+    "lineno": 145,
+    "signature": "(self)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_normalize_features_for_model",
+    "qualname": "AISvc._normalize_features_for_model",
+    "file": "app/services/ai_service.py",
+    "lineno": 166,
+    "signature": "(self, feats: 'Mapping[str, float]')",
+    "returns": "'dict[str, float]'",
+    "doc": "モデルの expected_features に合わせて特徴量を揃える。"
+  },
+  {
+    "kind": "method",
+    "name": "_sync_expected_features",
+    "qualname": "AISvc._sync_expected_features",
+    "file": "app/services/ai_service.py",
+    "lineno": 193,
+    "signature": "(self)",
+    "returns": "None",
+    "doc": "active_model.json / モデル本体から expected_features を"
+  },
+  {
+    "kind": "class",
+    "name": "ProbOut",
+    "qualname": "AISvc.ProbOut",
+    "file": "app/services/ai_service.py",
+    "lineno": 228,
+    "signature": "",
+    "returns": "",
+    "doc": "AISvc 内部で使うだけのシンプルな入出力コンテナ。"
+  },
+  {
+    "kind": "method",
+    "name": "__init__",
+    "qualname": "AISvc.ProbOut.__init__",
+    "file": "app/services/ai_service.py",
+    "lineno": 233,
+    "signature": "(self, p_buy: float, p_sell: float, p_skip: float=0.0)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_ensure_model_loaded",
+    "qualname": "AISvc._ensure_model_loaded",
+    "file": "app/services/ai_service.py",
+    "lineno": 238,
+    "signature": "(self)",
+    "returns": "None",
+    "doc": "self.models に推論用モデルが未ロードなら、active_model.json を見てロードする。"
+  },
+  {
+    "kind": "method",
+    "name": "predict",
+    "qualname": "AISvc.predict",
+    "file": "app/services/ai_service.py",
+    "lineno": 302,
+    "signature": "(self, X: np.ndarray | Dict[str, float], *, no_metrics: bool=False)",
+    "returns": "'AISvc.ProbOut'",
+    "doc": "単一サンプルの特徴量を受け取り、p_buy / p_sell / p_skip を返す。"
+  },
+  {
+    "kind": "method",
+    "name": "get_feature_importance",
+    "qualname": "AISvc.get_feature_importance",
+    "file": "app/services/ai_service.py",
+    "lineno": 389,
+    "signature": "(self, method: str='gain', top_n: int=20, cache_sec: int=300)",
+    "returns": "pd.DataFrame",
+    "doc": "GUI から呼び出して Feature Importance を取得する API。"
+  },
+  {
+    "kind": "method",
+    "name": "_load_shap_background_features",
+    "qualname": "AISvc._load_shap_background_features",
+    "file": "app/services/ai_service.py",
+    "lineno": 477,
+    "signature": "(self, max_rows: int=2000, *, csv_path: Path | None=None)",
+    "returns": "pd.DataFrame",
+    "doc": "SHAP計算用の背景特徴量を読み込むヘルパ。"
+  },
+  {
+    "kind": "method",
+    "name": "get_shap_top_features",
+    "qualname": "AISvc.get_shap_top_features",
+    "file": "app/services/ai_service.py",
+    "lineno": 519,
+    "signature": "(self, *, top_n: int=20, max_background: int=2000, csv_path: Path | None=None, cache_sec: int=300)",
+    "returns": "pd.DataFrame",
+    "doc": "LightGBMモデルに対する SHAP グローバル重要度（平均絶対SHAP）を計算し、"
+  },
+  {
+    "kind": "method",
+    "name": "get_shap_values",
+    "qualname": "AISvc.get_shap_values",
+    "file": "app/services/ai_service.py",
+    "lineno": 631,
+    "signature": "(self)",
+    "returns": "",
+    "doc": "SHAP 結果を EditionGuard に従って制限して返す。"
+  },
+  {
+    "kind": "method",
+    "name": "feature_importance",
+    "qualname": "AISvc.feature_importance",
+    "file": "app/services/ai_service.py",
+    "lineno": 687,
+    "signature": "(self)",
+    "returns": "pd.DataFrame",
+    "doc": "FI を edition に応じて TopN で返す。"
+  },
+  {
+    "kind": "method",
+    "name": "shap_summary",
+    "qualname": "AISvc.shap_summary",
+    "file": "app/services/ai_service.py",
+    "lineno": 741,
+    "signature": "(self)",
+    "returns": "Dict[str, Any]",
+    "doc": "SHAP を edition に応じて TopN で返す。"
+  },
+  {
+    "kind": "method",
+    "name": "get_live_probs",
+    "qualname": "AISvc.get_live_probs",
+    "file": "app/services/ai_service.py",
+    "lineno": 813,
+    "signature": "(self, symbol: str)",
+    "returns": "dict[str, float]",
+    "doc": "Live 用：execution_stub と同じ特徴量パイプラインを使って"
+  },
+  {
+    "kind": "method",
+    "name": "build_decision_from_probs",
+    "qualname": "AISvc.build_decision_from_probs",
+    "file": "app/services/ai_service.py",
+    "lineno": 920,
+    "signature": "(self, probs: dict, symbol: str)",
+    "returns": "dict",
+    "doc": "Live 用：execution_stub の ENTRY/SKIP 判定を最小限で再現。"
+  },
+  {
+    "kind": "function",
+    "name": "get_ai_service",
+    "qualname": "get_ai_service",
+    "file": "app/services/ai_service.py",
+    "lineno": 962,
+    "signature": "()",
+    "returns": "AISvc",
+    "doc": "AISvc のシングルトンインスタンスを返す。"
+  },
+  {
+    "kind": "class",
+    "name": "ActiveModelInfo",
+    "qualname": "ActiveModelInfo",
+    "file": "app/services/aisvc_loader.py",
+    "lineno": 10,
+    "signature": "",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "model_path",
+    "qualname": "ActiveModelInfo.model_path",
+    "file": "app/services/aisvc_loader.py",
+    "lineno": 12,
+    "signature": "(self)",
+    "returns": "Path",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "load_active_model_meta",
+    "qualname": "load_active_model_meta",
+    "file": "app/services/aisvc_loader.py",
+    "lineno": 16,
+    "signature": "()",
+    "returns": "ActiveModelInfo | None",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "resolve_model_path",
+    "qualname": "resolve_model_path",
+    "file": "app/services/aisvc_loader.py",
+    "lineno": 23,
+    "signature": "()",
+    "returns": "Path | None",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "load_model_for_inference",
+    "qualname": "load_model_for_inference",
+    "file": "app/services/aisvc_loader.py",
+    "lineno": 32,
+    "signature": "()",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "class",
+    "name": "CBState",
+    "qualname": "CBState",
+    "file": "app/services/circuit_breaker.py",
+    "lineno": 12,
+    "signature": "",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "class",
+    "name": "CircuitBreaker",
+    "qualname": "CircuitBreaker",
+    "file": "app/services/circuit_breaker.py",
+    "lineno": 21,
+    "signature": "",
+    "returns": "",
+    "doc": "Resettable circuit breaker that combines consecutive-loss and daily-loss budgets"
+  },
+  {
+    "kind": "method",
+    "name": "__init__",
+    "qualname": "CircuitBreaker.__init__",
+    "file": "app/services/circuit_breaker.py",
+    "lineno": 27,
+    "signature": "(self, max_consecutive_losses: int=5, daily_loss_limit_jpy: float=0.0, cooldown_min: int=30)",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "on_trade_result",
+    "qualname": "CircuitBreaker.on_trade_result",
+    "file": "app/services/circuit_breaker.py",
+    "lineno": 41,
+    "signature": "(self, profit_jpy: float)",
+    "returns": "None",
+    "doc": "Record a trade result and trip if thresholds are violated."
+  },
+  {
+    "kind": "method",
+    "name": "can_trade",
+    "qualname": "CircuitBreaker.can_trade",
+    "file": "app/services/circuit_breaker.py",
+    "lineno": 60,
+    "signature": "(self)",
+    "returns": "bool",
+    "doc": "Return True if trading is allowed (not tripped or cool-down finished)."
+  },
+  {
+    "kind": "method",
+    "name": "reset",
+    "qualname": "CircuitBreaker.reset",
+    "file": "app/services/circuit_breaker.py",
+    "lineno": 69,
+    "signature": "(self)",
+    "returns": "None",
+    "doc": "Reset trip status (but keep daily accumulator)."
+  },
+  {
+    "kind": "method",
+    "name": "status",
+    "qualname": "CircuitBreaker.status",
+    "file": "app/services/circuit_breaker.py",
+    "lineno": 76,
+    "signature": "(self)",
+    "returns": "dict",
+    "doc": "Return a serialisable snapshot of the breaker state."
+  },
+  {
+    "kind": "method",
+    "name": "_trip",
+    "qualname": "CircuitBreaker._trip",
+    "file": "app/services/circuit_breaker.py",
+    "lineno": 90,
+    "signature": "(self, reason: str)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_rollover_if_new_day",
+    "qualname": "CircuitBreaker._rollover_if_new_day",
+    "file": "app/services/circuit_breaker.py",
+    "lineno": 95,
+    "signature": "(self)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "csv_path",
+    "qualname": "csv_path",
+    "file": "app/services/data_guard.py",
+    "lineno": 10,
+    "signature": "(symbol_tag: str, timeframe: str, layout: str='per-symbol')",
+    "returns": "Path",
+    "doc": "symbol_tag は接尾辞なし（例: USDJPY）"
+  },
+  {
+    "kind": "function",
+    "name": "ensure_data",
+    "qualname": "ensure_data",
+    "file": "app/services/data_guard.py",
+    "lineno": 19,
+    "signature": "(symbol_tag: str, timeframe: str, start_date: str, end_date: str, env: str='laptop', layout: str='per-symbol')",
+    "returns": "Path",
+    "doc": "指定の [start_date, end_date] を満たすCSVが存在するか確認し、足りなければ scripts.make_csv_from_mt5 を呼んで追記する。"
+  },
+  {
+    "kind": "class",
+    "name": "DecisionRecord",
+    "qualname": "DecisionRecord",
+    "file": "app/services/decision_log.py",
+    "lineno": 19,
+    "signature": "",
+    "returns": "",
+    "doc": "decisions_*.jsonl の 1 行を、GUI や KPI 計算から使いやすい形に薄くラップしたもの。"
+  },
+  {
+    "kind": "function",
+    "name": "_iter_jsonl",
+    "qualname": "_iter_jsonl",
+    "file": "app/services/decision_log.py",
+    "lineno": 35,
+    "signature": "(path: Path)",
+    "returns": "Iterable[dict[str, Any]]",
+    "doc": "JSONL ファイルを 1 行ずつ dict として返すジェネレータ。壊れた行はスキップ。"
+  },
+  {
+    "kind": "function",
+    "name": "_extract_decision_record",
+    "qualname": "_extract_decision_record",
+    "file": "app/services/decision_log.py",
+    "lineno": 52,
+    "signature": "(j: dict[str, Any])",
+    "returns": "DecisionRecord",
+    "doc": "�� JSON ����AAI�^�u/KPI �ł悭�g���������������� DecisionRecord �����B"
+  },
+  {
+    "kind": "function",
+    "name": "_find_first_numeric_by_keys",
+    "qualname": "_find_first_numeric_by_keys",
+    "file": "app/services/decision_log.py",
+    "lineno": 110,
+    "signature": "(container: Any, key_candidates: tuple[str, ...])",
+    "returns": "float | None",
+    "doc": "任意にネストした dict/list 構造の中から、"
+  },
+  {
+    "kind": "function",
+    "name": "_ensure_pnl_column",
+    "qualname": "_ensure_pnl_column",
+    "file": "app/services/decision_log.py",
+    "lineno": 138,
+    "signature": "(df: pd.DataFrame)",
+    "returns": "pd.DataFrame",
+    "doc": "decisions_* の生ログ DataFrame に「pnl 列」が無ければ、"
+  },
+  {
+    "kind": "function",
+    "name": "_get_decision_log_dir",
+    "qualname": "_get_decision_log_dir",
+    "file": "app/services/decision_log.py",
+    "lineno": 178,
+    "signature": "()",
+    "returns": "Path",
+    "doc": "決定ログのルートディレクトリを返す。"
+  },
+  {
+    "kind": "function",
+    "name": "load_recent_decisions",
+    "qualname": "load_recent_decisions",
+    "file": "app/services/decision_log.py",
+    "lineno": 188,
+    "signature": "(limit: int | None=None)",
+    "returns": "pd.DataFrame",
+    "doc": "decisions_*.jsonl から最新の N レコードを pandas.DataFrame で読み込む。"
+  },
+  {
+    "kind": "class",
+    "name": "DiagnosisParams",
+    "qualname": "DiagnosisParams",
+    "file": "app/services/diagnosis_service.py",
+    "lineno": 14,
+    "signature": "",
+    "returns": "",
+    "doc": "診断AIの入力条件（必要になれば拡張する）"
+  },
+  {
+    "kind": "class",
+    "name": "DiagnosisService",
+    "qualname": "DiagnosisService",
+    "file": "app/services/diagnosis_service.py",
+    "lineno": 22,
+    "signature": "",
+    "returns": "",
+    "doc": "診断AIサービス（v0）"
+  },
+  {
+    "kind": "method",
+    "name": "analyze",
+    "qualname": "DiagnosisService.analyze",
+    "file": "app/services/diagnosis_service.py",
+    "lineno": 32,
+    "signature": "(self, profile: str='std', start=None, end=None)",
+    "returns": "dict",
+    "doc": "診断AI v0:"
+  },
+  {
+    "kind": "method",
+    "name": "_load_decision_records",
+    "qualname": "DiagnosisService._load_decision_records",
+    "file": "app/services/diagnosis_service.py",
+    "lineno": 78,
+    "signature": "(self, start: Optional[date]=None, end: Optional[date]=None)",
+    "returns": "List[Dict[str, Any]]",
+    "doc": "decisions_*.jsonl を読み込んで、期間でフィルタリングしたレコードを返す。"
+  },
+  {
+    "kind": "method",
+    "name": "_compute_time_of_day_stats",
+    "qualname": "DiagnosisService._compute_time_of_day_stats",
+    "file": "app/services/diagnosis_service.py",
+    "lineno": 161,
+    "signature": "(self, records: List[Dict[str, Any]])",
+    "returns": "Dict[int, Dict[str, Any]]",
+    "doc": "時間帯ごとの勝率・PF・件数を計算する。"
+  },
+  {
+    "kind": "method",
+    "name": "_compute_winning_conditions",
+    "qualname": "DiagnosisService._compute_winning_conditions",
+    "file": "app/services/diagnosis_service.py",
+    "lineno": 218,
+    "signature": "(self, records: List[Dict[str, Any]], time_of_day_stats: Dict[int, Dict[str, Any]])",
+    "returns": "Dict[str, Any]",
+    "doc": "全体の勝率と PF、時間帯ベースの「勝ちやすい条件」をまとめる v0 ロジック。"
+  },
+  {
+    "kind": "method",
+    "name": "_compute_dd_pre_signal",
+    "qualname": "DiagnosisService._compute_dd_pre_signal",
+    "file": "app/services/diagnosis_service.py",
+    "lineno": 302,
+    "signature": "(self, decisions: List[Dict[str, Any]])",
+    "returns": "Dict[str, Any]",
+    "doc": "decisions.jsonl（バックテスト or 実運用ログ）を元に"
+  },
+  {
+    "kind": "method",
+    "name": "_compute_future_scenario",
+    "qualname": "DiagnosisService._compute_future_scenario",
+    "file": "app/services/diagnosis_service.py",
+    "lineno": 384,
+    "signature": "(self, records: List[Dict[str, Any]])",
+    "returns": "Dict[str, Any]",
+    "doc": "Expert 限定：来週のシナリオ（v1）"
+  },
+  {
+    "kind": "function",
+    "name": "get_diagnosis_service",
+    "qualname": "get_diagnosis_service",
+    "file": "app/services/diagnosis_service.py",
+    "lineno": 496,
+    "signature": "()",
+    "returns": "DiagnosisService",
+    "doc": ""
+  },
+  {
+    "kind": "class",
+    "name": "CapabilitySet",
+    "qualname": "CapabilitySet",
+    "file": "app/services/edition_guard.py",
+    "lineno": 18,
+    "signature": "",
+    "returns": "",
+    "doc": "ミチビキ v5 / v5.1 の CapabilitySet 定義。"
+  },
+  {
+    "kind": "function",
+    "name": "_project_root",
+    "qualname": "_project_root",
+    "file": "app/services/edition_guard.py",
+    "lineno": 102,
+    "signature": "()",
+    "returns": "Path",
+    "doc": "services 層から見たプロジェクトルートを推定する。"
+  },
+  {
+    "kind": "function",
+    "name": "_load_edition_from_config",
+    "qualname": "_load_edition_from_config",
+    "file": "app/services/edition_guard.py",
+    "lineno": 111,
+    "signature": "()",
+    "returns": "Optional[str]",
+    "doc": "config/edition.json から edition を読み込む。"
+  },
+  {
+    "kind": "function",
+    "name": "_detect_edition",
+    "qualname": "_detect_edition",
+    "file": "app/services/edition_guard.py",
+    "lineno": 133,
+    "signature": "()",
+    "returns": "str",
+    "doc": "実際に使用する edition 名を決定する。"
+  },
+  {
+    "kind": "class",
+    "name": "EditionGuard",
+    "qualname": "EditionGuard",
+    "file": "app/services/edition_guard.py",
+    "lineno": 164,
+    "signature": "",
+    "returns": "",
+    "doc": "v5.1 EditionGuard 本体。"
+  },
+  {
+    "kind": "method",
+    "name": "__init__",
+    "qualname": "EditionGuard.__init__",
+    "file": "app/services/edition_guard.py",
+    "lineno": 172,
+    "signature": "(self, edition: Optional[str]=None)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "edition",
+    "qualname": "EditionGuard.edition",
+    "file": "app/services/edition_guard.py",
+    "lineno": 187,
+    "signature": "(self)",
+    "returns": "str",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "capabilities",
+    "qualname": "EditionGuard.capabilities",
+    "file": "app/services/edition_guard.py",
+    "lineno": 191,
+    "signature": "(self)",
+    "returns": "CapabilitySet",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "get_capability",
+    "qualname": "EditionGuard.get_capability",
+    "file": "app/services/edition_guard.py",
+    "lineno": 196,
+    "signature": "(self, name: str)",
+    "returns": "Any",
+    "doc": "任意の Capability 値を取得する。"
+  },
+  {
+    "kind": "method",
+    "name": "allow_real_account",
+    "qualname": "EditionGuard.allow_real_account",
+    "file": "app/services/edition_guard.py",
+    "lineno": 206,
+    "signature": "(self)",
+    "returns": "bool",
+    "doc": "実口座トレードを許可するか。"
+  },
+  {
+    "kind": "method",
+    "name": "scheduler_limit",
+    "qualname": "EditionGuard.scheduler_limit",
+    "file": "app/services/edition_guard.py",
+    "lineno": 216,
+    "signature": "(self)",
+    "returns": "int",
+    "doc": "スケジューラのジョブ数上限を返す。"
+  },
+  {
+    "kind": "method",
+    "name": "filter_level",
+    "qualname": "EditionGuard.filter_level",
+    "file": "app/services/edition_guard.py",
+    "lineno": 237,
+    "signature": "(self)",
+    "returns": "int",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "ranking_level",
+    "qualname": "EditionGuard.ranking_level",
+    "file": "app/services/edition_guard.py",
+    "lineno": 240,
+    "signature": "(self)",
+    "returns": "int",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_default_guard",
+    "qualname": "_default_guard",
+    "file": "app/services/edition_guard.py",
+    "lineno": 247,
+    "signature": "()",
+    "returns": "EditionGuard",
+    "doc": "デフォルト EditionGuard をキャッシュして返す。"
+  },
+  {
+    "kind": "function",
+    "name": "get_capability",
+    "qualname": "get_capability",
+    "file": "app/services/edition_guard.py",
+    "lineno": 254,
+    "signature": "(name: str)",
+    "returns": "Any",
+    "doc": "GUI/Service から直接呼ばれる想定のショートカット関数。"
+  },
+  {
+    "kind": "function",
+    "name": "allow_real_account",
+    "qualname": "allow_real_account",
+    "file": "app/services/edition_guard.py",
+    "lineno": 261,
+    "signature": "()",
+    "returns": "bool",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "scheduler_limit",
+    "qualname": "scheduler_limit",
+    "file": "app/services/edition_guard.py",
+    "lineno": 265,
+    "signature": "()",
+    "returns": "int",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "filter_level",
+    "qualname": "filter_level",
+    "file": "app/services/edition_guard.py",
+    "lineno": 269,
+    "signature": "()",
+    "returns": "int",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "ranking_level",
+    "qualname": "ranking_level",
+    "file": "app/services/edition_guard.py",
+    "lineno": 273,
+    "signature": "()",
+    "returns": "int",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "current_edition",
+    "qualname": "current_edition",
+    "file": "app/services/edition_guard.py",
+    "lineno": 277,
+    "signature": "()",
+    "returns": "str",
+    "doc": "旧 API が get_current_edition() などだった場合の互換用。"
+  },
+  {
+    "kind": "class",
+    "name": "UiEvent",
+    "qualname": "UiEvent",
+    "file": "app/services/event_store.py",
+    "lineno": 23,
+    "signature": "",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_now",
+    "qualname": "_now",
+    "file": "app/services/event_store.py",
+    "lineno": 36,
+    "signature": "()",
+    "returns": "str",
+    "doc": ""
+  },
+  {
+    "kind": "class",
+    "name": "_EventStore",
+    "qualname": "_EventStore",
+    "file": "app/services/event_store.py",
+    "lineno": 40,
+    "signature": "",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "__init__",
+    "qualname": "_EventStore.__init__",
+    "file": "app/services/event_store.py",
+    "lineno": 41,
+    "signature": "(self, maxlen: int=1000)",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "append",
+    "qualname": "_EventStore.append",
+    "file": "app/services/event_store.py",
+    "lineno": 44,
+    "signature": "(self, ev: UiEvent)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "add",
+    "qualname": "_EventStore.add",
+    "file": "app/services/event_store.py",
+    "lineno": 50,
+    "signature": "(self, **kwargs: Any)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "recent",
+    "qualname": "_EventStore.recent",
+    "file": "app/services/event_store.py",
+    "lineno": 54,
+    "signature": "(self, n: int=200)",
+    "returns": "List[UiEvent]",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_symbol_to_filename",
+    "qualname": "_symbol_to_filename",
+    "file": "app/services/execution_service.py",
+    "lineno": 34,
+    "signature": "(symbol: str)",
+    "returns": "str",
+    "doc": "シンボル名を安全なファイル名に変換"
+  },
+  {
+    "kind": "function",
+    "name": "_normalize_filter_reasons",
+    "qualname": "_normalize_filter_reasons",
+    "file": "app/services/execution_service.py",
+    "lineno": 41,
+    "signature": "(reasons: Any)",
+    "returns": "list[str]",
+    "doc": "filter_reasons を必ず list[str] に正規化する（v5.1 仕様）"
+  },
+  {
+    "kind": "class",
+    "name": "DecisionsLogger",
+    "qualname": "DecisionsLogger",
+    "file": "app/services/execution_service.py",
+    "lineno": 65,
+    "signature": "",
+    "returns": "",
+    "doc": "決定ログ専用のロガークラス"
+  },
+  {
+    "kind": "method",
+    "name": "log",
+    "qualname": "DecisionsLogger.log",
+    "file": "app/services/execution_service.py",
+    "lineno": 69,
+    "signature": "(record: Dict[str, Any])",
+    "returns": "None",
+    "doc": "ExecutionService 用 AI判断ログ (decisions.jsonl) を 1 レコード追記する。"
+  },
+  {
+    "kind": "class",
+    "name": "ExecutionService",
+    "qualname": "ExecutionService",
+    "file": "app/services/execution_service.py",
+    "lineno": 143,
+    "signature": "",
+    "returns": "",
+    "doc": "Live 用の実行サービス："
+  },
+  {
+    "kind": "method",
+    "name": "__init__",
+    "qualname": "ExecutionService.__init__",
+    "file": "app/services/execution_service.py",
+    "lineno": 150,
+    "signature": "(self)",
+    "returns": "",
+    "doc": "初期化"
+  },
+  {
+    "kind": "method",
+    "name": "_build_entry_context",
+    "qualname": "ExecutionService._build_entry_context",
+    "file": "app/services/execution_service.py",
+    "lineno": 158,
+    "signature": "(self, symbol: str, features: Dict[str, float], timestamp: Optional[datetime]=None)",
+    "returns": "Dict[str, Any]",
+    "doc": "EntryContext を構築する"
+  },
+  {
+    "kind": "method",
+    "name": "process_tick",
+    "qualname": "ExecutionService.process_tick",
+    "file": "app/services/execution_service.py",
+    "lineno": 214,
+    "signature": "(self, symbol: str, price: float, timestamp: datetime, features: Optional[Dict[str, float]]=None, dry_run: bool=False)",
+    "returns": "Dict[str, Any]",
+    "doc": "1ティック分の処理をまとめて行うヘルパー。"
+  },
+  {
+    "kind": "method",
+    "name": "_apply_profile_autoswitch",
+    "qualname": "ExecutionService._apply_profile_autoswitch",
+    "file": "app/services/execution_service.py",
+    "lineno": 267,
+    "signature": "(self, symbol: str, reasons: list[str])",
+    "returns": "None",
+    "doc": "フィルタ結果の reasons からプロファイル自動切替指示を読み取り、"
+  },
+  {
+    "kind": "method",
+    "name": "execute_entry",
+    "qualname": "ExecutionService.execute_entry",
+    "file": "app/services/execution_service.py",
+    "lineno": 310,
+    "signature": "(self, features: Dict[str, float], *, symbol: Optional[str]=None, dry_run: bool=False, timestamp: Optional[datetime]=None)",
+    "returns": "Dict[str, Any]",
+    "doc": "売買判断 → フィルタ判定 → decisions.jsonl 出力まで一貫処理"
+  },
+  {
+    "kind": "method",
+    "name": "execute_exit",
+    "qualname": "ExecutionService.execute_exit",
+    "file": "app/services/execution_service.py",
+    "lineno": 598,
+    "signature": "(self, symbol: Optional[str]=None, dry_run: bool=False)",
+    "returns": "Dict[str, Any]",
+    "doc": "決済監視/クローズ処理"
+  },
+  {
+    "kind": "function",
+    "name": "_load_runtime_threshold",
+    "qualname": "_load_runtime_threshold",
+    "file": "app/services/execution_stub.py",
+    "lineno": 53,
+    "signature": "(default: float=0.5)",
+    "returns": "float",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "reset_atr_gate_state",
+    "qualname": "reset_atr_gate_state",
+    "file": "app/services/execution_stub.py",
+    "lineno": 72,
+    "signature": "()",
+    "returns": "None",
+    "doc": "???/????????ATR????????????"
+  },
+  {
+    "kind": "function",
+    "name": "_atr_gate_ok",
+    "qualname": "_atr_gate_ok",
+    "file": "app/services/execution_stub.py",
+    "lineno": 79,
+    "signature": "(atr_pct_now: float, runtime_cfg: Dict[str, Any])",
+    "returns": "bool",
+    "doc": "Hysteresis-enabled ATR gate to avoid rapid flip-flops around thresholds."
+  },
+  {
+    "kind": "function",
+    "name": "_tick_to_dict",
+    "qualname": "_tick_to_dict",
+    "file": "app/services/execution_stub.py",
+    "lineno": 126,
+    "signature": "(tick: Any)",
+    "returns": "Optional[Dict[str, float]]",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_pip_size_for",
+    "qualname": "_pip_size_for",
+    "file": "app/services/execution_stub.py",
+    "lineno": 145,
+    "signature": "(symbol: str)",
+    "returns": "float",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_point_for",
+    "qualname": "_point_for",
+    "file": "app/services/execution_stub.py",
+    "lineno": 148,
+    "signature": "(symbol: str)",
+    "returns": "float",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_mid_price",
+    "qualname": "_mid_price",
+    "file": "app/services/execution_stub.py",
+    "lineno": 151,
+    "signature": "(tick_dict: Optional[Dict[str, float]])",
+    "returns": "Optional[float]",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_current_price_for_side",
+    "qualname": "_current_price_for_side",
+    "file": "app/services/execution_stub.py",
+    "lineno": 156,
+    "signature": "(tick_dict: Optional[Dict[str, float]], side: str, price_source: str)",
+    "returns": "Optional[float]",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_register_trailing_state",
+    "qualname": "_register_trailing_state",
+    "file": "app/services/execution_stub.py",
+    "lineno": 166,
+    "signature": "(symbol: str, signal: Dict[str, Any], tick_dict: Optional[Dict[str, float]], *, no_metrics: bool=False)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_update_trailing_state",
+    "qualname": "_update_trailing_state",
+    "file": "app/services/execution_stub.py",
+    "lineno": 248,
+    "signature": "(symbol: str, tick_dict: Optional[Dict[str, float]])",
+    "returns": "Optional[Dict[str, Any]]",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_session_hour_allowed",
+    "qualname": "_session_hour_allowed",
+    "file": "app/services/execution_stub.py",
+    "lineno": 320,
+    "signature": "()",
+    "returns": "bool",
+    "doc": "config.session.allow_hours_jst ??????????????????????"
+  },
+  {
+    "kind": "function",
+    "name": "_symbol_to_filename",
+    "qualname": "_symbol_to_filename",
+    "file": "app/services/execution_stub.py",
+    "lineno": 349,
+    "signature": "(symbol: str)",
+    "returns": "str",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_write_decision_log",
+    "qualname": "_write_decision_log",
+    "file": "app/services/execution_stub.py",
+    "lineno": 354,
+    "signature": "(symbol: str, record: Dict[str, Any])",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_ai_to_dict",
+    "qualname": "_ai_to_dict",
+    "file": "app/services/execution_stub.py",
+    "lineno": 360,
+    "signature": "(ai_out: Any)",
+    "returns": "Dict[str, Any]",
+    "doc": "AISvc.predict() の戻り値（ProbOut など）を安全に dict 化する。"
+  },
+  {
+    "kind": "function",
+    "name": "_normalize_filter_reasons",
+    "qualname": "_normalize_filter_reasons",
+    "file": "app/services/execution_stub.py",
+    "lineno": 400,
+    "signature": "(reasons: Any)",
+    "returns": "list[str]",
+    "doc": "filter_reasons を必ず list[str] に正規化する（v5.1 仕様）"
+  },
+  {
+    "kind": "function",
+    "name": "_build_decision_trace",
+    "qualname": "_build_decision_trace",
+    "file": "app/services/execution_stub.py",
+    "lineno": 424,
+    "signature": "(*, ts_jst: str, symbol: str, ai_out: 'ProbOut', cb_status: Dict[str, Any], filters_ctx: Dict[str, Any], decision: Dict[str, Any], prob_threshold: float, calibrator_name: str, entry_context: Optional[Dict[str, Any]]=None)",
+    "returns": "Dict[str, Any]",
+    "doc": "v5.1 仕様に準拠した決定トレースを構築する"
+  },
+  {
+    "kind": "function",
+    "name": "_collect_features",
+    "qualname": "_collect_features",
+    "file": "app/services/execution_stub.py",
+    "lineno": 555,
+    "signature": "(symbol: str, base_features: Tuple[str, ...], tick: Optional[Tuple[float, float]], spread_pips: Optional[float], open_positions: int)",
+    "returns": "Dict[str, float]",
+    "doc": "Live 用の軽量なフィーチャ生成。"
+  },
+  {
+    "kind": "class",
+    "name": "ExecutionStub",
+    "qualname": "ExecutionStub",
+    "file": "app/services/execution_stub.py",
+    "lineno": 628,
+    "signature": "",
+    "returns": "",
+    "doc": "ドライラン用の実行スタブ："
+  },
+  {
+    "kind": "method",
+    "name": "__post_init__",
+    "qualname": "ExecutionStub.__post_init__",
+    "file": "app/services/execution_stub.py",
+    "lineno": 638,
+    "signature": "(self)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "on_tick",
+    "qualname": "ExecutionStub.on_tick",
+    "file": "app/services/execution_stub.py",
+    "lineno": 654,
+    "signature": "(self, symbol: str, features: Dict[str, float], runtime_cfg: Dict[str, Any])",
+    "returns": "Dict[str, Any]",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "evaluate_and_log_once",
+    "qualname": "evaluate_and_log_once",
+    "file": "app/services/execution_stub.py",
+    "lineno": 1234,
+    "signature": "()",
+    "returns": "None",
+    "doc": "Dry-run evaluation that mirrors the live decision path."
+  },
+  {
+    "kind": "function",
+    "name": "debug_emit_single_decision",
+    "qualname": "debug_emit_single_decision",
+    "file": "app/services/execution_stub.py",
+    "lineno": 1400,
+    "signature": "()",
+    "returns": "None",
+    "doc": "フィルタ + decisions.jsonl ログを 1 回だけテスト出力するデバッグ関数。"
+  },
+  {
+    "kind": "class",
+    "name": "FeatureImportanceItem",
+    "qualname": "FeatureImportanceItem",
+    "file": "app/services/feature_importance.py",
+    "lineno": 24,
+    "signature": "",
+    "returns": "",
+    "doc": "1つの特徴量についての FI 情報."
+  },
+  {
+    "kind": "function",
+    "name": "_unwrap_model",
+    "qualname": "_unwrap_model",
+    "file": "app/services/feature_importance.py",
+    "lineno": 33,
+    "signature": "(model: Any)",
+    "returns": "Any",
+    "doc": "CalibratedClassifierCV やラッパーに包まれている場合、"
+  },
+  {
+    "kind": "function",
+    "name": "_detect_model_type",
+    "qualname": "_detect_model_type",
+    "file": "app/services/feature_importance.py",
+    "lineno": 45,
+    "signature": "(model: Any)",
+    "returns": "str",
+    "doc": "LightGBM / XGBoost / その他 をざっくり判定する。"
+  },
+  {
+    "kind": "function",
+    "name": "_fi_lightgbm",
+    "qualname": "_fi_lightgbm",
+    "file": "app/services/feature_importance.py",
+    "lineno": 91,
+    "signature": "(model: Any, feature_names: Optional[Sequence[str]]=None)",
+    "returns": "Tuple[np.ndarray, List[str]]",
+    "doc": "LightGBM 用の raw FI 抽出."
+  },
+  {
+    "kind": "function",
+    "name": "_fi_xgboost",
+    "qualname": "_fi_xgboost",
+    "file": "app/services/feature_importance.py",
+    "lineno": 148,
+    "signature": "(model: Any, feature_names: Optional[Sequence[str]]=None)",
+    "returns": "Tuple[np.ndarray, List[str]]",
+    "doc": "XGBoost 用の raw FI 抽出."
+  },
+  {
+    "kind": "function",
+    "name": "compute_feature_importance",
+    "qualname": "compute_feature_importance",
+    "file": "app/services/feature_importance.py",
+    "lineno": 201,
+    "signature": "(model: Any, feature_names: Optional[Sequence[str]]=None, top_n: Optional[int]=30)",
+    "returns": "List[FeatureImportanceItem]",
+    "doc": "LightGBM / XGBoost モデルから Feature Importance を取り出し、"
+  },
+  {
+    "kind": "function",
+    "name": "_get_engine",
+    "qualname": "_get_engine",
+    "file": "app/services/filter_service.py",
+    "lineno": 15,
+    "signature": "()",
+    "returns": "StrategyFilterEngine",
+    "doc": "StrategyFilterEngine のシングルトンを返す。"
+  },
+  {
+    "kind": "function",
+    "name": "evaluate_entry",
+    "qualname": "evaluate_entry",
+    "file": "app/services/filter_service.py",
+    "lineno": 27,
+    "signature": "(entry_context: EntryContext)",
+    "returns": "Tuple[bool, List[str]]",
+    "doc": "Strategy / Execution から呼び出すための窓口。"
+  },
+  {
+    "kind": "function",
+    "name": "extract_profile_switch",
+    "qualname": "extract_profile_switch",
+    "file": "app/services/filter_service.py",
+    "lineno": 60,
+    "signature": "(reasons: Iterable[str])",
+    "returns": "Optional[Tuple[str, str]]",
+    "doc": "filter_engine の reasons から 'profile_switch:std->aggr' 形式を拾って"
+  },
+  {
+    "kind": "class",
+    "name": "KpiMonthlyRecord",
+    "qualname": "KpiMonthlyRecord",
+    "file": "app/services/kpi_service.py",
+    "lineno": 19,
+    "signature": "",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "class",
+    "name": "KpiDashboard",
+    "qualname": "KpiDashboard",
+    "file": "app/services/kpi_service.py",
+    "lineno": 28,
+    "signature": "",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "class",
+    "name": "KPIService",
+    "qualname": "KPIService",
+    "file": "app/services/kpi_service.py",
+    "lineno": 37,
+    "signature": "",
+    "returns": "",
+    "doc": "バックテスト結果を元に KPI ダッシュボード用のデータを作るサービス."
+  },
+  {
+    "kind": "method",
+    "name": "__init__",
+    "qualname": "KPIService.__init__",
+    "file": "app/services/kpi_service.py",
+    "lineno": 40,
+    "signature": "(self, backtest_root: Optional[Path]=None, base_dir: Optional[Path]=None)",
+    "returns": "None",
+    "doc": "backtest_root:"
+  },
+  {
+    "kind": "method",
+    "name": "load_backtest_kpi_summary",
+    "qualname": "KPIService.load_backtest_kpi_summary",
+    "file": "app/services/kpi_service.py",
+    "lineno": 66,
+    "signature": "(self, profile: str)",
+    "returns": "Dict[str, Any]",
+    "doc": "バックテストKPIサマリを読み込む（仕様書 v5.1 準拠）。"
+  },
+  {
+    "kind": "method",
+    "name": "compute_monthly_dashboard",
+    "qualname": "KPIService.compute_monthly_dashboard",
+    "file": "app/services/kpi_service.py",
+    "lineno": 152,
+    "signature": "(self, profile: str)",
+    "returns": "KpiDashboard",
+    "doc": "月次ダッシュボードデータを計算する（仕様書 v5.1 準拠）。"
+  },
+  {
+    "kind": "method",
+    "name": "compute_target_progress",
+    "qualname": "KPIService.compute_target_progress",
+    "file": "app/services/kpi_service.py",
+    "lineno": 229,
+    "signature": "(self, return_pct: float, target: float=TARGET_MONTHLY_RETURN)",
+    "returns": "float",
+    "doc": "月3%に対する進捗率（0.0〜2.0=0〜200%）を返す。"
+  },
+  {
+    "kind": "method",
+    "name": "compute_trade_stats",
+    "qualname": "KPIService.compute_trade_stats",
+    "file": "app/services/kpi_service.py",
+    "lineno": 272,
+    "signature": "(self, profile: str)",
+    "returns": "dict",
+    "doc": "バックテスト or 実運用のトレード結果から"
+  },
+  {
+    "kind": "method",
+    "name": "_load_monthly_returns",
+    "qualname": "KPIService._load_monthly_returns",
+    "file": "app/services/kpi_service.py",
+    "lineno": 360,
+    "signature": "(self, profile: str)",
+    "returns": "pd.DataFrame",
+    "doc": "BacktestRun が出力した monthly_returns.csv を読み込む。"
+  },
+  {
+    "kind": "method",
+    "name": "load_monthly_returns",
+    "qualname": "KPIService.load_monthly_returns",
+    "file": "app/services/kpi_service.py",
+    "lineno": 413,
+    "signature": "(self, profile: str)",
+    "returns": "pd.DataFrame",
+    "doc": "指定プロファイルの monthly_returns.csv を読み込んで返す。"
+  },
+  {
+    "kind": "method",
+    "name": "refresh_monthly_returns",
+    "qualname": "KPIService.refresh_monthly_returns",
+    "file": "app/services/kpi_service.py",
+    "lineno": 421,
+    "signature": "(self, profile: str)",
+    "returns": "pd.DataFrame",
+    "doc": "BacktestRun が monthly_returns.csv を更新した後に呼び出す前提。"
+  },
+  {
+    "kind": "class",
+    "name": "LossStreakState",
+    "qualname": "LossStreakState",
+    "file": "app/services/loss_streak_service.py",
+    "lineno": 10,
+    "signature": "",
+    "returns": "",
+    "doc": "プロファイル×シンボルごとの連敗状態"
+  },
+  {
+    "kind": "function",
+    "name": "get_consecutive_losses",
+    "qualname": "get_consecutive_losses",
+    "file": "app/services/loss_streak_service.py",
+    "lineno": 20,
+    "signature": "(profile: str, symbol: str)",
+    "returns": "int",
+    "doc": "現在の連敗数を返す。"
+  },
+  {
+    "kind": "function",
+    "name": "update_on_trade_result",
+    "qualname": "update_on_trade_result",
+    "file": "app/services/loss_streak_service.py",
+    "lineno": 30,
+    "signature": "(profile: str, symbol: str, pl: float)",
+    "returns": "int",
+    "doc": "取引結果を反映して連敗数を更新する。"
+  },
+  {
+    "kind": "function",
+    "name": "publish_metrics",
+    "qualname": "publish_metrics",
+    "file": "app/services/metrics.py",
+    "lineno": 9,
+    "signature": "(kv: Dict[str, Any])",
+    "returns": "None",
+    "doc": "Dashboardが読むランタイム指標を KVS と JSON(atomic write) に出力する。"
+  },
+  {
+    "kind": "function",
+    "name": "_default_config",
+    "qualname": "_default_config",
+    "file": "app/services/mt5_account_store.py",
+    "lineno": 18,
+    "signature": "()",
+    "returns": "Dict[str, Any]",
+    "doc": "設定ファイルが存在しない場合の初期値。"
+  },
+  {
+    "kind": "function",
+    "name": "load_config",
+    "qualname": "load_config",
+    "file": "app/services/mt5_account_store.py",
+    "lineno": 26,
+    "signature": "()",
+    "returns": "Dict[str, Any]",
+    "doc": "JSON 設定ファイルを読み込んで dict を返す。"
+  },
+  {
+    "kind": "function",
+    "name": "save_config",
+    "qualname": "save_config",
+    "file": "app/services/mt5_account_store.py",
+    "lineno": 47,
+    "signature": "(cfg: Dict[str, Any])",
+    "returns": "None",
+    "doc": "設定ファイルを保存する。"
+  },
+  {
+    "kind": "function",
+    "name": "get_profile",
+    "qualname": "get_profile",
+    "file": "app/services/mt5_account_store.py",
+    "lineno": 58,
+    "signature": "(name: str)",
+    "returns": "Optional[Dict[str, Any]]",
+    "doc": "プロファイル名から設定を取得する。存在しなければ None。"
+  },
+  {
+    "kind": "function",
+    "name": "upsert_profile",
+    "qualname": "upsert_profile",
+    "file": "app/services/mt5_account_store.py",
+    "lineno": 70,
+    "signature": "(name: str, *, login: int, password: str, server: str)",
+    "returns": "None",
+    "doc": "プロファイルを追加または更新する。"
+  },
+  {
+    "kind": "function",
+    "name": "set_active_profile",
+    "qualname": "set_active_profile",
+    "file": "app/services/mt5_account_store.py",
+    "lineno": 86,
+    "signature": "(name: str, *, apply_env: bool=True)",
+    "returns": "None",
+    "doc": "アクティブプロファイルを変更する。"
+  },
+  {
+    "kind": "function",
+    "name": "get_active_profile_name",
+    "qualname": "get_active_profile_name",
+    "file": "app/services/mt5_account_store.py",
+    "lineno": 108,
+    "signature": "()",
+    "returns": "str",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_get_attr",
+    "qualname": "_get_attr",
+    "file": "app/services/mt5_selftest.py",
+    "lineno": 15,
+    "signature": "(obj: Any, name: str, default: Any='(n/a)')",
+    "returns": "Any",
+    "doc": "dict / MT5 の AccountInfo のどちらでも安全に属性を取り出すヘルパー。"
+  },
+  {
+    "kind": "function",
+    "name": "run_mt5_selftest",
+    "qualname": "run_mt5_selftest",
+    "file": "app/services/mt5_selftest.py",
+    "lineno": 28,
+    "signature": "()",
+    "returns": "Tuple[bool, str]",
+    "doc": "MT5 自己診断を実行して、(成功フラグ, ログ文字列) を返す。"
+  },
+  {
+    "kind": "function",
+    "name": "run_mt5_orderflow_selftest",
+    "qualname": "run_mt5_orderflow_selftest",
+    "file": "app/services/mt5_selftest.py",
+    "lineno": 144,
+    "signature": "()",
+    "returns": "Tuple[bool, str]",
+    "doc": "scripts/selftest_order_flow.py をサブプロセスとして実行し、"
+  },
+  {
+    "kind": "class",
+    "name": "BrokerConstraints",
+    "qualname": "BrokerConstraints",
+    "file": "app/services/mt5_service.py",
+    "lineno": 10,
+    "signature": "",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_symbol_props",
+    "qualname": "_symbol_props",
+    "file": "app/services/mt5_service.py",
+    "lineno": 22,
+    "signature": "(symbol: str)",
+    "returns": "BrokerConstraints",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_round_to_point",
+    "qualname": "_round_to_point",
+    "file": "app/services/mt5_service.py",
+    "lineno": 40,
+    "signature": "(price: float, point: float)",
+    "returns": "float",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_sl_min_distance_ok",
+    "qualname": "_sl_min_distance_ok",
+    "file": "app/services/mt5_service.py",
+    "lineno": 44,
+    "signature": "(side: str, price_now: float, sl_price: float, min_points: int, point: float)",
+    "returns": "bool",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_freeze_level_ok",
+    "qualname": "_freeze_level_ok",
+    "file": "app/services/mt5_service.py",
+    "lineno": 52,
+    "signature": "(side: str, price_now: float, sl_price: float, freeze_points: int, point: float)",
+    "returns": "bool",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_snap_sl_to_rules",
+    "qualname": "_snap_sl_to_rules",
+    "file": "app/services/mt5_service.py",
+    "lineno": 57,
+    "signature": "(side: str, price_now: float, desired_sl: float, bc: BrokerConstraints)",
+    "returns": "Optional[float]",
+    "doc": "望ましいSLを、StopLevel/FreezeLevel/丸めに収まるよう調整。"
+  },
+  {
+    "kind": "function",
+    "name": "_price_for_side",
+    "qualname": "_price_for_side",
+    "file": "app/services/mt5_service.py",
+    "lineno": 89,
+    "signature": "(tick: Dict[str, float], side: str)",
+    "returns": "float",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_position_of",
+    "qualname": "_position_of",
+    "file": "app/services/mt5_service.py",
+    "lineno": 96,
+    "signature": "(ticket: int)",
+    "returns": "Any",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_current_tick",
+    "qualname": "_current_tick",
+    "file": "app/services/mt5_service.py",
+    "lineno": 103,
+    "signature": "(symbol: str)",
+    "returns": "Dict[str, float]",
+    "doc": ""
+  },
+  {
+    "kind": "class",
+    "name": "MT5Service",
+    "qualname": "MT5Service",
+    "file": "app/services/mt5_service.py",
+    "lineno": 109,
+    "signature": "",
+    "returns": "",
+    "doc": "本線：安全なSL更新（OrderModify）"
+  },
+  {
+    "kind": "method",
+    "name": "__init__",
+    "qualname": "MT5Service.__init__",
+    "file": "app/services/mt5_service.py",
+    "lineno": 113,
+    "signature": "(self, max_retries: int=3, backoff_sec: float=0.3, min_change_points: int=2)",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "safe_order_modify_sl",
+    "qualname": "MT5Service.safe_order_modify_sl",
+    "file": "app/services/mt5_service.py",
+    "lineno": 118,
+    "signature": "(self, ticket: int, side: str, symbol: str, desired_sl: float, reason: str='')",
+    "returns": "Tuple[bool, Optional[float], str]",
+    "doc": "返り値: (成功/失敗, 実際に送ったSL, 詳細メッセージ)"
+  },
+  {
+    "kind": "class",
+    "name": "MockPosition",
+    "qualname": "MockPosition",
+    "file": "app/services/orderbook_stub.py",
+    "lineno": 12,
+    "signature": "",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "class",
+    "name": "OrderBook",
+    "qualname": "OrderBook",
+    "file": "app/services/orderbook_stub.py",
+    "lineno": 26,
+    "signature": "",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "__init__",
+    "qualname": "OrderBook.__init__",
+    "file": "app/services/orderbook_stub.py",
+    "lineno": 27,
+    "signature": "(self)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "count_open",
+    "qualname": "OrderBook.count_open",
+    "file": "app/services/orderbook_stub.py",
+    "lineno": 31,
+    "signature": "(self, symbol: Optional[str]=None)",
+    "returns": "int",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "open",
+    "qualname": "OrderBook.open",
+    "file": "app/services/orderbook_stub.py",
+    "lineno": 34,
+    "signature": "(self, symbol: str, side: str, lot: float, entry: float, sl: float, tp: float)",
+    "returns": "MockPosition",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_close",
+    "qualname": "OrderBook._close",
+    "file": "app/services/orderbook_stub.py",
+    "lineno": 46,
+    "signature": "(self, p: MockPosition, price: float, reason: str)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "update_with_market_and_close_if_hit",
+    "qualname": "OrderBook.update_with_market_and_close_if_hit",
+    "file": "app/services/orderbook_stub.py",
+    "lineno": 63,
+    "signature": "(self, symbol: str)",
+    "returns": "None",
+    "doc": "現在の価格で SL/TP 到達、またはTIMEOUTでクローズ。"
+  },
+  {
+    "kind": "method",
+    "name": "close_all",
+    "qualname": "OrderBook.close_all",
+    "file": "app/services/orderbook_stub.py",
+    "lineno": 85,
+    "signature": "(self, symbol: Optional[str]=None)",
+    "returns": "None",
+    "doc": "現在値で全クローズ（ドライラン）。"
+  },
+  {
+    "kind": "function",
+    "name": "orderbook",
+    "qualname": "orderbook",
+    "file": "app/services/orderbook_stub.py",
+    "lineno": 103,
+    "signature": "()",
+    "returns": "OrderBook",
+    "doc": ""
+  },
+  {
+    "kind": "class",
+    "name": "ProfileStat",
+    "qualname": "ProfileStat",
+    "file": "app/services/profile_stats_service.py",
+    "lineno": 13,
+    "signature": "",
+    "returns": "",
+    "doc": "プロファイルごとの簡易統計（v1）"
+  },
+  {
+    "kind": "method",
+    "name": "to_dict",
+    "qualname": "ProfileStat.to_dict",
+    "file": "app/services/profile_stats_service.py",
+    "lineno": 26,
+    "signature": "(self)",
+    "returns": "Dict[str, Any]",
+    "doc": ""
+  },
+  {
+    "kind": "class",
+    "name": "ProfileStatsConfig",
+    "qualname": "ProfileStatsConfig",
+    "file": "app/services/profile_stats_service.py",
+    "lineno": 39,
+    "signature": "",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "stats_dir",
+    "qualname": "ProfileStatsConfig.stats_dir",
+    "file": "app/services/profile_stats_service.py",
+    "lineno": 43,
+    "signature": "(self)",
+    "returns": "Path",
+    "doc": ""
+  },
+  {
+    "kind": "class",
+    "name": "ProfileStatsService",
+    "qualname": "ProfileStatsService",
+    "file": "app/services/profile_stats_service.py",
+    "lineno": 47,
+    "signature": "",
+    "returns": "",
+    "doc": "バックテスト結果からプロファイル統計を読み込むサービス。"
+  },
+  {
+    "kind": "method",
+    "name": "__init__",
+    "qualname": "ProfileStatsService.__init__",
+    "file": "app/services/profile_stats_service.py",
+    "lineno": 63,
+    "signature": "(self, base_dir: Optional[Path]=None)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_backtest_csv_path",
+    "qualname": "ProfileStatsService._backtest_csv_path",
+    "file": "app/services/profile_stats_service.py",
+    "lineno": 76,
+    "signature": "(self, profile: str)",
+    "returns": "Path",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_load_latest_row",
+    "qualname": "ProfileStatsService._load_latest_row",
+    "file": "app/services/profile_stats_service.py",
+    "lineno": 79,
+    "signature": "(self, profile: str)",
+    "returns": "Optional[ProfileStat]",
+    "doc": "指定プロファイルの monthly_returns.csv から"
+  },
+  {
+    "kind": "method",
+    "name": "get_profile_stats",
+    "qualname": "ProfileStatsService.get_profile_stats",
+    "file": "app/services/profile_stats_service.py",
+    "lineno": 123,
+    "signature": "(self, profiles: Optional[List[str]]=None)",
+    "returns": "Dict[str, Dict[str, Any]]",
+    "doc": "プロファイル名のリストを受け取り、"
+  },
+  {
+    "kind": "method",
+    "name": "_path",
+    "qualname": "ProfileStatsService._path",
+    "file": "app/services/profile_stats_service.py",
+    "lineno": 152,
+    "signature": "(self, symbol: str)",
+    "returns": "Path",
+    "doc": "symbol: 'USDJPY-' を前提"
+  },
+  {
+    "kind": "method",
+    "name": "load",
+    "qualname": "ProfileStatsService.load",
+    "file": "app/services/profile_stats_service.py",
+    "lineno": 158,
+    "signature": "(self, symbol: str)",
+    "returns": "dict[str, Any]",
+    "doc": "プロファイル統計を読み込む"
+  },
+  {
+    "kind": "method",
+    "name": "save",
+    "qualname": "ProfileStatsService.save",
+    "file": "app/services/profile_stats_service.py",
+    "lineno": 171,
+    "signature": "(self, symbol: str, stats: dict[str, Any])",
+    "returns": "None",
+    "doc": "プロファイル統計を保存する"
+  },
+  {
+    "kind": "method",
+    "name": "update_from_trade",
+    "qualname": "ProfileStatsService.update_from_trade",
+    "file": "app/services/profile_stats_service.py",
+    "lineno": 178,
+    "signature": "(self, symbol: str, profile_name: str, pnl: float)",
+    "returns": "dict[str, Any]",
+    "doc": "決済トレード1件から profile_stats を更新する。"
+  },
+  {
+    "kind": "method",
+    "name": "set_current_profile",
+    "qualname": "ProfileStatsService.set_current_profile",
+    "file": "app/services/profile_stats_service.py",
+    "lineno": 226,
+    "signature": "(self, symbol: str, profile_name: str)",
+    "returns": "dict[str, Any]",
+    "doc": "現在選択されているプロファイル名を更新する。"
+  },
+  {
+    "kind": "method",
+    "name": "get_summary_for_filter",
+    "qualname": "ProfileStatsService.get_summary_for_filter",
+    "file": "app/services/profile_stats_service.py",
+    "lineno": 241,
+    "signature": "(self, symbol: str)",
+    "returns": "dict[str, Any]",
+    "doc": "フィルタエンジンに渡す軽量サマリを返す。"
+  },
+  {
+    "kind": "function",
+    "name": "get_profile_stats_service",
+    "qualname": "get_profile_stats_service",
+    "file": "app/services/profile_stats_service.py",
+    "lineno": 264,
+    "signature": "()",
+    "returns": "ProfileStatsService",
+    "doc": ""
+  },
+  {
+    "kind": "class",
+    "name": "RecentKpiResult",
+    "qualname": "RecentKpiResult",
+    "file": "app/services/recent_kpi.py",
+    "lineno": 25,
+    "signature": "",
+    "returns": "",
+    "doc": "直近 N トレードの簡易 KPI 集計結果。"
+  },
+  {
+    "kind": "function",
+    "name": "_extract_pnl_series",
+    "qualname": "_extract_pnl_series",
+    "file": "app/services/recent_kpi.py",
+    "lineno": 50,
+    "signature": "(trades: Union['DataFrame', Sequence[Mapping[str, Number]]], profit_field: str)",
+    "returns": "Sequence[float]",
+    "doc": "汎用的に「pnl の列」を取り出すヘルパー。"
+  },
+  {
+    "kind": "function",
+    "name": "compute_kpi_from_trades",
+    "qualname": "compute_kpi_from_trades",
+    "file": "app/services/recent_kpi.py",
+    "lineno": 74,
+    "signature": "(trades: Union['DataFrame', Sequence[Mapping[str, Number]]], *, profit_field: str='pnl', starting_equity: Optional[float]=None)",
+    "returns": "RecentKpiResult",
+    "doc": "直近 N トレードの KPI を計算するメイン関数。"
+  },
+  {
+    "kind": "class",
+    "name": "KPIService",
+    "qualname": "KPIService",
+    "file": "app/services/recent_kpi.py",
+    "lineno": 209,
+    "signature": "",
+    "returns": "",
+    "doc": "月次KPI（今月の損益％、最大月次DD、月次リターン系列）を一括で返すサービス。"
+  },
+  {
+    "kind": "method",
+    "name": "__init__",
+    "qualname": "KPIService.__init__",
+    "file": "app/services/recent_kpi.py",
+    "lineno": 215,
+    "signature": "(self, root: str | Path=None)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_find_latest_monthly_returns",
+    "qualname": "KPIService._find_latest_monthly_returns",
+    "file": "app/services/recent_kpi.py",
+    "lineno": 218,
+    "signature": "(self, profile: str)",
+    "returns": "Path | None",
+    "doc": "backtests/{profile}/**/monthly_returns.csv を探索し、最新の1つを返す。"
+  },
+  {
+    "kind": "method",
+    "name": "_load_monthly_returns",
+    "qualname": "KPIService._load_monthly_returns",
+    "file": "app/services/recent_kpi.py",
+    "lineno": 228,
+    "signature": "(self, path: Path)",
+    "returns": "pd.DataFrame",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_load_runtime_metrics",
+    "qualname": "KPIService._load_runtime_metrics",
+    "file": "app/services/recent_kpi.py",
+    "lineno": 233,
+    "signature": "(self)",
+    "returns": "dict",
+    "doc": "runtime/metrics.json を読み、今月の実運用損益を加算する。"
+  },
+  {
+    "kind": "method",
+    "name": "get_kpi",
+    "qualname": "KPIService.get_kpi",
+    "file": "app/services/recent_kpi.py",
+    "lineno": 246,
+    "signature": "(self, profile: str='default')",
+    "returns": "dict",
+    "doc": "GUI側が使うメインAPI"
+  },
+  {
+    "kind": "function",
+    "name": "compute_recent_kpi_from_decisions",
+    "qualname": "compute_recent_kpi_from_decisions",
+    "file": "app/services/recent_kpi.py",
+    "lineno": 319,
+    "signature": "(limit: Optional[int]=None, *, profit_field: str='pnl', starting_equity: Optional[float]=None)",
+    "returns": "RecentKpiResult",
+    "doc": "Read logs/decisions/decisions_*.jsonl, filter trades with numeric pnl, and compute recent KPI."
+  },
+  {
+    "kind": "function",
+    "name": "_edition_rank",
+    "qualname": "_edition_rank",
+    "file": "app/services/scheduler_guard.py",
+    "lineno": 27,
+    "signature": "(name: Optional[str])",
+    "returns": "int",
+    "doc": "Edition 名を「強さ順」の整数に変換する。"
+  },
+  {
+    "kind": "function",
+    "name": "filter_jobs_for_current_edition",
+    "qualname": "filter_jobs_for_current_edition",
+    "file": "app/services/scheduler_guard.py",
+    "lineno": 38,
+    "signature": "(jobs: Iterable[Dict[str, Any]])",
+    "returns": "List[Dict[str, Any]]",
+    "doc": "EditionGuard の設定に基づき、現在のエディションで実行可能な"
+  },
+  {
+    "kind": "class",
+    "name": "ShapFeatureImpact",
+    "qualname": "ShapFeatureImpact",
+    "file": "app/services/shap_service.py",
+    "lineno": 15,
+    "signature": "",
+    "returns": "",
+    "doc": "1つの特徴量に対するSHAP影響度情報"
+  },
+  {
+    "kind": "function",
+    "name": "_normalize_background_frame",
+    "qualname": "_normalize_background_frame",
+    "file": "app/services/shap_service.py",
+    "lineno": 23,
+    "signature": "(X: pd.DataFrame, max_background: int=2000, feature_names: Optional[Sequence[str]]=None)",
+    "returns": "pd.DataFrame",
+    "doc": "背景サンプル用に DataFrame を整理するヘルパ。"
+  },
+  {
+    "kind": "function",
+    "name": "compute_shap_feature_importance",
+    "qualname": "compute_shap_feature_importance",
+    "file": "app/services/shap_service.py",
+    "lineno": 58,
+    "signature": "(model, X: pd.DataFrame, *, feature_names: Optional[Sequence[str]]=None, top_n: int=20, max_background: int=2000)",
+    "returns": "List[ShapFeatureImpact]",
+    "doc": "LightGBM などツリーモデルに対して SHAP (TreeExplainer) を使って"
+  },
+  {
+    "kind": "function",
+    "name": "shap_items_to_frame",
+    "qualname": "shap_items_to_frame",
+    "file": "app/services/shap_service.py",
+    "lineno": 134,
+    "signature": "(items: List[ShapFeatureImpact])",
+    "returns": "pd.DataFrame",
+    "doc": "ShapFeatureImpact のリストを pandas.DataFrame に変換するヘルパ。"
+  },
+  {
+    "kind": "class",
+    "name": "LotRule",
+    "qualname": "LotRule",
+    "file": "app/services/trade_service.py",
+    "lineno": 28,
+    "signature": "",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "round_to_step",
+    "qualname": "round_to_step",
+    "file": "app/services/trade_service.py",
+    "lineno": 35,
+    "signature": "(x: float, step: float)",
+    "returns": "float",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "calc_lot",
+    "qualname": "calc_lot",
+    "file": "app/services/trade_service.py",
+    "lineno": 39,
+    "signature": "(equity: float, rule: LotRule=LotRule())",
+    "returns": "float",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "snapshot_account",
+    "qualname": "snapshot_account",
+    "file": "app/services/trade_service.py",
+    "lineno": 45,
+    "signature": "()",
+    "returns": "Optional[dict]",
+    "doc": ""
+  },
+  {
+    "kind": "class",
+    "name": "TradeService",
+    "qualname": "TradeService",
+    "file": "app/services/trade_service.py",
+    "lineno": 54,
+    "signature": "",
+    "returns": "",
+    "doc": "Facade that coordinates guards, circuit breaker, and decision helpers."
+  },
+  {
+    "kind": "method",
+    "name": "__init__",
+    "qualname": "TradeService.__init__",
+    "file": "app/services/trade_service.py",
+    "lineno": 57,
+    "signature": "(self, mt5_client: MT5Client | None=None, profile: StrategyProfile | None=None)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_get_lot_scaler",
+    "qualname": "TradeService._get_lot_scaler",
+    "file": "app/services/trade_service.py",
+    "lineno": 85,
+    "signature": "(self)",
+    "returns": "float",
+    "doc": "バックテスト（月次リターン / 最大DD）から計算したロット補正係数を返す。"
+  },
+  {
+    "kind": "method",
+    "name": "_compute_lot_for_entry",
+    "qualname": "TradeService._compute_lot_for_entry",
+    "file": "app/services/trade_service.py",
+    "lineno": 141,
+    "signature": "(self, symbol: str, atr: float)",
+    "returns": "LotSizingResult",
+    "doc": "1トレードあたりのロット数を、現在の equity / ATR / tick 情報から計算する。"
+  },
+  {
+    "kind": "method",
+    "name": "reload",
+    "qualname": "TradeService.reload",
+    "file": "app/services/trade_service.py",
+    "lineno": 241,
+    "signature": "(self)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_periodic_reconcile",
+    "qualname": "TradeService._periodic_reconcile",
+    "file": "app/services/trade_service.py",
+    "lineno": 260,
+    "signature": "(self, symbol: str)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "can_open",
+    "qualname": "TradeService.can_open",
+    "file": "app/services/trade_service.py",
+    "lineno": 269,
+    "signature": "(self, symbol: Optional[str])",
+    "returns": "bool",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "decide_entry_from_probs",
+    "qualname": "TradeService.decide_entry_from_probs",
+    "file": "app/services/trade_service.py",
+    "lineno": 274,
+    "signature": "(self, p_buy: float, p_sell: float)",
+    "returns": "Dict",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "decide_entry",
+    "qualname": "TradeService.decide_entry",
+    "file": "app/services/trade_service.py",
+    "lineno": 306,
+    "signature": "(self, p_buy: float, p_sell: float)",
+    "returns": "Optional[str]",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "can_trade",
+    "qualname": "TradeService.can_trade",
+    "file": "app/services/trade_service.py",
+    "lineno": 310,
+    "signature": "(self)",
+    "returns": "bool",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "open_position",
+    "qualname": "TradeService.open_position",
+    "file": "app/services/trade_service.py",
+    "lineno": 314,
+    "signature": "(self, symbol: str, side: str, lot: float | None=None, atr: float | None=None, sl: float | None=None, tp: float | None=None, comment: str='', features: Dict[str, Any] | None=None)",
+    "returns": "None",
+    "doc": "MT5 への発注。ATR を元に lot 計算を優先し、なければ ATR なしのフォールバック lot で送信。"
+  },
+  {
+    "kind": "method",
+    "name": "mark_order_inflight",
+    "qualname": "TradeService.mark_order_inflight",
+    "file": "app/services/trade_service.py",
+    "lineno": 399,
+    "signature": "(self, order_id: str)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "on_order_result",
+    "qualname": "TradeService.on_order_result",
+    "file": "app/services/trade_service.py",
+    "lineno": 402,
+    "signature": "(self, *, order_id: str, ok: bool, symbol: str)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "on_order_success",
+    "qualname": "TradeService.on_order_success",
+    "file": "app/services/trade_service.py",
+    "lineno": 407,
+    "signature": "(self, *, ticket: Optional[int], side: str, symbol: str, price: Optional[float]=None)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "on_broker_sync",
+    "qualname": "TradeService.on_broker_sync",
+    "file": "app/services/trade_service.py",
+    "lineno": 415,
+    "signature": "(self, symbol: Optional[str], fix: bool=True)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "record_trade_result",
+    "qualname": "TradeService.record_trade_result",
+    "file": "app/services/trade_service.py",
+    "lineno": 418,
+    "signature": "(self, *, symbol: str, side: str, profit_jpy: float, info: Optional[dict[str, Any]]=None)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "execute_decision",
+    "qualname": "execute_decision",
+    "file": "app/services/trade_service.py",
+    "lineno": 466,
+    "signature": "(decision: Dict[str, Any], *, symbol: Optional[str]=None, service: Optional[TradeService]=None)",
+    "returns": "None",
+    "doc": "Live 用のヘルパ:"
+  },
+  {
+    "kind": "function",
+    "name": "can_open_new_position",
+    "qualname": "can_open_new_position",
+    "file": "app/services/trade_service.py",
+    "lineno": 546,
+    "signature": "(symbol: Optional[str]=None)",
+    "returns": "bool",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "decide_entry",
+    "qualname": "decide_entry",
+    "file": "app/services/trade_service.py",
+    "lineno": 554,
+    "signature": "(p_buy: float, p_sell: float)",
+    "returns": "Optional[str]",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "decide_entry_from_probs",
+    "qualname": "decide_entry_from_probs",
+    "file": "app/services/trade_service.py",
+    "lineno": 558,
+    "signature": "(p_buy: float, p_sell: float)",
+    "returns": "dict",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "get_account_summary",
+    "qualname": "get_account_summary",
+    "file": "app/services/trade_service.py",
+    "lineno": 562,
+    "signature": "()",
+    "returns": "dict[str, Any] | None",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "build_exit_plan",
+    "qualname": "build_exit_plan",
+    "file": "app/services/trade_service.py",
+    "lineno": 566,
+    "signature": "(symbol: str, ohlc_tail: Optional[Iterable[dict[str, Any]]])",
+    "returns": "dict[str, Any]",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "mark_filled_now",
+    "qualname": "mark_filled_now",
+    "file": "app/services/trade_service.py",
+    "lineno": 627,
+    "signature": "()",
+    "returns": "None",
+    "doc": "Record the timestamp of the latest successful fill."
+  },
+  {
+    "kind": "function",
+    "name": "post_fill_grace_active",
+    "qualname": "post_fill_grace_active",
+    "file": "app/services/trade_service.py",
+    "lineno": 633,
+    "signature": "()",
+    "returns": "bool",
+    "doc": "Return True when the post-fill grace window is active."
+  },
+  {
+    "kind": "function",
+    "name": "mark_order_inflight",
+    "qualname": "mark_order_inflight",
+    "file": "app/services/trade_service.py",
+    "lineno": 647,
+    "signature": "(order_id: str)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "on_order_result",
+    "qualname": "on_order_result",
+    "file": "app/services/trade_service.py",
+    "lineno": 651,
+    "signature": "(order_id: str, ok: bool, symbol: str)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "reconcile_positions",
+    "qualname": "reconcile_positions",
+    "file": "app/services/trade_service.py",
+    "lineno": 655,
+    "signature": "(symbol: Optional[str]=None, desync_fix: bool=True)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "on_order_success",
+    "qualname": "on_order_success",
+    "file": "app/services/trade_service.py",
+    "lineno": 659,
+    "signature": "(ticket: Optional[int], side: str, symbol: str, price: Optional[float]=None)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "record_trade_result",
+    "qualname": "record_trade_result",
+    "file": "app/services/trade_service.py",
+    "lineno": 663,
+    "signature": "(*, symbol: str, side: str, profit_jpy: float, info: Optional[dict[str, Any]]=None)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "circuit_breaker_can_trade",
+    "qualname": "circuit_breaker_can_trade",
+    "file": "app/services/trade_service.py",
+    "lineno": 673,
+    "signature": "()",
+    "returns": "bool",
+    "doc": ""
+  },
+  {
+    "kind": "class",
+    "name": "TradeSettings",
+    "qualname": "TradeSettings",
+    "file": "app/services/trade_state.py",
+    "lineno": 5,
+    "signature": "",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "class",
+    "name": "TradeRuntime",
+    "qualname": "TradeRuntime",
+    "file": "app/services/trade_state.py",
+    "lineno": 20,
+    "signature": "",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "get_runtime",
+    "qualname": "get_runtime",
+    "file": "app/services/trade_state.py",
+    "lineno": 29,
+    "signature": "()",
+    "returns": "TradeRuntime",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "update_runtime",
+    "qualname": "update_runtime",
+    "file": "app/services/trade_state.py",
+    "lineno": 33,
+    "signature": "(**kwargs: Any)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "get_settings",
+    "qualname": "get_settings",
+    "file": "app/services/trade_state.py",
+    "lineno": 38,
+    "signature": "()",
+    "returns": "TradeSettings",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "update",
+    "qualname": "update",
+    "file": "app/services/trade_state.py",
+    "lineno": 41,
+    "signature": "(**kwargs: Any)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "as_dict",
+    "qualname": "as_dict",
+    "file": "app/services/trade_state.py",
+    "lineno": 46,
+    "signature": "()",
+    "returns": "dict[str, Any]",
+    "doc": ""
+  },
+  {
+    "kind": "class",
+    "name": "TrailConfig",
+    "qualname": "TrailConfig",
+    "file": "app/services/trailing.py",
+    "lineno": 8,
+    "signature": "",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "class",
+    "name": "TrailState",
+    "qualname": "TrailState",
+    "file": "app/services/trailing.py",
+    "lineno": 21,
+    "signature": "",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_round_to_point",
+    "qualname": "_round_to_point",
+    "file": "app/services/trailing.py",
+    "lineno": 30,
+    "signature": "(price: float, point: float)",
+    "returns": "float",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_pips",
+    "qualname": "_pips",
+    "file": "app/services/trailing.py",
+    "lineno": 35,
+    "signature": "(price_diff: float, pip_size: float)",
+    "returns": "float",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_price_from_pips",
+    "qualname": "_price_from_pips",
+    "file": "app/services/trailing.py",
+    "lineno": 39,
+    "signature": "(pips: float, pip_size: float)",
+    "returns": "float",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_profit_side",
+    "qualname": "_profit_side",
+    "file": "app/services/trailing.py",
+    "lineno": 43,
+    "signature": "(side: str, entry: float, price: float)",
+    "returns": "float",
+    "doc": ""
+  },
+  {
+    "kind": "class",
+    "name": "AtrTrailer",
+    "qualname": "AtrTrailer",
+    "file": "app/services/trailing.py",
+    "lineno": 47,
+    "signature": "",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "__init__",
+    "qualname": "AtrTrailer.__init__",
+    "file": "app/services/trailing.py",
+    "lineno": 48,
+    "signature": "(self, cfg: TrailConfig, state: TrailState)",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "activation_threshold",
+    "qualname": "AtrTrailer.activation_threshold",
+    "file": "app/services/trailing.py",
+    "lineno": 52,
+    "signature": "(self)",
+    "returns": "float",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "step_size",
+    "qualname": "AtrTrailer.step_size",
+    "file": "app/services/trailing.py",
+    "lineno": 55,
+    "signature": "(self)",
+    "returns": "float",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "be_threshold",
+    "qualname": "AtrTrailer.be_threshold",
+    "file": "app/services/trailing.py",
+    "lineno": 58,
+    "signature": "(self)",
+    "returns": "float",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "suggest_sl",
+    "qualname": "AtrTrailer.suggest_sl",
+    "file": "app/services/trailing.py",
+    "lineno": 61,
+    "signature": "(self, current_price: float)",
+    "returns": "Optional[float]",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_hard_floor_sl",
+    "qualname": "AtrTrailer._hard_floor_sl",
+    "file": "app/services/trailing.py",
+    "lineno": 100,
+    "signature": "(self)",
+    "returns": "float",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_breakeven_sl",
+    "qualname": "AtrTrailer._breakeven_sl",
+    "file": "app/services/trailing.py",
+    "lineno": 108,
+    "signature": "(self)",
+    "returns": "float",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_layer_sl",
+    "qualname": "AtrTrailer._layer_sl",
+    "file": "app/services/trailing.py",
+    "lineno": 111,
+    "signature": "(self, move_layers: int, current_price: float)",
+    "returns": "float",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_ensure_profit_side",
+    "qualname": "AtrTrailer._ensure_profit_side",
+    "file": "app/services/trailing.py",
+    "lineno": 120,
+    "signature": "(self, sl: float)",
+    "returns": "float",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_apply_if_better",
+    "qualname": "AtrTrailer._apply_if_better",
+    "file": "app/services/trailing.py",
+    "lineno": 133,
+    "signature": "(self, new_sl: float)",
+    "returns": "Optional[float]",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "apply_trailing_update",
+    "qualname": "apply_trailing_update",
+    "file": "app/services/trailing_hook.py",
+    "lineno": 22,
+    "signature": "(*, ticket: Optional[int], side: str, symbol: str, new_sl: float, reason: str='trail')",
+    "returns": "bool",
+    "doc": "Apply trailing-stop loss updates (dry-run logs or live MT5 OrderModify)."
+  },
+  {
+    "kind": "function",
+    "name": "_load_model_generic",
+    "qualname": "_load_model_generic",
+    "file": "app/strategies/ai_strategy.py",
+    "lineno": 15,
+    "signature": "(path_str: str)",
+    "returns": "",
+    "doc": "1) joblib.load()"
+  },
+  {
+    "kind": "function",
+    "name": "load_active_model",
+    "qualname": "load_active_model",
+    "file": "app/strategies/ai_strategy.py",
+    "lineno": 86,
+    "signature": "()",
+    "returns": "Tuple[str, str, float, Dict[str, Any]]",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_rsi",
+    "qualname": "_rsi",
+    "file": "app/strategies/ai_strategy.py",
+    "lineno": 115,
+    "signature": "(x: pd.Series, period: int=14)",
+    "returns": "pd.Series",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_ema",
+    "qualname": "_ema",
+    "file": "app/strategies/ai_strategy.py",
+    "lineno": 122,
+    "signature": "(x: pd.Series, span: int)",
+    "returns": "pd.Series",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_bbands",
+    "qualname": "_bbands",
+    "file": "app/strategies/ai_strategy.py",
+    "lineno": 125,
+    "signature": "(x: pd.Series, window: int=20, n_sigma: float=2.0)",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_stoch",
+    "qualname": "_stoch",
+    "file": "app/strategies/ai_strategy.py",
+    "lineno": 132,
+    "signature": "(high: pd.Series, low: pd.Series, close: pd.Series, k_win: int=14, d_win: int=3)",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "build_features_recipe",
+    "qualname": "build_features_recipe",
+    "file": "app/strategies/ai_strategy.py",
+    "lineno": 139,
+    "signature": "(df: pd.DataFrame, name: str)",
+    "returns": "pd.DataFrame",
+    "doc": "内蔵レシピで特徴量を作成。time列は残します。"
+  },
+  {
+    "kind": "function",
+    "name": "build_features",
+    "qualname": "build_features",
+    "file": "app/strategies/ai_strategy.py",
+    "lineno": 181,
+    "signature": "(df: pd.DataFrame, params: Dict[str, Any])",
+    "returns": "pd.DataFrame",
+    "doc": "外部モデル・内蔵双方で使う特徴量ビルドの統一入口"
+  },
+  {
+    "kind": "function",
+    "name": "_load_scaler_if_any",
+    "qualname": "_load_scaler_if_any",
+    "file": "app/strategies/ai_strategy.py",
+    "lineno": 190,
+    "signature": "(params: Dict[str, Any])",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_ensure_feature_order",
+    "qualname": "_ensure_feature_order",
+    "file": "app/strategies/ai_strategy.py",
+    "lineno": 251,
+    "signature": "(feat_df: pd.DataFrame, params: Dict[str, Any])",
+    "returns": "pd.DataFrame",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_sigmoid",
+    "qualname": "_sigmoid",
+    "file": "app/strategies/ai_strategy.py",
+    "lineno": 264,
+    "signature": "(x)",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_predict_proba_generic",
+    "qualname": "_predict_proba_generic",
+    "file": "app/strategies/ai_strategy.py",
+    "lineno": 267,
+    "signature": "(model, X: np.ndarray)",
+    "returns": "np.ndarray",
+    "doc": "LightGBM / XGBoost / Sklearn いずれでも陽性確率を返す汎用ハンドラー"
+  },
+  {
+    "kind": "function",
+    "name": "predict_signals",
+    "qualname": "predict_signals",
+    "file": "app/strategies/ai_strategy.py",
+    "lineno": 320,
+    "signature": "(kind: str, payload, df_feat: pd.DataFrame, threshold: float=0.0, params=None)",
+    "returns": "pd.Series",
+    "doc": "- builtin_sma: fast/slow のクロスで +1/-1 を返す"
+  },
+  {
+    "kind": "function",
+    "name": "trades_from_signals",
+    "qualname": "trades_from_signals",
+    "file": "app/strategies/ai_strategy.py",
+    "lineno": 403,
+    "signature": "(df_feat: pd.DataFrame, initial_capital: float, params=None)",
+    "returns": "pd.DataFrame",
+    "doc": "signal列（+1/-1/0）に基づいて IN/OUT/反転。"
+  },
+  {
+    "kind": "function",
+    "name": "_load_active_meta",
+    "qualname": "_load_active_meta",
+    "file": "tools/backtest_equity_curve.py",
+    "lineno": 14,
+    "signature": "()",
+    "returns": "dict[str, Any]",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_load_dataset",
+    "qualname": "_load_dataset",
+    "file": "tools/backtest_equity_curve.py",
+    "lineno": 21,
+    "signature": "(csv_path: str)",
+    "returns": "pd.DataFrame",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_ensure_feature_order",
+    "qualname": "_ensure_feature_order",
+    "file": "tools/backtest_equity_curve.py",
+    "lineno": 30,
+    "signature": "(df: pd.DataFrame, model: Any)",
+    "returns": "tuple[pd.DataFrame, list[str]]",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "run_backtest",
+    "qualname": "run_backtest",
+    "file": "tools/backtest_equity_curve.py",
+    "lineno": 44,
+    "signature": "(csv_path: str, out_csv: str, init_equity: float=100000.0, show: bool=True)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "iter_with_progress",
+    "qualname": "iter_with_progress",
+    "file": "tools/backtest_run.py",
+    "lineno": 32,
+    "signature": "(df: pd.DataFrame, step: int=5, use_iterrows: bool=False)",
+    "returns": "",
+    "doc": "バックテスト用の行イテレータ。"
+  },
+  {
+    "kind": "function",
+    "name": "_print_progress",
+    "qualname": "_print_progress",
+    "file": "tools/backtest_run.py",
+    "lineno": 68,
+    "signature": "(pct: int)",
+    "returns": "None",
+    "doc": "バックテスト進捗を [bt_progress] 形式で出力するヘルパー"
+  },
+  {
+    "kind": "function",
+    "name": "_month_dd",
+    "qualname": "_month_dd",
+    "file": "tools/backtest_run.py",
+    "lineno": 74,
+    "signature": "(equity: pd.Series)",
+    "returns": "float",
+    "doc": "月内最大ドローダウンを計算する（v5.1 仕様）"
+  },
+  {
+    "kind": "function",
+    "name": "compute_monthly_returns",
+    "qualname": "compute_monthly_returns",
+    "file": "tools/backtest_run.py",
+    "lineno": 82,
+    "signature": "(equity_csv_path: str | Path, out_path: str | Path)",
+    "returns": "Path",
+    "doc": "equity.csv から v5.1 仕様の monthly_returns.csv を作成する。"
+  },
+  {
+    "kind": "class",
+    "name": "Trade",
+    "qualname": "Trade",
+    "file": "tools/backtest_run.py",
+    "lineno": 207,
+    "signature": "",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "equity_from_bnh",
+    "qualname": "equity_from_bnh",
+    "file": "tools/backtest_run.py",
+    "lineno": 216,
+    "signature": "(df: pd.DataFrame, capital: float)",
+    "returns": "pd.Series",
+    "doc": "Buy&Hold（現物1倍）相当の指数エクイティ。close/close0でスケール。"
+  },
+  {
+    "kind": "function",
+    "name": "trades_from_signal_series",
+    "qualname": "trades_from_signal_series",
+    "file": "tools/backtest_run.py",
+    "lineno": 225,
+    "signature": "(df: pd.DataFrame, sig: pd.Series, lot: float=0.1, contract_size: int=100000)",
+    "returns": "list[Trade]",
+    "doc": "signal（1/-1/0）からフリップ方式でトレード列を作る。"
+  },
+  {
+    "kind": "function",
+    "name": "equity_from_trades",
+    "qualname": "equity_from_trades",
+    "file": "tools/backtest_run.py",
+    "lineno": 278,
+    "signature": "(df: pd.DataFrame, trades: list[Trade], capital: float)",
+    "returns": "pd.Series",
+    "doc": "トレード配列からエクイティ曲線を作る（逐次加算）。"
+  },
+  {
+    "kind": "function",
+    "name": "equity_from_trade_df",
+    "qualname": "equity_from_trade_df",
+    "file": "tools/backtest_run.py",
+    "lineno": 301,
+    "signature": "(df_ohlcv: pd.DataFrame, trades_df: pd.DataFrame, capital: float)",
+    "returns": "pd.Series",
+    "doc": "trades_df 形式（DataFrame）から全バーに展開したエクイティ曲線を作る。"
+  },
+  {
+    "kind": "function",
+    "name": "to_equity",
+    "qualname": "to_equity",
+    "file": "tools/backtest_run.py",
+    "lineno": 350,
+    "signature": "(close: pd.Series, capital: float=100000.0)",
+    "returns": "pd.DataFrame",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_max_consecutive",
+    "qualname": "_max_consecutive",
+    "file": "tools/backtest_run.py",
+    "lineno": 357,
+    "signature": "(x: pd.Series, val: int)",
+    "returns": "int",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_dd_duration_max",
+    "qualname": "_dd_duration_max",
+    "file": "tools/backtest_run.py",
+    "lineno": 370,
+    "signature": "(eq: pd.Series)",
+    "returns": "int",
+    "doc": "ドローダウン期間の最大日数を算出。時系列がintならスキップする。"
+  },
+  {
+    "kind": "function",
+    "name": "metrics_from_equity",
+    "qualname": "metrics_from_equity",
+    "file": "tools/backtest_run.py",
+    "lineno": 388,
+    "signature": "(eq: pd.Series)",
+    "returns": "dict",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "monthly_returns_from_equity",
+    "qualname": "monthly_returns_from_equity",
+    "file": "tools/backtest_run.py",
+    "lineno": 406,
+    "signature": "(eq_df: pd.DataFrame, trades_df: pd.DataFrame | None=None)",
+    "returns": "pd.DataFrame",
+    "doc": "エクイティ曲線（eq_df）とトレード一覧（trades_df）から、"
+  },
+  {
+    "kind": "function",
+    "name": "trades_from_buyhold",
+    "qualname": "trades_from_buyhold",
+    "file": "tools/backtest_run.py",
+    "lineno": 526,
+    "signature": "(df: pd.DataFrame, capital: float)",
+    "returns": "pd.DataFrame",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "trade_metrics",
+    "qualname": "trade_metrics",
+    "file": "tools/backtest_run.py",
+    "lineno": 561,
+    "signature": "(trades: pd.DataFrame)",
+    "returns": "dict",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "slice_period",
+    "qualname": "slice_period",
+    "file": "tools/backtest_run.py",
+    "lineno": 602,
+    "signature": "(df: pd.DataFrame, start: str | None=None, end: str | None=None)",
+    "returns": "pd.DataFrame",
+    "doc": "指定期間で DataFrame をスライスする。"
+  },
+  {
+    "kind": "function",
+    "name": "run_backtest",
+    "qualname": "run_backtest",
+    "file": "tools/backtest_run.py",
+    "lineno": 621,
+    "signature": "(data_csv: Path, start: str | None, end: str | None, capital: float, out_dir: Path, profile: str='michibiki_std', symbol: str='USDJPY')",
+    "returns": "Path",
+    "doc": "v5.1 準拠のバックテストを実行する"
+  },
+  {
+    "kind": "function",
+    "name": "run_wfo",
+    "qualname": "run_wfo",
+    "file": "tools/backtest_run.py",
+    "lineno": 779,
+    "signature": "(data_csv: Path, start: str | None, end: str | None, capital: float, out_dir: Path, train_ratio: float=0.7)",
+    "returns": "Path",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_normalize_dates_from_args",
+    "qualname": "_normalize_dates_from_args",
+    "file": "tools/backtest_run.py",
+    "lineno": 886,
+    "signature": "(args: argparse.Namespace, parser: argparse.ArgumentParser)",
+    "returns": "tuple[str | None, str | None]",
+    "doc": "--start-date / --end-date を優先しつつ、"
+  },
+  {
+    "kind": "function",
+    "name": "_build_period_tag",
+    "qualname": "_build_period_tag",
+    "file": "tools/backtest_run.py",
+    "lineno": 918,
+    "signature": "(start: str | None, end: str | None)",
+    "returns": "str",
+    "doc": "ログ用の期間タグを生成する。"
+  },
+  {
+    "kind": "function",
+    "name": "_mirror_latest_run",
+    "qualname": "_mirror_latest_run",
+    "file": "tools/backtest_run.py",
+    "lineno": 932,
+    "signature": "(period_dir: Path, base_dir: Path)",
+    "returns": "None",
+    "doc": "期間付きフォルダに出力されたファイルのうち、"
+  },
+  {
+    "kind": "function",
+    "name": "main",
+    "qualname": "main",
+    "file": "tools/backtest_run.py",
+    "lineno": 968,
+    "signature": "()",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_load_latest_report",
+    "qualname": "_load_latest_report",
+    "file": "tools/dump_feature_importance.py",
+    "lineno": 12,
+    "signature": "()",
+    "returns": "Tuple[str | None, dict[str, Any] | None]",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_load_features_from_report",
+    "qualname": "_load_features_from_report",
+    "file": "tools/dump_feature_importance.py",
+    "lineno": 22,
+    "signature": "(j: dict[str, Any])",
+    "returns": "list[str]",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_load_model",
+    "qualname": "_load_model",
+    "file": "tools/dump_feature_importance.py",
+    "lineno": 27,
+    "signature": "(pkl_path: str)",
+    "returns": "Any",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_write_feat_csv",
+    "qualname": "_write_feat_csv",
+    "file": "tools/dump_feature_importance.py",
+    "lineno": 31,
+    "signature": "(model: Any, feat_cols: list[str], out_csv: str)",
+    "returns": "str",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "main",
+    "qualname": "main",
+    "file": "tools/dump_feature_importance.py",
+    "lineno": 78,
+    "signature": "()",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "class",
+    "name": "Item",
+    "qualname": "Item",
+    "file": "tools/gen_api_catalog.py",
+    "lineno": 17,
+    "signature": "",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_is_excluded",
+    "qualname": "_is_excluded",
+    "file": "tools/gen_api_catalog.py",
+    "lineno": 27,
+    "signature": "(path: Path)",
+    "returns": "bool",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_ann_to_str",
+    "qualname": "_ann_to_str",
+    "file": "tools/gen_api_catalog.py",
+    "lineno": 31,
+    "signature": "(node: ast.AST | None)",
+    "returns": "str",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_arg_to_str",
+    "qualname": "_arg_to_str",
+    "file": "tools/gen_api_catalog.py",
+    "lineno": 39,
+    "signature": "(a: ast.arg, default: ast.AST | None)",
+    "returns": "str",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_build_signature",
+    "qualname": "_build_signature",
+    "file": "tools/gen_api_catalog.py",
+    "lineno": 51,
+    "signature": "(fn: ast.FunctionDef | ast.AsyncFunctionDef)",
+    "returns": "tuple[str, str]",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_doc_firstline",
+    "qualname": "_doc_firstline",
+    "file": "tools/gen_api_catalog.py",
+    "lineno": 97,
+    "signature": "(node: ast.AST)",
+    "returns": "str",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "scan_file",
+    "qualname": "scan_file",
+    "file": "tools/gen_api_catalog.py",
+    "lineno": 102,
+    "signature": "(py: Path)",
+    "returns": "list[Item]",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "iter_py_files",
+    "qualname": "iter_py_files",
+    "file": "tools/gen_api_catalog.py",
+    "lineno": 158,
+    "signature": "()",
+    "returns": "list[Path]",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "write_outputs",
+    "qualname": "write_outputs",
+    "file": "tools/gen_api_catalog.py",
+    "lineno": 170,
+    "signature": "(items: list[Item])",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "main",
+    "qualname": "main",
+    "file": "tools/gen_api_catalog.py",
+    "lineno": 204,
+    "signature": "()",
+    "returns": "int",
+    "doc": ""
+  },
+  {
+    "kind": "class",
+    "name": "Entry",
+    "qualname": "Entry",
+    "file": "tools/gen_public_api.py",
+    "lineno": 55,
+    "signature": "",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "load_catalog",
+    "qualname": "load_catalog",
+    "file": "tools/gen_public_api.py",
+    "lineno": 61,
+    "signature": "()",
+    "returns": "list[dict[str, Any]]",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "read_list",
+    "qualname": "read_list",
+    "file": "tools/gen_public_api.py",
+    "lineno": 66,
+    "signature": "(path: Path)",
+    "returns": "set[str]",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "norm_path",
+    "qualname": "norm_path",
+    "file": "tools/gen_public_api.py",
+    "lineno": 77,
+    "signature": "(p: str)",
+    "returns": "str",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "class_name_from_qualname",
+    "qualname": "class_name_from_qualname",
+    "file": "tools/gen_public_api.py",
+    "lineno": 80,
+    "signature": "(qualname: str)",
+    "returns": "str",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "is_public_name",
+    "qualname": "is_public_name",
+    "file": "tools/gen_public_api.py",
+    "lineno": 84,
+    "signature": "(name: str)",
+    "returns": "bool",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "key_variants",
+    "qualname": "key_variants",
+    "file": "tools/gen_public_api.py",
+    "lineno": 87,
+    "signature": "(item: dict[str, Any])",
+    "returns": "set[str]",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "fmt_signature",
+    "qualname": "fmt_signature",
+    "file": "tools/gen_public_api.py",
+    "lineno": 108,
+    "signature": "(item: dict[str, Any])",
+    "returns": "str",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "build_entry",
+    "qualname": "build_entry",
+    "file": "tools/gen_public_api.py",
+    "lineno": 114,
+    "signature": "(item: dict[str, Any])",
+    "returns": "Entry",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "section_name",
+    "qualname": "section_name",
+    "file": "tools/gen_public_api.py",
+    "lineno": 132,
+    "signature": "(item: dict[str, Any])",
+    "returns": "str",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "group_key",
+    "qualname": "group_key",
+    "file": "tools/gen_public_api.py",
+    "lineno": 140,
+    "signature": "(item: dict[str, Any])",
+    "returns": "str",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "is_selected_by_project_policy",
+    "qualname": "is_selected_by_project_policy",
+    "file": "tools/gen_public_api.py",
+    "lineno": 144,
+    "signature": "(item: dict[str, Any])",
+    "returns": "bool",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "write_md",
+    "qualname": "write_md",
+    "file": "tools/gen_public_api.py",
+    "lineno": 168,
+    "signature": "(by_section: dict[str, dict[str, list[Entry]]], allow: set[str], block: set[str])",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "main",
+    "qualname": "main",
+    "file": "tools/gen_public_api.py",
+    "lineno": 210,
+    "signature": "()",
+    "returns": "int",
+    "doc": ""
+  },
+  {
+    "kind": "class",
+    "name": "WFOReportSummary",
+    "qualname": "WFOReportSummary",
+    "file": "tools/list_wfo_reports.py",
+    "lineno": 26,
+    "signature": "",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "from_json",
+    "qualname": "WFOReportSummary.from_json",
+    "file": "tools/list_wfo_reports.py",
+    "lineno": 39,
+    "signature": "(cls, path: Path, data: dict[str, Any])",
+    "returns": "WFOReportSummary",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "get_project_root",
+    "qualname": "get_project_root",
+    "file": "tools/list_wfo_reports.py",
+    "lineno": 80,
+    "signature": "()",
+    "returns": "Path",
+    "doc": "fxbot_path があればそれを使い、なければカレントから推測。"
+  },
+  {
+    "kind": "function",
+    "name": "find_wfo_reports",
+    "qualname": "find_wfo_reports",
+    "file": "tools/list_wfo_reports.py",
+    "lineno": 88,
+    "signature": "(root: Path | None=None)",
+    "returns": "list[WFOReportSummary]",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "print_table",
+    "qualname": "print_table",
+    "file": "tools/list_wfo_reports.py",
+    "lineno": 110,
+    "signature": "(reports: list[WFOReportSummary])",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "main",
+    "qualname": "main",
+    "file": "tools/list_wfo_reports.py",
+    "lineno": 149,
+    "signature": "()",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "class",
+    "name": "SwitchRecord",
+    "qualname": "SwitchRecord",
+    "file": "tools/profile_switch_analyzer.py",
+    "lineno": 11,
+    "signature": "",
+    "returns": "",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_iter_decisions",
+    "qualname": "_iter_decisions",
+    "file": "tools/profile_switch_analyzer.py",
+    "lineno": 19,
+    "signature": "(path: Path)",
+    "returns": "Iterable[dict]",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_extract_reasons",
+    "qualname": "_extract_reasons",
+    "file": "tools/profile_switch_analyzer.py",
+    "lineno": 34,
+    "signature": "(rec: dict)",
+    "returns": "list[str]",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_parse_switch_reason",
+    "qualname": "_parse_switch_reason",
+    "file": "tools/profile_switch_analyzer.py",
+    "lineno": 52,
+    "signature": "(reason: str)",
+    "returns": "tuple[str, str] | None",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "analyze_switches",
+    "qualname": "analyze_switches",
+    "file": "tools/profile_switch_analyzer.py",
+    "lineno": 63,
+    "signature": "(symbol: str, limit: int=20)",
+    "returns": "list[SwitchRecord]",
+    "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "main",
+    "qualname": "main",
+    "file": "tools/profile_switch_analyzer.py",
+    "lineno": 89,
+    "signature": "()",
+    "returns": "None",
+    "doc": ""
+  }
+]
