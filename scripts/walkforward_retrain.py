@@ -27,6 +27,18 @@ MODELS_DIR.mkdir(parents=True, exist_ok=True)
 LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
 
+# ✅ active_model.json を壊さないための原子更新
+def _write_json_atomic(path: Path, obj: dict) -> None:
+    """JSONファイルを原子的に書き込む（途中で壊れたJSONが残らないようにする）"""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    # ASCIIに寄せてエンコーディング事故を避ける
+    payload = json.dumps(obj, ensure_ascii=True, indent=2)
+    tmp.write_text(payload, encoding="utf-8")
+    # Windowsでも同一ボリュームなら原子的に置換される
+    tmp.replace(path)
+
+
 def resolve_data_root(cli_data_dir: str | None) -> Path:
     """
     データのルート候補を複数試して、最初に存在したディレクトリを採用する。
@@ -571,9 +583,9 @@ def main():
                 "best_threshold": thr,
                 "updated_at": jst_now_str(),
             }
-            (MODELS_DIR / "active_model.json").write_text(
-                json.dumps(active, ensure_ascii=False, indent=2), encoding="utf-8"
-            )
+            # ✅ features も入れて強化（後方互換: 既存キーは維持）
+            active["features"] = list(X.columns)
+            _write_json_atomic(MODELS_DIR / "active_model.json", active)
             safe_log(
                 f"[WFO] active_model.json updated (best_threshold={thr:.3f})"
             )
@@ -711,9 +723,9 @@ def main():
             "best_threshold": best_thr,
             "updated_at": jst_now_str(),
         }
-        (MODELS_DIR / "active_model.json").write_text(
-            json.dumps(active, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
+        # ✅ features も入れて強化（後方互換: 既存キーは維持）
+        active["features"] = list(X.columns)
+        _write_json_atomic(MODELS_DIR / "active_model.json", active)
         safe_log(
             f"[WFO] active_model.json updated (best_threshold={best_thr:.3f})"
         )

@@ -210,7 +210,25 @@ class AISvc:
                 )
                 return
 
-        # 2) fallback: active_model.json を直接読む
+        # 2) active_model.json 自体に feature_order/features があれば最優先で採用
+        active_features = None
+        try:
+            active_path = Path("models") / "active_model.json"
+            if active_path.is_file():
+                active = json.loads(active_path.read_text(encoding="utf-8"))
+                if isinstance(active, dict):
+                    active_features = active.get("feature_order") or active.get("features")
+        except Exception as exc:
+            logger.warning(f"[AISvc] failed to read active_model.json for expected_features: {exc}")
+
+        if active_features and isinstance(active_features, (list, tuple)) and active_features:
+            self.expected_features = list(active_features)
+            logger.info(
+                f"[AISvc] expected_features loaded from active_model.json ({len(self.expected_features)} cols)"
+            )
+            return
+
+        # 3) fallback: active_model.json → meta_file → feature_order or features
         try:
             meta = _load_active_meta()
         except Exception as exc:
@@ -221,7 +239,7 @@ class AISvc:
         if isinstance(seq, (list, tuple)) and seq:
             self.expected_features = list(seq)
             logger.info(
-                f"[AISvc] expected_features loaded from active_model.json ({len(self.expected_features)} cols)"
+                f"[AISvc] expected_features loaded from meta_file ({len(self.expected_features)} cols)"
             )
 
     # ここから追加 ------------------------------------------------------------
@@ -502,13 +520,13 @@ class AISvc:
         )
         df = pd.read_csv(csv_path)
 
+        # ✅ SHAP入力も予測と同じ正規化を通す（missingで落ちない）
         if self.expected_features:
-            missing = set(self.expected_features) - set(df.columns)
-            if missing:
-                raise ValueError(
-                    "SHAP背景特徴量に expected_features の列が足りません: "
-                    f"{sorted(missing)}"
-                )
+            # expected_features に基づいて列を補完（不足分は 0.0）
+            for feat_name in self.expected_features:
+                if feat_name not in df.columns:
+                    df[feat_name] = 0.0
+            # expected_features の順序に合わせて列を並び替え
             df = df.loc[:, list(self.expected_features)]
 
         if len(df) > max_rows:
