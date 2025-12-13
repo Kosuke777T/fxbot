@@ -10,11 +10,14 @@ param(
   [int]$CloseNow = 1,
 
   # リトライ/監視
-  [int]$RetrySec = 300,     # 市場待ち時の再判定間隔
+  [int]$RetrySec = 300,     # 市場待ち時の再判定間隔（未使用、error.code で決定）
   [int]$WatchSec = 10,      # 本体プロセス監視間隔
 
   # 1回だけ判定して終了（CI/動作確認用）
   [switch]$Once,
+
+  # ループ実行（デフォルト: 1回のみ）
+  [switch]$Loop,
 
   # 本体起動（デフォルト：GUI本体）
   [string]$PythonExe = "python",
@@ -33,13 +36,65 @@ New-Item -ItemType Directory -Force -Path $logsDir | Out-Null
 $today = Get-Date -Format "yyyyMMdd"
 $logFile = Join-Path $logsDir ("ops_boot_{0}.jsonl" -f $today)
 
+# ---- ログ関数（Mutex ブロックより前に定義）
+function NowIso() {
+  return (Get-Date).ToString("yyyy-MM-ddTHH:mm:ss.fffK")
+}
+
 function Write-JsonlLine([hashtable]$obj) {
   $json = ($obj | ConvertTo-Json -Compress -Depth 10)
   Add-Content -Path $logFile -Value $json -Encoding UTF8
 }
 
-function NowIso() {
-  return (Get-Date).ToString("yyyy-MM-ddTHH:mm:ss.fffK")
+# ---- 二重起動防止（Mutex）
+$mutexName = "Global\fxbot_ops_boot_$Symbol"
+$mutex = $null
+try {
+  $mutex = New-Object System.Threading.Mutex($false, $mutexName)
+  if (-not $mutex.WaitOne(0)) {
+    # 既に起動中（ログは1回だけ）
+    $logObj = @{
+      ts = NowIso
+      type = "ops_boot"
+      symbol = $Symbol
+      event = "already_running"
+      mutex_name = $mutexName
+    }
+    if (-not (Get-Command Write-JsonlLine -ErrorAction SilentlyContinue)) {
+      $line = ($logObj | ConvertTo-Json -Compress -Depth 10)
+      Add-Content -Path $logFile -Value $line -Encoding UTF8
+    } else {
+      Write-JsonlLine $logObj
+    }
+    # exit 前に Mutex を解放
+    try {
+      $mutex.ReleaseMutex()
+      $mutex.Dispose()
+    } catch {}
+    exit 0
+  }
+} catch {
+  $logObj = @{
+    ts = NowIso
+    type = "ops_boot"
+    symbol = $Symbol
+    event = "mutex_error"
+    error = $_.Exception.Message
+  }
+  if (-not (Get-Command Write-JsonlLine -ErrorAction SilentlyContinue)) {
+    $line = ($logObj | ConvertTo-Json -Compress -Depth 10)
+    Add-Content -Path $logFile -Value $line -Encoding UTF8
+  } else {
+    Write-JsonlLine $logObj
+  }
+  # exit 前に Mutex を解放（取得できた場合）
+  if ($mutex) {
+    try {
+      $mutex.ReleaseMutex()
+      $mutex.Dispose()
+    } catch {}
+  }
+  exit 30
 }
 
 # Ctrl+C でもログに残す
@@ -64,9 +119,14 @@ Write-JsonlLine @{
   retry_sec = $RetrySec
   watch_sec = $WatchSec
   once = [bool]$Once
+  loop = [bool]$Loop
 }
 
-while ($true) {
+$retryCount = 0
+$maxRetries = if ($Loop) { [int]::MaxValue } else { 1 }
+
+while ($retryCount -lt $maxRetries) {
+  $retryCount++
 
   # ---- 判定：ops_start
   $opsStart = Join-Path $PSScriptRoot "ops_start.ps1"
@@ -82,17 +142,74 @@ while ($true) {
   }
 
   # ここは「既存ops_startのparamに合わせて調整可能」
-  $out = & $opsStart -Symbol $Symbol -Dry $Dry -CloseNow $CloseNow 2>$null
-  $rc = $LASTEXITCODE
+  # Start-Process で stdout/stderr をファイルへ保存
+  $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+  $stdoutFile = Join-Path $logsDir ("ops_start_{0}_{1}_stdout.log" -f $Symbol, $timestamp)
+  $stderrFile = Join-Path $logsDir ("ops_start_{0}_{1}_stderr.log" -f $Symbol, $timestamp)
 
-  $parsed = $null
+  # PowerShell 7 (pwsh) のパスを取得
   try {
-    if ($out) {
-      $text = if ($out -is [System.Array]) { ($out -join "") } else { [string]$out }
-      $parsed = $text | ConvertFrom-Json -ErrorAction Stop
+    $pwsh = (Get-Command pwsh -ErrorAction Stop).Source
+  } catch {
+    Write-JsonlLine @{
+      ts = NowIso
+      type = "ops_boot"
+      symbol = $Symbol
+      event = "pwsh_not_found"
+      error = "pwsh command not found"
+    }
+    exit 30
+  }
+
+  Write-JsonlLine @{
+    ts = NowIso
+    type = "ops_boot"
+    symbol = $Symbol
+    event = "start_process"
+    stdout_path = $stdoutFile
+    stderr_path = $stderrFile
+    pwsh_path = $pwsh
+  }
+
+  $proc = Start-Process -FilePath $pwsh `
+    -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $opsStart, "-Symbol", $Symbol, "-Dry", $Dry, "-CloseNow", $CloseNow) `
+    -RedirectStandardOutput $stdoutFile `
+    -RedirectStandardError $stderrFile `
+    -Wait -PassThru -NoNewWindow
+
+  $rc = $proc.ExitCode
+
+  # stdout の最初の1行を JSON としてパース
+  $parsed = $null
+  $stdoutFirstLine = ""
+  $stderrHead = ""
+  try {
+    if (Test-Path $stdoutFile) {
+      $stdoutContent = Get-Content -Path $stdoutFile -Raw -ErrorAction SilentlyContinue
+      if ($stdoutContent) {
+        $lines = $stdoutContent -split "`r?`n"
+        if ($lines.Count -gt 0) {
+          $stdoutFirstLine = $lines[0].Trim()
+          if ($stdoutFirstLine) {
+            $parsed = $stdoutFirstLine | ConvertFrom-Json -ErrorAction Stop
+          }
+        }
+      }
     }
   } catch {
     $parsed = $null
+  }
+
+  # stderr の先頭最大 2000 文字を取得
+  try {
+    if (Test-Path $stderrFile) {
+      $stderrContent = Get-Content -Path $stderrFile -Raw -ErrorAction SilentlyContinue
+      if ($stderrContent) {
+        $stderrHead = $stderrContent.Substring(0, [Math]::Min(2000, $stderrContent.Length))
+      }
+    }
+  } catch {
+    $stderrHead = ""
   }
 
   Write-JsonlLine @{
@@ -101,6 +218,9 @@ while ($true) {
     symbol = $Symbol
     event = "ops_start_result"
     rc = $rc
+    stdout_path = $stdoutFile
+    stderr_path = $stderrFile
+    stderr_head = $stderrHead
     status = if ($parsed) { $parsed.status } else { $null }
     error_code = if ($parsed -and $parsed.smoke -and $parsed.smoke.error) { $parsed.smoke.error.code } else { $null }
     message = if ($parsed -and $parsed.smoke -and $parsed.smoke.error) { $parsed.smoke.error.message } else { $null }
@@ -169,15 +289,34 @@ while ($true) {
 
     10 {
       # 市場待ち：定期再判定
+      # error.code で sleep 秒を決定
+      $sleepSec = 900  # MARKET_CLOSED のデフォルト
+      if ($parsed -and $parsed.smoke -and $parsed.smoke.error) {
+        $errorCode = $parsed.smoke.error.code
+        if ($errorCode -eq "MARKET_CLOSED") {
+          $sleepSec = 900
+        } elseif ($errorCode -eq "TRADE_DISABLED") {
+          $sleepSec = 3600
+        } else {
+          $sleepSec = 60
+        }
+      }
+
       Write-JsonlLine @{
         ts = NowIso
         type = "ops_boot"
         symbol = $Symbol
         event = "market_wait"
-        sleep_sec = $RetrySec
+        sleep_sec = $sleepSec
+        error_code = if ($parsed -and $parsed.smoke -and $parsed.smoke.error) { $parsed.smoke.error.code } else { $null }
       }
-      Start-Sleep -Seconds $RetrySec
-      continue
+
+      if ($Loop) {
+        Start-Sleep -Seconds $sleepSec
+        continue
+      } else {
+        exit $rc
+      }
     }
 
     20 {
@@ -198,8 +337,23 @@ while ($true) {
         symbol = $Symbol
         event = "abnormal"
         rc = $rc
+        error_code = if ($parsed -and $parsed.smoke -and $parsed.smoke.error) { $parsed.smoke.error.code } else { $null }
       }
       exit 30
+    }
+  }
+} finally {
+  # Mutex を解放（早期 exit 時も確実に解放）
+  if ($mutex) {
+    try {
+      $mutex.ReleaseMutex()
+    } catch {
+      # 既に解放済みなどは無視
+    }
+    try {
+      $mutex.Dispose()
+    } catch {
+      # 既に破棄済みなどは無視
     }
   }
 }
