@@ -124,15 +124,17 @@ class OpsService:
                 # 単一プロファイルの場合、-Profiles で配列として渡す（ops_start.ps1 側で Count=1 として処理）
                 arg_list.extend(["-Profiles", profile])
             elif profiles:
-                # 複数プロファイルの場合、-Profiles の後に各要素を個別に渡す
-                arg_list.append("-Profiles")
-                arg_list.extend(profiles)
+                # 複数プロファイルの場合、カンマ区切り文字列として1つの引数として渡す
+                profiles_str = ",".join([p.strip() for p in profiles if p.strip()])
+                arg_list.extend(["-Profiles", profiles_str])
 
-            cmd = f"{pwsh_cmd} {' '.join(arg_list)}"
-            logger.debug("Running ops_start.ps1: %s", cmd)
+            # 実行コマンドラインを構築
+            cmd_list = [pwsh_cmd] + arg_list
+            cmd_str = " ".join(cmd_list)
+            logger.debug(f"Running ops_start.ps1: {cmd_str}")
 
             result = subprocess.run(
-                [pwsh_cmd] + arg_list,
+                cmd_list,
                 cwd=self.project_root,
                 capture_output=True,
                 text=True,

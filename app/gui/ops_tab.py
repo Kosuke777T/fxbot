@@ -77,6 +77,7 @@ class OpsTab(QWidget):
         grp_result = QGroupBox("実行結果（JSON）", self)
         lay_result = QVBoxLayout(grp_result)
         self.tree_result = QTreeWidget(grp_result)
+        self.tree_result.setColumnCount(2)
         self.tree_result.setHeaderLabels(["キー", "値"])
         self.tree_result.setColumnWidth(0, 200)
         lay_result.addWidget(self.tree_result)
@@ -186,12 +187,15 @@ class OpsTab(QWidget):
         # JSON結果をツリー表示
         self.tree_result.clear()
 
-        # ok キーが存在しない = JSON成功（トップレベルに展開されている）
-        if "ok" not in result:
-            # JSON成功時: 結果全体をツリー表示（meta も含む）
-            self._populate_tree(self.tree_result.invisibleRootItem(), result)
-        else:
-            # JSON失敗時: エラー情報を表示
+        # 失敗判定: ok=False かつ error を持つ場合のみ
+        is_failure = (
+            isinstance(result, dict)
+            and result.get("ok") is False
+            and result.get("error") is not None
+        )
+
+        if is_failure:
+            # 失敗時: error中心に表示（必要なら result も）
             if result.get("error"):
                 error_item = QTreeWidgetItem(self.tree_result.invisibleRootItem())
                 error_item.setText(0, "error")
@@ -202,6 +206,10 @@ class OpsTab(QWidget):
                 result_item = QTreeWidgetItem(self.tree_result.invisibleRootItem())
                 result_item.setText(0, "result")
                 self._populate_tree(result_item, result["result"])
+        else:
+            # 成功時（ok=True を含む通常JSON）: result 全体をツリー表示（meta も含む）
+            root = self.tree_result.invisibleRootItem()
+            self._populate_tree(root, result)
 
         self.tree_result.expandAll()
 
