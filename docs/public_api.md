@@ -29,14 +29,14 @@
 ## Services Layer
 
 ### AISvc
-- `AISvc.predict(self, X: np.ndarray | Dict[str, float], *, no_metrics: bool=False) -> 'AISvc.ProbOut'`  (app/services/ai_service.py:L302) — 単一サンプルの特徴量を受け取り、p_buy / p_sell / p_skip を返す。
-- `AISvc.get_feature_importance(self, method: str='gain', top_n: int=20, cache_sec: int=300) -> pd.DataFrame`  (app/services/ai_service.py:L389) — GUI から呼び出して Feature Importance を取得する API。
-- `AISvc.get_shap_top_features(self, *, top_n: int=20, max_background: int=2000, csv_path: Path | None=None, cache_sec: int=300) -> pd.DataFrame`  (app/services/ai_service.py:L519) — LightGBMモデルに対する SHAP グローバル重要度（平均絶対SHAP）を計算し、
-- `AISvc.get_shap_values(self)`  (app/services/ai_service.py:L631) — SHAP 結果を EditionGuard に従って制限して返す。
-- `AISvc.feature_importance(self) -> pd.DataFrame`  (app/services/ai_service.py:L687) — FI を edition に応じて TopN で返す。
-- `AISvc.shap_summary(self) -> Dict[str, Any]`  (app/services/ai_service.py:L741) — SHAP を edition に応じて TopN で返す。
-- `AISvc.get_live_probs(self, symbol: str) -> dict[str, float]`  (app/services/ai_service.py:L813) — Live 用：execution_stub と同じ特徴量パイプラインを使って
-- `AISvc.build_decision_from_probs(self, probs: dict, symbol: str) -> dict`  (app/services/ai_service.py:L920) — Live 用：execution_stub の ENTRY/SKIP 判定を最小限で再現。
+- `AISvc.predict(self, X: np.ndarray | Dict[str, float], *, no_metrics: bool=False) -> 'AISvc.ProbOut'`  (app/services/ai_service.py:L320) — 単一サンプルの特徴量を受け取り、p_buy / p_sell / p_skip を返す。
+- `AISvc.get_feature_importance(self, method: str='gain', top_n: int=20, cache_sec: int=300) -> pd.DataFrame`  (app/services/ai_service.py:L407) — GUI から呼び出して Feature Importance を取得する API。
+- `AISvc.get_shap_top_features(self, *, top_n: int=20, max_background: int=2000, csv_path: Path | None=None, cache_sec: int=300) -> pd.DataFrame`  (app/services/ai_service.py:L537) — LightGBMモデルに対する SHAP グローバル重要度（平均絶対SHAP）を計算し、
+- `AISvc.get_shap_values(self)`  (app/services/ai_service.py:L649) — SHAP 結果を EditionGuard に従って制限して返す。
+- `AISvc.feature_importance(self) -> pd.DataFrame`  (app/services/ai_service.py:L705) — FI を edition に応じて TopN で返す。
+- `AISvc.shap_summary(self) -> Dict[str, Any]`  (app/services/ai_service.py:L759) — SHAP を edition に応じて TopN で返す。
+- `AISvc.get_live_probs(self, symbol: str) -> dict[str, float]`  (app/services/ai_service.py:L831) — Live 用：execution_stub と同じ特徴量パイプラインを使って
+- `AISvc.build_decision_from_probs(self, probs: dict, symbol: str) -> dict`  (app/services/ai_service.py:L938) — Live 用：execution_stub の ENTRY/SKIP 判定を最小限で再現。
 
 ### DiagnosisService
 - `DiagnosisService.analyze(self, profile: str='std', start=None, end=None) -> dict`  (app/services/diagnosis_service.py:L32) — 診断AI v0:
