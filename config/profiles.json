@@ -1,7 +1,9 @@
 {
   "symbol": "USDJPY-",
   "profiles": [
-    "michibiki_std"
+    "michibiki_std",
+    "michibiki_std2",
+    "test"
   ],
-  "updated_at": "2025-12-15T19:10:40.856274"
+  "updated_at": "2025-12-15T19:39:32.648399"
 }

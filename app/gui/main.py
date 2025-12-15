@@ -23,6 +23,7 @@ from app.gui.ai_tab import AITab
 from app.gui.backtest_tab import BacktestTab
 from app.gui.kpi_tab import KPITab
 from app.gui.settings_tab import SettingsTab
+from app.gui.ops_tab import OpsTab
 from app.services.kpi_service import KPIService
 
 
@@ -95,6 +96,7 @@ QTabBar::tab:hover {
             "運用KPI"
         )
         self.tabs.addTab(SettingsTab(), "Settings")
+        self.tabs.addTab(OpsTab(), "Ops")
 
         # QTabWidget をメインウィンドウにセット
         self.setCentralWidget(self.tabs)

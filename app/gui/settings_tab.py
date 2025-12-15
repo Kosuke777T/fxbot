@@ -17,9 +17,11 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QSpacerItem,
     QSizePolicy,
+    QListWidget,
 )
 
 from app.services import mt5_account_store, mt5_selftest
+from app.services.profiles_store import load_profiles, save_profiles
 
 
 class SettingsTab(QWidget):
@@ -35,6 +37,7 @@ class SettingsTab(QWidget):
 
         self._setup_ui()
         self._load_profiles()
+        self._load_strategy_profiles()
 
     # ------------------------------------------------------------------
     # UI 構築
@@ -108,12 +111,37 @@ class SettingsTab(QWidget):
         row_selftest.addWidget(self.btn_selftest)
         row_selftest.addWidget(self.btn_orderflow_test)
 
+        # Profiles 編集（config/profiles.json）
+        grp_profiles = QGroupBox("戦略プロファイル（config/profiles.json）", self)
+        lay_profiles = QVBoxLayout(grp_profiles)
+
+        self.list_profiles = QListWidget(grp_profiles)
+        self.list_profiles.setToolTip("walkforward_retrain で使用するプロファイル一覧")
+
+        btn_profiles_row = QHBoxLayout()
+        self.btn_profile_add = QPushButton("追加", grp_profiles)
+        self.btn_profile_remove = QPushButton("削除", grp_profiles)
+        self.btn_profile_save = QPushButton("保存", grp_profiles)
+
+        self.btn_profile_add.clicked.connect(self._on_profile_add_clicked)
+        self.btn_profile_remove.clicked.connect(self._on_profile_remove_clicked)
+        self.btn_profile_save.clicked.connect(self._on_profile_save_clicked)
+
+        btn_profiles_row.addWidget(self.btn_profile_add)
+        btn_profiles_row.addWidget(self.btn_profile_remove)
+        btn_profiles_row.addWidget(self.btn_profile_save)
+        btn_profiles_row.addStretch()
+
+        lay_profiles.addWidget(self.list_profiles)
+        lay_profiles.addLayout(btn_profiles_row)
+
         # レイアウトに積む
         root.addWidget(grp_profile)
         root.addWidget(grp_auth)
         root.addLayout(btn_row)
         root.addWidget(self.lbl_active)
         root.addLayout(row_selftest)
+        root.addWidget(grp_profiles)
 
         # 余白を下に追加
         root.addItem(QSpacerItem(0, 0, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding))
@@ -350,3 +378,88 @@ class SettingsTab(QWidget):
                 f"  login={acc.get('login')} / server={acc.get('server')}"
             )
         self.lbl_active.setText(txt)
+
+    # ------------------------------------------------------------------
+    # 戦略プロファイル（config/profiles.json）編集
+    # ------------------------------------------------------------------
+    def _load_strategy_profiles(self) -> None:
+        """config/profiles.json からプロファイル一覧を読み込んで表示。"""
+        try:
+            profiles = load_profiles()
+            self.list_profiles.clear()
+            for profile in profiles:
+                self.list_profiles.addItem(profile)
+        except Exception as e:
+            QMessageBox.warning(
+                self,
+                "読み込みエラー",
+                f"プロファイル一覧の読み込みに失敗しました。\n\n{e}",
+            )
+
+    def _on_profile_add_clicked(self) -> None:
+        """プロファイル追加ボタン押下時。"""
+        from PyQt6.QtWidgets import QInputDialog
+
+        text, ok = QInputDialog.getText(
+            self,
+            "プロファイル追加",
+            "プロファイル名を入力してください:",
+        )
+        if ok and text.strip():
+            profile_name = text.strip()
+            # 重複チェック
+            for i in range(self.list_profiles.count()):
+                if self.list_profiles.item(i).text() == profile_name:
+                    QMessageBox.warning(
+                        self,
+                        "追加エラー",
+                        f"プロファイル '{profile_name}' は既に存在します。",
+                    )
+                    return
+            self.list_profiles.addItem(profile_name)
+
+    def _on_profile_remove_clicked(self) -> None:
+        """プロファイル削除ボタン押下時。"""
+        current_item = self.list_profiles.currentItem()
+        if current_item is None:
+            QMessageBox.warning(self, "削除エラー", "削除するプロファイルを選択してください。")
+            return
+
+        profile_name = current_item.text()
+        res = QMessageBox.question(
+            self,
+            "削除確認",
+            f"プロファイル '{profile_name}' を削除しますか？",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if res == QMessageBox.StandardButton.Yes:
+            row = self.list_profiles.row(current_item)
+            self.list_profiles.takeItem(row)
+
+    def _on_profile_save_clicked(self) -> None:
+        """プロファイル保存ボタン押下時。"""
+        profiles = []
+        for i in range(self.list_profiles.count()):
+            item = self.list_profiles.item(i)
+            if item and item.text().strip():
+                profiles.append(item.text().strip())
+
+        if not profiles:
+            QMessageBox.warning(self, "保存エラー", "プロファイルが1つもありません。")
+            return
+
+        try:
+            save_profiles(profiles)
+            QMessageBox.information(
+                self,
+                "保存完了",
+                f"プロファイル一覧を保存しました。\n\n保存内容: {', '.join(profiles)}",
+            )
+            # 再読み込みして反映確認
+            self._load_strategy_profiles()
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "保存エラー",
+                f"プロファイル一覧の保存に失敗しました。\n\n{e}",
+            )
