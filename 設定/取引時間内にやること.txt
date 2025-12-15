@@ -1,5 +1,0 @@
-T-30STEP24
-
-python -X utf8 -m tools.mt5_smoke --symbol USDJPY- --dry 0 --lot 0.01 --close-now 1 2>$null `
-| ConvertFrom-Json `
-| ConvertTo-Json -Depth 10

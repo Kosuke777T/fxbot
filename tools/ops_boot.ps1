@@ -8,6 +8,7 @@ param(
   # ops_start 側に渡す（存在しない引数でもPS側では通るが、ops_startがparamで受けない場合は外してOK）
   [int]$Dry = 0,
   [int]$CloseNow = 1,
+  [string[]]$Profiles = @(),
 
   # リトライ/監視
   [int]$RetrySec = 300,     # 市場待ち時の再判定間隔（未使用、error.code で決定）
@@ -171,8 +172,14 @@ while ($retryCount -lt $maxRetries) {
     pwsh_path = $pwsh
   }
 
+  # 引数リストを構築
+  $argList = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $opsStart, "-Symbol", $Symbol, "-Dry", $Dry, "-CloseNow", $CloseNow)
+  if ($Profiles -and $Profiles.Count -gt 0) {
+    $argList += @("-Profiles") + $Profiles
+  }
+
   $proc = Start-Process -FilePath $pwsh `
-    -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $opsStart, "-Symbol", $Symbol, "-Dry", $Dry, "-CloseNow", $CloseNow) `
+    -ArgumentList $argList `
     -RedirectStandardOutput $stdoutFile `
     -RedirectStandardError $stderrFile `
     -Wait -PassThru -NoNewWindow

@@ -2,8 +2,14 @@
 param(
   [string]$Symbol = "USDJPY-",
   [int]$Dry = 0,
-  [int]$CloseNow = 1
+  [int]$CloseNow = 1,
+  [string[]]$Profiles = @()
 )
+
+# --- UTF-8 出力を強制（日本語ログ文字化け対策） ---
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+# -----------------------------------------------
 
 $ErrorActionPreference = "Stop"
 
@@ -19,7 +25,25 @@ New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 $logFile = Join-Path $logDir ("ops_start_{0}.jsonl" -f (Get-Date -Format "yyyyMMdd"))
 
 # stdout を1行として受け取る（Python側はASCII JSON想定）
-$out = & $py -X utf8 -m tools.ops_start --symbol $Symbol --dry $Dry --close-now $CloseNow
+$cmd = @(
+  $py, "-X", "utf8", "-m", "scripts.walkforward_retrain",
+  "--symbol", $Symbol
+)
+
+if ($Profiles -and $Profiles.Count -gt 0) {
+  $cmd += @("--profiles", ($Profiles -join ","))
+}
+
+# 既存の --dry / --emit-json 等もここに続く
+# --dry は walkforward_retrain.py では --dry-run として扱われる
+if ($Dry -eq 1) {
+  $cmd += @("--dry-run")
+}
+
+# JSON出力を有効化（既存のログ処理と互換性を保つ）
+$cmd += @("--emit-json", "1")
+
+$out = & $cmd[0] @($cmd[1..($cmd.Count-1)])
 $rc = $LASTEXITCODE
 
 # 画面出力（機械判定用にそのまま）
