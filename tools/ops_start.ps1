@@ -51,7 +51,13 @@ $cmd = @(
 )
 
 if ($Profiles -and $Profiles.Count -gt 0) {
-  $cmd += @("--profiles", ($Profiles -join ","))
+  if ($Profiles.Count -le 1) {
+    # 単一プロファイルの場合は --profile を使用
+    $cmd += @("--profile", $Profiles[0])
+  } else {
+    # 複数プロファイルの場合は --profiles を使用
+    $cmd += @("--profiles", ($Profiles -join ","))
+  }
 }
 
 # 既存の --dry / --emit-json 等もここに続く

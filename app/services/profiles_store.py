@@ -7,6 +7,7 @@ cron/GUI/手動実行で同一の設定ソースを参照できるようにす�
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 from datetime import datetime
 from pathlib import Path
@@ -93,25 +94,37 @@ def save_profiles(profiles: List[str], symbol: str = "USDJPY-") -> None:
         "profiles": normalized,
         "updated_at": datetime.now().isoformat(),
     }
+    payload = json.dumps(data, ensure_ascii=False, indent=2)
 
-    with tempfile.NamedTemporaryFile(
-        mode="w",
-        encoding="utf-8",
-        dir=cfg_path.parent,
-        delete=False,
+    # --- create temp file safely on Windows ---
+    fd, tmp_name = tempfile.mkstemp(
+        dir=str(cfg_path.parent),
+        prefix="profiles_",
         suffix=".tmp",
-    ) as f:
-        tmp_path = Path(f.name)
+    )
+    tmp_path = Path(tmp_name)
+
+    try:
+        # fd を使って確実に書き込み→クローズ
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
+            f.write(payload)
+
+        # ここで初めて replace（fdはwithで閉じられている）
+        os.replace(str(tmp_path), str(cfg_path))
+
+        logger.info("saved profiles to %s: %s", cfg_path, normalized)
+    except Exception as e:
+        # 失敗時は一時ファイルを削除
         try:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-            f.flush()
-            # Windows でも atomic に置換
-            tmp_path.replace(cfg_path)
-            logger.info("saved profiles to %s: %s", cfg_path, normalized)
-        except Exception as e:
-            # 失敗時は一時ファイルを削除
-            try:
+            if tmp_path.exists():
                 tmp_path.unlink()
-            except Exception:
-                pass
-            raise Exception(f"failed to save profiles to {cfg_path}: {e}") from e
+        except Exception:
+            pass
+        raise Exception(f"failed to save profiles to {cfg_path}: {e}") from e
+    finally:
+        # replace 成功時は tmp_path はもう無いが、念のため
+        try:
+            if tmp_path.exists():
+                tmp_path.unlink()
+        except Exception:
+            pass
