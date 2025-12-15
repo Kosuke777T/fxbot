@@ -162,6 +162,21 @@ while ($retryCount -lt $maxRetries) {
     exit 30
   }
 
+  # Profiles が未指定 or 空の場合、config/profiles.json から補完
+  if (-not $Profiles -or $Profiles.Count -eq 0) {
+    $configPath = Join-Path $root "config\profiles.json"
+    if (Test-Path $configPath) {
+      try {
+        $configData = Get-Content -Path $configPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        if ($configData.profiles -and $configData.profiles.Count -gt 0) {
+          $Profiles = @($configData.profiles | ForEach-Object { [string]$_ })
+        }
+      } catch {
+        # 読み込み失敗時は無視（ops_start側でデフォルトにフォールバック）
+      }
+    }
+  }
+
   Write-JsonlLine @{
     ts = NowIso
     type = "ops_boot"
@@ -170,6 +185,7 @@ while ($retryCount -lt $maxRetries) {
     stdout_path = $stdoutFile
     stderr_path = $stderrFile
     pwsh_path = $pwsh
+    profiles = if ($Profiles) { $Profiles } else { @() }
   }
 
   # 引数リストを構築

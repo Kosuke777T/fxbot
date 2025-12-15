@@ -121,44 +121,44 @@
   - **AITab.refresh_model_metrics(self) -> None**  (L224)  — モデル指標ウィジェットを再読込する。
 
 ## app/gui/backtest_tab.py
-- **def _thousands(x, pos)**  (L28)  — 
-- **def _find_trades_csv(equity_csv: Path)**  (L34)  — equity_curve.csv と同じフォルダにある trades*.csv を探す（優先: test -> train -> trades）
-- **def plot_equity_with_markers_to_figure(fig: Figure, csv_path: str, note: str='')**  (L46)  — equity_curve.csv を描画。signal変化点でマーク。変化が無ければ trades*.csv の entry_time でマーク。
-- **class PlotWindow**  (L147)  — 
-  - **PlotWindow.__init__(self, parent=None)**  (L148)  — 
-  - **PlotWindow.plot_equity_csv(self, csv_path: str)**  (L169)  — 
-  - **PlotWindow.overlay_wfo_equity(self, df_train: Optional[pd.DataFrame], df_test: Optional[pd.DataFrame]) -> None**  (L233)  — Overlay WFO train/test equity lines on this window's axes.
-  - **PlotWindow.plot_price_preview(self, csv_path: str, note: str='')**  (L294)  — 
-  - **PlotWindow.plot_heatmap(self, df, note: str='')**  (L325)  — tools/backtest_run が生成する monthly_returns_*.csv の形式に対応したヒートマップ描画。
-  - **PlotWindow.jump_range(self, mode: str) -> None**  (L425)  — ポップアウト表示で 1W / 1M / ALL の X 範囲を切り替える。
-- **class BacktestTab**  (L590)  — 
-  - **BacktestTab.__init__(self, parent: QtWidgets.QWidget | None=None, kpi_service: Optional[Any]=None, profile_name: str='michibiki_std') -> None**  (L591)  — 
-  - **BacktestTab._on_progress_timer(self)**  (L791)  — 
-  - **BacktestTab._append_progress(self, text: str)**  (L800)  — 
-  - **BacktestTab._on_mode_changed(self, checked: bool=False)**  (L803)  — 
-  - **BacktestTab._current_mode_text(self) -> str**  (L808)  — UI 上のモード文字列を返す（Backtest / Walk-Forward / Overlay）。
-  - **BacktestTab._find_latest_wfo_dir(self) -> Optional[pathlib.Path]**  (L816)  — 
-  - **BacktestTab._load_latest_wfo_data(self) -> Optional[Dict[str, object]]**  (L828)  — 
-  - **BacktestTab._update_wfo_stats_panel(self, metrics: Dict[str, object]) -> None**  (L850)  — 
-  - **BacktestTab._overlay_wfo_equity(self, df_train: Optional[pd.DataFrame], df_test: Optional[pd.DataFrame]) -> None**  (L875)  — Overlay Train/Test equity lines onto the current plot axes.
-- **class _WFOResult**  (L924)  — Walk-Forward 検証の結果セットをまとめて持つだけの小さな入れ物。
-  - **BacktestTab._WFOResult.__init__(self, report_json: Dict[str, Any], equity_train: Optional[pd.DataFrame], equity_test: Optional[pd.DataFrame], run_id: str, parent: Optional[QtCore.QObject]=None) -> None**  (L933)  — 
-  - **BacktestTab._find_latest_wfo_files(self) -> Optional['_WFOResult']**  (L951)  — logs/retrain/ 配下から最新の report_*.json を探し、
-  - **BacktestTab._debug_print_wfo_summary(self, wfo: '_WFOResult') -> None**  (L1024)  — とりあえず「ちゃんと読めたか」を確認するために、
-  - **BacktestTab._load_model_info(self)**  (L1046)  — 
-  - **BacktestTab._update_data(self)**  (L1061)  — 
-  - **BacktestTab._run_test(self)**  (L1095)  — 
-  - **BacktestTab._on_proc_ready_read_stdout(self)**  (L1184)  — 
-  - **BacktestTab._on_proc_ready_read_stderr(self)**  (L1225)  — 
-  - **BacktestTab._on_proc_finished(self, code: int, status: QtCore.QProcess.ExitStatus, sym: str, tf: str, mode: str)**  (L1264)  — 
-  - **BacktestTab._pick_file(self)**  (L1357)  — 
-  - **BacktestTab._save_png(self)**  (L1363)  — 
-  - **BacktestTab._export_result_json(self)**  (L1372)  — 
-  - **BacktestTab._show_heatmap(self)**  (L1403)  — 
-  - **BacktestTab._pop_out(self)**  (L1437)  — 
-  - **BacktestTab._load_plot(self, path_or_csv)**  (L1459)  — 
-  - **BacktestTab._load_metrics(self, metrics_path: Path)**  (L1506)  — 
-  - **BacktestTab._on_range_jump(self, mode: str) -> None**  (L1549)  — Backtestタブのインライン描画と、ポップアウト済みウィンドウの両方に期間ジャンプを適用する。
+- **def _thousands(x, pos)**  (L29)  — 
+- **def _find_trades_csv(equity_csv: Path)**  (L35)  — equity_curve.csv と同じフォルダにある trades*.csv を探す（優先: test -> train -> trades）
+- **def plot_equity_with_markers_to_figure(fig: Figure, csv_path: str, note: str='')**  (L47)  — equity_curve.csv を描画。signal変化点でマーク。変化が無ければ trades*.csv の entry_time でマーク。
+- **class PlotWindow**  (L148)  — 
+  - **PlotWindow.__init__(self, parent=None)**  (L149)  — 
+  - **PlotWindow.plot_equity_csv(self, csv_path: str)**  (L170)  — 
+  - **PlotWindow.overlay_wfo_equity(self, df_train: Optional[pd.DataFrame], df_test: Optional[pd.DataFrame]) -> None**  (L234)  — Overlay WFO train/test equity lines on this window's axes.
+  - **PlotWindow.plot_price_preview(self, csv_path: str, note: str='')**  (L295)  — 
+  - **PlotWindow.plot_heatmap(self, df, note: str='')**  (L326)  — tools/backtest_run が生成する monthly_returns_*.csv の形式に対応したヒートマップ描画。
+  - **PlotWindow.jump_range(self, mode: str) -> None**  (L426)  — ポップアウト表示で 1W / 1M / ALL の X 範囲を切り替える。
+- **class BacktestTab**  (L591)  — 
+  - **BacktestTab.__init__(self, parent: QtWidgets.QWidget | None=None, kpi_service: Optional[Any]=None, profile_name: str='michibiki_std') -> None**  (L592)  — 
+  - **BacktestTab._on_progress_timer(self)**  (L792)  — 
+  - **BacktestTab._append_progress(self, text: str)**  (L801)  — 
+  - **BacktestTab._on_mode_changed(self, checked: bool=False)**  (L804)  — 
+  - **BacktestTab._current_mode_text(self) -> str**  (L809)  — UI 上のモード文字列を返す（Backtest / Walk-Forward / Overlay）。
+  - **BacktestTab._find_latest_wfo_dir(self) -> Optional[pathlib.Path]**  (L817)  — 
+  - **BacktestTab._load_latest_wfo_data(self) -> Optional[Dict[str, object]]**  (L829)  — 
+  - **BacktestTab._update_wfo_stats_panel(self, metrics: Dict[str, object]) -> None**  (L851)  — 
+  - **BacktestTab._overlay_wfo_equity(self, df_train: Optional[pd.DataFrame], df_test: Optional[pd.DataFrame]) -> None**  (L876)  — Overlay Train/Test equity lines onto the current plot axes.
+- **class _WFOResult**  (L925)  — Walk-Forward 検証の結果セットをまとめて持つだけの小さな入れ物。
+  - **BacktestTab._WFOResult.__init__(self, report_json: Dict[str, Any], equity_train: Optional[pd.DataFrame], equity_test: Optional[pd.DataFrame], run_id: str, parent: Optional[QtCore.QObject]=None) -> None**  (L934)  — 
+  - **BacktestTab._find_latest_wfo_files(self) -> Optional['_WFOResult']**  (L952)  — logs/retrain/ 配下から最新の report_*.json を探し、
+  - **BacktestTab._debug_print_wfo_summary(self, wfo: '_WFOResult') -> None**  (L1025)  — とりあえず「ちゃんと読めたか」を確認するために、
+  - **BacktestTab._load_model_info(self)**  (L1047)  — 
+  - **BacktestTab._update_data(self)**  (L1062)  — 
+  - **BacktestTab._run_test(self)**  (L1096)  — 
+  - **BacktestTab._on_proc_ready_read_stdout(self)**  (L1215)  — 
+  - **BacktestTab._on_proc_ready_read_stderr(self)**  (L1256)  — 
+  - **BacktestTab._on_proc_finished(self, code: int, status: QtCore.QProcess.ExitStatus, sym: str, tf: str, mode: str)**  (L1295)  — 
+  - **BacktestTab._pick_file(self)**  (L1388)  — 
+  - **BacktestTab._save_png(self)**  (L1394)  — 
+  - **BacktestTab._export_result_json(self)**  (L1403)  — 
+  - **BacktestTab._show_heatmap(self)**  (L1434)  — 
+  - **BacktestTab._pop_out(self)**  (L1468)  — 
+  - **BacktestTab._load_plot(self, path_or_csv)**  (L1490)  — 
+  - **BacktestTab._load_metrics(self, metrics_path: Path)**  (L1537)  — 
+  - **BacktestTab._on_range_jump(self, mode: str) -> None**  (L1580)  — Backtestタブのインライン描画と、ポップアウト済みウィンドウの両方に期間ジャンプを適用する。
 
 ## app/gui/control_tab.py
 - **class ControlTab**  (L20)  — 
@@ -498,6 +498,12 @@
   - **ProfileStatsService.set_current_profile(self, symbol: str, profile_name: str) -> dict[str, Any]**  (L226)  — 現在選択されているプロファイル名を更新する。
   - **ProfileStatsService.get_summary_for_filter(self, symbol: str) -> dict[str, Any]**  (L241)  — フィルタエンジンに渡す軽量サマリを返す。
 - **def get_profile_stats_service() -> ProfileStatsService**  (L264)  — 
+
+## app/services/profiles_store.py
+- **def _project_root() -> Path**  (L18)  — services 層から見たプロジェクトルートを推定する。
+- **def _get_config_path() -> Path**  (L27)  — config/profiles.json のパスを返す。
+- **def load_profiles(symbol: str='USDJPY-') -> List[str]**  (L32)  — 保存済みプロファイル設定を読み込む。
+- **def save_profiles(profiles: List[str], symbol: str='USDJPY-') -> None**  (L67)  — プロファイル設定を保存する。
 
 ## app/services/recent_kpi.py
 - **class RecentKpiResult**  (L25)  — 直近 N トレードの簡易 KPI 集計結果。

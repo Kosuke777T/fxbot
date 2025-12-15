@@ -21,6 +21,7 @@ from matplotlib.widgets import SpanSelector
 import matplotlib.gridspec as gridspec
 from pandas.api.types import is_datetime64_any_dtype
 from app.services.data_guard import ensure_data
+from app.services.profiles_store import load_profiles
 from functools import partial
 from datetime import datetime, timedelta
 from tools.backtest_run import compute_monthly_returns
@@ -1132,27 +1133,57 @@ class BacktestTab(QtWidgets.QWidget):
             self.proc.kill()
             self.proc = None
 
-        # “-m tools.backtest_run” でモジュール実行
-        args = [
-            "-m", "tools.backtest_run",
-            "--csv", str(csv),
-            "--start-date", start,
-            "--end-date", end,
-            "--capital", capital,
-            "--mode", mode,
-            "--symbol", sym,
-            "--timeframe", tf,
-            "--layout", layout,
-        ]
-        if mode == "wfo":
-            args += ["--train-ratio", train_ratio]
+        # Walk-Forward モードの場合は ops_start.ps1 経由で実行
+        if mode_text == "Walk-Forward":
+            # profiles を services から取得（GUI→services の境界遵守）
+            try:
+                profiles = load_profiles(symbol=sym)
+            except Exception as e:
+                self._append_progress(f"[gui] failed to load profiles: {e}, using default")
+                profiles = ["michibiki_std"]
 
-        self._append_progress("[gui] run: python " + " ".join(args))
+            # ops_start.ps1 を PowerShell 経由で実行
+            ops_start_ps1 = PROJECT_ROOT / "tools" / "ops_start.ps1"
+            args = [
+                "-NoProfile",
+                "-ExecutionPolicy", "Bypass",
+                "-File", str(ops_start_ps1),
+                "-Symbol", sym,
+                "-Dry", "0",
+                "-CloseNow", "1",
+            ]
+            if profiles:
+                args += ["-Profiles"] + profiles
 
-        self.proc = QProcess(self)
-        self.proc.setProgram(sys.executable)
-        self.proc.setArguments(args)
-        self.proc.setWorkingDirectory(str(PROJECT_ROOT))  # 重要：プロジェクト直下をCWDに
+            self._append_progress(f"[gui] run: pwsh {' '.join(args)}")
+
+            self.proc = QProcess(self)
+            # PowerShell 7 を使用
+            self.proc.setProgram("pwsh")
+            self.proc.setArguments(args)
+            self.proc.setWorkingDirectory(str(PROJECT_ROOT))  # 重要：プロジェクト直下をCWDに
+        else:
+            # Backtest / Overlay モードは従来通り tools.backtest_run を使用
+            args = [
+                "-m", "tools.backtest_run",
+                "--csv", str(csv),
+                "--start-date", start,
+                "--end-date", end,
+                "--capital", capital,
+                "--mode", mode,
+                "--symbol", sym,
+                "--timeframe", tf,
+                "--layout", layout,
+            ]
+            if mode == "wfo":
+                args += ["--train-ratio", train_ratio]
+
+            self._append_progress("[gui] run: python " + " ".join(args))
+
+            self.proc = QProcess(self)
+            self.proc.setProgram(sys.executable)
+            self.proc.setArguments(args)
+            self.proc.setWorkingDirectory(str(PROJECT_ROOT))  # 重要：プロジェクト直下をCWDに
 
         self.proc.setProcessChannelMode(QProcess.ProcessChannelMode.SeparateChannels)
         self.proc.readyReadStandardOutput.connect(self._on_proc_ready_read_stdout)

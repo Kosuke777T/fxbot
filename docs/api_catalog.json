@@ -944,7 +944,7 @@
     "name": "_thousands",
     "qualname": "_thousands",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 28,
+    "lineno": 29,
     "signature": "(x, pos)",
     "returns": "",
     "doc": ""
@@ -954,7 +954,7 @@
     "name": "_find_trades_csv",
     "qualname": "_find_trades_csv",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 34,
+    "lineno": 35,
     "signature": "(equity_csv: Path)",
     "returns": "",
     "doc": "equity_curve.csv と同じフォルダにある trades*.csv を探す（優先: test -> train -> trades）"
@@ -964,7 +964,7 @@
     "name": "plot_equity_with_markers_to_figure",
     "qualname": "plot_equity_with_markers_to_figure",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 46,
+    "lineno": 47,
     "signature": "(fig: Figure, csv_path: str, note: str='')",
     "returns": "",
     "doc": "equity_curve.csv を描画。signal変化点でマーク。変化が無ければ trades*.csv の entry_time でマーク。"
@@ -974,7 +974,7 @@
     "name": "PlotWindow",
     "qualname": "PlotWindow",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 147,
+    "lineno": 148,
     "signature": "",
     "returns": "",
     "doc": ""
@@ -984,7 +984,7 @@
     "name": "__init__",
     "qualname": "PlotWindow.__init__",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 148,
+    "lineno": 149,
     "signature": "(self, parent=None)",
     "returns": "",
     "doc": ""
@@ -994,7 +994,7 @@
     "name": "plot_equity_csv",
     "qualname": "PlotWindow.plot_equity_csv",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 169,
+    "lineno": 170,
     "signature": "(self, csv_path: str)",
     "returns": "",
     "doc": ""
@@ -1004,7 +1004,7 @@
     "name": "overlay_wfo_equity",
     "qualname": "PlotWindow.overlay_wfo_equity",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 233,
+    "lineno": 234,
     "signature": "(self, df_train: Optional[pd.DataFrame], df_test: Optional[pd.DataFrame])",
     "returns": "None",
     "doc": "Overlay WFO train/test equity lines on this window's axes."
@@ -1014,7 +1014,7 @@
     "name": "plot_price_preview",
     "qualname": "PlotWindow.plot_price_preview",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 294,
+    "lineno": 295,
     "signature": "(self, csv_path: str, note: str='')",
     "returns": "",
     "doc": ""
@@ -1024,7 +1024,7 @@
     "name": "plot_heatmap",
     "qualname": "PlotWindow.plot_heatmap",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 325,
+    "lineno": 326,
     "signature": "(self, df, note: str='')",
     "returns": "",
     "doc": "tools/backtest_run が生成する monthly_returns_*.csv の形式に対応したヒートマップ描画。"
@@ -1034,7 +1034,7 @@
     "name": "jump_range",
     "qualname": "PlotWindow.jump_range",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 425,
+    "lineno": 426,
     "signature": "(self, mode: str)",
     "returns": "None",
     "doc": "ポップアウト表示で 1W / 1M / ALL の X 範囲を切り替える。"
@@ -1044,7 +1044,7 @@
     "name": "BacktestTab",
     "qualname": "BacktestTab",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 590,
+    "lineno": 591,
     "signature": "",
     "returns": "",
     "doc": ""
@@ -1054,7 +1054,7 @@
     "name": "__init__",
     "qualname": "BacktestTab.__init__",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 591,
+    "lineno": 592,
     "signature": "(self, parent: QtWidgets.QWidget | None=None, kpi_service: Optional[Any]=None, profile_name: str='michibiki_std')",
     "returns": "None",
     "doc": ""
@@ -1064,7 +1064,7 @@
     "name": "_on_progress_timer",
     "qualname": "BacktestTab._on_progress_timer",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 791,
+    "lineno": 792,
     "signature": "(self)",
     "returns": "",
     "doc": ""
@@ -1074,7 +1074,7 @@
     "name": "_append_progress",
     "qualname": "BacktestTab._append_progress",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 800,
+    "lineno": 801,
     "signature": "(self, text: str)",
     "returns": "",
     "doc": ""
@@ -1084,7 +1084,7 @@
     "name": "_on_mode_changed",
     "qualname": "BacktestTab._on_mode_changed",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 803,
+    "lineno": 804,
     "signature": "(self, checked: bool=False)",
     "returns": "",
     "doc": ""
@@ -1094,7 +1094,7 @@
     "name": "_current_mode_text",
     "qualname": "BacktestTab._current_mode_text",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 808,
+    "lineno": 809,
     "signature": "(self)",
     "returns": "str",
     "doc": "UI 上のモード文字列を返す（Backtest / Walk-Forward / Overlay）。"
@@ -1104,7 +1104,7 @@
     "name": "_find_latest_wfo_dir",
     "qualname": "BacktestTab._find_latest_wfo_dir",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 816,
+    "lineno": 817,
     "signature": "(self)",
     "returns": "Optional[pathlib.Path]",
     "doc": ""
@@ -1114,7 +1114,7 @@
     "name": "_load_latest_wfo_data",
     "qualname": "BacktestTab._load_latest_wfo_data",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 828,
+    "lineno": 829,
     "signature": "(self)",
     "returns": "Optional[Dict[str, object]]",
     "doc": ""
@@ -1124,7 +1124,7 @@
     "name": "_update_wfo_stats_panel",
     "qualname": "BacktestTab._update_wfo_stats_panel",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 850,
+    "lineno": 851,
     "signature": "(self, metrics: Dict[str, object])",
     "returns": "None",
     "doc": ""
@@ -1134,7 +1134,7 @@
     "name": "_overlay_wfo_equity",
     "qualname": "BacktestTab._overlay_wfo_equity",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 875,
+    "lineno": 876,
     "signature": "(self, df_train: Optional[pd.DataFrame], df_test: Optional[pd.DataFrame])",
     "returns": "None",
     "doc": "Overlay Train/Test equity lines onto the current plot axes."
@@ -1144,7 +1144,7 @@
     "name": "_WFOResult",
     "qualname": "BacktestTab._WFOResult",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 924,
+    "lineno": 925,
     "signature": "",
     "returns": "",
     "doc": "Walk-Forward 検証の結果セットをまとめて持つだけの小さな入れ物。"
@@ -1154,7 +1154,7 @@
     "name": "__init__",
     "qualname": "BacktestTab._WFOResult.__init__",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 933,
+    "lineno": 934,
     "signature": "(self, report_json: Dict[str, Any], equity_train: Optional[pd.DataFrame], equity_test: Optional[pd.DataFrame], run_id: str, parent: Optional[QtCore.QObject]=None)",
     "returns": "None",
     "doc": ""
@@ -1164,7 +1164,7 @@
     "name": "_find_latest_wfo_files",
     "qualname": "BacktestTab._find_latest_wfo_files",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 951,
+    "lineno": 952,
     "signature": "(self)",
     "returns": "Optional['_WFOResult']",
     "doc": "logs/retrain/ 配下から最新の report_*.json を探し、"
@@ -1174,7 +1174,7 @@
     "name": "_debug_print_wfo_summary",
     "qualname": "BacktestTab._debug_print_wfo_summary",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 1024,
+    "lineno": 1025,
     "signature": "(self, wfo: '_WFOResult')",
     "returns": "None",
     "doc": "とりあえず「ちゃんと読めたか」を確認するために、"
@@ -1184,7 +1184,7 @@
     "name": "_load_model_info",
     "qualname": "BacktestTab._load_model_info",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 1046,
+    "lineno": 1047,
     "signature": "(self)",
     "returns": "",
     "doc": ""
@@ -1194,7 +1194,7 @@
     "name": "_update_data",
     "qualname": "BacktestTab._update_data",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 1061,
+    "lineno": 1062,
     "signature": "(self)",
     "returns": "",
     "doc": ""
@@ -1204,7 +1204,7 @@
     "name": "_run_test",
     "qualname": "BacktestTab._run_test",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 1095,
+    "lineno": 1096,
     "signature": "(self)",
     "returns": "",
     "doc": ""
@@ -1214,7 +1214,7 @@
     "name": "_on_proc_ready_read_stdout",
     "qualname": "BacktestTab._on_proc_ready_read_stdout",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 1184,
+    "lineno": 1215,
     "signature": "(self)",
     "returns": "",
     "doc": ""
@@ -1224,7 +1224,7 @@
     "name": "_on_proc_ready_read_stderr",
     "qualname": "BacktestTab._on_proc_ready_read_stderr",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 1225,
+    "lineno": 1256,
     "signature": "(self)",
     "returns": "",
     "doc": ""
@@ -1234,7 +1234,7 @@
     "name": "_on_proc_finished",
     "qualname": "BacktestTab._on_proc_finished",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 1264,
+    "lineno": 1295,
     "signature": "(self, code: int, status: QtCore.QProcess.ExitStatus, sym: str, tf: str, mode: str)",
     "returns": "",
     "doc": ""
@@ -1244,7 +1244,7 @@
     "name": "_pick_file",
     "qualname": "BacktestTab._pick_file",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 1357,
+    "lineno": 1388,
     "signature": "(self)",
     "returns": "",
     "doc": ""
@@ -1254,7 +1254,7 @@
     "name": "_save_png",
     "qualname": "BacktestTab._save_png",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 1363,
+    "lineno": 1394,
     "signature": "(self)",
     "returns": "",
     "doc": ""
@@ -1264,7 +1264,7 @@
     "name": "_export_result_json",
     "qualname": "BacktestTab._export_result_json",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 1372,
+    "lineno": 1403,
     "signature": "(self)",
     "returns": "",
     "doc": ""
@@ -1274,7 +1274,7 @@
     "name": "_show_heatmap",
     "qualname": "BacktestTab._show_heatmap",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 1403,
+    "lineno": 1434,
     "signature": "(self)",
     "returns": "",
     "doc": ""
@@ -1284,7 +1284,7 @@
     "name": "_pop_out",
     "qualname": "BacktestTab._pop_out",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 1437,
+    "lineno": 1468,
     "signature": "(self)",
     "returns": "",
     "doc": ""
@@ -1294,7 +1294,7 @@
     "name": "_load_plot",
     "qualname": "BacktestTab._load_plot",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 1459,
+    "lineno": 1490,
     "signature": "(self, path_or_csv)",
     "returns": "",
     "doc": ""
@@ -1304,7 +1304,7 @@
     "name": "_load_metrics",
     "qualname": "BacktestTab._load_metrics",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 1506,
+    "lineno": 1537,
     "signature": "(self, metrics_path: Path)",
     "returns": "",
     "doc": ""
@@ -1314,7 +1314,7 @@
     "name": "_on_range_jump",
     "qualname": "BacktestTab._on_range_jump",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 1549,
+    "lineno": 1580,
     "signature": "(self, mode: str)",
     "returns": "None",
     "doc": "Backtestタブのインライン描画と、ポップアウト済みウィンドウの両方に期間ジャンプを適用する。"
@@ -3988,6 +3988,46 @@
     "signature": "()",
     "returns": "ProfileStatsService",
     "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_project_root",
+    "qualname": "_project_root",
+    "file": "app/services/profiles_store.py",
+    "lineno": 18,
+    "signature": "()",
+    "returns": "Path",
+    "doc": "services 層から見たプロジェクトルートを推定する。"
+  },
+  {
+    "kind": "function",
+    "name": "_get_config_path",
+    "qualname": "_get_config_path",
+    "file": "app/services/profiles_store.py",
+    "lineno": 27,
+    "signature": "()",
+    "returns": "Path",
+    "doc": "config/profiles.json のパスを返す。"
+  },
+  {
+    "kind": "function",
+    "name": "load_profiles",
+    "qualname": "load_profiles",
+    "file": "app/services/profiles_store.py",
+    "lineno": 32,
+    "signature": "(symbol: str='USDJPY-')",
+    "returns": "List[str]",
+    "doc": "保存済みプロファイル設定を読み込む。"
+  },
+  {
+    "kind": "function",
+    "name": "save_profiles",
+    "qualname": "save_profiles",
+    "file": "app/services/profiles_store.py",
+    "lineno": 67,
+    "signature": "(profiles: List[str], symbol: str='USDJPY-')",
+    "returns": "None",
+    "doc": "プロファイル設定を保存する。"
   },
   {
     "kind": "class",
