@@ -22,6 +22,8 @@ def ensure_data(symbol_tag: str, timeframe: str, start_date: str, end_date: str,
     指定の [start_date, end_date] を満たすCSVが存在するか確認し、足りなければ scripts.make_csv_from_mt5 を呼んで追記する。
     戻り値: CSVのフルパス
     """
+    # MT5用シンボル（USDJPY-）をCSV用シンボル（USDJPY）に正規化
+    symbol_tag = symbol_tag.rstrip("-")
     out_csv = csv_path(symbol_tag, timeframe, layout)
     need_fetch = True
 

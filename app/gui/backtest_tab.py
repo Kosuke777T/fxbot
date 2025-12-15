@@ -1094,6 +1094,16 @@ class BacktestTab(QtWidgets.QWidget):
 
     # ------------------ 実行（QProcess） ------------------
     def _run_test(self):
+        # 多重起動防止：既にプロセスが稼働中なら return
+        if self.proc and self.proc.state() != QProcess.ProcessState.NotRunning:
+            state_text = {
+                QProcess.ProcessState.NotRunning: "NotRunning",
+                QProcess.ProcessState.Starting: "Starting",
+                QProcess.ProcessState.Running: "Running",
+            }.get(self.proc.state(), "Unknown")
+            self._append_progress(f"[gui] すでにプロセス稼働中のため、実行をスキップします (state={state_text})")
+            return
+
         sym = self.symbol_edit.text().strip().upper()
         # "USDJPY" → "USDJPY-" に変換（symbol は 'USDJPY-' が正）
         if sym == "USDJPY":
@@ -1133,57 +1143,27 @@ class BacktestTab(QtWidgets.QWidget):
             self.proc.kill()
             self.proc = None
 
-        # Walk-Forward モードの場合は ops_start.ps1 経由で実行
-        if mode_text == "Walk-Forward":
-            # profiles を services から取得（GUI→services の境界遵守）
-            try:
-                profiles = load_profiles(symbol=sym)
-            except Exception as e:
-                self._append_progress(f"[gui] failed to load profiles: {e}, using default")
-                profiles = ["michibiki_std"]
+        # すべてのモードで tools.backtest_run を使用（Walk-Forwardも含む）
+        args = [
+            "-m", "tools.backtest_run",
+            "--csv", str(csv),
+            "--start-date", start,
+            "--end-date", end,
+            "--capital", capital,
+            "--mode", mode,
+            "--symbol", sym,
+            "--timeframe", tf,
+            "--layout", layout,
+        ]
+        if mode == "wfo":
+            args += ["--train-ratio", train_ratio]
 
-            # ops_start.ps1 を PowerShell 経由で実行
-            ops_start_ps1 = PROJECT_ROOT / "tools" / "ops_start.ps1"
-            args = [
-                "-NoProfile",
-                "-ExecutionPolicy", "Bypass",
-                "-File", str(ops_start_ps1),
-                "-Symbol", sym,
-                "-Dry", "0",
-                "-CloseNow", "1",
-            ]
-            if profiles:
-                args += ["-Profiles"] + profiles
+        self._append_progress("[gui] run: python " + " ".join(args))
 
-            self._append_progress(f"[gui] run: pwsh {' '.join(args)}")
-
-            self.proc = QProcess(self)
-            # PowerShell 7 を使用
-            self.proc.setProgram("pwsh")
-            self.proc.setArguments(args)
-            self.proc.setWorkingDirectory(str(PROJECT_ROOT))  # 重要：プロジェクト直下をCWDに
-        else:
-            # Backtest / Overlay モードは従来通り tools.backtest_run を使用
-            args = [
-                "-m", "tools.backtest_run",
-                "--csv", str(csv),
-                "--start-date", start,
-                "--end-date", end,
-                "--capital", capital,
-                "--mode", mode,
-                "--symbol", sym,
-                "--timeframe", tf,
-                "--layout", layout,
-            ]
-            if mode == "wfo":
-                args += ["--train-ratio", train_ratio]
-
-            self._append_progress("[gui] run: python " + " ".join(args))
-
-            self.proc = QProcess(self)
-            self.proc.setProgram(sys.executable)
-            self.proc.setArguments(args)
-            self.proc.setWorkingDirectory(str(PROJECT_ROOT))  # 重要：プロジェクト直下をCWDに
+        self.proc = QProcess(self)
+        self.proc.setProgram(sys.executable)
+        self.proc.setArguments(args)
+        self.proc.setWorkingDirectory(str(PROJECT_ROOT))  # 重要：プロジェクト直下をCWDに
 
         self.proc.setProcessChannelMode(QProcess.ProcessChannelMode.SeparateChannels)
         self.proc.readyReadStandardOutput.connect(self._on_proc_ready_read_stdout)
@@ -1192,6 +1172,9 @@ class BacktestTab(QtWidgets.QWidget):
             lambda code, status: self._on_proc_finished(code, status, sym, tf, mode)
         )
         self.label_meta.setText("実行中…")
+
+        # 実行中はテスト実行ボタンを disable
+        self.btn_run.setEnabled(False)
 
         # ★進捗状態を初期化してタイマー開始
         self._progress_value = 0
@@ -1293,6 +1276,9 @@ class BacktestTab(QtWidgets.QWidget):
             self._append_progress(line)
 
     def _on_proc_finished(self, code: int, status: QtCore.QProcess.ExitStatus, sym: str, tf: str, mode: str):
+        # 実行完了時にボタンを enable
+        self.btn_run.setEnabled(True)
+
         # ★進捗アニメーションはここで止める
         if self._progress_timer.isActive():
             self._progress_timer.stop()
@@ -1302,29 +1288,62 @@ class BacktestTab(QtWidgets.QWidget):
         self._progress_value = 100
         self.progress_bar.setValue(100)
 
+        # 詳細ログ出力（原因確定用）
+        exit_status_text = "Normal" if status == QProcess.ExitStatus.NormalExit else "Crashed"
+        error_code = self.proc.error()
+        error_string = self.proc.errorString()
+        program = self.proc.program()
+        arguments = self.proc.arguments()
+        proc_state = self.proc.state()
+        state_text = {
+            QProcess.ProcessState.NotRunning: "NotRunning",
+            QProcess.ProcessState.Starting: "Starting",
+            QProcess.ProcessState.Running: "Running",
+        }.get(proc_state, "Unknown")
+
+        self._append_progress(f"[gui] process finished: code={code}, status={exit_status_text}, state={state_text}")
+        self._append_progress(f"[gui] exitStatus: {status} ({exit_status_text})")
+        error_code_name = {
+            QProcess.ProcessError.FailedToStart: "FailedToStart",
+            QProcess.ProcessError.Crashed: "Crashed",
+            QProcess.ProcessError.Timedout: "Timedout",
+            QProcess.ProcessError.WriteError: "WriteError",
+            QProcess.ProcessError.ReadError: "ReadError",
+            QProcess.ProcessError.UnknownError: "UnknownError",
+        }.get(error_code, f"Unknown({error_code})")
+        self._append_progress(f"[gui] error: code={error_code} ({error_code_name}), string={error_string}")
+        self._append_progress(f"[gui] program: {program}")
+        self._append_progress(f"[gui] arguments: {' '.join(arguments)}")
+
         if code != 0:
-            self.label_meta.setText(f"失敗(code={code})")
+            self.label_meta.setText(f"失敗(code={code}, status={exit_status_text})")
             self._append_progress(f"[gui] process failed code={code}")
             return
-
-        out_dir = PROJECT_ROOT / "logs" / "backtest" / sym / tf
-        out_csv = out_dir / "equity_curve.csv"
-        self.path_edit.setText(str(out_csv))
-        if not out_csv.exists():
-            self.label_meta.setText(f"出力CSVが見つかりません: {out_csv}")
-            self._append_progress(f"[gui] missing file: {out_csv}")
-            return
-
-        self._load_plot(out_csv)  # Equity描画
 
         # まずは毎回クリアしておく
         self._wfo_train_df = None
         self._wfo_test_df = None
 
         if mode == "wfo":
+            # Walk-Forwardモード: WFOデータのみ読み込む（equity_curve.csvは探さない）
             wfo = self._load_latest_wfo_data()
             if wfo:
                 self._update_wfo_stats_panel(wfo["metrics"])
+                # WFOのtest equityをメイン描画として表示
+                # _load_latest_wfo_data()が読み込んだequity_test.csvのパスを取得
+                wfo_dir = self._find_latest_wfo_dir()
+                if wfo_dir:
+                    test_csv = wfo_dir / "equity_test.csv"
+                    if test_csv.exists():
+                        self.path_edit.setText(str(test_csv))
+                        self._load_plot(str(test_csv))
+                    elif wfo["test"] is not None and "equity" in wfo["test"].columns:
+                        # CSVファイルが無い場合はDataFrameから一時CSVを作成して描画
+                        import tempfile
+                        with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False, encoding="utf-8") as f:
+                            wfo["test"].to_csv(f.name, index=False)
+                            self.path_edit.setText(f.name)
+                            self._load_plot(f.name)
                 self._overlay_wfo_equity(wfo["train"], wfo["test"])
                 # 最新の overlay データを属性として保持しておく
                 self._wfo_train_df = wfo["train"]
@@ -1332,7 +1351,18 @@ class BacktestTab(QtWidgets.QWidget):
             else:
                 # WFOだけど結果読めなかった → インライン overlay も消す
                 self._overlay_wfo_equity(None, None)
+                self.label_meta.setText("WFO結果が見つかりませんでした")
         else:
+            # Backtestモード: equity_curve.csvを読み込む
+            out_dir = PROJECT_ROOT / "logs" / "backtest" / sym / tf
+            out_csv = out_dir / "equity_curve.csv"
+            self.path_edit.setText(str(out_csv))
+            if not out_csv.exists():
+                self.label_meta.setText(f"出力CSVが見つかりません: {out_csv}")
+                self._append_progress(f"[gui] missing file: {out_csv}")
+                return
+
+            self._load_plot(out_csv)  # Equity描画
             # Backtestモードなど → overlay は全部クリア
             self._overlay_wfo_equity(None, None)
 
@@ -1342,25 +1372,28 @@ class BacktestTab(QtWidgets.QWidget):
             except Exception as e:
                 print("[gui] WFO overlay on new window failed:", e)
 
+        # metrics と monthly_returns の処理
+        out_dir = PROJECT_ROOT / "logs" / "backtest" / sym / tf
         metrics_path = out_dir / ("metrics.json" if mode=="bt" else "metrics_wfo.json")
         self._load_metrics(metrics_path)
 
         # 月次リターン保存パスを控える
         self._last_monthly_returns = out_dir / ("monthly_returns.csv" if mode=="bt" else "monthly_returns_test.csv")
 
-        # ▼ monthly_returns 再計算
-        # equity_curve.csv が存在したら compute_monthly_returns() を強制実行
-        if out_csv.exists():
-            try:
-                profile = self._profile_name
-                out_monthly_csv = Path("backtests") / profile / "monthly_returns.csv"
-                out_monthly_csv.parent.mkdir(parents=True, exist_ok=True)
+        # ▼ monthly_returns 再計算（Backtestモードのみ）
+        if mode != "wfo":
+            out_csv = out_dir / "equity_curve.csv"
+            if out_csv.exists():
+                try:
+                    profile = self._profile_name
+                    out_monthly_csv = Path("backtests") / profile / "monthly_returns.csv"
+                    out_monthly_csv.parent.mkdir(parents=True, exist_ok=True)
 
-                # 強制的に monthly_returns.csv を生成
-                compute_monthly_returns(str(out_csv), str(out_monthly_csv))
-                self._append_progress(f"[gui] 集約 monthly_returns を更新しました: {out_monthly_csv}")
-            except Exception as e:
-                self._append_progress(f"[gui] 集約 monthly_returns 更新に失敗しました: {e!r}")
+                    # 強制的に monthly_returns.csv を生成
+                    compute_monthly_returns(str(out_csv), str(out_monthly_csv))
+                    self._append_progress(f"[gui] 集約 monthly_returns を更新しました: {out_monthly_csv}")
+                except Exception as e:
+                    self._append_progress(f"[gui] 集約 monthly_returns 更新に失敗しました: {e!r}")
 
         # decisions.jsonl の読み込み処理（あれば AIタブへ連動）
         decisions_jsonl = out_dir / "decisions.jsonl"
