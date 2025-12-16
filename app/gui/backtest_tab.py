@@ -143,14 +143,33 @@ def plot_equity_with_markers_to_figure(fig: Figure, csv_path: str, note: str = "
 
     ax.legend(loc="upper left")
 
+    # レイアウト調整（axes数の確認も含む）
+    try:
+        fig.tight_layout()
+        # デバッグ: axesの数を確認
+        axes_count = len(fig.axes)
+        if axes_count != 1:
+            print(f"[gui] WARNING: plot_equity_with_markers_to_figure: axes count = {axes_count} (expected 1)")
+    except Exception as e:
+        print(f"[gui] tight_layout error: {e}")
+
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 class PlotWindow(QtWidgets.QDialog):
-    def __init__(self, parent=None):
+    def __init__(
+        self,
+        parent=None,
+        mode: str = "bt",
+        equity_df: Optional[pd.DataFrame] = None,
+        price_df: Optional[pd.DataFrame] = None,
+        wfo_train_df: Optional[pd.DataFrame] = None,
+        wfo_test_df: Optional[pd.DataFrame] = None,
+    ):
         super().__init__(parent)
         self.setWindowTitle("FXBot — Chart")
         self.resize(1000, 650)
 
+        # Figure + Canvas を新規作成（使い回さない）
         self.figure = Figure(figsize=(10, 6), tight_layout=True)
         self.canvas = Canvas(self.figure)
         self.toolbar = Toolbar(self.canvas, self)
@@ -158,14 +177,242 @@ class PlotWindow(QtWidgets.QDialog):
         layout.addWidget(self.toolbar)
         layout.addWidget(self.canvas)
 
-        # 2段のaxes（上：拡大、下：全体ナビ）
-        gs = gridspec.GridSpec(2, 1, height_ratios=[3, 1], hspace=0.08, figure=self.figure)
-        self.ax_main = self.figure.add_subplot(gs[0])
-        self.ax_nav  = self.figure.add_subplot(gs[1], sharex=self.ax_main)
         self.span = None
         self._last_kind: str | None = None
         self._last_csv: str | None = None
         self._overlay_lines: list = []
+
+        # データを保持
+        self._mode = mode
+        self._equity_df = equity_df
+        self._price_df = price_df
+        self._wfo_train_df = wfo_train_df
+        self._wfo_test_df = wfo_test_df
+
+        # 初期描画（showEventでも再描画される）
+        self._plot()
+
+    def showEvent(self, event):
+        """ウインドウが表示されたときに必ず描画を実行"""
+        super().showEvent(event)
+        # 再描画を確実に実行
+        self._plot()
+
+    def _plot(self):
+        """modeに応じて描画を実行する。"""
+        self.figure.clear()
+
+        if self._mode == "wfo":
+            # Walk-Forwardモード: train/test equity + overlay
+            self._plot_wfo()
+        elif self._equity_df is not None:
+            # Backtestモード: price + equity
+            self._plot_bt_equity()
+        elif self._price_df is not None:
+            # Price preview
+            self._plot_price()
+        else:
+            # データがない場合は何も描画しない
+            ax = self.figure.add_subplot(111)
+            ax.text(0.5, 0.5, "データがありません", ha="center", va="center", transform=ax.transAxes)
+            try:
+                self.figure.tight_layout()
+            except Exception:
+                pass
+            self.canvas.draw_idle()
+            self.canvas.flush_events()
+            return
+
+    def _plot_bt_equity(self):
+        """Backtestモード: equity curveを描画"""
+        if self._equity_df is None:
+            return
+
+        df = self._equity_df.copy()
+
+        # 2段のaxes（上：拡大、下：全体ナビ）
+        gs = gridspec.GridSpec(2, 1, height_ratios=[3, 1], hspace=0.08, figure=self.figure)
+        ax_main = self.figure.add_subplot(gs[0])
+        ax_nav  = self.figure.add_subplot(gs[1], sharex=ax_main)
+
+        # 上段：本描画（マーカー付き）
+        ax_main.plot(df["time"], df["equity"], lw=1.4, label="Equity", zorder=2)
+        ax_main.grid(True, alpha=0.25)
+
+        # マーカー描画
+        buys = sells = pd.DataFrame()
+        if "signal" in df.columns:
+            sig = pd.to_numeric(df["signal"], errors="coerce").fillna(0).astype(int)
+            chg = sig.ne(sig.shift(1)).fillna(sig.iloc[0] != 0)
+            if len(sig) > 0 and sig.iloc[0] != 0:
+                chg.iloc[0] = True
+            buys  = df[(sig ==  1) & chg]
+            sells = df[(sig == -1) & chg]
+
+        if not buys.empty:
+            ax_main.scatter(buys["time"], buys["equity"], marker="o", s=48,
+                            facecolors="tab:blue", edgecolors="black", linewidths=0.7, label="Buy", zorder=5)
+        if not sells.empty:
+            ax_main.scatter(sells["time"], sells["equity"], marker="x", s=64,
+                            c="tab:orange", linewidths=1.4, label="Sell", zorder=6)
+
+        ax_main.legend(loc="upper left")
+        ax_main.margins(x=0.01, y=0.05)
+
+        # 目盛り・タイトル
+        ax_main.set_title("Equity Curve & Trade Markers")
+        ax_main.set_ylabel("equity (JPY)")
+        ax_main.yaxis.set_major_locator(AutoLocator())
+        ax_main.yaxis.set_major_formatter(FuncFormatter(_thousands))
+
+        # 下段：全体ナビ（薄い線）
+        ax_nav.plot(df["time"], df["equity"], lw=1.0, alpha=0.5)
+        ax_nav.grid(True, alpha=0.2)
+
+        # SpanSelector で範囲選択 → 上段の xlim を同期
+        def onselect(xmin, xmax):
+            ax_main.set_xlim(xmin, xmax)
+            self.canvas.draw_idle()
+
+        self.span = SpanSelector(ax_nav, onselect, "horizontal", useblit=True,
+                                 interactive=True, props=dict(alpha=0.15))
+
+        # 目盛り体裁
+        loc = AutoDateLocator()
+        ax_nav.xaxis.set_major_locator(loc)
+        ax_nav.xaxis.set_major_formatter(ConciseDateFormatter(loc))
+        ax_main.xaxis.set_major_locator(loc)
+        ax_main.xaxis.set_major_formatter(ConciseDateFormatter(loc))
+        self.figure.autofmt_xdate()
+
+        # 保存（期間ジャンプ用に参照）
+        self.ax_main = ax_main
+        self.ax_nav  = ax_nav
+        self._last_kind = "equity"
+
+        # レイアウト調整と描画
+        try:
+            self.figure.tight_layout()
+        except Exception as e:
+            print(f"[PlotWindow] tight_layout error: {e}")
+
+        # axes数の確認（デバッグ用）
+        axes_count = len(self.figure.axes)
+        if axes_count != 2:
+            print(f"[PlotWindow] WARNING: _plot_bt_equity axes count = {axes_count} (expected 2)")
+
+        self.canvas.draw_idle()
+        self.canvas.flush_events()
+
+    def _plot_wfo(self):
+        """Walk-Forwardモード: train/test equity + overlay"""
+        # 2段のaxes（上：拡大、下：全体ナビ）
+        gs = gridspec.GridSpec(2, 1, height_ratios=[3, 1], hspace=0.08, figure=self.figure)
+        ax_main = self.figure.add_subplot(gs[0])
+        ax_nav  = self.figure.add_subplot(gs[1], sharex=ax_main)
+
+        # test equityをメイン描画として表示
+        if self._wfo_test_df is not None and "equity" in self._wfo_test_df.columns:
+            df_test = self._wfo_test_df.copy()
+            if "time" in df_test.columns and not is_datetime64_any_dtype(df_test["time"]):
+                df_test["time"] = pd.to_datetime(df_test["time"], errors="coerce")
+
+            ax_main.plot(df_test["time"], df_test["equity"], lw=2.2, color="tab:red",
+                        label="WFO Test", zorder=2)
+            ax_nav.plot(df_test["time"], df_test["equity"], lw=1.0, alpha=0.5, color="tab:red")
+
+        # train equityをoverlay
+        if self._wfo_train_df is not None and "equity" in self._wfo_train_df.columns:
+            df_train = self._wfo_train_df.copy()
+            if "time" in df_train.columns and not is_datetime64_any_dtype(df_train["time"]):
+                df_train["time"] = pd.to_datetime(df_train["time"], errors="coerce")
+
+            ax_main.plot(df_train["time"], df_train["equity"], linestyle="--", linewidth=1.0,
+                        color="tab:blue", alpha=0.7, label="WFO Train", zorder=1)
+
+        ax_main.grid(True, alpha=0.25)
+        ax_main.legend(loc="upper left")
+        ax_main.margins(x=0.01, y=0.05)
+
+        # 目盛り・タイトル
+        ax_main.set_title("Walk-Forward: Train/Test Equity")
+        ax_main.set_ylabel("equity (JPY)")
+        ax_main.yaxis.set_major_locator(AutoLocator())
+        ax_main.yaxis.set_major_formatter(FuncFormatter(_thousands))
+
+        ax_nav.grid(True, alpha=0.2)
+
+        # SpanSelector で範囲選択 → 上段の xlim を同期
+        def onselect(xmin, xmax):
+            ax_main.set_xlim(xmin, xmax)
+            self.canvas.draw_idle()
+
+        self.span = SpanSelector(ax_nav, onselect, "horizontal", useblit=True,
+                                 interactive=True, props=dict(alpha=0.15))
+
+        # 目盛り体裁
+        loc = AutoDateLocator()
+        ax_nav.xaxis.set_major_locator(loc)
+        ax_nav.xaxis.set_major_formatter(ConciseDateFormatter(loc))
+        ax_main.xaxis.set_major_locator(loc)
+        ax_main.xaxis.set_major_formatter(ConciseDateFormatter(loc))
+        self.figure.autofmt_xdate()
+
+        # 保存（期間ジャンプ用に参照）
+        self.ax_main = ax_main
+        self.ax_nav  = ax_nav
+        self._last_kind = "equity"
+
+        # レイアウト調整と描画
+        try:
+            self.figure.tight_layout()
+        except Exception as e:
+            print(f"[PlotWindow] tight_layout error: {e}")
+
+        # axes数の確認（デバッグ用）
+        axes_count = len(self.figure.axes)
+        if axes_count != 2:
+            print(f"[PlotWindow] WARNING: _plot_wfo axes count = {axes_count} (expected 2)")
+
+        self.canvas.draw_idle()
+        self.canvas.flush_events()
+
+    def _plot_price(self):
+        """Price previewを描画"""
+        if self._price_df is None:
+            return
+
+        df = self._price_df.copy()
+        ax = self.figure.add_subplot(111)
+
+        if "close" in df.columns:
+            price = pd.to_numeric(df["close"], errors="coerce").ffill()
+            if len(price) > 0 and price.iloc[0] != 0:
+                norm = price / price.iloc[0] * 100.0
+                ax.plot(norm.values, label="Price (close, =100@start)")
+                ax.set_title("Price Preview (from OHLCV)")
+                ax.set_ylabel("index (=100@start)")
+                ax.set_xlabel("bars")
+                ax.legend()
+                ax.grid(True, alpha=0.25)
+
+        self.ax_main = ax
+        self.ax_nav = None
+        self._last_kind = "price"
+
+        # レイアウト調整と描画
+        try:
+            self.figure.tight_layout()
+        except Exception as e:
+            print(f"[PlotWindow] tight_layout error: {e}")
+
+        # axes数の確認（デバッグ用）
+        axes_count = len(self.figure.axes)
+        if axes_count != 1:
+            print(f"[PlotWindow] WARNING: _plot_price axes count = {axes_count} (expected 1)")
+
+        self.canvas.draw_idle()
+        self.canvas.flush_events()
 
     def plot_equity_csv(self, csv_path: str):
         # 上段をクリアして本描画（既存の描画関数を再利用）
@@ -291,6 +538,7 @@ class PlotWindow(QtWidgets.QDialog):
         if self._overlay_lines:
             ax_main.legend(loc="upper left")
         self.canvas.draw_idle()
+        self.canvas.flush_events()
 
     def plot_price_preview(self, csv_path: str, note: str = ""):
         import pandas as pd
@@ -764,6 +1012,9 @@ class BacktestTab(QtWidgets.QWidget):
         self._wfo_test_df: Optional[pd.DataFrame] = None
         self._wfo_overlay_lines: list = []
         self._last_monthly_returns: Path | None = None
+        # 描画用データ（別ウインドウ表示用）
+        self._current_equity_df: Optional[pd.DataFrame] = None
+        self._current_price_df: Optional[pd.DataFrame] = None
 
         # シグナル
         self.btn_update.clicked.connect(self._update_data)
@@ -921,6 +1172,7 @@ class BacktestTab(QtWidgets.QWidget):
             self._wfo_overlay_lines.append(line)
 
         self.canvas.draw_idle()
+        self.canvas.flush_events()
 
     class _WFOResult(QtCore.QObject):
         """
@@ -1329,28 +1581,42 @@ class BacktestTab(QtWidgets.QWidget):
             wfo = self._load_latest_wfo_data()
             if wfo:
                 self._update_wfo_stats_panel(wfo["metrics"])
-                # WFOのtest equityをメイン描画として表示
-                # _load_latest_wfo_data()が読み込んだequity_test.csvのパスを取得
-                wfo_dir = self._find_latest_wfo_dir()
-                if wfo_dir:
-                    test_csv = wfo_dir / "equity_test.csv"
-                    if test_csv.exists():
-                        self.path_edit.setText(str(test_csv))
-                        self._load_plot(str(test_csv))
-                    elif wfo["test"] is not None and "equity" in wfo["test"].columns:
-                        # CSVファイルが無い場合はDataFrameから一時CSVを作成して描画
-                        import tempfile
-                        with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False, encoding="utf-8") as f:
-                            wfo["test"].to_csv(f.name, index=False)
-                            self.path_edit.setText(f.name)
-                            self._load_plot(f.name)
-                self._overlay_wfo_equity(wfo["train"], wfo["test"])
                 # 最新の overlay データを属性として保持しておく
                 self._wfo_train_df = wfo["train"]
                 self._wfo_test_df = wfo["test"]
+
+                # WFOのtest equityをメイン描画として表示
+                # test equityをequity_dfとして保持
+                if wfo["test"] is not None and "equity" in wfo["test"].columns:
+                    self._current_equity_df = wfo["test"].copy()
+                    if "time" in self._current_equity_df.columns and not is_datetime64_any_dtype(self._current_equity_df["time"]):
+                        self._current_equity_df["time"] = pd.to_datetime(self._current_equity_df["time"], errors="coerce")
+                    self._current_price_df = None
+
+                    # _load_latest_wfo_data()が読み込んだequity_test.csvのパスを取得
+                    wfo_dir = self._find_latest_wfo_dir()
+                    if wfo_dir:
+                        test_csv = wfo_dir / "equity_test.csv"
+                        if test_csv.exists():
+                            self.path_edit.setText(str(test_csv))
+                            self._load_plot(str(test_csv))
+                        else:
+                            # CSVファイルが無い場合はDataFrameから一時CSVを作成して描画
+                            import tempfile
+                            with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False, encoding="utf-8") as f:
+                                wfo["test"].to_csv(f.name, index=False)
+                                self.path_edit.setText(f.name)
+                                self._load_plot(f.name)
+                else:
+                    self._current_equity_df = None
+
+                self._overlay_wfo_equity(wfo["train"], wfo["test"])
             else:
                 # WFOだけど結果読めなかった → インライン overlay も消す
                 self._overlay_wfo_equity(None, None)
+                self._current_equity_df = None
+                self._wfo_train_df = None
+                self._wfo_test_df = None
                 self.label_meta.setText("WFO結果が見つかりませんでした")
         else:
             # Backtestモード: equity_curve.csvを読み込む
@@ -1362,15 +1628,14 @@ class BacktestTab(QtWidgets.QWidget):
                 self._append_progress(f"[gui] missing file: {out_csv}")
                 return
 
-            self._load_plot(out_csv)  # Equity描画
+            self._load_plot(out_csv)  # Equity描画（この中で_current_equity_dfが設定される）
             # Backtestモードなど → overlay は全部クリア
             self._overlay_wfo_equity(None, None)
+            self._wfo_train_df = None
+            self._wfo_test_df = None
 
-        if hasattr(self, "plot_window") and self.plot_window is not None:
-            try:
-                self.plot_window.overlay_wfo_equity(self._wfo_train_df, self._wfo_test_df)
-            except Exception as e:
-                print("[gui] WFO overlay on new window failed:", e)
+        # 新しい実装では、PlotWindowの__init__で既にデータを受け取って描画しているため、
+        # overlay_wfo_equityの呼び出しは不要（互換性のためにメソッドは残している）
 
         # metrics と monthly_returns の処理
         out_dir = PROJECT_ROOT / "logs" / "backtest" / sym / tf
@@ -1499,25 +1764,41 @@ class BacktestTab(QtWidgets.QWidget):
             self._append_progress(f"[gui] heatmap plot error: {e}")
 
     def _pop_out(self):
-        if self._last_plot_kind is None or self._last_plot_data is None:
+        if self._last_plot_kind is None:
             self._append_progress("[gui] popout: 直近の描画データがありません")
             QtWidgets.QMessageBox.information(self, "情報", "まだ描画されていません。先に「データ確認＆更新」または「テスト実行」をしてください。")
             return
-        if self._pop is None:
-            self._pop = PlotWindow(self)
-        self.plot_window = self._pop
-        self._pop.show(); self._pop.raise_(); self._pop.activateWindow()
-        if self._last_plot_kind == "equity":
-            csvp = self._last_plot_data
-            self._pop.plot_equity_csv(csvp)
 
-            if self._wfo_train_df is not None or self._wfo_test_df is not None:
-                try:
-                    self._pop.overlay_wfo_equity(self._wfo_train_df, self._wfo_test_df)
-                except Exception as e:
-                    self._append_progress(f"[pop] WFO overlay failed: {e}")
-        else:
-            self._pop.plot_price_preview(self._last_plot_data, self._last_plot_note)
+        # 現在のmodeを取得
+        mode_text = self._current_mode_text()
+        mode = "wfo" if mode_text == "Walk-Forward" else "bt"
+
+        # データを準備
+        equity_df = self._current_equity_df
+        price_df = self._current_price_df
+        wfo_train_df = self._wfo_train_df
+        wfo_test_df = self._wfo_test_df
+
+        # 新ウインドウを生成（既存の場合は閉じて新規作成）
+        if self._pop is not None:
+            try:
+                self._pop.close()
+            except Exception:
+                pass
+
+        # データのみを新ウインドウに渡す（Figure/Axesは渡さない）
+        self._pop = PlotWindow(
+            parent=self,
+            mode=mode,
+            equity_df=equity_df,
+            price_df=price_df,
+            wfo_train_df=wfo_train_df,
+            wfo_test_df=wfo_test_df,
+        )
+        self.plot_window = self._pop
+        self._pop.show()
+        self._pop.raise_()
+        self._pop.activateWindow()
 
     # ------------------ 描画・メトリクス ------------------
     def _load_plot(self, path_or_csv):
@@ -1526,9 +1807,25 @@ class BacktestTab(QtWidgets.QWidget):
         ##
         if "equity_curve.csv" in csv_path:
             try:
+                # DataFrameを読み込んで保持
+                df = pd.read_csv(csv_path)
+                if "time" in df.columns and not is_datetime64_any_dtype(df["time"]):
+                    df["time"] = pd.to_datetime(df["time"], errors="coerce")
+                self._current_equity_df = df
+                self._current_price_df = None
+
                 plot_equity_with_markers_to_figure(self.fig, csv_path, note=p.name)
+
+                # axes数の確認（デバッグ用）
+                axes_count = len(self.fig.axes)
+                if axes_count != 1:
+                    self._append_progress(f"[gui] WARNING: axes count = {axes_count} (expected 1)")
+
+                # 描画を確実に実行
                 self.canvas.draw_idle()
-                self._append_progress(f"[gui] plotted EQUITY (markers) from {p.name}")
+                self.canvas.flush_events()
+
+                self._append_progress(f"[gui] plotted EQUITY (markers) from {p.name}, axes={axes_count}")
                 self._last_plot_kind = "equity"
                 self._last_plot_data = str(p)  # CSVパスを記憶（期間ジャンプで利用）
                 self._last_plot_note = p.name
@@ -1544,6 +1841,10 @@ class BacktestTab(QtWidgets.QWidget):
             ax = self.fig.add_subplot(111)
 
             if "close" in df.columns:
+                # DataFrameを保持
+                self._current_price_df = df
+                self._current_equity_df = None
+
                 price = pd.to_numeric(df["close"], errors="coerce").ffill()
                 if len(price) == 0 or price.iloc[0] == 0:
                     raise ValueError("プレビュー用 'close' 列が空です。")
@@ -1560,8 +1861,21 @@ class BacktestTab(QtWidgets.QWidget):
 
             ax.set_xlabel("bars")
             ax.legend()
-            #self.fig.tight_layout()
+
+            # レイアウト調整
+            try:
+                self.fig.tight_layout()
+            except Exception as e:
+                self._append_progress(f"[gui] tight_layout error: {e}")
+
+            # axes数の確認（デバッグ用）
+            axes_count = len(self.fig.axes)
+            if axes_count != 1:
+                self._append_progress(f"[gui] WARNING: axes count = {axes_count} (expected 1)")
+
+            # 描画を確実に実行
             self.canvas.draw_idle()
+            self.canvas.flush_events()
 
         except Exception as e:
             self.label_meta.setText(f"描画失敗: {e}")
