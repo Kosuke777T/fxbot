@@ -35,6 +35,55 @@ def _normalize_human_text(s: str) -> str:
     return s.strip()
 
 
+def _is_dry_record(record: dict, cmd: object | None = None) -> bool | None:
+    """
+    レコードまたはコマンドからdryフラグを判定する。
+
+    Args:
+        record: Ops履歴レコード
+        cmd: コマンド（str/list、オプション）
+
+    Returns:
+        True: dry runである
+        False: dry runではない
+        None: 判定不能
+    """
+    # 1) record["dry"] が存在すればそれを bool 化して返す（"1"/1/True対応）
+    if "dry" in record:
+        dry_val = record["dry"]
+        if isinstance(dry_val, bool):
+            return dry_val
+        if isinstance(dry_val, (int, str)):
+            # "1"/1 -> True, "0"/0 -> False
+            if str(dry_val).strip() in ("1", "true", "True", "TRUE"):
+                return True
+            if str(dry_val).strip() in ("0", "false", "False", "FALSE"):
+                return False
+        # その他の値はNoneを返す（判定不能）
+
+    # 2) cmd（str/list）から -Dry 1 / --dry 1 を検出
+    if cmd is not None:
+        cmd_str = ""
+        if isinstance(cmd, list):
+            cmd_str = " ".join(str(x) for x in cmd)
+        elif isinstance(cmd, str):
+            cmd_str = cmd
+        else:
+            return None
+
+        # -Dry 1 または --dry 1 を検出（大文字小文字不問）
+        cmd_lower = cmd_str.lower()
+        # -Dry 1 または --dry 1 のパターンを検出（値が1ならTrue、0ならFalse）
+        # パターン: -dry または --dry の後にスペースと0または1
+        match = re.search(r'[-]+dry\s+([01])', cmd_lower, re.IGNORECASE)
+        if match:
+            dry_val = match.group(1)
+            return dry_val == "1"
+
+    # 3) 判定不能なら None を返す
+    return None
+
+
 class OpsHistoryService:
     """Ops実行履歴サービス"""
 
@@ -508,6 +557,10 @@ def replay_from_record(record: dict, *, run: bool = False) -> dict:
         # stderr_tailの各行を正規化
         stderr_tail = [_normalize_human_text(line) for line in stderr_tail]
 
+        # dry判定（servicesで一貫して判定）
+        # record["cmd"] を優先して渡す（テストで record["cmd"] をいじったら dry_flag に反映される）
+        dry_flag = _is_dry_record(record, record.get("cmd") or cmd)
+
         # summaryを生成
         ok = rc == 0
         if ok:
@@ -519,7 +572,7 @@ def replay_from_record(record: dict, *, run: bool = False) -> dict:
             stderr_lower = stderr.lower()
             if "market_closed" in stderr_lower or "trade_disabled" in stderr_lower:
                 hint = "市場が閉まっているか、取引が無効です。"
-            elif "dry" in stderr_lower or record.get("dry") or record.get("Dry"):
+            elif dry_flag is True:
                 hint = "Dry runモードでした。実際の実行を試しますか？"
             else:
                 hint = "エラーが発生しました。再試行を検討してください。"
@@ -537,8 +590,8 @@ def replay_from_record(record: dict, *, run: bool = False) -> dict:
         next_action = {"kind": "NONE", "reason": "", "params": {}}
         if not ok:
             stderr_lower = stderr.lower()
-            # Dry runだった場合
-            if "dry" in stderr_lower or record.get("dry") or record.get("Dry"):
+            # Dry runだった場合（dry_flag is True かつ rc != 0）
+            if dry_flag is True:
                 next_action = {
                     "kind": "PROMOTE_DRY_TO_RUN",
                     "reason": "Dry runモードでした。実際の実行を試すことができます。",
@@ -577,6 +630,7 @@ def replay_from_record(record: dict, *, run: bool = False) -> dict:
             "summary": summary,
             "next_action": next_action,
             "record_id": record_id,
+            "dry": dry_flag,  # 表示/デバッグ用
         }
 
     except Exception as e:

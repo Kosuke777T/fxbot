@@ -379,23 +379,32 @@ class OpsTab(QWidget):
             # 再実行（run=True）
             result = replay_from_record(self._selected_record, run=True)
 
-            # 結果のsummaryを取得
+            # 結果のsummaryとnext_actionを取得
             summary = result.get("summary", {})
             title = summary.get("title", "再実行結果")
             hint = summary.get("hint", "")
             stderr_tail = summary.get("stderr_tail", [])
             stderr_full = result.get("stderr_full", [])
             stderr_lines = summary.get("stderr_lines", 0)
+            next_action = result.get("next_action", {})
+
+            # next_actionの情報をテキストで追加
+            next_action_text = ""
+            if next_action:
+                kind = next_action.get("kind", "")
+                reason = next_action.get("reason", "")
+                if kind and reason:
+                    next_action_text = f"\n\n次のアクション: {kind}\n{reason}"
 
             # 結果を表示（summary.titleを大きく表示）
             if result["ok"]:
-                msg = f"{title}\n\n{hint}"
+                msg = f"{title}\n\n{hint}{next_action_text}"
                 if result.get("stdout"):
                     stdout_preview = result["stdout"][:200] if len(result["stdout"]) > 200 else result["stdout"]
                     msg += f"\n\n出力（要約）:\n{stdout_preview}"
                 QMessageBox.information(self, "再実行完了", msg)
             else:
-                msg = f"{title}\n\n{hint}"
+                msg = f"{title}\n\n{hint}{next_action_text}"
 
                 # stderr_tailを表示（折りたたみ時の要約）
                 if stderr_tail:
@@ -413,9 +422,34 @@ class OpsTab(QWidget):
                     detail_dialog.setText(msg)
                     detail_dialog.setDetailedText(detail_msg)
                     detail_dialog.setIcon(QMessageBox.Icon.Critical)
-                    detail_dialog.exec()
+
+                    # next_action.kind == "PROMOTE_DRY_TO_RUN" のときだけボタンを追加
+                    if next_action.get("kind") == "PROMOTE_DRY_TO_RUN":
+                        btn_promote = detail_dialog.addButton("実際の実行を試す", QMessageBox.ButtonRole.ActionRole)
+                        detail_dialog.exec()
+                        if detail_dialog.clickedButton() == btn_promote:
+                            # paramsを使って再実行
+                            self._replay_with_params(self._selected_record, next_action.get("params", {}))
+                            return
+                    else:
+                        detail_dialog.exec()
                 else:
-                    QMessageBox.critical(self, "再実行失敗", msg)
+                    # stderr_lines == 0 の場合も next_action ボタンを追加できるように
+                    msg_box = QMessageBox(self)
+                    msg_box.setWindowTitle("再実行失敗")
+                    msg_box.setText(msg)
+                    msg_box.setIcon(QMessageBox.Icon.Critical)
+
+                    # next_action.kind == "PROMOTE_DRY_TO_RUN" のときだけボタンを追加
+                    if next_action.get("kind") == "PROMOTE_DRY_TO_RUN":
+                        btn_promote = msg_box.addButton("実際の実行を試す", QMessageBox.ButtonRole.ActionRole)
+                        msg_box.exec()
+                        if msg_box.clickedButton() == btn_promote:
+                            # paramsを使って再実行
+                            self._replay_with_params(self._selected_record, next_action.get("params", {}))
+                            return
+                    else:
+                        msg_box.exec()
 
             # UIイベントを記録（source_record_idとcorr_idを付与）
             try:
@@ -435,6 +469,82 @@ class OpsTab(QWidget):
 
         except Exception as e:
             logger.exception("Failed to replay: %s", e)
+            QMessageBox.critical(
+                self,
+                "再実行エラー",
+                f"再実行中にエラーが発生しました。\n\n{e}",
+            )
+
+    def _replay_with_params(self, record: dict, params: dict) -> None:
+        """
+        paramsを使って再実行する。
+
+        Args:
+            record: 元のレコード
+            params: next_action.params（例: {"dry": False}）
+        """
+        if not record or not params:
+            return
+
+        # 確認ダイアログ
+        reply = QMessageBox.question(
+            self,
+            "再実行確認",
+            f"パラメータを変更して再実行しますか？\n\n変更内容: {params}",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        try:
+            from app.services.ops_history_service import replay_from_record, get_ops_history_service
+            from app.services.event_store import EVENT_STORE
+
+            # recordをコピーしてparamsを反映
+            modified_record = record.copy()
+            modified_record.update(params)
+
+            # record_idを取得（なければ生成）
+            history_service = get_ops_history_service()
+            source_record_id = record.get("record_id")
+            if not source_record_id:
+                source_record_id = history_service._generate_record_id(record)
+
+            # 再実行（run=True）
+            result = replay_from_record(modified_record, run=True)
+
+            # 結果のsummaryとnext_actionを取得
+            summary = result.get("summary", {})
+            title = summary.get("title", "再実行結果")
+            hint = summary.get("hint", "")
+
+            # 結果を表示
+            if result["ok"]:
+                msg = f"{title}\n\n{hint}"
+                QMessageBox.information(self, "再実行完了", msg)
+            else:
+                msg = f"{title}\n\n{hint}"
+                QMessageBox.critical(self, "再実行失敗", msg)
+
+            # UIイベントを記録
+            try:
+                corr_id = result.get("record_id")
+                EVENT_STORE.add(
+                    kind="ops_replay",
+                    symbol=record.get("symbol", ""),
+                    reason=f"replay_with_params: ok={result['ok']}, rc={result['rc']}, params={params}",
+                    source_record_id=source_record_id,
+                    corr_id=corr_id,
+                )
+            except Exception:
+                pass  # イベント記録失敗は無視
+
+            # 履歴を更新
+            self._load_history()
+
+        except Exception as e:
+            logger.exception("Failed to replay with params: %s", e)
             QMessageBox.critical(
                 self,
                 "再実行エラー",
