@@ -96,7 +96,7 @@ class OpsTab(QWidget):
         self.btn_replay.setEnabled(False)  # 選択されるまで無効
         lay_history.addWidget(self.btn_replay)
 
-        # PROMOTE/RETRYボタン（動的表示）
+        # PROMOTE/RETRYボタン（動的表示）+ reason表示
         btn_action_row = QHBoxLayout()
         self.btn_promote = QPushButton("PROMOTE", grp_history)
         self.btn_promote.clicked.connect(self._on_promote_clicked)
@@ -107,6 +107,13 @@ class OpsTab(QWidget):
         self.btn_retry.clicked.connect(self._on_retry_clicked)
         self.btn_retry.setVisible(False)
         btn_action_row.addWidget(self.btn_retry)
+
+        # reason表示用ラベル
+        self.lbl_action_reason = QLabel("", grp_history)
+        self.lbl_action_reason.setWordWrap(True)
+        self.lbl_action_reason.setStyleSheet("color: #666; font-size: 9pt;")
+        btn_action_row.addWidget(self.lbl_action_reason, 1)  # stretch factor 1
+
         btn_action_row.addStretch()
         lay_history.addLayout(btn_action_row)
 
@@ -266,8 +273,21 @@ class OpsTab(QWidget):
                 result_item = QTreeWidgetItem(self.tree_result.invisibleRootItem())
                 result_item.setText(0, "result")
                 self._populate_tree(result_item, result["result"])
+
+            # 履歴レコードの場合、error以外のフィールドも表示（promoted_at等を含む）
+            # result全体を表示（errorとresult以外の全フィールド）
+            root = self.tree_result.invisibleRootItem()
+            for key, value in result.items():
+                if key not in ("error", "result"):
+                    item = QTreeWidgetItem(root)
+                    item.setText(0, key)
+                    if isinstance(value, (dict, list)):
+                        item.setText(1, type(value).__name__)
+                        self._populate_tree(item, value, key)
+                    else:
+                        item.setText(1, str(value))
         else:
-            # 成功時（ok=True を含む通常JSON）: result 全体をツリー表示（meta も含む）
+            # 成功時（ok=True を含む通常JSON）: result 全体をツリー表示（meta も含む、promoted_at等も含む）
             root = self.tree_result.invisibleRootItem()
             self._populate_tree(root, result)
 
@@ -362,7 +382,7 @@ class OpsTab(QWidget):
             # 選択中レコードを保持
             self._selected_record = rec
             self.btn_replay.setEnabled(True)
-            # 既存の表示関数に渡して再表示
+            # 選択レコードそのものを表示（間引き・再構築をしない、promoted_at等も含める）
             self._display_result(rec)
         else:
             self._selected_record = None
@@ -579,11 +599,24 @@ class OpsTab(QWidget):
             self.btn_promote.setVisible(kind == "PROMOTE" or kind == "PROMOTE_DRY_TO_RUN")
             self.btn_retry.setVisible(kind == "RETRY")
 
-            # reasonがあればツールチップに表示（任意）
+            # reasonとparamsを表示
             reason = next_action.get("reason", "")
+            params = next_action.get("params", {})
             if reason:
+                # reasonを常時表示
+                reason_text = reason
+                # paramsがあれば key: value で小さく表示
+                if params:
+                    params_str = ", ".join([f"{k}: {v}" for k, v in params.items()])
+                    reason_text += f" ({params_str})"
+                self.lbl_action_reason.setText(reason_text)
+                self.lbl_action_reason.setVisible(True)
+                # ツールチップにも設定
                 self.btn_promote.setToolTip(reason)
                 self.btn_retry.setToolTip(reason)
+            else:
+                self.lbl_action_reason.setText("")
+                self.lbl_action_reason.setVisible(False)
 
         except Exception as e:
             logger.error(f"Failed to refresh ops actions: {e}")

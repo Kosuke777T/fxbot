@@ -190,6 +190,10 @@ class OpsHistoryService:
             model_path = rec.get("model_path") or rec.get("modelPath") or rec.get("ModelPath")
             normalized["model_path"] = str(model_path) if model_path else None
 
+        # promoted_at: ISO文字列（PROMOTE後の状態遷移用）
+        if "promoted_at" in rec:
+            normalized["promoted_at"] = rec.get("promoted_at")
+
         return normalized
 
     def load_ops_history(
@@ -384,18 +388,21 @@ class OpsHistoryService:
 
                 # 最後の1件を取得（records は新しい順なので最初の有効なものが最新）
                 if last is None:
-                    record_id = self._generate_record_id(rec)
+                    # _normalize_record()を通して正規化（promoted_at等も含める）
+                    normalized_rec = self._normalize_record(rec)
+                    record_id = self._generate_record_id(normalized_rec)
                     last = {
                         "record_id": record_id,
                         "started_at": started_at_str,
                         "ok": ok,
-                        "step": rec.get("step", "unknown"),
-                        "model_path": rec.get("model_path"),
-                        "profiles": rec.get("profiles", []),
-                        "symbol": rec.get("symbol", "USDJPY-"),
-                        "dry": rec.get("dry"),
-                        "cmd": rec.get("cmd"),
-                        "close_now": rec.get("close_now"),
+                        "step": normalized_rec.get("step", "unknown"),
+                        "model_path": normalized_rec.get("model_path"),
+                        "profiles": normalized_rec.get("profiles", []),
+                        "symbol": normalized_rec.get("symbol", "USDJPY-"),
+                        "dry": normalized_rec.get("dry"),
+                        "cmd": normalized_rec.get("cmd"),
+                        "close_now": normalized_rec.get("close_now"),
+                        "promoted_at": normalized_rec.get("promoted_at"),
                     }
 
                 # 最後のモデル更新を取得（apply_performed == True の最初のもの）
@@ -646,13 +653,56 @@ def replay_from_record(record: dict, *, run: bool = False, overrides: dict | Non
                     "reason": "市場が閉まっているか、取引が無効です。",
                     "params": {},
                 }
-            # その他のエラー
+            # その他のエラー（RETRY条件を精緻化）
             else:
-                next_action = {
-                    "kind": "RETRY",
-                    "reason": "エラーが発生しました。再試行を検討してください。",
-                    "params": {"max_retries": 1},
-                }
+                # consecutive_failuresを取得
+                try:
+                    summary = history_service.summarize_ops_history(symbol=record.get("symbol"))
+                    consecutive_failures = summary.get("consecutive_failures", 0)
+                except Exception:
+                    consecutive_failures = 0
+
+                # step/error.codeでリトライ可否を判定
+                step = record.get("step", "").lower()
+                error_code = None
+                if isinstance(record.get("error"), dict):
+                    error_code = record.get("error", {}).get("code", "")
+
+                # RETRYを抑制する条件
+                retry_suppressed = False
+                retry_reason = "エラーが発生しました。再試行を検討してください。"
+
+                # dry=TrueのときはRETRYを抑制
+                if dry_flag is True:
+                    retry_suppressed = True
+                    retry_reason = "Dry runモードのため、RETRYは推奨されません。PROMOTEを検討してください。"
+
+                # consecutive_failuresが3回以上ならRETRYを抑制
+                elif consecutive_failures >= 3:
+                    retry_suppressed = True
+                    retry_reason = f"連続失敗が{consecutive_failures}回のため、RETRYは推奨されません。原因を確認してください。"
+
+                # 設定ミス系エラーはRETRY不可
+                elif error_code in ("INVALID_ARGS", "CONFIG_ERROR", "PROFILE_NOT_FOUND"):
+                    retry_suppressed = True
+                    retry_reason = f"設定エラー({error_code})のため、RETRYは無効です。設定を確認してください。"
+
+                # 環境起因エラー（MT5起動待ち等）はRETRY可
+                elif error_code in ("PWSH_NOT_FOUND", "MT5_NOT_READY") or "mt5" in stderr_lower:
+                    retry_reason = "環境起因のエラーの可能性があります。しばらく待ってから再試行してください。"
+
+                if retry_suppressed:
+                    next_action = {
+                        "kind": "NONE",
+                        "reason": retry_reason,
+                        "params": {},
+                    }
+                else:
+                    next_action = {
+                        "kind": "RETRY",
+                        "reason": retry_reason,
+                        "params": {"max_retries": 1},
+                    }
 
         # 一時ファイルを削除
         try:
@@ -684,6 +734,30 @@ def replay_from_record(record: dict, *, run: bool = False, overrides: dict | Non
             # イベント記録失敗は無視（replay自体は成功させる）
             pass
 
+        # PROMOTE後の状態遷移：実行成功時に履歴へ保存
+        promoted_at = None
+        if ok and overrides and (overrides.get("dry") is False or overrides.get("action") == "PROMOTE"):
+            try:
+                history_service = get_ops_history_service()
+                promoted_at = datetime.now(timezone.utc).isoformat()
+                promoted_rec = {
+                    "symbol": record.get("symbol", ""),
+                    "profiles": record.get("profiles", []),
+                    "started_at": datetime.now(timezone.utc).isoformat(),
+                    "ok": True,
+                    "step": "promoted",
+                    "model_path": record.get("model_path"),
+                    "dry": False,  # PROMOTE後はdry=False
+                    "close_now": record.get("close_now", True),
+                    "promoted_at": promoted_at,
+                }
+                if record.get("cmd"):
+                    promoted_rec["cmd"] = record.get("cmd")
+                history_service.append_ops_result(promoted_rec)
+            except Exception:
+                # 履歴保存失敗は無視（replay自体は成功させる）
+                pass
+
         # out/result dict が完成した後、next_actionを補完
         out = {
             "ok": ok,
@@ -700,6 +774,12 @@ def replay_from_record(record: dict, *, run: bool = False, overrides: dict | Non
             "corr_id": corr_id,  # 相関ID
             "source_record_id": source_record_id,  # 起点レコードID
         }
+
+        # PROMOTE成功時にstepとpromoted_atを返り値に追加
+        if ok and overrides and (overrides.get("dry") is False or overrides.get("action") == "PROMOTE"):
+            out["step"] = "promoted"
+            if promoted_at:
+                out["promoted_at"] = promoted_at
 
         # --- next_action の自動補完（GUIは next_action を表示するだけ） ---
         na = out.get("next_action") or {}
