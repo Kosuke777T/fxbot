@@ -37,7 +37,7 @@ def _normalize_human_text(s: str) -> str:
 
 def _is_dry_record(record: dict, cmd: object | None = None) -> bool | None:
     """
-    レコードまたはコマンドからdryフラグを判定する。
+    レコードまたはコマンドからdryフラグを判定する（dry優先）。
 
     Args:
         record: Ops履歴レコード
@@ -48,7 +48,7 @@ def _is_dry_record(record: dict, cmd: object | None = None) -> bool | None:
         False: dry runではない
         None: 判定不能
     """
-    # 1) record["dry"] が存在すればそれを bool 化して返す（"1"/1/True対応）
+    # 1) record["dry"] が存在すればそれを bool 化して返す（"1"/1/True対応、優先）
     if "dry" in record:
         dry_val = record["dry"]
         if isinstance(dry_val, bool):
@@ -59,9 +59,9 @@ def _is_dry_record(record: dict, cmd: object | None = None) -> bool | None:
                 return True
             if str(dry_val).strip() in ("0", "false", "False", "FALSE"):
                 return False
-        # その他の値はNoneを返す（判定不能）
+        # その他の値は次の判定に進む
 
-    # 2) cmd（str/list）から -Dry 1 / --dry 1 を検出
+    # 2) cmd（str/list）から -Dry 1 / --dry 1 を検出（dryが無い場合のみ）
     if cmd is not None:
         cmd_str = ""
         if isinstance(cmd, list):
@@ -69,7 +69,7 @@ def _is_dry_record(record: dict, cmd: object | None = None) -> bool | None:
         elif isinstance(cmd, str):
             cmd_str = cmd
         else:
-            return None
+            return False  # cmdもdryも無い過去レコードはFalse
 
         # -Dry 1 または --dry 1 を検出（大文字小文字不問）
         cmd_lower = cmd_str.lower()
@@ -80,8 +80,18 @@ def _is_dry_record(record: dict, cmd: object | None = None) -> bool | None:
             dry_val = match.group(1)
             return dry_val == "1"
 
-    # 3) 判定不能なら None を返す
-    return None
+    # 3) record["cmd"] からも検出を試みる（record内にcmdが保存されている場合）
+    if "cmd" in record:
+        cmd_from_record = record["cmd"]
+        if isinstance(cmd_from_record, str):
+            cmd_lower = cmd_from_record.lower()
+            match = re.search(r'[-]+dry\s+([01])', cmd_lower, re.IGNORECASE)
+            if match:
+                dry_val = match.group(1)
+                return dry_val == "1"
+
+    # 4) 判定不能（cmdもdryも無い過去レコード）は False を返す
+    return False
 
 
 class OpsHistoryService:
@@ -383,6 +393,9 @@ class OpsHistoryService:
                         "model_path": rec.get("model_path"),
                         "profiles": rec.get("profiles", []),
                         "symbol": rec.get("symbol", "USDJPY-"),
+                        "dry": rec.get("dry"),
+                        "cmd": rec.get("cmd"),
+                        "close_now": rec.get("close_now"),
                     }
 
                 # 最後のモデル更新を取得（apply_performed == True の最初のもの）
@@ -468,13 +481,14 @@ def append_ops_result(rec: dict) -> None:
     return get_ops_history_service().append_ops_result(rec)
 
 
-def replay_from_record(record: dict, *, run: bool = False) -> dict:
+def replay_from_record(record: dict, *, run: bool = False, overrides: dict | None = None) -> dict:
     """
     レコードから条件を復元して再実行する。
 
     Args:
         record: Ops履歴レコード（load_ops_history などで取得した dict）
         run: True のときのみ実際に再実行。False ならコマンドを表示するだけ
+        overrides: レコードを上書きするパラメータ（例: {"dry": False}）
 
     Returns:
         実行結果dict:
@@ -484,11 +498,14 @@ def replay_from_record(record: dict, *, run: bool = False) -> dict:
             - stdout: str（標準出力）
             - stderr: str（標準エラー出力）
             - error: dict|None（エラー情報）
+            - corr_id: str|None（相関ID）
+            - source_record_id: str|None（起点レコードID）
     """
     import subprocess
     import sys
     import tempfile
     import json
+    import copy
     from pathlib import Path
 
     # バリデーション：record is None / not isinstance(record, dict) を弾く
@@ -500,7 +517,32 @@ def replay_from_record(record: dict, *, run: bool = False) -> dict:
             "stdout": "",
             "stderr": "",
             "error": {"code": "NO_RECORD", "message": "No record selected / record is empty"},
+            "corr_id": None,
+            "source_record_id": None,
         }
+
+    # overridesがある場合、recordをマージ（recordを直接破壊しない）
+    if overrides:
+        record = copy.deepcopy(record)
+        record.update(overrides)
+
+    # corr_id/source_record_idのルールを確定（services側で一貫して決定）
+    history_service = get_ops_history_service()
+    original_record_id = record.get("record_id")
+    if not original_record_id:
+        original_record_id = history_service._generate_record_id(record)
+
+    # corr_id: 元recordのcorr_idを引き継ぐ。無ければ生成して付与
+    corr_id = record.get("corr_id")
+    if not corr_id:
+        # 元recordにcorr_idが無い場合、record_idをcorr_idとして使用
+        corr_id = original_record_id
+
+    # source_record_id: 元recordの"起点"を指す
+    # 既にsource_record_idがあればそれを維持、無ければrecord_idをsourceにする
+    source_record_id = record.get("source_record_id")
+    if not source_record_id:
+        source_record_id = original_record_id
 
     project_root = Path(__file__).resolve().parents[2]
     cmd = None
@@ -619,7 +661,31 @@ def replay_from_record(record: dict, *, run: bool = False) -> dict:
         except Exception:
             pass
 
-        return {
+        # EVENT_STOREに記録（提案ボタン経由の追跡を保証）
+        try:
+            from app.services.event_store import EVENT_STORE
+
+            # overridesからactionを取得（PROMOTE/RETRY等）
+            action = "REPLAY"
+            if overrides:
+                if overrides.get("dry") is False:
+                    action = "PROMOTE"
+                elif "retry" in overrides or "action" in overrides:
+                    action = str(overrides.get("action", overrides.get("retry", "RETRY")))
+
+            EVENT_STORE.add(
+                kind="ops_replay",
+                symbol=record.get("symbol", ""),
+                reason=f"replay: action={action}, ok={ok}, rc={rc}",
+                source_record_id=source_record_id,
+                corr_id=corr_id,
+            )
+        except Exception:
+            # イベント記録失敗は無視（replay自体は成功させる）
+            pass
+
+        # out/result dict が完成した後、next_actionを補完
+        out = {
             "ok": ok,
             "cmd": cmd,
             "rc": rc,
@@ -631,7 +697,28 @@ def replay_from_record(record: dict, *, run: bool = False) -> dict:
             "next_action": next_action,
             "record_id": record_id,
             "dry": dry_flag,  # 表示/デバッグ用
+            "corr_id": corr_id,  # 相関ID
+            "source_record_id": source_record_id,  # 起点レコードID
         }
+
+        # --- next_action の自動補完（GUIは next_action を表示するだけ） ---
+        na = out.get("next_action") or {}
+        kind = (na.get("kind") or "NONE").upper()
+
+        if kind == "NONE":
+            ok = bool(out.get("ok"))
+            if not ok:
+                out["next_action"] = {"kind": "RETRY", "reason": "last_failed", "params": {}}
+            else:
+                # apply は None のことがあるので record から dry 判定する
+                try:
+                    is_dry = _is_dry_record(record)  # 既存（STEP33-6で追加した想定）
+                except Exception:
+                    is_dry = False
+                if is_dry:
+                    out["next_action"] = {"kind": "PROMOTE", "reason": "dry_run", "params": {}}
+
+        return out
 
     except Exception as e:
         logger.exception("replay_from_record failed: %s", e)
@@ -656,6 +743,20 @@ def replay_from_record(record: dict, *, run: bool = False) -> dict:
             "params": {},
         }
 
+        # エラー時もcorr_id/source_record_idを返す
+        error_corr_id = None
+        error_source_record_id = None
+        if isinstance(record, dict):
+            try:
+                history_service = get_ops_history_service()
+                original_record_id = record.get("record_id")
+                if not original_record_id:
+                    original_record_id = history_service._generate_record_id(record)
+                error_corr_id = record.get("corr_id") or original_record_id
+                error_source_record_id = record.get("source_record_id") or original_record_id
+            except Exception:
+                pass
+
         return {
             "ok": False,
             "cmd": cmd or [],
@@ -667,5 +768,7 @@ def replay_from_record(record: dict, *, run: bool = False) -> dict:
             "summary": summary,
             "next_action": next_action,
             "record_id": get_ops_history_service()._generate_record_id(record) if isinstance(record, dict) else None,
+            "corr_id": error_corr_id,
+            "source_record_id": error_source_record_id,
         }
 

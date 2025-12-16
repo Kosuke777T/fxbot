@@ -69,6 +69,9 @@ if ($Dry -eq 1) {
 # JSON出力を有効化（既存のログ処理と互換性を保つ）
 $cmd += @("--emit-json", "1")
 
+# 実行コマンド文字列を生成（スペースを含む引数は引用符で囲む）
+$cmdStr = ($cmd | ForEach-Object { if ($_ -match '\s') { '"' + $_ + '"' } else { $_ } }) -join " "
+
 $out = & $cmd[0] @($cmd[1..($cmd.Count-1)])
 $rc = $LASTEXITCODE
 
@@ -168,6 +171,9 @@ try {
       model_path     = $modelPath
       apply_performed = $applyPerformed
       apply_reason    = $applyReason
+      dry            = [bool]$Dry
+      close_now      = [bool]$CloseNow
+      cmd            = $cmdStr
     }
 
     ($rec | ConvertTo-Json -Compress) | Add-Content -Path $histPath -Encoding UTF8

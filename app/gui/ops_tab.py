@@ -1,6 +1,7 @@
 # app/gui/ops_tab.py
 from __future__ import annotations
 
+import copy
 from typing import Optional, Any
 
 from PyQt6.QtCore import Qt
@@ -25,7 +26,7 @@ from loguru import logger
 
 from app.services.ops_service import get_ops_service
 from app.services.profiles_store import load_profiles
-from app.services.ops_history_service import get_ops_history_service
+from app.services.ops_history_service import get_ops_history_service, replay_from_record
 
 
 class OpsTab(QWidget):
@@ -95,10 +96,27 @@ class OpsTab(QWidget):
         self.btn_replay.setEnabled(False)  # 選択されるまで無効
         lay_history.addWidget(self.btn_replay)
 
+        # PROMOTE/RETRYボタン（動的表示）
+        btn_action_row = QHBoxLayout()
+        self.btn_promote = QPushButton("PROMOTE", grp_history)
+        self.btn_promote.clicked.connect(self._on_promote_clicked)
+        self.btn_promote.setVisible(False)
+        btn_action_row.addWidget(self.btn_promote)
+
+        self.btn_retry = QPushButton("RETRY", grp_history)
+        self.btn_retry.clicked.connect(self._on_retry_clicked)
+        self.btn_retry.setVisible(False)
+        btn_action_row.addWidget(self.btn_retry)
+        btn_action_row.addStretch()
+        lay_history.addLayout(btn_action_row)
+
         main_splitter.addWidget(grp_history)
 
         # 選択中レコードを保持（一時的に）
         self._selected_record: Optional[dict] = None
+
+        # 最新Opsレコードを保持（表示用、PROMOTE/RETRYボタン用）
+        self._current_ops_record: Optional[dict] = None
 
         # 右側：既存の結果表示（垂直Splitter）
         result_splitter = QSplitter(Qt.Orientation.Vertical, self)
@@ -189,6 +207,8 @@ class OpsTab(QWidget):
 
             # 履歴を更新
             self._load_history()
+            # PROMOTE/RETRYボタンの表示も更新
+            self._refresh_ops_actions()
 
         except Exception as e:
             QMessageBox.critical(
@@ -322,6 +342,9 @@ class OpsTab(QWidget):
                 item.setData(0, Qt.ItemDataRole.UserRole, rec)
 
             self.list_history.sortItems(0, Qt.SortOrder.DescendingOrder)
+
+            # 最新Opsレコードを取得してnext_actionを判定（PROMOTE/RETRYボタン表示用）
+            self._refresh_ops_actions()
         except Exception as e:
             logger.error(f"Failed to load history: {e}")
 
@@ -367,16 +390,10 @@ class OpsTab(QWidget):
             return
 
         try:
-            from app.services.ops_history_service import replay_from_record, get_ops_history_service
-            from app.services.event_store import EVENT_STORE
+            from app.services.ops_history_service import replay_from_record
 
-            # record_idを取得（なければ生成）
-            history_service = get_ops_history_service()
-            source_record_id = self._selected_record.get("record_id")
-            if not source_record_id:
-                source_record_id = history_service._generate_record_id(self._selected_record)
-
-            # 再実行（run=True）
+            # 再実行（run=True、overridesなし）
+            # corr_id/source_record_idはservices側で自動設定される
             result = replay_from_record(self._selected_record, run=True)
 
             # 結果のsummaryとnext_actionを取得
@@ -451,18 +468,7 @@ class OpsTab(QWidget):
                     else:
                         msg_box.exec()
 
-            # UIイベントを記録（source_record_idとcorr_idを付与）
-            try:
-                corr_id = result.get("record_id")  # 再実行結果のrecord_idを相関IDとして使用
-                EVENT_STORE.add(
-                    kind="ops_replay",
-                    symbol=self._selected_record.get("symbol", ""),
-                    reason=f"replay: ok={result['ok']}, rc={result['rc']}",
-                    source_record_id=source_record_id,
-                    corr_id=corr_id,
-                )
-            except Exception:
-                pass  # イベント記録失敗は無視
+            # UIイベントはservices側で記録される（GUI側では記録しない）
 
             # 履歴を更新
             self._load_history()
@@ -498,21 +504,10 @@ class OpsTab(QWidget):
             return
 
         try:
-            from app.services.ops_history_service import replay_from_record, get_ops_history_service
-            from app.services.event_store import EVENT_STORE
+            from app.services.ops_history_service import replay_from_record
 
-            # recordをコピーしてparamsを反映
-            modified_record = record.copy()
-            modified_record.update(params)
-
-            # record_idを取得（なければ生成）
-            history_service = get_ops_history_service()
-            source_record_id = record.get("record_id")
-            if not source_record_id:
-                source_record_id = history_service._generate_record_id(record)
-
-            # 再実行（run=True）
-            result = replay_from_record(modified_record, run=True)
+            # overridesを渡して再実行（GUI側でrecordを編集しない）
+            result = replay_from_record(record, run=True, overrides=params)
 
             # 結果のsummaryとnext_actionを取得
             summary = result.get("summary", {})
@@ -527,18 +522,7 @@ class OpsTab(QWidget):
                 msg = f"{title}\n\n{hint}"
                 QMessageBox.critical(self, "再実行失敗", msg)
 
-            # UIイベントを記録
-            try:
-                corr_id = result.get("record_id")
-                EVENT_STORE.add(
-                    kind="ops_replay",
-                    symbol=record.get("symbol", ""),
-                    reason=f"replay_with_params: ok={result['ok']}, rc={result['rc']}, params={params}",
-                    source_record_id=source_record_id,
-                    corr_id=corr_id,
-                )
-            except Exception:
-                pass  # イベント記録失敗は無視
+            # UIイベントはservices側で記録される（GUI側では記録しない）
 
             # 履歴を更新
             self._load_history()
@@ -549,4 +533,142 @@ class OpsTab(QWidget):
                 self,
                 "再実行エラー",
                 f"再実行中にエラーが発生しました。\n\n{e}",
+            )
+
+    def _refresh_ops_actions(self) -> None:
+        """
+        最新Opsレコードを取得してnext_actionを判定し、PROMOTE/RETRYボタンの表示を更新する。
+        """
+        try:
+            history_service = get_ops_history_service()
+            summary = history_service.summarize_ops_history()
+
+            # lastを取得
+            last = summary.get("last")
+            if not last:
+                # lastが無い場合はitemsの先頭を取得
+                items = summary.get("items", [])
+                if items:
+                    last = items[0]
+                else:
+                    last = None
+
+            self._current_ops_record = last
+
+            # lastが無い場合はボタンを非表示
+            if not last:
+                self.btn_promote.setVisible(False)
+                self.btn_retry.setVisible(False)
+                return
+
+            # replay_from_recordをrun=Falseで呼んでnext_actionを取得
+            # ただし、lastにはrecord_idが含まれているが、完全なrecordが必要な場合があるので
+            # load_ops_historyから最新の完全なrecordを取得する
+            records = history_service.load_ops_history(limit=1)
+            if records:
+                full_record = records[0]
+            else:
+                full_record = last
+
+            # run=Falseでnext_actionを取得
+            result = replay_from_record(copy.deepcopy(full_record), run=False)
+            next_action = result.get("next_action", {})
+            kind = (next_action.get("kind") or "").upper()
+
+            # ボタンの表示/非表示を制御
+            self.btn_promote.setVisible(kind == "PROMOTE" or kind == "PROMOTE_DRY_TO_RUN")
+            self.btn_retry.setVisible(kind == "RETRY")
+
+            # reasonがあればツールチップに表示（任意）
+            reason = next_action.get("reason", "")
+            if reason:
+                self.btn_promote.setToolTip(reason)
+                self.btn_retry.setToolTip(reason)
+
+        except Exception as e:
+            logger.error(f"Failed to refresh ops actions: {e}")
+            # エラー時はボタンを非表示
+            self.btn_promote.setVisible(False)
+            self.btn_retry.setVisible(False)
+
+    def _on_promote_clicked(self) -> None:
+        """PROMOTEボタン押下時のハンドラ。"""
+        if not self._current_ops_record:
+            QMessageBox.warning(
+                self,
+                "エラー",
+                "Opsレコードがありません。",
+            )
+            return
+
+        try:
+            # replay_from_recordをoverrides={"action":"PROMOTE"}で呼ぶ
+            result = replay_from_record(
+                copy.deepcopy(self._current_ops_record),
+                run=True,
+                overrides={"action": "PROMOTE"},
+            )
+
+            # 結果を表示
+            summary = result.get("summary", {})
+            title = summary.get("title", "PROMOTE実行結果")
+            hint = summary.get("hint", "")
+
+            if result["ok"]:
+                msg = f"{title}\n\n{hint}"
+                QMessageBox.information(self, "PROMOTE完了", msg)
+            else:
+                msg = f"{title}\n\n{hint}"
+                QMessageBox.critical(self, "PROMOTE失敗", msg)
+
+            # 履歴を更新
+            self._load_history()
+
+        except Exception as e:
+            logger.exception("Failed to promote: %s", e)
+            QMessageBox.critical(
+                self,
+                "PROMOTEエラー",
+                f"PROMOTE実行中にエラーが発生しました。\n\n{e}",
+            )
+
+    def _on_retry_clicked(self) -> None:
+        """RETRYボタン押下時のハンドラ。"""
+        if not self._current_ops_record:
+            QMessageBox.warning(
+                self,
+                "エラー",
+                "Opsレコードがありません。",
+            )
+            return
+
+        try:
+            # replay_from_recordをoverrides={"action":"RETRY"}で呼ぶ
+            result = replay_from_record(
+                copy.deepcopy(self._current_ops_record),
+                run=True,
+                overrides={"action": "RETRY"},
+            )
+
+            # 結果を表示
+            summary = result.get("summary", {})
+            title = summary.get("title", "RETRY実行結果")
+            hint = summary.get("hint", "")
+
+            if result["ok"]:
+                msg = f"{title}\n\n{hint}"
+                QMessageBox.information(self, "RETRY完了", msg)
+            else:
+                msg = f"{title}\n\n{hint}"
+                QMessageBox.critical(self, "RETRY失敗", msg)
+
+            # 履歴を更新
+            self._load_history()
+
+        except Exception as e:
+            logger.exception("Failed to retry: %s", e)
+            QMessageBox.critical(
+                self,
+                "RETRYエラー",
+                f"RETRY実行中にエラーが発生しました。\n\n{e}",
             )

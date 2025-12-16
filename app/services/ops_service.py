@@ -181,8 +181,8 @@ class OpsService:
                     "stdout_tail": stdout_tail,
                 })
 
-                # 履歴に追記
-                self._append_to_history(result, symbol, profile, profiles)
+                # 履歴に追記（dry/cmd/close_nowを含める）
+                self._append_to_history(result, symbol, profile, profiles, dry, cmd_str, close_now)
 
                 return result
 
@@ -201,8 +201,8 @@ class OpsService:
                 "stdout_tail": stdout_tail,
             }
 
-            # 履歴に追記（エラー時も）
-            self._append_to_history(error_result, symbol, profile, profiles)
+            # 履歴に追記（エラー時も、dry/cmd/close_nowを含める）
+            self._append_to_history(error_result, symbol, profile, profiles, dry, cmd_str, close_now)
 
             return error_result
 
@@ -223,7 +223,8 @@ class OpsService:
 
             # 履歴に追記（例外時も、ただしクラッシュさせない）
             try:
-                self._append_to_history(error_result, symbol, profile, profiles)
+                # 例外時はcmd_strが無いので空文字列を渡す
+                self._append_to_history(error_result, symbol, profile, profiles, dry, "", close_now)
             except Exception as hist_e:
                 logger.error(f"Failed to append to history: {hist_e}")
 
@@ -235,6 +236,9 @@ class OpsService:
         symbol: str,
         profile: Optional[str],
         profiles: Optional[list[str]],
+        dry: bool,
+        cmd_str: str,
+        close_now: bool,
     ) -> None:
         """
         履歴に追記する。
@@ -244,6 +248,9 @@ class OpsService:
             symbol: シンボル
             profile: 単一プロファイル名
             profiles: 複数プロファイル名のリスト
+            dry: ドライランフラグ
+            cmd_str: 実行コマンド文字列
+            close_now: CloseNowフラグ
         """
         try:
             from app.services.ops_history_service import get_ops_history_service
@@ -263,7 +270,13 @@ class OpsService:
                 "ok": result.get("ok", False),
                 "step": result.get("step") or result.get("status") or "unknown",
                 "model_path": result.get("model_path") or result.get("modelPath"),
+                "dry": dry,  # dryフラグを追加
+                "close_now": close_now,  # close_nowフラグを追加
             }
+
+            # cmd_strがあれば追加
+            if cmd_str:
+                hist_rec["cmd"] = cmd_str
 
             # その他のキーも保存（meta など）
             for key in ["status", "result", "error", "meta"]:
