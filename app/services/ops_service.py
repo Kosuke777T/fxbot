@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -21,6 +22,8 @@ class OpsService:
         # プロジェクトルートを推定（.../app/services/ から2つ上）
         self.project_root = Path(__file__).resolve().parents[2]
         self.ops_start_script = self.project_root / "tools" / "ops_start.ps1"
+        # 実行開始時刻を保持（履歴追記用）
+        self._started_at: Optional[str] = None
 
     def run_ops_start(
         self,
@@ -128,6 +131,9 @@ class OpsService:
                 profiles_str = ",".join([p.strip() for p in profiles if p.strip()])
                 arg_list.extend(["-Profiles", profiles_str])
 
+            # 実行開始時刻を記録
+            self._started_at = datetime.now(timezone.utc).isoformat()
+
             # 実行コマンドラインを構築
             cmd_list = [pwsh_cmd] + arg_list
             cmd_str = " ".join(cmd_list)
@@ -174,6 +180,10 @@ class OpsService:
                     "stderr": stderr,
                     "stdout_tail": stdout_tail,
                 })
+
+                # 履歴に追記
+                self._append_to_history(result, symbol, profile, profiles)
+
                 return result
 
             # JSONが取れなかった場合: 安全dictを返す
@@ -181,7 +191,7 @@ class OpsService:
                 "code": "EXECUTION_FAILED",
                 "message": f"ops_start.ps1 returned {returncode}",
             }
-            return {
+            error_result = {
                 "ok": False,
                 "result": None,
                 "error": error_info,
@@ -191,9 +201,14 @@ class OpsService:
                 "stdout_tail": stdout_tail,
             }
 
+            # 履歴に追記（エラー時も）
+            self._append_to_history(error_result, symbol, profile, profiles)
+
+            return error_result
+
         except Exception as e:
             logger.exception("ops_start execution failed: %s", e)
-            return {
+            error_result = {
                 "ok": False,
                 "result": None,
                 "error": {
@@ -205,6 +220,62 @@ class OpsService:
                 "returncode": -1,
                 "stdout_tail": "",
             }
+
+            # 履歴に追記（例外時も、ただしクラッシュさせない）
+            try:
+                self._append_to_history(error_result, symbol, profile, profiles)
+            except Exception as hist_e:
+                logger.error(f"Failed to append to history: {hist_e}")
+
+            return error_result
+
+    def _append_to_history(
+        self,
+        result: dict,
+        symbol: str,
+        profile: Optional[str],
+        profiles: Optional[list[str]],
+    ) -> None:
+        """
+        履歴に追記する。
+
+        Args:
+            result: 実行結果
+            symbol: シンボル
+            profile: 単一プロファイル名
+            profiles: 複数プロファイル名のリスト
+        """
+        try:
+            from app.services.ops_history_service import get_ops_history_service
+
+            # プロファイルリストを構築
+            profile_list = []
+            if profiles:
+                profile_list = [str(p) for p in profiles if p]
+            elif profile:
+                profile_list = [str(profile)]
+
+            # 履歴レコードを構築
+            hist_rec = {
+                "symbol": symbol,
+                "profiles": profile_list,
+                "started_at": self._started_at or datetime.now(timezone.utc).isoformat(),
+                "ok": result.get("ok", False),
+                "step": result.get("step") or result.get("status") or "unknown",
+                "model_path": result.get("model_path") or result.get("modelPath"),
+            }
+
+            # その他のキーも保存（meta など）
+            for key in ["status", "result", "error", "meta"]:
+                if key in result and key not in hist_rec:
+                    hist_rec[key] = result[key]
+
+            # 履歴サービスに追記
+            history_service = get_ops_history_service()
+            history_service.append_ops_result(hist_rec)
+        except Exception as e:
+            logger.error(f"Failed to append to history: {e}")
+            # クラッシュさせない
 
 
 # シングルトンインスタンス

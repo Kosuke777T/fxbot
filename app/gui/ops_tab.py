@@ -21,8 +21,11 @@ from PyQt6.QtWidgets import (
     QSplitter,
 )
 
+from loguru import logger
+
 from app.services.ops_service import get_ops_service
 from app.services.profiles_store import load_profiles
+from app.services.ops_history_service import get_ops_history_service
 
 
 class OpsTab(QWidget):
@@ -70,8 +73,25 @@ class OpsTab(QWidget):
         btn_row.addStretch()
         lay_input.addRow("", btn_row)
 
-        # 結果表示セクション（Splitter で分割）
-        splitter = QSplitter(Qt.Orientation.Vertical, self)
+        # 結果表示セクション（水平Splitterで履歴と結果を分割）
+        main_splitter = QSplitter(Qt.Orientation.Horizontal, self)
+
+        # 左側：履歴セクション
+        grp_history = QGroupBox("履歴", self)
+        lay_history = QVBoxLayout(grp_history)
+        self.list_history = QTreeWidget(grp_history)
+        self.list_history.setColumnCount(4)
+        self.list_history.setHeaderLabels(["時刻", "Symbol", "Status", "Step"])
+        self.list_history.setColumnWidth(0, 180)
+        self.list_history.setColumnWidth(1, 100)
+        self.list_history.setColumnWidth(2, 80)
+        self.list_history.setColumnWidth(3, 200)
+        self.list_history.itemSelectionChanged.connect(self._on_history_selected)
+        lay_history.addWidget(self.list_history)
+        main_splitter.addWidget(grp_history)
+
+        # 右側：既存の結果表示（垂直Splitter）
+        result_splitter = QSplitter(Qt.Orientation.Vertical, self)
 
         # JSON結果ツリー
         grp_result = QGroupBox("実行結果（JSON）", self)
@@ -81,7 +101,7 @@ class OpsTab(QWidget):
         self.tree_result.setHeaderLabels(["キー", "値"])
         self.tree_result.setColumnWidth(0, 200)
         lay_result.addWidget(self.tree_result)
-        splitter.addWidget(grp_result)
+        result_splitter.addWidget(grp_result)
 
         # stdout/stderr 表示
         grp_output = QGroupBox("出力（stdout / stderr）", self)
@@ -90,14 +110,21 @@ class OpsTab(QWidget):
         self.text_output.setReadOnly(True)
         self.text_output.setFontFamily("Consolas")
         lay_output.addWidget(self.text_output)
-        splitter.addWidget(grp_output)
+        result_splitter.addWidget(grp_output)
 
-        splitter.setStretchFactor(0, 2)
-        splitter.setStretchFactor(1, 1)
+        result_splitter.setStretchFactor(0, 2)
+        result_splitter.setStretchFactor(1, 1)
+        main_splitter.addWidget(result_splitter)
+
+        main_splitter.setStretchFactor(0, 1)
+        main_splitter.setStretchFactor(1, 2)
 
         # レイアウトに積む
         root.addWidget(grp_input)
-        root.addWidget(splitter)
+        root.addWidget(main_splitter)
+
+        # 履歴を読み込む
+        self._load_history()
 
     def _load_defaults(self) -> None:
         """デフォルト値を読み込む。"""
@@ -149,6 +176,9 @@ class OpsTab(QWidget):
 
             # 結果を表示
             self._display_result(result)
+
+            # 履歴を更新
+            self._load_history()
 
         except Exception as e:
             QMessageBox.critical(
@@ -245,3 +275,54 @@ class OpsTab(QWidget):
             item = QTreeWidgetItem(parent)
             item.setText(0, key if key else "value")
             item.setText(1, str(data))
+
+    def _load_history(self) -> None:
+        """履歴を読み込んで表示する。"""
+        try:
+            history_service = get_ops_history_service()
+            records = history_service.load_ops_history(limit=200)
+
+            self.list_history.clear()
+            for rec in records:
+                started_at = rec.get("started_at", "")
+                symbol = rec.get("symbol", "")
+                ok = rec.get("ok", False)
+                step = rec.get("step", "")
+
+                # 時刻を短縮表示
+                if started_at:
+                    try:
+                        from datetime import datetime
+                        dt = datetime.fromisoformat(started_at.replace("Z", "+00:00"))
+                        time_str = dt.strftime("%Y-%m-%d %H:%M:%S")
+                    except Exception:
+                        time_str = started_at[:19] if len(started_at) >= 19 else started_at
+                else:
+                    time_str = ""
+
+                # ステータス表示
+                status = "OK" if ok else "NG"
+
+                item = QTreeWidgetItem(self.list_history)
+                item.setText(0, time_str)
+                item.setText(1, symbol)
+                item.setText(2, status)
+                item.setText(3, step)
+                # レコード全体を item に保存（選択時に使用）
+                item.setData(0, Qt.ItemDataRole.UserRole, rec)
+
+            self.list_history.sortItems(0, Qt.SortOrder.DescendingOrder)
+        except Exception as e:
+            logger.error(f"Failed to load history: {e}")
+
+    def _on_history_selected(self) -> None:
+        """履歴が選択されたときに結果を再表示する。"""
+        selected_items = self.list_history.selectedItems()
+        if not selected_items:
+            return
+
+        item = selected_items[0]
+        rec = item.data(0, Qt.ItemDataRole.UserRole)
+        if rec:
+            # 既存の表示関数に渡して再表示
+            self._display_result(rec)
