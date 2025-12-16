@@ -5,12 +5,34 @@ logs/ops/ops_result.jsonl に実行結果を蓄積し、過去結果を読み込
 """
 from __future__ import annotations
 
+import hashlib
 import json
+import re
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Optional
 
 from loguru import logger
+
+
+def _normalize_human_text(s: str) -> str:
+    """
+    表示用テキストを正規化する。
+
+    Args:
+        s: 元の文字列
+
+    Returns:
+        正規化された文字列（全角スペース→半角、連続スペース→1個、strip適用）
+    """
+    if not s:
+        return ""
+    # 全角スペースを半角へ
+    s = s.replace("　", " ")
+    # 連続スペースを1個へ
+    s = re.sub(r" +", " ", s)
+    # strip()を適用
+    return s.strip()
 
 
 class OpsHistoryService:
@@ -144,6 +166,9 @@ class OpsHistoryService:
                     # symbol フィルタ
                     if symbol and rec.get("symbol") != symbol:
                         continue
+                    # record_idを付与（読み取り時に生成）
+                    if "record_id" not in rec:
+                        rec["record_id"] = self._generate_record_id(rec)
                     records.append(rec)
                     if len(records) >= limit:
                         break
@@ -194,6 +219,27 @@ class OpsHistoryService:
                 pass
 
         return None
+
+    def _generate_record_id(self, rec: dict) -> str:
+        """
+        レコードから安定したrecord_idを生成する。
+
+        Args:
+            rec: レコードdict
+
+        Returns:
+            record_id（SHA1ハッシュの先頭16文字）
+        """
+        symbol = str(rec.get("symbol", ""))
+        started_at = str(rec.get("started_at", ""))
+        profiles = rec.get("profiles", [])
+        profiles_str = ",".join(sorted([str(p) for p in profiles])) if isinstance(profiles, list) else str(profiles)
+        step = str(rec.get("step", ""))
+        ok = str(rec.get("ok", False))
+
+        # 安定したIDを生成
+        key = f"{symbol}|{started_at}|{profiles_str}|{step}|{ok}"
+        return hashlib.sha1(key.encode("utf-8")).hexdigest()[:16]
 
     def summarize_ops_history(self, symbol: Optional[str] = None) -> dict:
         """
@@ -279,7 +325,9 @@ class OpsHistoryService:
 
                 # 最後の1件を取得（records は新しい順なので最初の有効なものが最新）
                 if last is None:
+                    record_id = self._generate_record_id(rec)
                     last = {
+                        "record_id": record_id,
                         "started_at": started_at_str,
                         "ok": ok,
                         "step": rec.get("step", "unknown"),
@@ -290,7 +338,9 @@ class OpsHistoryService:
 
                 # 最後のモデル更新を取得（apply_performed == True の最初のもの）
                 if last_model_update is None and apply_performed:
+                    record_id = self._generate_record_id(rec)
                     last_model_update = {
+                        "record_id": record_id,
                         "started_at": started_at_str,
                         "model_path": rec.get("model_path"),
                         "ok": ok,
@@ -449,6 +499,66 @@ def replay_from_record(record: dict, *, run: bool = False) -> dict:
         stdout = result.stdout or ""
         stderr = result.stderr or ""
 
+        # record_idを生成
+        record_id = get_ops_history_service()._generate_record_id(record)
+
+        # stderrを解析（行配列と末尾取得）
+        stderr_lines = stderr.splitlines() if stderr else []
+        stderr_tail = stderr_lines[-5:] if len(stderr_lines) > 5 else stderr_lines
+        # stderr_tailの各行を正規化
+        stderr_tail = [_normalize_human_text(line) for line in stderr_tail]
+
+        # summaryを生成
+        ok = rc == 0
+        if ok:
+            title = "再実行が成功しました"
+            hint = "正常に完了しました。"
+        else:
+            title = f"再実行が失敗しました (rc={rc})"
+            # エラー原因を推定
+            stderr_lower = stderr.lower()
+            if "market_closed" in stderr_lower or "trade_disabled" in stderr_lower:
+                hint = "市場が閉まっているか、取引が無効です。"
+            elif "dry" in stderr_lower or record.get("dry") or record.get("Dry"):
+                hint = "Dry runモードでした。実際の実行を試しますか？"
+            else:
+                hint = "エラーが発生しました。再試行を検討してください。"
+
+        summary = {
+            "title": _normalize_human_text(title),
+            "rc": rc,
+            "ok": ok,
+            "stderr_lines": len(stderr_lines),
+            "stderr_tail": stderr_tail,
+            "hint": _normalize_human_text(hint),
+        }
+
+        # next_actionを生成（自動再実行ポリシーの下地）
+        next_action = {"kind": "NONE", "reason": "", "params": {}}
+        if not ok:
+            stderr_lower = stderr.lower()
+            # Dry runだった場合
+            if "dry" in stderr_lower or record.get("dry") or record.get("Dry"):
+                next_action = {
+                    "kind": "PROMOTE_DRY_TO_RUN",
+                    "reason": "Dry runモードでした。実際の実行を試すことができます。",
+                    "params": {"dry": False},
+                }
+            # 市場クローズ系エラー
+            elif "market_closed" in stderr_lower or "trade_disabled" in stderr_lower:
+                next_action = {
+                    "kind": "NONE",
+                    "reason": "市場が閉まっているか、取引が無効です。",
+                    "params": {},
+                }
+            # その他のエラー
+            else:
+                next_action = {
+                    "kind": "RETRY",
+                    "reason": "エラーが発生しました。再試行を検討してください。",
+                    "params": {"max_retries": 1},
+                }
+
         # 一時ファイルを削除
         try:
             if tmp_path.exists():
@@ -457,12 +567,16 @@ def replay_from_record(record: dict, *, run: bool = False) -> dict:
             pass
 
         return {
-            "ok": rc == 0,
+            "ok": ok,
             "cmd": cmd,
             "rc": rc,
             "stdout": stdout,
             "stderr": stderr,
+            "stderr_full": stderr_lines,  # 折りたたみ表示用
             "error": None,
+            "summary": summary,
+            "next_action": next_action,
+            "record_id": record_id,
         }
 
     except Exception as e:
@@ -471,12 +585,33 @@ def replay_from_record(record: dict, *, run: bool = False) -> dict:
             "code": "REPLAY_ERROR",
             "message": str(e),
         }
+
+        # エラー時もsummaryとnext_actionを返す
+        summary = {
+            "title": "再実行エラー",
+            "rc": -1,
+            "ok": False,
+            "stderr_lines": 0,
+            "stderr_tail": [],
+            "hint": f"エラー: {str(e)}",
+        }
+
+        next_action = {
+            "kind": "NONE",
+            "reason": "システムエラーが発生しました。",
+            "params": {},
+        }
+
         return {
             "ok": False,
             "cmd": cmd or [],
             "rc": -1,
             "stdout": stdout,
             "stderr": stderr,
+            "stderr_full": [],
             "error": error,
+            "summary": summary,
+            "next_action": next_action,
+            "record_id": get_ops_history_service()._generate_record_id(record) if isinstance(record, dict) else None,
         }
 

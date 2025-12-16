@@ -31,6 +31,8 @@ class UiEvent:
     profit_jpy: Optional[float] = None
     reason: Optional[str] = None
     notes: Optional[str] = None
+    corr_id: Optional[str] = None  # 相関ID（イベントログで追跡用）
+    source_record_id: Optional[str] = None  # どの履歴レコードから再実行されたか
 
 
 def _now() -> str:

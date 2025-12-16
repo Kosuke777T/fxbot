@@ -367,34 +367,65 @@ class OpsTab(QWidget):
             return
 
         try:
-            from app.services.ops_history_service import replay_from_record
-            from app.services.event_store import EVENT_STORE, UiEvent
+            from app.services.ops_history_service import replay_from_record, get_ops_history_service
+            from app.services.event_store import EVENT_STORE
+
+            # record_idを取得（なければ生成）
+            history_service = get_ops_history_service()
+            source_record_id = self._selected_record.get("record_id")
+            if not source_record_id:
+                source_record_id = history_service._generate_record_id(self._selected_record)
 
             # 再実行（run=True）
             result = replay_from_record(self._selected_record, run=True)
 
-            # 結果を表示
+            # 結果のsummaryを取得
+            summary = result.get("summary", {})
+            title = summary.get("title", "再実行結果")
+            hint = summary.get("hint", "")
+            stderr_tail = summary.get("stderr_tail", [])
+            stderr_full = result.get("stderr_full", [])
+            stderr_lines = summary.get("stderr_lines", 0)
+
+            # 結果を表示（summary.titleを大きく表示）
             if result["ok"]:
-                msg = f"再実行が完了しました。\n\nReturn code: {result['rc']}"
-                if result["stdout"]:
-                    msg += f"\n\n出力:\n{result['stdout'][:500]}"
+                msg = f"{title}\n\n{hint}"
+                if result.get("stdout"):
+                    stdout_preview = result["stdout"][:200] if len(result["stdout"]) > 200 else result["stdout"]
+                    msg += f"\n\n出力（要約）:\n{stdout_preview}"
                 QMessageBox.information(self, "再実行完了", msg)
             else:
-                error_info = result.get("error", {})
-                error_msg = error_info.get("message", "不明なエラー") if error_info else "実行に失敗しました"
-                msg = f"再実行に失敗しました。\n\n{error_msg}"
-                if result["stderr"]:
-                    msg += f"\n\nエラー出力:\n{result['stderr'][:500]}"
-                QMessageBox.critical(self, "再実行失敗", msg)
+                msg = f"{title}\n\n{hint}"
 
-            # UIイベントを記録（任意）
+                # stderr_tailを表示（折りたたみ時の要約）
+                if stderr_tail:
+                    msg += f"\n\nエラー出力（末尾）:\n" + "\n".join(stderr_tail[-3:])
+
+                # 詳細表示用のダイアログ（折りたたみ）
+                if stderr_lines > 0:
+                    detail_msg = f"エラー出力（全{stderr_lines}行）:\n\n" + "\n".join(stderr_full)
+                    if len(detail_msg) > 2000:
+                        detail_msg = detail_msg[:2000] + "\n\n... (省略)"
+
+                    # 詳細表示ボタン付きダイアログ
+                    detail_dialog = QMessageBox(self)
+                    detail_dialog.setWindowTitle("再実行失敗 - 詳細")
+                    detail_dialog.setText(msg)
+                    detail_dialog.setDetailedText(detail_msg)
+                    detail_dialog.setIcon(QMessageBox.Icon.Critical)
+                    detail_dialog.exec()
+                else:
+                    QMessageBox.critical(self, "再実行失敗", msg)
+
+            # UIイベントを記録（source_record_idとcorr_idを付与）
             try:
-                from app.services.event_store import EVENT_STORE
-
+                corr_id = result.get("record_id")  # 再実行結果のrecord_idを相関IDとして使用
                 EVENT_STORE.add(
                     kind="ops_replay",
                     symbol=self._selected_record.get("symbol", ""),
                     reason=f"replay: ok={result['ok']}, rc={result['rc']}",
+                    source_record_id=source_record_id,
+                    corr_id=corr_id,
                 )
             except Exception:
                 pass  # イベント記録失敗は無視
