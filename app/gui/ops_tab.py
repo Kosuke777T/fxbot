@@ -88,7 +88,17 @@ class OpsTab(QWidget):
         self.list_history.setColumnWidth(3, 200)
         self.list_history.itemSelectionChanged.connect(self._on_history_selected)
         lay_history.addWidget(self.list_history)
+
+        # 再実行ボタン
+        self.btn_replay = QPushButton("この条件で再実行", grp_history)
+        self.btn_replay.clicked.connect(self._replay_selected)
+        self.btn_replay.setEnabled(False)  # 選択されるまで無効
+        lay_history.addWidget(self.btn_replay)
+
         main_splitter.addWidget(grp_history)
+
+        # 選択中レコードを保持（一時的に）
+        self._selected_record: Optional[dict] = None
 
         # 右側：既存の結果表示（垂直Splitter）
         result_splitter = QSplitter(Qt.Orientation.Vertical, self)
@@ -319,10 +329,83 @@ class OpsTab(QWidget):
         """履歴が選択されたときに結果を再表示する。"""
         selected_items = self.list_history.selectedItems()
         if not selected_items:
+            self._selected_record = None
+            self.btn_replay.setEnabled(False)
             return
 
         item = selected_items[0]
         rec = item.data(0, Qt.ItemDataRole.UserRole)
         if rec:
+            # 選択中レコードを保持
+            self._selected_record = rec
+            self.btn_replay.setEnabled(True)
             # 既存の表示関数に渡して再表示
             self._display_result(rec)
+        else:
+            self._selected_record = None
+            self.btn_replay.setEnabled(False)
+
+    def _replay_selected(self) -> None:
+        """選択中の履歴レコードを再実行する。"""
+        if not self._selected_record:
+            QMessageBox.warning(
+                self,
+                "エラー",
+                "履歴が選択されていません。",
+            )
+            return
+
+        # 最終確認
+        reply = QMessageBox.question(
+            self,
+            "再実行確認",
+            "選択中の条件で再実行しますか？",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        try:
+            from app.services.ops_history_service import replay_from_record
+            from app.services.event_store import EVENT_STORE, UiEvent
+
+            # 再実行（run=True）
+            result = replay_from_record(self._selected_record, run=True)
+
+            # 結果を表示
+            if result["ok"]:
+                msg = f"再実行が完了しました。\n\nReturn code: {result['rc']}"
+                if result["stdout"]:
+                    msg += f"\n\n出力:\n{result['stdout'][:500]}"
+                QMessageBox.information(self, "再実行完了", msg)
+            else:
+                error_info = result.get("error", {})
+                error_msg = error_info.get("message", "不明なエラー") if error_info else "実行に失敗しました"
+                msg = f"再実行に失敗しました。\n\n{error_msg}"
+                if result["stderr"]:
+                    msg += f"\n\nエラー出力:\n{result['stderr'][:500]}"
+                QMessageBox.critical(self, "再実行失敗", msg)
+
+            # UIイベントを記録（任意）
+            try:
+                from app.services.event_store import EVENT_STORE
+
+                EVENT_STORE.add(
+                    kind="ops_replay",
+                    symbol=self._selected_record.get("symbol", ""),
+                    reason=f"replay: ok={result['ok']}, rc={result['rc']}",
+                )
+            except Exception:
+                pass  # イベント記録失敗は無視
+
+            # 履歴を更新
+            self._load_history()
+
+        except Exception as e:
+            logger.exception("Failed to replay: %s", e)
+            QMessageBox.critical(
+                self,
+                "再実行エラー",
+                f"再実行中にエラーが発生しました。\n\n{e}",
+            )

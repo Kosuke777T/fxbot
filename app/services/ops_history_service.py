@@ -368,3 +368,115 @@ def append_ops_result(rec: dict) -> None:
     """
     return get_ops_history_service().append_ops_result(rec)
 
+
+def replay_from_record(record: dict, *, run: bool = False) -> dict:
+    """
+    レコードから条件を復元して再実行する。
+
+    Args:
+        record: Ops履歴レコード（load_ops_history などで取得した dict）
+        run: True のときのみ実際に再実行。False ならコマンドを表示するだけ
+
+    Returns:
+        実行結果dict:
+            - ok: bool（成功/失敗）
+            - cmd: list[str]（実行コマンド）
+            - rc: int（returncode、run=False のときは 0）
+            - stdout: str（標準出力）
+            - stderr: str（標準エラー出力）
+            - error: dict|None（エラー情報）
+    """
+    import subprocess
+    import sys
+    import tempfile
+    import json
+    from pathlib import Path
+
+    # バリデーション：record is None / not isinstance(record, dict) を弾く
+    if not isinstance(record, dict) or not record:
+        return {
+            "ok": False,
+            "rc": 1,
+            "cmd": [],
+            "stdout": "",
+            "stderr": "",
+            "error": {"code": "NO_RECORD", "message": "No record selected / record is empty"},
+        }
+
+    project_root = Path(__file__).resolve().parents[2]
+    cmd = None
+    rc = 0
+    stdout = ""
+    stderr = ""
+    error = None
+
+    try:
+        # レコードを一時JSONLファイルに書き込む（1行JSONで確実に）
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            suffix=".jsonl",
+            delete=False,
+            encoding="utf-8",
+            dir=str(project_root / "logs" / "ops"),
+        ) as tmp_file:
+            # JSONLとして1行に固定
+            line = json.dumps(record, ensure_ascii=True, separators=(",", ":"), default=str)
+            tmp_file.write(line + "\n")
+            tmp_file.flush()
+            tmp_path = Path(tmp_file.name)
+
+        # tools/ops_replay.py を実行（tempファイルは1行しかないのでindex指定は不要）
+        cmd = [
+            sys.executable,
+            "-m",
+            "tools.ops_replay",
+            "--log",
+            str(tmp_path),
+        ]
+        if run:
+            cmd.append("--run")
+
+        result = subprocess.run(
+            cmd,
+            cwd=str(project_root),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+
+        rc = result.returncode
+        stdout = result.stdout or ""
+        stderr = result.stderr or ""
+
+        # 一時ファイルを削除
+        try:
+            if tmp_path.exists():
+                tmp_path.unlink()
+        except Exception:
+            pass
+
+        return {
+            "ok": rc == 0,
+            "cmd": cmd,
+            "rc": rc,
+            "stdout": stdout,
+            "stderr": stderr,
+            "error": None,
+        }
+
+    except Exception as e:
+        logger.exception("replay_from_record failed: %s", e)
+        error = {
+            "code": "REPLAY_ERROR",
+            "message": str(e),
+        }
+        return {
+            "ok": False,
+            "cmd": cmd or [],
+            "rc": -1,
+            "stdout": stdout,
+            "stderr": stderr,
+            "error": error,
+        }
+

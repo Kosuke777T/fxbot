@@ -974,7 +974,7 @@
     "name": "PlotWindow",
     "qualname": "PlotWindow",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 148,
+    "lineno": 158,
     "signature": "",
     "returns": "",
     "doc": ""
@@ -984,17 +984,67 @@
     "name": "__init__",
     "qualname": "PlotWindow.__init__",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 149,
-    "signature": "(self, parent=None)",
+    "lineno": 159,
+    "signature": "(self, parent=None, mode: str='bt', equity_df: Optional[pd.DataFrame]=None, price_df: Optional[pd.DataFrame]=None, wfo_train_df: Optional[pd.DataFrame]=None, wfo_test_df: Optional[pd.DataFrame]=None)",
     "returns": "",
     "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "showEvent",
+    "qualname": "PlotWindow.showEvent",
+    "file": "app/gui/backtest_tab.py",
+    "lineno": 195,
+    "signature": "(self, event)",
+    "returns": "",
+    "doc": "ウインドウが表示されたときに必ず描画を実行"
+  },
+  {
+    "kind": "method",
+    "name": "_plot",
+    "qualname": "PlotWindow._plot",
+    "file": "app/gui/backtest_tab.py",
+    "lineno": 201,
+    "signature": "(self)",
+    "returns": "",
+    "doc": "modeに応じて描画を実行する。"
+  },
+  {
+    "kind": "method",
+    "name": "_plot_bt_equity",
+    "qualname": "PlotWindow._plot_bt_equity",
+    "file": "app/gui/backtest_tab.py",
+    "lineno": 226,
+    "signature": "(self)",
+    "returns": "",
+    "doc": "Backtestモード: equity curveを描画"
+  },
+  {
+    "kind": "method",
+    "name": "_plot_wfo",
+    "qualname": "PlotWindow._plot_wfo",
+    "file": "app/gui/backtest_tab.py",
+    "lineno": 307,
+    "signature": "(self)",
+    "returns": "",
+    "doc": "Walk-Forwardモード: train/test equity + overlay"
+  },
+  {
+    "kind": "method",
+    "name": "_plot_price",
+    "qualname": "PlotWindow._plot_price",
+    "file": "app/gui/backtest_tab.py",
+    "lineno": 380,
+    "signature": "(self)",
+    "returns": "",
+    "doc": "Price previewを描画"
   },
   {
     "kind": "method",
     "name": "plot_equity_csv",
     "qualname": "PlotWindow.plot_equity_csv",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 170,
+    "lineno": 417,
     "signature": "(self, csv_path: str)",
     "returns": "",
     "doc": ""
@@ -1004,7 +1054,7 @@
     "name": "overlay_wfo_equity",
     "qualname": "PlotWindow.overlay_wfo_equity",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 234,
+    "lineno": 481,
     "signature": "(self, df_train: Optional[pd.DataFrame], df_test: Optional[pd.DataFrame])",
     "returns": "None",
     "doc": "Overlay WFO train/test equity lines on this window's axes."
@@ -1014,7 +1064,7 @@
     "name": "plot_price_preview",
     "qualname": "PlotWindow.plot_price_preview",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 295,
+    "lineno": 543,
     "signature": "(self, csv_path: str, note: str='')",
     "returns": "",
     "doc": ""
@@ -1024,7 +1074,7 @@
     "name": "plot_heatmap",
     "qualname": "PlotWindow.plot_heatmap",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 326,
+    "lineno": 574,
     "signature": "(self, df, note: str='')",
     "returns": "",
     "doc": "tools/backtest_run が生成する monthly_returns_*.csv の形式に対応したヒートマップ描画。"
@@ -1034,7 +1084,7 @@
     "name": "jump_range",
     "qualname": "PlotWindow.jump_range",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 426,
+    "lineno": 674,
     "signature": "(self, mode: str)",
     "returns": "None",
     "doc": "ポップアウト表示で 1W / 1M / ALL の X 範囲を切り替える。"
@@ -1044,7 +1094,7 @@
     "name": "BacktestTab",
     "qualname": "BacktestTab",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 591,
+    "lineno": 839,
     "signature": "",
     "returns": "",
     "doc": ""
@@ -1054,7 +1104,7 @@
     "name": "__init__",
     "qualname": "BacktestTab.__init__",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 592,
+    "lineno": 840,
     "signature": "(self, parent: QtWidgets.QWidget | None=None, kpi_service: Optional[Any]=None, profile_name: str='michibiki_std')",
     "returns": "None",
     "doc": ""
@@ -1064,7 +1114,7 @@
     "name": "_on_progress_timer",
     "qualname": "BacktestTab._on_progress_timer",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 792,
+    "lineno": 1043,
     "signature": "(self)",
     "returns": "",
     "doc": ""
@@ -1074,7 +1124,7 @@
     "name": "_append_progress",
     "qualname": "BacktestTab._append_progress",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 801,
+    "lineno": 1052,
     "signature": "(self, text: str)",
     "returns": "",
     "doc": ""
@@ -1084,7 +1134,7 @@
     "name": "_on_mode_changed",
     "qualname": "BacktestTab._on_mode_changed",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 804,
+    "lineno": 1055,
     "signature": "(self, checked: bool=False)",
     "returns": "",
     "doc": ""
@@ -1094,7 +1144,7 @@
     "name": "_current_mode_text",
     "qualname": "BacktestTab._current_mode_text",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 809,
+    "lineno": 1060,
     "signature": "(self)",
     "returns": "str",
     "doc": "UI 上のモード文字列を返す（Backtest / Walk-Forward / Overlay）。"
@@ -1104,7 +1154,7 @@
     "name": "_find_latest_wfo_dir",
     "qualname": "BacktestTab._find_latest_wfo_dir",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 817,
+    "lineno": 1068,
     "signature": "(self)",
     "returns": "Optional[pathlib.Path]",
     "doc": ""
@@ -1114,7 +1164,7 @@
     "name": "_load_latest_wfo_data",
     "qualname": "BacktestTab._load_latest_wfo_data",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 829,
+    "lineno": 1080,
     "signature": "(self)",
     "returns": "Optional[Dict[str, object]]",
     "doc": ""
@@ -1124,7 +1174,7 @@
     "name": "_update_wfo_stats_panel",
     "qualname": "BacktestTab._update_wfo_stats_panel",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 851,
+    "lineno": 1102,
     "signature": "(self, metrics: Dict[str, object])",
     "returns": "None",
     "doc": ""
@@ -1134,7 +1184,7 @@
     "name": "_overlay_wfo_equity",
     "qualname": "BacktestTab._overlay_wfo_equity",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 876,
+    "lineno": 1127,
     "signature": "(self, df_train: Optional[pd.DataFrame], df_test: Optional[pd.DataFrame])",
     "returns": "None",
     "doc": "Overlay Train/Test equity lines onto the current plot axes."
@@ -1144,7 +1194,7 @@
     "name": "_WFOResult",
     "qualname": "BacktestTab._WFOResult",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 925,
+    "lineno": 1177,
     "signature": "",
     "returns": "",
     "doc": "Walk-Forward 検証の結果セットをまとめて持つだけの小さな入れ物。"
@@ -1154,7 +1204,7 @@
     "name": "__init__",
     "qualname": "BacktestTab._WFOResult.__init__",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 934,
+    "lineno": 1186,
     "signature": "(self, report_json: Dict[str, Any], equity_train: Optional[pd.DataFrame], equity_test: Optional[pd.DataFrame], run_id: str, parent: Optional[QtCore.QObject]=None)",
     "returns": "None",
     "doc": ""
@@ -1164,7 +1214,7 @@
     "name": "_find_latest_wfo_files",
     "qualname": "BacktestTab._find_latest_wfo_files",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 952,
+    "lineno": 1204,
     "signature": "(self)",
     "returns": "Optional['_WFOResult']",
     "doc": "logs/retrain/ 配下から最新の report_*.json を探し、"
@@ -1174,7 +1224,7 @@
     "name": "_debug_print_wfo_summary",
     "qualname": "BacktestTab._debug_print_wfo_summary",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 1025,
+    "lineno": 1277,
     "signature": "(self, wfo: '_WFOResult')",
     "returns": "None",
     "doc": "とりあえず「ちゃんと読めたか」を確認するために、"
@@ -1184,7 +1234,7 @@
     "name": "_load_model_info",
     "qualname": "BacktestTab._load_model_info",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 1047,
+    "lineno": 1299,
     "signature": "(self)",
     "returns": "",
     "doc": ""
@@ -1194,7 +1244,7 @@
     "name": "_update_data",
     "qualname": "BacktestTab._update_data",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 1062,
+    "lineno": 1314,
     "signature": "(self)",
     "returns": "",
     "doc": ""
@@ -1204,7 +1254,7 @@
     "name": "_run_test",
     "qualname": "BacktestTab._run_test",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 1096,
+    "lineno": 1348,
     "signature": "(self)",
     "returns": "",
     "doc": ""
@@ -1214,7 +1264,7 @@
     "name": "_on_proc_ready_read_stdout",
     "qualname": "BacktestTab._on_proc_ready_read_stdout",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 1215,
+    "lineno": 1450,
     "signature": "(self)",
     "returns": "",
     "doc": ""
@@ -1224,7 +1274,7 @@
     "name": "_on_proc_ready_read_stderr",
     "qualname": "BacktestTab._on_proc_ready_read_stderr",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 1256,
+    "lineno": 1491,
     "signature": "(self)",
     "returns": "",
     "doc": ""
@@ -1234,7 +1284,7 @@
     "name": "_on_proc_finished",
     "qualname": "BacktestTab._on_proc_finished",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 1295,
+    "lineno": 1530,
     "signature": "(self, code: int, status: QtCore.QProcess.ExitStatus, sym: str, tf: str, mode: str)",
     "returns": "",
     "doc": ""
@@ -1244,7 +1294,7 @@
     "name": "_pick_file",
     "qualname": "BacktestTab._pick_file",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 1388,
+    "lineno": 1686,
     "signature": "(self)",
     "returns": "",
     "doc": ""
@@ -1254,7 +1304,7 @@
     "name": "_save_png",
     "qualname": "BacktestTab._save_png",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 1394,
+    "lineno": 1692,
     "signature": "(self)",
     "returns": "",
     "doc": ""
@@ -1264,7 +1314,7 @@
     "name": "_export_result_json",
     "qualname": "BacktestTab._export_result_json",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 1403,
+    "lineno": 1701,
     "signature": "(self)",
     "returns": "",
     "doc": ""
@@ -1274,7 +1324,7 @@
     "name": "_show_heatmap",
     "qualname": "BacktestTab._show_heatmap",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 1434,
+    "lineno": 1732,
     "signature": "(self)",
     "returns": "",
     "doc": ""
@@ -1284,7 +1334,7 @@
     "name": "_pop_out",
     "qualname": "BacktestTab._pop_out",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 1468,
+    "lineno": 1766,
     "signature": "(self)",
     "returns": "",
     "doc": ""
@@ -1294,7 +1344,7 @@
     "name": "_load_plot",
     "qualname": "BacktestTab._load_plot",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 1490,
+    "lineno": 1804,
     "signature": "(self, path_or_csv)",
     "returns": "",
     "doc": ""
@@ -1304,7 +1354,7 @@
     "name": "_load_metrics",
     "qualname": "BacktestTab._load_metrics",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 1537,
+    "lineno": 1884,
     "signature": "(self, metrics_path: Path)",
     "returns": "",
     "doc": ""
@@ -1314,7 +1364,7 @@
     "name": "_on_range_jump",
     "qualname": "BacktestTab._on_range_jump",
     "file": "app/gui/backtest_tab.py",
-    "lineno": 1580,
+    "lineno": 1927,
     "signature": "(self, mode: str)",
     "returns": "None",
     "doc": "Backtestタブのインライン描画と、ポップアウト済みウィンドウの両方に期間ジャンプを適用する。"
@@ -1524,7 +1574,7 @@
     "name": "KPITab",
     "qualname": "KPITab",
     "file": "app/gui/kpi_tab.py",
-    "lineno": 11,
+    "lineno": 19,
     "signature": "",
     "returns": "",
     "doc": "運用KPIタブ（メインタブ）"
@@ -1534,7 +1584,7 @@
     "name": "__init__",
     "qualname": "KPITab.__init__",
     "file": "app/gui/kpi_tab.py",
-    "lineno": 19,
+    "lineno": 27,
     "signature": "(self, parent: Optional[QWidget]=None, kpi_service: Optional[KPIService]=None, profile_name: str='michibiki_std')",
     "returns": "None",
     "doc": ""
@@ -1544,17 +1594,27 @@
     "name": "refresh",
     "qualname": "KPITab.refresh",
     "file": "app/gui/kpi_tab.py",
-    "lineno": 46,
+    "lineno": 73,
     "signature": "(self, profile: Optional[str]=None)",
     "returns": "None",
     "doc": "KPIダッシュボードを更新する。"
+  },
+  {
+    "kind": "method",
+    "name": "_update_ops_stats",
+    "qualname": "KPITab._update_ops_stats",
+    "file": "app/gui/kpi_tab.py",
+    "lineno": 116,
+    "signature": "(self)",
+    "returns": "None",
+    "doc": "再学習実績を更新する。"
   },
   {
     "kind": "class",
     "name": "MainWindow",
     "qualname": "MainWindow",
     "file": "app/gui/main.py",
-    "lineno": 29,
+    "lineno": 30,
     "signature": "",
     "returns": "",
     "doc": ""
@@ -1564,7 +1624,7 @@
     "name": "__init__",
     "qualname": "MainWindow.__init__",
     "file": "app/gui/main.py",
-    "lineno": 30,
+    "lineno": 31,
     "signature": "(self)",
     "returns": "None",
     "doc": ""
@@ -1574,7 +1634,7 @@
     "name": "_on_tab_changed",
     "qualname": "MainWindow._on_tab_changed",
     "file": "app/gui/main.py",
-    "lineno": 123,
+    "lineno": 125,
     "signature": "(self, index: int)",
     "returns": "None",
     "doc": "タブが切り替わったときに呼ばれる。"
@@ -1584,17 +1644,117 @@
     "name": "main",
     "qualname": "main",
     "file": "app/gui/main.py",
-    "lineno": 142,
+    "lineno": 144,
     "signature": "()",
     "returns": "None",
     "doc": ""
   },
   {
     "kind": "class",
+    "name": "OpsTab",
+    "qualname": "OpsTab",
+    "file": "app/gui/ops_tab.py",
+    "lineno": 31,
+    "signature": "",
+    "returns": "",
+    "doc": "Ops実行タブ（tools/ops_start.ps1 の実行と結果表示）"
+  },
+  {
+    "kind": "method",
+    "name": "__init__",
+    "qualname": "OpsTab.__init__",
+    "file": "app/gui/ops_tab.py",
+    "lineno": 34,
+    "signature": "(self, parent: Optional[QWidget]=None)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_setup_ui",
+    "qualname": "OpsTab._setup_ui",
+    "file": "app/gui/ops_tab.py",
+    "lineno": 40,
+    "signature": "(self)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_load_defaults",
+    "qualname": "OpsTab._load_defaults",
+    "file": "app/gui/ops_tab.py",
+    "lineno": 139,
+    "signature": "(self)",
+    "returns": "None",
+    "doc": "デフォルト値を読み込む。"
+  },
+  {
+    "kind": "method",
+    "name": "_on_run_clicked",
+    "qualname": "OpsTab._on_run_clicked",
+    "file": "app/gui/ops_tab.py",
+    "lineno": 152,
+    "signature": "(self)",
+    "returns": "None",
+    "doc": "実行ボタン押下時。"
+  },
+  {
+    "kind": "method",
+    "name": "_display_result",
+    "qualname": "OpsTab._display_result",
+    "file": "app/gui/ops_tab.py",
+    "lineno": 203,
+    "signature": "(self, result: dict)",
+    "returns": "None",
+    "doc": "結果を表示する。"
+  },
+  {
+    "kind": "method",
+    "name": "_populate_tree",
+    "qualname": "OpsTab._populate_tree",
+    "file": "app/gui/ops_tab.py",
+    "lineno": 256,
+    "signature": "(self, parent: QTreeWidgetItem, data: Any, key: str='')",
+    "returns": "None",
+    "doc": "dict/list を再帰的にツリーに追加する。"
+  },
+  {
+    "kind": "method",
+    "name": "_load_history",
+    "qualname": "OpsTab._load_history",
+    "file": "app/gui/ops_tab.py",
+    "lineno": 289,
+    "signature": "(self)",
+    "returns": "None",
+    "doc": "履歴を読み込んで表示する。"
+  },
+  {
+    "kind": "method",
+    "name": "_on_history_selected",
+    "qualname": "OpsTab._on_history_selected",
+    "file": "app/gui/ops_tab.py",
+    "lineno": 328,
+    "signature": "(self)",
+    "returns": "None",
+    "doc": "履歴が選択されたときに結果を再表示する。"
+  },
+  {
+    "kind": "method",
+    "name": "_replay_selected",
+    "qualname": "OpsTab._replay_selected",
+    "file": "app/gui/ops_tab.py",
+    "lineno": 348,
+    "signature": "(self)",
+    "returns": "None",
+    "doc": "選択中の履歴レコードを再実行する。"
+  },
+  {
+    "kind": "class",
     "name": "SettingsTab",
     "qualname": "SettingsTab",
     "file": "app/gui/settings_tab.py",
-    "lineno": 25,
+    "lineno": 27,
     "signature": "",
     "returns": "",
     "doc": "MT5 口座設定タブ。"
@@ -1604,7 +1764,7 @@
     "name": "__init__",
     "qualname": "SettingsTab.__init__",
     "file": "app/gui/settings_tab.py",
-    "lineno": 33,
+    "lineno": 35,
     "signature": "(self, parent: Optional[QWidget]=None)",
     "returns": "None",
     "doc": ""
@@ -1614,7 +1774,7 @@
     "name": "_setup_ui",
     "qualname": "SettingsTab._setup_ui",
     "file": "app/gui/settings_tab.py",
-    "lineno": 42,
+    "lineno": 45,
     "signature": "(self)",
     "returns": "None",
     "doc": ""
@@ -1624,7 +1784,7 @@
     "name": "_load_profiles",
     "qualname": "SettingsTab._load_profiles",
     "file": "app/gui/settings_tab.py",
-    "lineno": 124,
+    "lineno": 152,
     "signature": "(self)",
     "returns": "None",
     "doc": "設定ファイルからプロファイル一覧を読み込み、コンボボックスに反映。"
@@ -1634,7 +1794,7 @@
     "name": "_apply_profile_to_fields",
     "qualname": "SettingsTab._apply_profile_to_fields",
     "file": "app/gui/settings_tab.py",
-    "lineno": 154,
+    "lineno": 182,
     "signature": "(self, profile_name: str)",
     "returns": "None",
     "doc": "指定プロファイルの情報を入力欄に反映。"
@@ -1644,7 +1804,7 @@
     "name": "_on_profile_changed",
     "qualname": "SettingsTab._on_profile_changed",
     "file": "app/gui/settings_tab.py",
-    "lineno": 174,
+    "lineno": 202,
     "signature": "(self, name: str)",
     "returns": "None",
     "doc": ""
@@ -1654,7 +1814,7 @@
     "name": "_on_save_clicked",
     "qualname": "SettingsTab._on_save_clicked",
     "file": "app/gui/settings_tab.py",
-    "lineno": 177,
+    "lineno": 205,
     "signature": "(self)",
     "returns": "None",
     "doc": ""
@@ -1664,7 +1824,7 @@
     "name": "_on_switch_clicked",
     "qualname": "SettingsTab._on_switch_clicked",
     "file": "app/gui/settings_tab.py",
-    "lineno": 203,
+    "lineno": 231,
     "signature": "(self)",
     "returns": "None",
     "doc": ""
@@ -1674,7 +1834,7 @@
     "name": "_on_selftest_clicked",
     "qualname": "SettingsTab._on_selftest_clicked",
     "file": "app/gui/settings_tab.py",
-    "lineno": 237,
+    "lineno": 265,
     "signature": "(self)",
     "returns": "None",
     "doc": "「MT5 接続テスト（自己診断）」ボタン押下時のハンドラ。"
@@ -1684,7 +1844,7 @@
     "name": "_on_orderflow_selftest_clicked",
     "qualname": "SettingsTab._on_orderflow_selftest_clicked",
     "file": "app/gui/settings_tab.py",
-    "lineno": 286,
+    "lineno": 314,
     "signature": "(self)",
     "returns": "None",
     "doc": "「テスト発注（selftest_order_flow）」ボタン押下時のハンドラ。"
@@ -1694,10 +1854,50 @@
     "name": "_refresh_active_label",
     "qualname": "SettingsTab._refresh_active_label",
     "file": "app/gui/settings_tab.py",
-    "lineno": 340,
+    "lineno": 368,
     "signature": "(self)",
     "returns": "None",
     "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "_load_strategy_profiles",
+    "qualname": "SettingsTab._load_strategy_profiles",
+    "file": "app/gui/settings_tab.py",
+    "lineno": 385,
+    "signature": "(self)",
+    "returns": "None",
+    "doc": "config/profiles.json からプロファイル一覧を読み込んで表示。"
+  },
+  {
+    "kind": "method",
+    "name": "_on_profile_add_clicked",
+    "qualname": "SettingsTab._on_profile_add_clicked",
+    "file": "app/gui/settings_tab.py",
+    "lineno": 399,
+    "signature": "(self)",
+    "returns": "None",
+    "doc": "プロファイル追加ボタン押下時。"
+  },
+  {
+    "kind": "method",
+    "name": "_on_profile_remove_clicked",
+    "qualname": "SettingsTab._on_profile_remove_clicked",
+    "file": "app/gui/settings_tab.py",
+    "lineno": 421,
+    "signature": "(self)",
+    "returns": "None",
+    "doc": "プロファイル削除ボタン押下時。"
+  },
+  {
+    "kind": "method",
+    "name": "_on_profile_save_clicked",
+    "qualname": "SettingsTab._on_profile_save_clicked",
+    "file": "app/gui/settings_tab.py",
+    "lineno": 439,
+    "signature": "(self)",
+    "returns": "None",
+    "doc": "プロファイル保存ボタン押下時。"
   },
   {
     "kind": "class",
@@ -3741,6 +3941,176 @@
   },
   {
     "kind": "class",
+    "name": "OpsHistoryService",
+    "qualname": "OpsHistoryService",
+    "file": "app/services/ops_history_service.py",
+    "lineno": 16,
+    "signature": "",
+    "returns": "",
+    "doc": "Ops実行履歴サービス"
+  },
+  {
+    "kind": "method",
+    "name": "__init__",
+    "qualname": "OpsHistoryService.__init__",
+    "file": "app/services/ops_history_service.py",
+    "lineno": 19,
+    "signature": "(self)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "append_ops_result",
+    "qualname": "OpsHistoryService.append_ops_result",
+    "file": "app/services/ops_history_service.py",
+    "lineno": 26,
+    "signature": "(self, rec: dict)",
+    "returns": "None",
+    "doc": "logs/ops/ops_result.jsonl に 1行追記（UTF-8、JSONL）"
+  },
+  {
+    "kind": "method",
+    "name": "_normalize_record",
+    "qualname": "OpsHistoryService._normalize_record",
+    "file": "app/services/ops_history_service.py",
+    "lineno": 53,
+    "signature": "(self, rec: dict)",
+    "returns": "dict",
+    "doc": "レコードを正規化する。"
+  },
+  {
+    "kind": "method",
+    "name": "load_ops_history",
+    "qualname": "OpsHistoryService.load_ops_history",
+    "file": "app/services/ops_history_service.py",
+    "lineno": 114,
+    "signature": "(self, symbol: Optional[str]=None, limit: int=200)",
+    "returns": "list[dict]",
+    "doc": "JSONL を末尾から最大 limit 件読み、壊れ行はスキップ。"
+  },
+  {
+    "kind": "method",
+    "name": "_parse_started_at",
+    "qualname": "OpsHistoryService._parse_started_at",
+    "file": "app/services/ops_history_service.py",
+    "lineno": 160,
+    "signature": "(self, s: str)",
+    "returns": "Optional[datetime]",
+    "doc": "started_at 文字列を datetime に変換する（複数フォーマット対応）。"
+  },
+  {
+    "kind": "method",
+    "name": "summarize_ops_history",
+    "qualname": "OpsHistoryService.summarize_ops_history",
+    "file": "app/services/ops_history_service.py",
+    "lineno": 198,
+    "signature": "(self, symbol: Optional[str]=None)",
+    "returns": "dict",
+    "doc": "履歴を集計する。"
+  },
+  {
+    "kind": "function",
+    "name": "get_ops_history_service",
+    "qualname": "get_ops_history_service",
+    "file": "app/services/ops_history_service.py",
+    "lineno": 326,
+    "signature": "()",
+    "returns": "OpsHistoryService",
+    "doc": "OpsHistoryService のシングルトンインスタンスを返す。"
+  },
+  {
+    "kind": "function",
+    "name": "summarize_ops_history",
+    "qualname": "summarize_ops_history",
+    "file": "app/services/ops_history_service.py",
+    "lineno": 335,
+    "signature": "(symbol: Optional[str]=None)",
+    "returns": "dict",
+    "doc": "履歴を集計する（トップレベル関数ラッパー）。"
+  },
+  {
+    "kind": "function",
+    "name": "load_ops_history",
+    "qualname": "load_ops_history",
+    "file": "app/services/ops_history_service.py",
+    "lineno": 348,
+    "signature": "(symbol: Optional[str]=None, limit: int=200)",
+    "returns": "list[dict]",
+    "doc": "JSONL を末尾から最大 limit 件読み込む（トップレベル関数ラッパー）。"
+  },
+  {
+    "kind": "function",
+    "name": "append_ops_result",
+    "qualname": "append_ops_result",
+    "file": "app/services/ops_history_service.py",
+    "lineno": 362,
+    "signature": "(rec: dict)",
+    "returns": "None",
+    "doc": "logs/ops/ops_result.jsonl に 1行追記（トップレベル関数ラッパー）。"
+  },
+  {
+    "kind": "function",
+    "name": "replay_from_record",
+    "qualname": "replay_from_record",
+    "file": "app/services/ops_history_service.py",
+    "lineno": 372,
+    "signature": "(record: dict, *, run: bool=False)",
+    "returns": "dict",
+    "doc": "レコードから条件を復元して再実行する。"
+  },
+  {
+    "kind": "class",
+    "name": "OpsService",
+    "qualname": "OpsService",
+    "file": "app/services/ops_service.py",
+    "lineno": 18,
+    "signature": "",
+    "returns": "",
+    "doc": "Ops実行サービス（内部用）"
+  },
+  {
+    "kind": "method",
+    "name": "__init__",
+    "qualname": "OpsService.__init__",
+    "file": "app/services/ops_service.py",
+    "lineno": 21,
+    "signature": "(self)",
+    "returns": "None",
+    "doc": ""
+  },
+  {
+    "kind": "method",
+    "name": "run_ops_start",
+    "qualname": "OpsService.run_ops_start",
+    "file": "app/services/ops_service.py",
+    "lineno": 28,
+    "signature": "(self, *, symbol: str='USDJPY-', dry: bool=False, close_now: bool=True, profile: Optional[str]=None, profiles: Optional[list[str]]=None)",
+    "returns": "dict",
+    "doc": "tools/ops_start.ps1 を実行して結果を返す。"
+  },
+  {
+    "kind": "method",
+    "name": "_append_to_history",
+    "qualname": "OpsService._append_to_history",
+    "file": "app/services/ops_service.py",
+    "lineno": 232,
+    "signature": "(self, result: dict, symbol: str, profile: Optional[str], profiles: Optional[list[str]])",
+    "returns": "None",
+    "doc": "履歴に追記する。"
+  },
+  {
+    "kind": "function",
+    "name": "get_ops_service",
+    "qualname": "get_ops_service",
+    "file": "app/services/ops_service.py",
+    "lineno": 285,
+    "signature": "()",
+    "returns": "OpsService",
+    "doc": "OpsService のシングルトンインスタンスを返す。"
+  },
+  {
+    "kind": "class",
     "name": "MockPosition",
     "qualname": "MockPosition",
     "file": "app/services/orderbook_stub.py",
@@ -3994,7 +4364,7 @@
     "name": "_project_root",
     "qualname": "_project_root",
     "file": "app/services/profiles_store.py",
-    "lineno": 18,
+    "lineno": 19,
     "signature": "()",
     "returns": "Path",
     "doc": "services 層から見たプロジェクトルートを推定する。"
@@ -4004,7 +4374,7 @@
     "name": "_get_config_path",
     "qualname": "_get_config_path",
     "file": "app/services/profiles_store.py",
-    "lineno": 27,
+    "lineno": 28,
     "signature": "()",
     "returns": "Path",
     "doc": "config/profiles.json のパスを返す。"
@@ -4014,7 +4384,7 @@
     "name": "load_profiles",
     "qualname": "load_profiles",
     "file": "app/services/profiles_store.py",
-    "lineno": 32,
+    "lineno": 33,
     "signature": "(symbol: str='USDJPY-')",
     "returns": "List[str]",
     "doc": "保存済みプロファイル設定を読み込む。"
@@ -4024,7 +4394,7 @@
     "name": "save_profiles",
     "qualname": "save_profiles",
     "file": "app/services/profiles_store.py",
-    "lineno": 67,
+    "lineno": 68,
     "signature": "(profiles: List[str], symbol: str='USDJPY-')",
     "returns": "None",
     "doc": "プロファイル設定を保存する。"
@@ -5548,6 +5918,66 @@
     "signature": "()",
     "returns": "int",
     "doc": ""
+  },
+  {
+    "kind": "function",
+    "name": "_normalize_profiles",
+    "qualname": "_normalize_profiles",
+    "file": "tools/ops_replay.py",
+    "lineno": 24,
+    "signature": "(profiles_raw)",
+    "returns": "list[str]",
+    "doc": "profiles を list[str] に正規化する。"
+  },
+  {
+    "kind": "function",
+    "name": "find_latest_ops_result_jsonl",
+    "qualname": "find_latest_ops_result_jsonl",
+    "file": "tools/ops_replay.py",
+    "lineno": 71,
+    "signature": "()",
+    "returns": "Optional[Path]",
+    "doc": "logs/ops 配下の最新 ops_result*.jsonl を探索する。"
+  },
+  {
+    "kind": "function",
+    "name": "load_record_from_jsonl",
+    "qualname": "load_record_from_jsonl",
+    "file": "tools/ops_replay.py",
+    "lineno": 92,
+    "signature": "(log_path: Path, index: int=1)",
+    "returns": "Optional[dict]",
+    "doc": "JSONLファイルから末尾から index 番目のレコードを読み込む。"
+  },
+  {
+    "kind": "function",
+    "name": "extract_params",
+    "qualname": "extract_params",
+    "file": "tools/ops_replay.py",
+    "lineno": 137,
+    "signature": "(rec: dict)",
+    "returns": "dict",
+    "doc": "レコードから実行パラメータを抽出する。"
+  },
+  {
+    "kind": "function",
+    "name": "build_ops_start_command",
+    "qualname": "build_ops_start_command",
+    "file": "tools/ops_replay.py",
+    "lineno": 173,
+    "signature": "(params: dict, project_root: Path)",
+    "returns": "list[str]",
+    "doc": "ops_start.ps1 実行コマンドを構築する。"
+  },
+  {
+    "kind": "function",
+    "name": "main",
+    "qualname": "main",
+    "file": "tools/ops_replay.py",
+    "lineno": 211,
+    "signature": "()",
+    "returns": "int",
+    "doc": "メイン処理。"
   },
   {
     "kind": "function",
