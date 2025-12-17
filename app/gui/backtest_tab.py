@@ -153,6 +153,26 @@ def plot_equity_with_markers_to_figure(fig: Figure, csv_path: str, note: str = "
     except Exception as e:
         print(f"[gui] tight_layout error: {e}")
 
+    # 描画後のデバッグログ（EQUITYが直線に見える原因調査用）
+    try:
+        csv_abs_path = str(Path(csv_path).resolve())
+        equity_min = float(df["equity"].min()) if "equity" in df.columns and len(df) > 0 else None
+        equity_max = float(df["equity"].max()) if "equity" in df.columns and len(df) > 0 else None
+        equity_unique_count = df["equity"].nunique() if "equity" in df.columns else 0
+        time_unique_count = df["time"].nunique() if "time" in df.columns else 0
+
+        # 描画先のaxes識別子と表示レンジ
+        ax_id = f"ax_{id(ax)}"
+        y_range = ax.get_ylim() if ax else None
+        x_range = ax.get_xlim() if ax else None
+
+        print(f"[gui] EQUITY plot debug: csv={csv_abs_path}")
+        print(f"[gui] EQUITY plot debug: equity min={equity_min} max={equity_max} unique={equity_unique_count} len={len(df)}")
+        print(f"[gui] EQUITY plot debug: time unique={time_unique_count}")
+        print(f"[gui] EQUITY plot debug: axes={ax_id} y_range={y_range} x_range={x_range}")
+    except Exception as e:
+        print(f"[gui] EQUITY plot debug error: {e}")
+
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 class PlotWindow(QtWidgets.QDialog):
@@ -1085,6 +1105,13 @@ class BacktestTab(QtWidgets.QWidget):
             return "Overlay"
         return "Backtest"
 
+    def _find_latest_bt_dir(self, out_dir: Path) -> Optional[Path]:
+        """backtest_* フォルダの中から最新のものを探す"""
+        cands = [p for p in out_dir.glob("backtest_*") if p.is_dir()]
+        if not cands:
+            return None
+        return max(cands, key=lambda p: p.stat().st_mtime)
+
     def _find_latest_wfo_dir(self) -> Optional[pathlib.Path]:
         base = pathlib.Path("logs") / "backtest"
         if not base.exists():
@@ -1601,6 +1628,12 @@ class BacktestTab(QtWidgets.QWidget):
         self._wfo_train_df = None
         self._wfo_test_df = None
 
+        # Backtestモード用の latest を先に取得（metrics処理でも使うため）
+        out_dir = PROJECT_ROOT / "logs" / "backtest" / sym / tf
+        latest_bt_dir = None
+        if mode == "bt":
+            latest_bt_dir = self._find_latest_bt_dir(out_dir)
+
         if mode == "wfo":
             # Walk-Forwardモード: WFOデータのみ読み込む（equity_curve.csvは探さない）
             wfo = self._load_latest_wfo_data()
@@ -1645,9 +1678,14 @@ class BacktestTab(QtWidgets.QWidget):
                 self.label_meta.setText("WFO結果が見つかりませんでした")
         else:
             # Backtestモード: equity_curve.csvを読み込む
-            out_dir = PROJECT_ROOT / "logs" / "backtest" / sym / tf
-            out_csv = out_dir / "equity_curve.csv"
+            if latest_bt_dir is None:
+                self.label_meta.setText(f"backtest_* フォルダが見つかりません: {out_dir}")
+                self._append_progress(f"[gui] missing backtest_* dir: {out_dir}")
+                return
+
+            out_csv = latest_bt_dir / "equity_curve.csv"
             self.path_edit.setText(str(out_csv))
+
             if not out_csv.exists():
                 self.label_meta.setText(f"出力CSVが見つかりません: {out_csv}")
                 self._append_progress(f"[gui] missing file: {out_csv}")
@@ -1662,17 +1700,33 @@ class BacktestTab(QtWidgets.QWidget):
         # 新しい実装では、PlotWindowの__init__で既にデータを受け取って描画しているため、
         # overlay_wfo_equityの呼び出しは不要（互換性のためにメソッドは残している）
 
-        # metrics と monthly_returns の処理
-        out_dir = PROJECT_ROOT / "logs" / "backtest" / sym / tf
-        metrics_path = out_dir / ("metrics.json" if mode=="bt" else "metrics_wfo.json")
+        # metrics と monthly_returns の処理（Backtestモードの場合は latest_bt_dir を起点にする）
+        if mode == "bt":
+            # Backtestモード: 最新の期間フォルダを起点にする
+            if latest_bt_dir is None:
+                self._append_progress(f"[gui] WARNING: backtest_* dir not found for metrics: {out_dir}")
+                metrics_path = out_dir / "metrics.json"  # フォールバック
+                monthly_returns_path = out_dir / "monthly_returns.csv"  # フォールバック
+            else:
+                metrics_path = latest_bt_dir / "metrics.json"
+                monthly_returns_path = latest_bt_dir / "monthly_returns.csv"
+        else:
+            # WFOモード: 従来通り out_dir を起点にする
+            metrics_path = out_dir / ("metrics.json" if mode=="bt" else "metrics_wfo.json")
+            monthly_returns_path = out_dir / ("monthly_returns.csv" if mode=="bt" else "monthly_returns_test.csv")
+
         self._load_metrics(metrics_path)
 
         # 月次リターン保存パスを控える
-        self._last_monthly_returns = out_dir / ("monthly_returns.csv" if mode=="bt" else "monthly_returns_test.csv")
+        self._last_monthly_returns = monthly_returns_path
 
         # ▼ monthly_returns 再計算（Backtestモードのみ）
         if mode != "wfo":
-            out_csv = out_dir / "equity_curve.csv"
+            if latest_bt_dir is not None:
+                out_csv = latest_bt_dir / "equity_curve.csv"
+            else:
+                out_csv = out_dir / "equity_curve.csv"  # フォールバック
+
             if out_csv.exists():
                 try:
                     profile = self._profile_name
@@ -1842,12 +1896,33 @@ class BacktestTab(QtWidgets.QWidget):
                 self._current_equity_df = df
                 self._current_price_df = None
 
+                # 描画前のデバッグログ
+                csv_abs_path = str(p.resolve())
+                equity_min = float(df["equity"].min()) if "equity" in df.columns and len(df) > 0 else None
+                equity_max = float(df["equity"].max()) if "equity" in df.columns and len(df) > 0 else None
+                equity_unique_count = df["equity"].nunique() if "equity" in df.columns else 0
+                time_unique_count = df["time"].nunique() if "time" in df.columns else 0
+                self._append_progress(f"[gui] EQUITY plot before: csv={csv_abs_path}")
+                self._append_progress(f"[gui] EQUITY plot before: equity min={equity_min} max={equity_max} unique={equity_unique_count} len={len(df)}")
+                self._append_progress(f"[gui] EQUITY plot before: time unique={time_unique_count}")
+
                 plot_equity_with_markers_to_figure(self.fig, csv_path, note=p.name)
 
                 # axes数の確認（デバッグ用）
                 axes_count = len(self.fig.axes)
                 if axes_count != 1:
                     self._append_progress(f"[gui] WARNING: axes count = {axes_count} (expected 1)")
+
+                # 描画後のデバッグログ（axesとレンジを確認）
+                try:
+                    if axes_count > 0:
+                        ax = self.fig.axes[0]
+                        ax_id = f"ax_{id(ax)}"
+                        y_range = ax.get_ylim() if ax else None
+                        x_range = ax.get_xlim() if ax else None
+                        self._append_progress(f"[gui] EQUITY plot after: axes={ax_id} y_range={y_range} x_range={x_range}")
+                except Exception as e:
+                    self._append_progress(f"[gui] EQUITY plot after debug error: {e}")
 
                 # 描画を確実に実行
                 self.canvas.draw_idle()
