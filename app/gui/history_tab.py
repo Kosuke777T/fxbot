@@ -9,7 +9,7 @@ from loguru import logger
 
 from app.services.event_store import EVENT_STORE, UiEvent
 from app.services.ops_history_service import get_ops_history_service
-from app.gui.ops_ui_rules import format_action_hint_text, ui_for_next_action
+from app.gui.ops_ui_rules import format_action_hint_text, ui_for_next_action, get_action_priority
 
 _COLUMNS = ["ts", "kind", "symbol", "side", "price", "sl", "tp", "profit_jpy", "reason", "notes"]
 
@@ -55,11 +55,13 @@ class HistoryTab(QtWidgets.QWidget):
         # スクロール可能なカードエリア
         scroll_area = QScrollArea(right_widget)
         scroll_area.setWidgetResizable(True)
-        scroll_area.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll_area.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAsNeeded)  # 暫定：必要なら出す
 
         self.ops_cards_widget = QWidget()
+        self.ops_cards_widget.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Minimum)
         self.ops_cards_layout = QVBoxLayout(self.ops_cards_widget)
         self.ops_cards_layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignTop)
+        self.ops_cards_layout.setContentsMargins(0, 0, 0, 0)
         scroll_area.setWidget(self.ops_cards_widget)
 
         right_layout.addWidget(scroll_area)
@@ -105,8 +107,15 @@ class HistoryTab(QtWidgets.QWidget):
                 if child.widget():
                     child.widget().deleteLater()
 
-            # カードを生成
-            for item in items:
+            # next_action.priority降順でソート（priorityが高い順に表示）
+            def sort_key(item: dict) -> int:
+                next_action = item.get("next_action")
+                return -get_action_priority(next_action)  # 降順のため負数
+
+            items_sorted = sorted(items, key=sort_key)
+
+            # カードを生成（priority降順）
+            for item in items_sorted:
                 card = self._create_ops_card(item)
                 if card:
                     self.ops_cards_layout.addWidget(card)
@@ -120,6 +129,7 @@ class HistoryTab(QtWidgets.QWidget):
         """Ops履歴カードを作成する。"""
         try:
             card = QGroupBox()
+            card.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Fixed)
             card_layout = QVBoxLayout(card)
 
             # ヘッダー行（phaseバッジ + headline）
@@ -135,8 +145,10 @@ class HistoryTab(QtWidgets.QWidget):
             headline = item.get("headline", "")
             headline_label = QLabel(headline)
             headline_label.setStyleSheet("font-weight: bold; font-size: 10pt;")
+            headline_label.setWordWrap(True)
+            headline_label.setMinimumWidth(0)
+            headline_label.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Preferred)
             header_layout.addWidget(headline_label, 1)
-            header_layout.addStretch()
 
             card_layout.addLayout(header_layout)
 
@@ -145,6 +157,9 @@ class HistoryTab(QtWidgets.QWidget):
             if subline:
                 subline_label = QLabel(subline)
                 subline_label.setStyleSheet("color: #666; font-size: 9pt;")
+                subline_label.setWordWrap(True)
+                subline_label.setMinimumWidth(0)
+                subline_label.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Preferred)
                 card_layout.addWidget(subline_label)
 
             # timeline
@@ -153,6 +168,9 @@ class HistoryTab(QtWidgets.QWidget):
             if timeline_text:
                 timeline_label = QLabel(timeline_text)
                 timeline_label.setStyleSheet("color: #888; font-size: 8pt;")
+                timeline_label.setWordWrap(True)
+                timeline_label.setMinimumWidth(0)
+                timeline_label.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Preferred)
                 card_layout.addWidget(timeline_label)
 
             # diff
@@ -162,6 +180,9 @@ class HistoryTab(QtWidgets.QWidget):
                 if diff_text:
                     diff_label = QLabel(diff_text)
                     diff_label.setStyleSheet("color: #0066cc; font-size: 8pt;")
+                    diff_label.setWordWrap(True)
+                    diff_label.setMinimumWidth(0)
+                    diff_label.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Preferred)
                     card_layout.addWidget(diff_label)
 
             # 行動ヒント（next_action）
@@ -174,6 +195,9 @@ class HistoryTab(QtWidgets.QWidget):
                     if hint_text:
                         next_action_label = QLabel(hint_text)
                         next_action_label.setStyleSheet(spec.style + " font-size: 9pt;")
+                        next_action_label.setWordWrap(True)
+                        next_action_label.setMinimumWidth(0)
+                        next_action_label.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Preferred)
                         # tooltipにreasonを設定
                         reason = next_action.get("reason", "")
                         if reason:

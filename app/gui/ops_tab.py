@@ -27,7 +27,7 @@ from loguru import logger
 from app.services.ops_service import get_ops_service
 from app.services.profiles_store import load_profiles
 from app.services.ops_history_service import get_ops_history_service, replay_from_record
-from app.gui.ops_ui_rules import ui_for_next_action
+from app.gui.ops_ui_rules import ui_for_next_action, get_action_priority
 
 
 class OpsTab(QWidget):
@@ -461,10 +461,10 @@ class OpsTab(QWidget):
                     detail_dialog.setDetailedText(detail_msg)
                     detail_dialog.setIcon(QMessageBox.Icon.Critical)
 
-                    # PROMOTE系のkindのときだけボタンを追加（UIルールに基づく）
+                    # priorityベースでボタンを追加（UIルールに基づく）
                     spec = ui_for_next_action(next_action)
-                    kind = (next_action.get("kind") or "").upper()
-                    if spec.visible and kind in ("PROMOTE", "PROMOTE_DRY_TO_RUN"):
+                    priority = get_action_priority(next_action)
+                    if spec.visible and priority >= 300:  # PROMOTE系（priority >= 300）
                         btn_promote = detail_dialog.addButton(spec.label, QMessageBox.ButtonRole.ActionRole)
                         detail_dialog.exec()
                         if detail_dialog.clickedButton() == btn_promote:
@@ -480,10 +480,10 @@ class OpsTab(QWidget):
                     msg_box.setText(msg)
                     msg_box.setIcon(QMessageBox.Icon.Critical)
 
-                    # PROMOTE系のkindのときだけボタンを追加（UIルールに基づく）
+                    # priorityベースでボタンを追加（UIルールに基づく）
                     spec = ui_for_next_action(next_action)
-                    kind = (next_action.get("kind") or "").upper()
-                    if spec.visible and kind in ("PROMOTE", "PROMOTE_DRY_TO_RUN"):
+                    priority = get_action_priority(next_action)
+                    if spec.visible and priority >= 300:  # PROMOTE系（priority >= 300）
                         btn_promote = msg_box.addButton(spec.label, QMessageBox.ButtonRole.ActionRole)
                         msg_box.exec()
                         if msg_box.clickedButton() == btn_promote:
@@ -602,16 +602,16 @@ class OpsTab(QWidget):
             # UI仕様を取得（kindだけで判定、reasonは説明表示にのみ使用）
             spec = ui_for_next_action(next_action)
 
-            # ボタンの表示/非表示を制御（kindに基づく）
-            # PROMOTE系のkindはPROMOTEボタンを表示
-            kind = (next_action.get("kind") or "").upper()
-            show_promote = spec.visible and kind in ("PROMOTE", "PROMOTE_DRY_TO_RUN")
-            show_retry = spec.visible and kind == "RETRY"
+            # ボタンの表示/非表示を制御（priorityベース）
+            # priorityが高い順にボタンを表示（PROMOTE=300 > RETRY=200 > NONE=0）
+            priority = get_action_priority(next_action)
+            show_promote = spec.visible and priority >= 300  # PROMOTE系
+            show_retry = spec.visible and priority >= 200 and priority < 300  # RETRY系
 
             self.btn_promote.setVisible(show_promote)
             self.btn_retry.setVisible(show_retry)
 
-            # ボタンのラベルとスタイルを設定
+            # ボタンのラベルとスタイルを設定（priorityベース）
             if show_promote:
                 self.btn_promote.setText(spec.label)
                 self.btn_promote.setStyleSheet(spec.style)

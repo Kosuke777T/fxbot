@@ -256,8 +256,23 @@ class OpsHistoryService:
             record: Ops履歴レコード（またはviewのraw）
 
         Returns:
-            next_action dict（{"kind":"...", "reason":"...", "params":{}}）
+            next_action dict（{"kind":"...", "reason":"...", "params":{}, "priority":int}）
         """
+        # kind → priority マッピング（GUI側のACTION_UI_SPECSと整合）
+        KIND_PRIORITY_MAP = {
+            "PROMOTE": 300,
+            "PROMOTE_DRY_TO_RUN": 300,  # PROMOTE系も300
+            "RETRY": 200,
+            "NONE": 0,
+        }
+
+        def _normalize_next_action(na: dict) -> dict:
+            """next_actionにpriorityを付与（付け忘れ防止）"""
+            kind = (na.get("kind") or "NONE").upper()
+            priority = KIND_PRIORITY_MAP.get(kind, 0)  # 未知のkindは0
+            na["priority"] = priority
+            return na
+
         try:
             # レコードから必要な情報を取得
             step_raw = record.get("step")
@@ -276,11 +291,11 @@ class OpsHistoryService:
                     f"promoted_at={repr(promoted_at)} applied_at={repr(record.get('applied_at'))} "
                     f"apply_performed={repr(apply_performed)} ok={repr(ok)} dry={repr(dry)}"
                 )
-                return {
+                return _normalize_next_action({
                     "kind": "PROMOTE",
                     "reason": "適用可能（PROMOTED済み）",
                     "params": {},
-                }
+                })
             elif promoted_at is not None and (step_raw is None or step == "" or step == "promoted"):
                 # promoted_atがあり、stepがNone/空文字列/promotedの場合のみ → 適用可能
                 # stepが明確に別値（例: "done", "applied"）の場合は次の判定へ
@@ -289,11 +304,11 @@ class OpsHistoryService:
                     f"promoted_at={repr(promoted_at)} applied_at={repr(record.get('applied_at'))} "
                     f"apply_performed={repr(apply_performed)} ok={repr(ok)} dry={repr(dry)}"
                 )
-                return {
+                return _normalize_next_action({
                     "kind": "PROMOTE",
                     "reason": "適用可能（PROMOTED済み）",
                     "params": {},
-                }
+                })
             elif step == "applied" or apply_performed:
                 # 適用済み → アクションなし
                 logger.debug(
@@ -301,11 +316,11 @@ class OpsHistoryService:
                     f"promoted_at={repr(promoted_at)} applied_at={repr(record.get('applied_at'))} "
                     f"apply_performed={repr(apply_performed)} ok={repr(ok)} dry={repr(dry)}"
                 )
-                return {
+                return _normalize_next_action({
                     "kind": "NONE",
                     "reason": "適用済み",
                     "params": {},
-                }
+                })
             elif step in ("done", "completed", "success") and ok and dry:
                 # dry run成功 → 本番反映可能
                 logger.debug(
@@ -313,11 +328,11 @@ class OpsHistoryService:
                     f"promoted_at={repr(promoted_at)} applied_at={repr(record.get('applied_at'))} "
                     f"apply_performed={repr(apply_performed)} ok={repr(ok)} dry={repr(dry)}"
                 )
-                return {
+                return _normalize_next_action({
                     "kind": "PROMOTE",
                     "reason": "本番反映可能（dry run成功）",
                     "params": {},
-                }
+                })
             elif not ok:
                 # 失敗 → 再実行可能
                 logger.debug(
@@ -325,11 +340,11 @@ class OpsHistoryService:
                     f"promoted_at={repr(promoted_at)} applied_at={repr(record.get('applied_at'))} "
                     f"apply_performed={repr(apply_performed)} ok={repr(ok)} dry={repr(dry)}"
                 )
-                return {
+                return _normalize_next_action({
                     "kind": "RETRY",
                     "reason": "失敗。ログ確認して再実行",
                     "params": {},
-                }
+                })
             else:
                 # それ以外 → アクションなし
                 logger.debug(
@@ -337,14 +352,14 @@ class OpsHistoryService:
                     f"promoted_at={repr(promoted_at)} applied_at={repr(record.get('applied_at'))} "
                     f"apply_performed={repr(apply_performed)} ok={repr(ok)} dry={repr(dry)}"
                 )
-                return {
+                return _normalize_next_action({
                     "kind": "NONE",
                     "reason": "",
                     "params": {},
-                }
+                })
         except Exception as e:
             logger.warning(f"Failed to calculate next_action for record: {e}")
-            return {"kind": "NONE", "reason": "", "params": {}}
+            return _normalize_next_action({"kind": "NONE", "reason": "", "params": {}})
 
     def _to_ops_view(self, rec: dict, prev_rec: Optional[dict] = None) -> Optional[dict]:
         """
@@ -750,7 +765,7 @@ class OpsHistoryService:
         # 残りのitemにはNONEを設定
         for view in items[MAX_HINT_ITEMS:]:
             if view:
-                view["next_action"] = {"kind": "NONE", "reason": "", "params": {}}
+                view["next_action"] = {"kind": "NONE", "reason": "", "params": {}, "priority": 0}
 
         # last_viewを追加（items[0]が最新viewなのでそれを優先）
         last_view = items[0] if items else (self._to_ops_view(last, None) if last else None)
@@ -772,7 +787,7 @@ class OpsHistoryService:
                     last_view["next_action"] = self._calc_next_action(raw)
                 except Exception as e:
                     logger.warning(f"Failed to calculate next_action for last_view: {e}")
-                    last_view["next_action"] = {"kind": "NONE", "reason": "", "params": {}}
+                    last_view["next_action"] = {"kind": "NONE", "reason": "", "params": {}, "priority": 0}
         t_hint_end = time.perf_counter()
         hint_sec = t_hint_end - t_hint_start
 
@@ -1007,23 +1022,40 @@ def replay_from_record(record: dict, *, run: bool = False, overrides: dict | Non
         }
 
         # next_actionを生成（自動再実行ポリシーの下地）
+        # next_actionにpriorityを付与するためのマッピング（_calc_next_actionと同一）
+        KIND_PRIORITY_MAP = {
+            "PROMOTE": 300,
+            "PROMOTE_DRY_TO_RUN": 300,  # PROMOTE系も300
+            "RETRY": 200,
+            "NONE": 0,
+        }
+
+        def _normalize_next_action_priority(na: dict) -> dict:
+            """next_actionにpriorityを付与（付け忘れ防止）"""
+            if not na:
+                return {"kind": "NONE", "reason": "", "params": {}, "priority": 0}
+            kind = (na.get("kind") or "NONE").upper()
+            priority = KIND_PRIORITY_MAP.get(kind, 0)  # 未知のkindは0
+            na["priority"] = priority
+            return na
+
         next_action = {"kind": "NONE", "reason": "", "params": {}}
         if not ok:
             stderr_lower = stderr.lower()
             # Dry runだった場合（dry_flag is True かつ rc != 0）
             if dry_flag is True:
-                next_action = {
+                next_action = _normalize_next_action_priority({
                     "kind": "PROMOTE_DRY_TO_RUN",
                     "reason": "Dry runモードでした。実際の実行を試すことができます。",
                     "params": {"dry": False},
-                }
+                })
             # 市場クローズ系エラー
             elif "market_closed" in stderr_lower or "trade_disabled" in stderr_lower:
-                next_action = {
+                next_action = _normalize_next_action_priority({
                     "kind": "NONE",
                     "reason": "市場が閉まっているか、取引が無効です。",
                     "params": {},
-                }
+                })
             # その他のエラー（RETRY条件を精緻化）
             else:
                 # consecutive_failuresを取得
@@ -1063,17 +1095,17 @@ def replay_from_record(record: dict, *, run: bool = False, overrides: dict | Non
                     retry_reason = "環境起因のエラーの可能性があります。しばらく待ってから再試行してください。"
 
                 if retry_suppressed:
-                    next_action = {
+                    next_action = _normalize_next_action_priority({
                         "kind": "NONE",
                         "reason": retry_reason,
                         "params": {},
-                    }
+                    })
                 else:
-                    next_action = {
+                    next_action = _normalize_next_action_priority({
                         "kind": "RETRY",
                         "reason": retry_reason,
                         "params": {"max_retries": 1},
-                    }
+                    })
 
         # 一時ファイルを削除
         try:
@@ -1130,6 +1162,26 @@ def replay_from_record(record: dict, *, run: bool = False, overrides: dict | Non
                 pass
 
         # out/result dict が完成した後、next_actionを補完
+        # next_actionにpriorityを付与（全分岐で付け忘れ防止）
+        KIND_PRIORITY_MAP = {
+            "PROMOTE": 300,
+            "PROMOTE_DRY_TO_RUN": 300,  # PROMOTE系も300
+            "RETRY": 200,
+            "NONE": 0,
+        }
+
+        def _normalize_next_action_priority(na: dict) -> dict:
+            """next_actionにpriorityを付与（付け忘れ防止）"""
+            if not na:
+                return {"kind": "NONE", "reason": "", "params": {}, "priority": 0}
+            kind = (na.get("kind") or "NONE").upper()
+            priority = KIND_PRIORITY_MAP.get(kind, 0)  # 未知のkindは0
+            na["priority"] = priority
+            return na
+
+        # next_actionをnormalize（全分岐でpriorityが付与されることを保証）
+        next_action = _normalize_next_action_priority(next_action)
+
         out = {
             "ok": ok,
             "cmd": cmd,
@@ -1159,7 +1211,7 @@ def replay_from_record(record: dict, *, run: bool = False, overrides: dict | Non
         if kind == "NONE":
             ok = bool(out.get("ok"))
             if not ok:
-                out["next_action"] = {"kind": "RETRY", "reason": "last_failed", "params": {}}
+                out["next_action"] = _normalize_next_action_priority({"kind": "RETRY", "reason": "last_failed", "params": {}})
             else:
                 # apply は None のことがあるので record から dry 判定する
                 try:
@@ -1167,7 +1219,10 @@ def replay_from_record(record: dict, *, run: bool = False, overrides: dict | Non
                 except Exception:
                     is_dry = False
                 if is_dry:
-                    out["next_action"] = {"kind": "PROMOTE", "reason": "dry_run", "params": {}}
+                    out["next_action"] = _normalize_next_action_priority({"kind": "PROMOTE", "reason": "dry_run", "params": {}})
+        else:
+            # 既存のnext_actionにもpriorityを付与（付け忘れ防止）
+            out["next_action"] = _normalize_next_action_priority(out.get("next_action", {}))
 
         return out
 

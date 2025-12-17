@@ -1,7 +1,7 @@
 """
 Ops履歴のnext_actionに基づくUI表示ルール定数
 
-GUI側でnext_action.kindをもとにボタン表示・色・優先度を決定するための定数表。
+GUI側でnext_action.priorityをもとにボタン表示・色・優先度を決定するための定数表。
 reasonは説明表示にのみ使用し、UIの分岐には使わない。
 """
 from __future__ import annotations
@@ -101,4 +101,21 @@ def format_action_hint_text(next_action: Optional[dict]) -> str:
         return f"行動ヒント：{spec.label}（{reason}）"
     else:
         return f"行動ヒント：{spec.label}"
+
+
+def get_action_priority(next_action: Optional[dict]) -> int:
+    """
+    next_actionからpriorityを取得する（ソート用）。
+
+    Args:
+        next_action: next_action dict
+
+    Returns:
+        priority値（0=非表示、大きいほど優先）
+    """
+    if not next_action:
+        return 0
+
+    spec = ui_for_next_action(next_action)
+    return spec.priority if spec.visible else 0
 
