@@ -51,7 +51,7 @@ def _iter_jsonl(path: Path) -> Iterable[dict[str, Any]]:
 
 def _extract_decision_record(j: dict[str, Any]) -> DecisionRecord:
     """
-    �� JSON ����AAI�^�u/KPI �ł悭�g���������������� DecisionRecord �����B
+    JSON を DecisionRecord に薄く変換する（GUI/KPI でよく使う形式）。
     """
     ts = str(j.get("ts_jst") or j.get("ts") or "")
     symbol = str(j.get("symbol") or "")

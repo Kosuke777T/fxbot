@@ -359,7 +359,7 @@
 ## app/services/decision_log.py
 - **class DecisionRecord**  (L19)  — decisions_*.jsonl の 1 行を、GUI や KPI 計算から使いやすい形に薄くラップしたもの。
 - **def _iter_jsonl(path: Path) -> Iterable[dict[str, Any]]**  (L35)  — JSONL ファイルを 1 行ずつ dict として返すジェネレータ。壊れた行はスキップ。
-- **def _extract_decision_record(j: dict[str, Any]) -> DecisionRecord**  (L52)  — �� JSON ����AAI�^�u/KPI �ł悭�g���������������� DecisionRecord �����B
+- **def _extract_decision_record(j: dict[str, Any]) -> DecisionRecord**  (L52)  — JSON を DecisionRecord に薄く変換する（GUI/KPI でよく使う形式）。
 - **def _find_first_numeric_by_keys(container: Any, key_candidates: tuple[str, ...]) -> float | None**  (L110)  — 任意にネストした dict/list 構造の中から、
 - **def _ensure_pnl_column(df: pd.DataFrame) -> pd.DataFrame**  (L138)  — decisions_* の生ログ DataFrame に「pnl 列」が無ければ、
 - **def _get_decision_log_dir() -> Path**  (L178)  — 決定ログのルートディレクトリを返す。

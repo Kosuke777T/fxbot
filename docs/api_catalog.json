@@ -2867,7 +2867,7 @@
     "lineno": 52,
     "signature": "(j: dict[str, Any])",
     "returns": "DecisionRecord",
-    "doc": "�� JSON ����AAI�^�u/KPI �ł悭�g���������������� DecisionRecord �����B"
+    "doc": "JSON を DecisionRecord に薄く変換する（GUI/KPI でよく使う形式）。"
   },
   {
     "kind": "function",
