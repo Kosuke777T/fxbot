@@ -35,6 +35,53 @@ def _normalize_human_text(s: str) -> str:
     return s.strip()
 
 
+def _normalize_profiles(profiles_raw) -> list[str]:
+    """
+    profiles を list[str] に正規化する。
+
+    Args:
+        profiles_raw: プロファイル名（list[str], list[str]（カンマ区切り文字列含む）, str, None など）
+
+    Returns:
+        正規化されたプロファイル名のリスト
+    """
+    if profiles_raw is None:
+        return []
+
+    # 文字列の場合はカンマで分割
+    if isinstance(profiles_raw, str):
+        profiles_raw = [profiles_raw]
+
+    # リストの場合、各要素を処理
+    result = []
+    for item in profiles_raw:
+        if not item:
+            continue
+        item_str = str(item).strip()
+        if not item_str:
+            continue
+
+        # カンマ区切りの場合は分割
+        if "," in item_str:
+            parts = item_str.split(",")
+            for part in parts:
+                part = part.strip()
+                if part:
+                    result.append(part)
+        else:
+            result.append(item_str)
+
+    # 重複除外（順序保持）
+    seen = set()
+    normalized = []
+    for p in result:
+        if p not in seen:
+            seen.add(p)
+            normalized.append(p)
+
+    return normalized
+
+
 def _is_dry_record(record: dict, cmd: object | None = None) -> bool | None:
     """
     レコードまたはコマンドからdryフラグを判定する（dry優先）。
@@ -195,6 +242,119 @@ class OpsHistoryService:
             normalized["promoted_at"] = rec.get("promoted_at")
 
         return normalized
+
+    def _to_ops_view(self, rec: dict, prev_rec: Optional[dict] = None) -> Optional[dict]:
+        """
+        レコードを表示用ビューに変換する。
+
+        Args:
+            rec: Ops履歴レコード
+            prev_rec: 前の履歴レコード（diff計算用、None可）
+
+        Returns:
+            表示用ビューdict:
+                - record_id: str
+                - phase: str（PROMOTED/APPLIED/DONE/FAILED/OTHER）
+                - timeline: dict（started/promoted/applied/done）
+                - headline: str
+                - subline: str
+                - diff: dict（前のレコードとの差分）
+                - raw: dict（元のレコード、詳細表示用）
+        """
+        try:
+            # 正規化（rawは正規化前のまま保持するため、先にprofilesを保存）
+            normalized = self._normalize_record(rec)
+            record_id = self._generate_record_id(normalized)
+
+            # profilesを正規化（diff/headline用）
+            profiles_raw = normalized.get("profiles", [])
+            profiles_normalized = _normalize_profiles(profiles_raw)
+
+            # phaseを決定
+            step = normalized.get("step", "").lower()
+            ok = normalized.get("ok", False)
+            promoted_at = normalized.get("promoted_at")
+            apply_performed = normalized.get("apply_performed", False)
+
+            if step == "promoted" or promoted_at:
+                phase = "PROMOTED"
+            elif apply_performed:
+                phase = "APPLIED"
+            elif ok and step in ("done", "completed", "success"):
+                phase = "DONE"
+            elif not ok:
+                phase = "FAILED"
+            else:
+                phase = "OTHER"
+
+            # timelineを作成
+            timeline = {
+                "started": normalized.get("started_at"),
+                "promoted": normalized.get("promoted_at"),
+                "applied": normalized.get("ended_at") if apply_performed else None,
+                "done": normalized.get("ended_at") if ok and not apply_performed else None,
+            }
+
+            # headline/sublineを生成（正規化済みprofilesを使用）
+            symbol = normalized.get("symbol", "USDJPY-")
+            profiles_str = ", ".join(profiles_normalized) if profiles_normalized else "なし"
+
+            headline = f"{symbol} - {profiles_str}"
+            if phase == "PROMOTED":
+                headline += " (PROMOTED)"
+            elif phase == "APPLIED":
+                headline += " (APPLIED)"
+            elif phase == "FAILED":
+                headline += " (FAILED)"
+
+            subline_parts = []
+            if step:
+                subline_parts.append(f"step: {step}")
+            if not ok:
+                error = normalized.get("error")
+                if isinstance(error, dict):
+                    error_msg = error.get("message", "")
+                    if error_msg:
+                        subline_parts.append(f"error: {error_msg[:50]}")
+            if normalized.get("dry"):
+                subline_parts.append("dry run")
+
+            # next_action reasonを含める（replay_from_recordの結果から取得する必要があるが、ここでは簡易的に）
+            subline = " | ".join(subline_parts) if subline_parts else ""
+
+            # diffを計算（前のレコードとの差分）
+            diff = {}
+            if prev_rec:
+                prev_normalized = self._normalize_record(prev_rec)
+                # profilesは正規化済み同士で比較
+                prev_profiles_raw = prev_normalized.get("profiles", [])
+                prev_profiles_normalized = _normalize_profiles(prev_profiles_raw)
+
+                # 比較対象フィールド（profilesは特別処理）
+                compare_fields = ["model_path", "close_now", "dry", "cmd", "symbol"]
+                for field in compare_fields:
+                    current_val = normalized.get(field)
+                    prev_val = prev_normalized.get(field)
+                    if current_val != prev_val:
+                        diff[field] = {"from": prev_val, "to": current_val}
+
+                # profilesは正規化済み同士で比較
+                if profiles_normalized != prev_profiles_normalized:
+                    diff["profiles"] = {"from": prev_profiles_normalized, "to": profiles_normalized}
+
+            return {
+                "record_id": record_id,
+                "phase": phase,
+                "timeline": timeline,
+                "headline": headline,
+                "subline": subline,
+                "diff": diff,
+                # 元のレコードも保持（詳細表示用）
+                "raw": normalized,
+            }
+        except Exception as e:
+            logger.warning(f"Failed to convert record to view: {e}")
+            return None
 
     def load_ops_history(
         self, symbol: Optional[str] = None, limit: int = 200
@@ -423,6 +583,22 @@ class OpsHistoryService:
         week_ok_rate = (week_ok / week_total) if week_total > 0 else 0.0
         month_ok_rate = (month_ok / month_total) if month_total > 0 else 0.0
 
+        # 表示用ビューに変換（GUIでカード表示用）
+        items = []
+        prev_rec = None
+        for rec in records[:50]:  # 最新50件まで表示用ビュー化
+            try:
+                view = self._to_ops_view(rec, prev_rec)
+                if view:
+                    items.append(view)
+                    prev_rec = rec
+            except Exception as e:
+                logger.warning(f"Failed to convert record to view: {e}")
+                continue
+
+        # last_viewを追加（items[0]が最新viewなのでそれを優先）
+        last_view = items[0] if items else (self._to_ops_view(last, None) if last else None)
+
         return {
             "week_total": week_total,
             "week_ok": week_ok,
@@ -435,6 +611,8 @@ class OpsHistoryService:
             "month_model_updates": month_model_updates,
             "last_model_update": last_model_update,
             "last": last,
+            "items": items,  # GUIで使う表示用ビュー（新規追加）
+            "last_view": last_view,  # 最新の表示用ビュー（新規追加）
         }
 
 
