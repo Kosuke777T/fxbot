@@ -27,6 +27,7 @@ from loguru import logger
 from app.services.ops_service import get_ops_service
 from app.services.profiles_store import load_profiles
 from app.services.ops_history_service import get_ops_history_service, replay_from_record
+from app.gui.ops_ui_rules import ui_for_next_action
 
 
 class OpsTab(QWidget):
@@ -425,13 +426,13 @@ class OpsTab(QWidget):
             stderr_lines = summary.get("stderr_lines", 0)
             next_action = result.get("next_action", {})
 
-            # next_actionの情報をテキストで追加
+            # next_actionの情報をテキストで追加（UIルールに基づく）
             next_action_text = ""
             if next_action:
-                kind = next_action.get("kind", "")
+                spec = ui_for_next_action(next_action)
                 reason = next_action.get("reason", "")
-                if kind and reason:
-                    next_action_text = f"\n\n次のアクション: {kind}\n{reason}"
+                if spec.visible and reason:
+                    next_action_text = f"\n\n次のアクション: {spec.label}\n{reason}"
 
             # 結果を表示（summary.titleを大きく表示）
             if result["ok"]:
@@ -460,9 +461,11 @@ class OpsTab(QWidget):
                     detail_dialog.setDetailedText(detail_msg)
                     detail_dialog.setIcon(QMessageBox.Icon.Critical)
 
-                    # next_action.kind == "PROMOTE_DRY_TO_RUN" のときだけボタンを追加
-                    if next_action.get("kind") == "PROMOTE_DRY_TO_RUN":
-                        btn_promote = detail_dialog.addButton("実際の実行を試す", QMessageBox.ButtonRole.ActionRole)
+                    # PROMOTE系のkindのときだけボタンを追加（UIルールに基づく）
+                    spec = ui_for_next_action(next_action)
+                    kind = (next_action.get("kind") or "").upper()
+                    if spec.visible and kind in ("PROMOTE", "PROMOTE_DRY_TO_RUN"):
+                        btn_promote = detail_dialog.addButton(spec.label, QMessageBox.ButtonRole.ActionRole)
                         detail_dialog.exec()
                         if detail_dialog.clickedButton() == btn_promote:
                             # paramsを使って再実行
@@ -477,9 +480,11 @@ class OpsTab(QWidget):
                     msg_box.setText(msg)
                     msg_box.setIcon(QMessageBox.Icon.Critical)
 
-                    # next_action.kind == "PROMOTE_DRY_TO_RUN" のときだけボタンを追加
-                    if next_action.get("kind") == "PROMOTE_DRY_TO_RUN":
-                        btn_promote = msg_box.addButton("実際の実行を試す", QMessageBox.ButtonRole.ActionRole)
+                    # PROMOTE系のkindのときだけボタンを追加（UIルールに基づく）
+                    spec = ui_for_next_action(next_action)
+                    kind = (next_action.get("kind") or "").upper()
+                    if spec.visible and kind in ("PROMOTE", "PROMOTE_DRY_TO_RUN"):
+                        btn_promote = msg_box.addButton(spec.label, QMessageBox.ButtonRole.ActionRole)
                         msg_box.exec()
                         if msg_box.clickedButton() == btn_promote:
                             # paramsを使って再実行
@@ -593,13 +598,28 @@ class OpsTab(QWidget):
             # run=Falseでnext_actionを取得
             result = replay_from_record(copy.deepcopy(full_record), run=False)
             next_action = result.get("next_action", {})
+
+            # UI仕様を取得（kindだけで判定、reasonは説明表示にのみ使用）
+            spec = ui_for_next_action(next_action)
+
+            # ボタンの表示/非表示を制御（kindに基づく）
+            # PROMOTE系のkindはPROMOTEボタンを表示
             kind = (next_action.get("kind") or "").upper()
+            show_promote = spec.visible and kind in ("PROMOTE", "PROMOTE_DRY_TO_RUN")
+            show_retry = spec.visible and kind == "RETRY"
 
-            # ボタンの表示/非表示を制御
-            self.btn_promote.setVisible(kind == "PROMOTE" or kind == "PROMOTE_DRY_TO_RUN")
-            self.btn_retry.setVisible(kind == "RETRY")
+            self.btn_promote.setVisible(show_promote)
+            self.btn_retry.setVisible(show_retry)
 
-            # reasonとparamsを表示
+            # ボタンのラベルとスタイルを設定
+            if show_promote:
+                self.btn_promote.setText(spec.label)
+                self.btn_promote.setStyleSheet(spec.style)
+            if show_retry:
+                self.btn_retry.setText(spec.label)
+                self.btn_retry.setStyleSheet(spec.style)
+
+            # reasonを表示（説明表示のみ、UI分岐には使わない）
             reason = next_action.get("reason", "")
             params = next_action.get("params", {})
             if reason:
@@ -611,12 +631,20 @@ class OpsTab(QWidget):
                     reason_text += f" ({params_str})"
                 self.lbl_action_reason.setText(reason_text)
                 self.lbl_action_reason.setVisible(True)
-                # ツールチップにも設定
-                self.btn_promote.setToolTip(reason)
-                self.btn_retry.setToolTip(reason)
+                # ツールチップにも設定（tooltip_prefix + reason）
+                tooltip = f"{spec.tooltip_prefix}{reason}" if spec.tooltip_prefix else reason
+                if show_promote:
+                    self.btn_promote.setToolTip(tooltip)
+                if show_retry:
+                    self.btn_retry.setToolTip(tooltip)
             else:
                 self.lbl_action_reason.setText("")
                 self.lbl_action_reason.setVisible(False)
+                # ツールチップもクリア
+                if show_promote:
+                    self.btn_promote.setToolTip("")
+                if show_retry:
+                    self.btn_retry.setToolTip("")
 
         except Exception as e:
             logger.error(f"Failed to refresh ops actions: {e}")
