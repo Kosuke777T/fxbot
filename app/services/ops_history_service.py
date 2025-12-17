@@ -8,11 +8,16 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import time
+import copy
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Optional
 
 from loguru import logger
+
+# TTLキャッシュ（モジュールレベル）
+_SUMMARY_CACHE = {"ts": 0.0, "value": None}
 
 
 def _normalize_human_text(s: str) -> str:
@@ -243,6 +248,104 @@ class OpsHistoryService:
 
         return normalized
 
+    def _calc_next_action(self, record: dict) -> dict:
+        """
+        recordからnext_actionを軽量ルールで計算する（replay_from_recordを呼ばない）。
+
+        Args:
+            record: Ops履歴レコード（またはviewのraw）
+
+        Returns:
+            next_action dict（{"kind":"...", "reason":"...", "params":{}}）
+        """
+        try:
+            # レコードから必要な情報を取得
+            step_raw = record.get("step")
+            step = str(step_raw or "").lower()  # step_rawがNoneの場合は空文字列に
+            ok = record.get("ok", False)
+            dry = record.get("dry", False)
+            promoted_at = record.get("promoted_at")
+            apply_performed = record.get("apply_performed", False)
+
+            # 軽量ルールでnext_actionを決定
+            # promoted扱い: step == "promoted" が最優先、promoted_at は補助（stepが空またはpromotedの場合のみ）
+            if step == "promoted":
+                # stepが明確にpromoted → 適用可能
+                logger.debug(
+                    f"[next_action] branch=promoted_step step_raw={repr(step_raw)} step={repr(step)} "
+                    f"promoted_at={repr(promoted_at)} applied_at={repr(record.get('applied_at'))} "
+                    f"apply_performed={repr(apply_performed)} ok={repr(ok)} dry={repr(dry)}"
+                )
+                return {
+                    "kind": "PROMOTE",
+                    "reason": "適用可能（PROMOTED済み）",
+                    "params": {},
+                }
+            elif promoted_at is not None and (step_raw is None or step == "" or step == "promoted"):
+                # promoted_atがあり、stepがNone/空文字列/promotedの場合のみ → 適用可能
+                # stepが明確に別値（例: "done", "applied"）の場合は次の判定へ
+                logger.debug(
+                    f"[next_action] branch=promoted_at step_raw={repr(step_raw)} step={repr(step)} "
+                    f"promoted_at={repr(promoted_at)} applied_at={repr(record.get('applied_at'))} "
+                    f"apply_performed={repr(apply_performed)} ok={repr(ok)} dry={repr(dry)}"
+                )
+                return {
+                    "kind": "PROMOTE",
+                    "reason": "適用可能（PROMOTED済み）",
+                    "params": {},
+                }
+            elif step == "applied" or apply_performed:
+                # 適用済み → アクションなし
+                logger.debug(
+                    f"[next_action] branch=applied step_raw={repr(step_raw)} step={repr(step)} "
+                    f"promoted_at={repr(promoted_at)} applied_at={repr(record.get('applied_at'))} "
+                    f"apply_performed={repr(apply_performed)} ok={repr(ok)} dry={repr(dry)}"
+                )
+                return {
+                    "kind": "NONE",
+                    "reason": "適用済み",
+                    "params": {},
+                }
+            elif step in ("done", "completed", "success") and ok and dry:
+                # dry run成功 → 本番反映可能
+                logger.debug(
+                    f"[next_action] branch=dry_run_success step_raw={repr(step_raw)} step={repr(step)} "
+                    f"promoted_at={repr(promoted_at)} applied_at={repr(record.get('applied_at'))} "
+                    f"apply_performed={repr(apply_performed)} ok={repr(ok)} dry={repr(dry)}"
+                )
+                return {
+                    "kind": "PROMOTE",
+                    "reason": "本番反映可能（dry run成功）",
+                    "params": {},
+                }
+            elif not ok:
+                # 失敗 → 再実行可能
+                logger.debug(
+                    f"[next_action] branch=failed step_raw={repr(step_raw)} step={repr(step)} "
+                    f"promoted_at={repr(promoted_at)} applied_at={repr(record.get('applied_at'))} "
+                    f"apply_performed={repr(apply_performed)} ok={repr(ok)} dry={repr(dry)}"
+                )
+                return {
+                    "kind": "RETRY",
+                    "reason": "失敗。ログ確認して再実行",
+                    "params": {},
+                }
+            else:
+                # それ以外 → アクションなし
+                logger.debug(
+                    f"[next_action] branch=else step_raw={repr(step_raw)} step={repr(step)} "
+                    f"promoted_at={repr(promoted_at)} applied_at={repr(record.get('applied_at'))} "
+                    f"apply_performed={repr(apply_performed)} ok={repr(ok)} dry={repr(dry)}"
+                )
+                return {
+                    "kind": "NONE",
+                    "reason": "",
+                    "params": {},
+                }
+        except Exception as e:
+            logger.warning(f"Failed to calculate next_action for record: {e}")
+            return {"kind": "NONE", "reason": "", "params": {}}
+
     def _to_ops_view(self, rec: dict, prev_rec: Optional[dict] = None) -> Optional[dict]:
         """
         レコードを表示用ビューに変換する。
@@ -260,6 +363,7 @@ class OpsHistoryService:
                 - subline: str
                 - diff: dict（前のレコードとの差分）
                 - raw: dict（元のレコード、詳細表示用）
+                - next_action: dict（行動ヒント、summarize_ops_history()側で付与される）
         """
         try:
             # 正規化（rawは正規化前のまま保持するため、先にprofilesを保存）
@@ -349,6 +453,7 @@ class OpsHistoryService:
                 "headline": headline,
                 "subline": subline,
                 "diff": diff,
+                # next_actionはsummarize_ops_history()側で必要分だけ付与（パフォーマンス改善）
                 # 元のレコードも保持（詳細表示用）
                 "raw": normalized,
             }
@@ -464,12 +569,13 @@ class OpsHistoryService:
         key = f"{symbol}|{started_at}|{profiles_str}|{step}|{ok}"
         return hashlib.sha1(key.encode("utf-8")).hexdigest()[:16]
 
-    def summarize_ops_history(self, symbol: Optional[str] = None) -> dict:
+    def summarize_ops_history(self, symbol: Optional[str] = None, cache_sec: int = 5) -> dict:
         """
         履歴を集計する。
 
         Args:
             symbol: シンボルでフィルタ（None の場合は全件）
+            cache_sec: キャッシュ有効時間（秒、0で無効）
 
         Returns:
             集計結果:
@@ -485,7 +591,19 @@ class OpsHistoryService:
                 - last_model_update: dict|None（最後のモデル更新情報）
                 - last: dict|None（最後の1件：started_at/ok/step/model_path/profiles/symbol）
         """
+        # TTLキャッシュチェック
+        now = time.time()
+        if cache_sec > 0 and _SUMMARY_CACHE["value"] and now - _SUMMARY_CACHE["ts"] < cache_sec:
+            return copy.deepcopy(_SUMMARY_CACHE["value"])  # 破壊防止
+
+        # 計測開始
+        t_total_start = time.perf_counter()
+
+        # ログ読み込み
+        t_load_start = time.perf_counter()
         records = self.load_ops_history(symbol=symbol, limit=1000)  # 集計用に多めに取得
+        t_load_end = time.perf_counter()
+        load_sec = t_load_end - t_load_start
 
         week_total = 0
         week_ok = 0
@@ -582,8 +700,11 @@ class OpsHistoryService:
         # 成功率を計算
         week_ok_rate = (week_ok / week_total) if week_total > 0 else 0.0
         month_ok_rate = (month_ok / month_total) if month_total > 0 else 0.0
+        t_stats_end = time.perf_counter()
+        stats_sec = t_stats_end - t_load_end
 
         # 表示用ビューに変換（GUIでカード表示用）
+        t_view_start = time.perf_counter()
         items = []
         prev_rec = None
         for rec in records[:50]:  # 最新50件まで表示用ビュー化
@@ -595,11 +716,70 @@ class OpsHistoryService:
             except Exception as e:
                 logger.warning(f"Failed to convert record to view: {e}")
                 continue
+        t_view_end = time.perf_counter()
+        view_sec = t_view_end - t_view_start
+
+        # next_actionを先頭N件だけ計算（パフォーマンス改善）
+        t_hint_start = time.perf_counter()
+        MAX_HINT_ITEMS = 30  # 先頭30件だけnext_actionを計算
+        next_action_cache = {}  # メモ化用（key: record_id or cmd）
+
+        for idx, view in enumerate(items[:MAX_HINT_ITEMS]):
+            if not view:
+                continue
+
+            # キャッシュキーを決定（record_id優先、なければcmd）
+            cache_key = view.get("record_id")
+            if not cache_key:
+                raw = view.get("raw", {})
+                cache_key = raw.get("cmd") or str(raw)
+
+            # キャッシュに無ければ計算
+            if cache_key not in next_action_cache:
+                try:
+                    raw = view.get("raw", {})
+                    next_action = self._calc_next_action(raw)
+                    next_action_cache[cache_key] = next_action
+                except Exception as e:
+                    logger.warning(f"Failed to calculate next_action for view {idx}: {e}")
+                    next_action_cache[cache_key] = {"kind": "NONE", "reason": "", "params": {}}
+
+            # viewにnext_actionを付与
+            view["next_action"] = next_action_cache[cache_key]
+
+        # 残りのitemにはNONEを設定
+        for view in items[MAX_HINT_ITEMS:]:
+            if view:
+                view["next_action"] = {"kind": "NONE", "reason": "", "params": {}}
 
         # last_viewを追加（items[0]が最新viewなのでそれを優先）
         last_view = items[0] if items else (self._to_ops_view(last, None) if last else None)
 
-        return {
+        # last_viewにもnext_actionを付与（items[0]に既に含まれている場合はそのまま）
+        if last_view and "next_action" not in last_view:
+            # last_viewがitems[0]でない場合（lastから生成した場合）は計算
+            cache_key = last_view.get("record_id")
+            if not cache_key:
+                raw = last_view.get("raw", {})
+                cache_key = raw.get("cmd") or str(raw)
+
+            if cache_key in next_action_cache:
+                last_view["next_action"] = next_action_cache[cache_key]
+            else:
+                try:
+                    raw = last_view.get("raw", {})
+                    # 軽量ルールでnext_actionを計算（replay_from_recordを呼ばない）
+                    last_view["next_action"] = self._calc_next_action(raw)
+                except Exception as e:
+                    logger.warning(f"Failed to calculate next_action for last_view: {e}")
+                    last_view["next_action"] = {"kind": "NONE", "reason": "", "params": {}}
+        t_hint_end = time.perf_counter()
+        hint_sec = t_hint_end - t_hint_start
+
+        t_total_end = time.perf_counter()
+        total_sec = t_total_end - t_total_start
+
+        result = {
             "week_total": week_total,
             "week_ok": week_ok,
             "week_ok_rate": week_ok_rate,
@@ -615,6 +795,18 @@ class OpsHistoryService:
             "last_view": last_view,  # 最新の表示用ビュー（新規追加）
         }
 
+        # 計測ログ出力
+        logger.info(
+            f"PERF summarize_ops_history: "
+            f"load={load_sec:.4f} stats={stats_sec:.4f} view={view_sec:.4f} hint={hint_sec:.4f} total={total_sec:.4f}"
+        )
+
+        # キャッシュに保存
+        _SUMMARY_CACHE["ts"] = now
+        _SUMMARY_CACHE["value"] = copy.deepcopy(result)
+
+        return result
+
 
 # シングルトンインスタンス
 _ops_history_service: Optional[OpsHistoryService] = None
@@ -629,17 +821,18 @@ def get_ops_history_service() -> OpsHistoryService:
 
 
 # トップレベル関数ラッパー（互換性のため）
-def summarize_ops_history(symbol: Optional[str] = None) -> dict:
+def summarize_ops_history(symbol: Optional[str] = None, cache_sec: int = 5) -> dict:
     """
     履歴を集計する（トップレベル関数ラッパー）。
 
     Args:
         symbol: シンボルでフィルタ（None の場合は全件）
+        cache_sec: キャッシュ有効時間（秒、0で無効）
 
     Returns:
         集計結果（OpsHistoryService.summarize_ops_history と同じ）
     """
-    return get_ops_history_service().summarize_ops_history(symbol=symbol)
+    return get_ops_history_service().summarize_ops_history(symbol=symbol, cache_sec=cache_sec)
 
 
 def load_ops_history(symbol: Optional[str] = None, limit: int = 200) -> list[dict]:

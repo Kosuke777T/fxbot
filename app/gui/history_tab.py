@@ -163,6 +163,15 @@ class HistoryTab(QtWidgets.QWidget):
                     diff_label.setStyleSheet("color: #0066cc; font-size: 8pt;")
                     card_layout.addWidget(diff_label)
 
+            # 行動ヒント（next_action）
+            next_action = item.get("next_action")
+            if next_action:
+                next_action_text = self._format_next_action(next_action)
+                if next_action_text:
+                    next_action_label = QLabel(next_action_text)
+                    next_action_label.setStyleSheet("color: #ff6b00; font-size: 9pt; font-weight: bold;")
+                    card_layout.addWidget(next_action_label)
+
             return card
         except Exception as e:
             logger.error(f"Failed to create ops card: {e}")
@@ -200,6 +209,37 @@ class HistoryTab(QtWidgets.QWidget):
             if from_val != to_val:
                 parts.append(f"{field}: {from_val} → {to_val}")
         return " | ".join(parts) if parts else ""
+
+    def _format_next_action(self, next_action: dict) -> str:
+        """next_actionをフォーマットする。"""
+        if not next_action:
+            return ""
+
+        kind = next_action.get("kind", "").upper()
+        reason = next_action.get("reason", "")
+
+        # kindを日本語にマッピング
+        kind_map = {
+            "PROMOTE": "本番反映",
+            "PROMOTE_DRY_TO_RUN": "本番反映",
+            "RETRY": "再実行",
+            "NONE": "なし",
+        }
+        kind_jp = kind_map.get(kind, kind)
+
+        # reasonが長い場合は省略
+        if reason and len(reason) > 50:
+            reason = reason[:47] + "..."
+
+        # kindがNONEの場合は表示しない
+        if kind == "NONE" or not kind:
+            return ""
+
+        # 表示文字列を作成
+        if reason:
+            return f"行動ヒント：{kind_jp}（{reason}）"
+        else:
+            return f"行動ヒント：{kind_jp}"
 
     def _export_csv(self) -> None:
         path, _ = QtWidgets.QFileDialog.getSaveFileName(
