@@ -468,6 +468,9 @@ class OpsHistoryService:
                 "headline": headline,
                 "subline": subline,
                 "diff": diff,
+                # ソート用フィールド
+                "started_at": normalized.get("started_at"),  # ISO文字列またはNone
+                "ts": rec.get("ts") or normalized.get("started_at"),  # フォールバック用
                 # next_actionはsummarize_ops_history()側で必要分だけ付与（パフォーマンス改善）
                 # 元のレコードも保持（詳細表示用）
                 "raw": normalized,
@@ -562,6 +565,34 @@ class OpsHistoryService:
                 pass
 
         return None
+
+    def _to_epoch(self, s: Optional[str]) -> Optional[float]:
+        """
+        ISO文字列またはNoneをUTC epoch秒（浮動小数）に変換する（ソート用）。
+
+        Args:
+            s: started_at/ts 文字列（ISO形式、timezone付き/無し対応）またはNone
+
+        Returns:
+            epoch秒（float）またはNone（パース失敗時）
+        """
+        if not s:
+            return None
+        s = str(s).strip()
+        if not s:
+            return None
+
+        # _parse_started_at()を使ってdatetimeに変換
+        dt = self._parse_started_at(s)
+        if dt is None:
+            return None
+
+        # timezone付きはそのままtimestamp()、timezone無しは既存ロジックに合わせる（ローカル扱い）
+        # timestamp()はUTC epochを返す（timezone awareな場合は自動変換、naiveな場合はローカル時刻として扱う）
+        try:
+            return dt.timestamp()
+        except Exception:
+            return None
 
     def _generate_record_id(self, rec: dict) -> str:
         """
@@ -791,6 +822,42 @@ class OpsHistoryService:
         t_hint_end = time.perf_counter()
         hint_sec = t_hint_end - t_hint_start
 
+        # itemsをソート（priority降順、started_at降順（UTC epoch）、record_idで安定化）
+        def sort_key_for_items(item: dict) -> tuple:
+            """itemsのソートキー（降順、UTC epoch比較）"""
+            # 1) next_action.priority（desc）
+            next_action = item.get("next_action", {})
+            priority = next_action.get("priority", 0)
+
+            # 2) started_at（desc、UTC epoch比較、None/空/parse失敗ならts、tsも無ければrecord_id）
+            started_at = item.get("started_at")
+            started_epoch = None  # デフォルト（降順で最後に来るようにNone）
+
+            # started_atをepochに変換
+            if started_at:
+                started_epoch = self._to_epoch(started_at)
+
+            # started_atがNone/空/parse失敗時はtsを試す
+            if started_epoch is None:
+                ts = item.get("ts")
+                if ts:
+                    started_epoch = self._to_epoch(ts)
+
+            # tsも無ければ最後に来るようにする（降順で最後 = -inf）
+            if started_epoch is None:
+                started_epoch = float("-inf")  # 降順で最後に来る（None相当）
+
+            # 3) record_id（安定化のため必ず含める）
+            record_id = item.get("record_id") or ""
+
+            # 降順ソートのため、priorityとstarted_epochは負数
+            # started_epochが-infの場合は+infになる（降順で最後）
+            started_key = -started_epoch  # 降順のため負数（-infは+infになる）
+
+            return (-priority, started_key, record_id)
+
+        items_sorted = sorted(items, key=sort_key_for_items)
+
         t_total_end = time.perf_counter()
         total_sec = t_total_end - t_total_start
 
@@ -806,7 +873,7 @@ class OpsHistoryService:
             "month_model_updates": month_model_updates,
             "last_model_update": last_model_update,
             "last": last,
-            "items": items,  # GUIで使う表示用ビュー（新規追加）
+            "items": items_sorted,  # GUIで使う表示用ビュー（ソート済み）
             "last_view": last_view,  # 最新の表示用ビュー（新規追加）
         }
 

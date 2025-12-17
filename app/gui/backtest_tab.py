@@ -178,6 +178,8 @@ class PlotWindow(QtWidgets.QDialog):
         layout.addWidget(self.canvas)
 
         self.span = None
+        # _last_kind: ログ/表示用の状態（"equity" or "price"）
+        # 注意: これはUIの見た目分岐（ボタン表示や強調）には使わない。UIはpriorityルールに従う。
         self._last_kind: str | None = None
         self._last_csv: str | None = None
         self._overlay_lines: list = []
@@ -1003,6 +1005,8 @@ class BacktestTab(QtWidgets.QWidget):
 
         # 内部状態
         self.proc: QProcess | None = None
+        # _last_plot_kind: ログ/表示用の状態（"equity" or "price"）
+        # 注意: これはUIの見た目分岐（ボタン表示や強調）には使わない。UIはpriorityルールに従う。
         self._last_plot_kind = None   # "equity" or "price"
         self._last_plot_data = None
         self._last_plot_note = ""

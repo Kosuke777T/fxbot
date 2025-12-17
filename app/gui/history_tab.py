@@ -107,15 +107,9 @@ class HistoryTab(QtWidgets.QWidget):
                 if child.widget():
                     child.widget().deleteLater()
 
-            # next_action.priority降順でソート（priorityが高い順に表示）
-            def sort_key(item: dict) -> int:
-                next_action = item.get("next_action")
-                return -get_action_priority(next_action)  # 降順のため負数
-
-            items_sorted = sorted(items, key=sort_key)
-
-            # カードを生成（priority降順）
-            for item in items_sorted:
+            # itemsはservices層で既にソート済み（priority降順、started_at降順、record_idで安定化）
+            # カードを生成（services層のソート順を維持）
+            for item in items:
                 card = self._create_ops_card(item)
                 if card:
                     self.ops_cards_layout.addWidget(card)

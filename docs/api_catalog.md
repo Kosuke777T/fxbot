@@ -126,44 +126,44 @@
 - **def plot_equity_with_markers_to_figure(fig: Figure, csv_path: str, note: str='')**  (L47)  — equity_curve.csv を描画。signal変化点でマーク。変化が無ければ trades*.csv の entry_time でマーク。
 - **class PlotWindow**  (L158)  — 
   - **PlotWindow.__init__(self, parent=None, mode: str='bt', equity_df: Optional[pd.DataFrame]=None, price_df: Optional[pd.DataFrame]=None, wfo_train_df: Optional[pd.DataFrame]=None, wfo_test_df: Optional[pd.DataFrame]=None)**  (L159)  — 
-  - **PlotWindow.showEvent(self, event)**  (L195)  — ウインドウが表示されたときに必ず描画を実行
-  - **PlotWindow._plot(self)**  (L201)  — modeに応じて描画を実行する。
-  - **PlotWindow._plot_bt_equity(self)**  (L226)  — Backtestモード: equity curveを描画
-  - **PlotWindow._plot_wfo(self)**  (L307)  — Walk-Forwardモード: train/test equity + overlay
-  - **PlotWindow._plot_price(self)**  (L380)  — Price previewを描画
-  - **PlotWindow.plot_equity_csv(self, csv_path: str)**  (L417)  — 
-  - **PlotWindow.overlay_wfo_equity(self, df_train: Optional[pd.DataFrame], df_test: Optional[pd.DataFrame]) -> None**  (L481)  — Overlay WFO train/test equity lines on this window's axes.
-  - **PlotWindow.plot_price_preview(self, csv_path: str, note: str='')**  (L543)  — 
-  - **PlotWindow.plot_heatmap(self, df, note: str='')**  (L574)  — tools/backtest_run が生成する monthly_returns_*.csv の形式に対応したヒートマップ描画。
-  - **PlotWindow.jump_range(self, mode: str) -> None**  (L674)  — ポップアウト表示で 1W / 1M / ALL の X 範囲を切り替える。
-- **class BacktestTab**  (L839)  — 
-  - **BacktestTab.__init__(self, parent: QtWidgets.QWidget | None=None, kpi_service: Optional[Any]=None, profile_name: str='michibiki_std') -> None**  (L840)  — 
-  - **BacktestTab._on_progress_timer(self)**  (L1043)  — 
-  - **BacktestTab._append_progress(self, text: str)**  (L1052)  — 
-  - **BacktestTab._on_mode_changed(self, checked: bool=False)**  (L1055)  — 
-  - **BacktestTab._current_mode_text(self) -> str**  (L1060)  — UI 上のモード文字列を返す（Backtest / Walk-Forward / Overlay）。
-  - **BacktestTab._find_latest_wfo_dir(self) -> Optional[pathlib.Path]**  (L1068)  — 
-  - **BacktestTab._load_latest_wfo_data(self) -> Optional[Dict[str, object]]**  (L1080)  — 
-  - **BacktestTab._update_wfo_stats_panel(self, metrics: Dict[str, object]) -> None**  (L1102)  — 
-  - **BacktestTab._overlay_wfo_equity(self, df_train: Optional[pd.DataFrame], df_test: Optional[pd.DataFrame]) -> None**  (L1127)  — Overlay Train/Test equity lines onto the current plot axes.
-- **class _WFOResult**  (L1177)  — Walk-Forward 検証の結果セットをまとめて持つだけの小さな入れ物。
-  - **BacktestTab._WFOResult.__init__(self, report_json: Dict[str, Any], equity_train: Optional[pd.DataFrame], equity_test: Optional[pd.DataFrame], run_id: str, parent: Optional[QtCore.QObject]=None) -> None**  (L1186)  — 
-  - **BacktestTab._find_latest_wfo_files(self) -> Optional['_WFOResult']**  (L1204)  — logs/retrain/ 配下から最新の report_*.json を探し、
-  - **BacktestTab._debug_print_wfo_summary(self, wfo: '_WFOResult') -> None**  (L1277)  — とりあえず「ちゃんと読めたか」を確認するために、
-  - **BacktestTab._load_model_info(self)**  (L1299)  — 
-  - **BacktestTab._update_data(self)**  (L1314)  — 
-  - **BacktestTab._run_test(self)**  (L1348)  — 
-  - **BacktestTab._on_proc_ready_read_stdout(self)**  (L1450)  — 
-  - **BacktestTab._on_proc_ready_read_stderr(self)**  (L1491)  — 
-  - **BacktestTab._on_proc_finished(self, code: int, status: QtCore.QProcess.ExitStatus, sym: str, tf: str, mode: str)**  (L1530)  — 
-  - **BacktestTab._pick_file(self)**  (L1686)  — 
-  - **BacktestTab._save_png(self)**  (L1692)  — 
-  - **BacktestTab._export_result_json(self)**  (L1701)  — 
-  - **BacktestTab._show_heatmap(self)**  (L1732)  — 
-  - **BacktestTab._pop_out(self)**  (L1766)  — 
-  - **BacktestTab._load_plot(self, path_or_csv)**  (L1804)  — 
-  - **BacktestTab._load_metrics(self, metrics_path: Path)**  (L1884)  — 
-  - **BacktestTab._on_range_jump(self, mode: str) -> None**  (L1927)  — Backtestタブのインライン描画と、ポップアウト済みウィンドウの両方に期間ジャンプを適用する。
+  - **PlotWindow.showEvent(self, event)**  (L197)  — ウインドウが表示されたときに必ず描画を実行
+  - **PlotWindow._plot(self)**  (L203)  — modeに応じて描画を実行する。
+  - **PlotWindow._plot_bt_equity(self)**  (L228)  — Backtestモード: equity curveを描画
+  - **PlotWindow._plot_wfo(self)**  (L309)  — Walk-Forwardモード: train/test equity + overlay
+  - **PlotWindow._plot_price(self)**  (L382)  — Price previewを描画
+  - **PlotWindow.plot_equity_csv(self, csv_path: str)**  (L419)  — 
+  - **PlotWindow.overlay_wfo_equity(self, df_train: Optional[pd.DataFrame], df_test: Optional[pd.DataFrame]) -> None**  (L483)  — Overlay WFO train/test equity lines on this window's axes.
+  - **PlotWindow.plot_price_preview(self, csv_path: str, note: str='')**  (L545)  — 
+  - **PlotWindow.plot_heatmap(self, df, note: str='')**  (L576)  — tools/backtest_run が生成する monthly_returns_*.csv の形式に対応したヒートマップ描画。
+  - **PlotWindow.jump_range(self, mode: str) -> None**  (L676)  — ポップアウト表示で 1W / 1M / ALL の X 範囲を切り替える。
+- **class BacktestTab**  (L841)  — 
+  - **BacktestTab.__init__(self, parent: QtWidgets.QWidget | None=None, kpi_service: Optional[Any]=None, profile_name: str='michibiki_std') -> None**  (L842)  — 
+  - **BacktestTab._on_progress_timer(self)**  (L1047)  — 
+  - **BacktestTab._append_progress(self, text: str)**  (L1056)  — 
+  - **BacktestTab._on_mode_changed(self, checked: bool=False)**  (L1059)  — 
+  - **BacktestTab._current_mode_text(self) -> str**  (L1064)  — UI 上のモード文字列を返す（Backtest / Walk-Forward / Overlay）。
+  - **BacktestTab._find_latest_wfo_dir(self) -> Optional[pathlib.Path]**  (L1072)  — 
+  - **BacktestTab._load_latest_wfo_data(self) -> Optional[Dict[str, object]]**  (L1084)  — 
+  - **BacktestTab._update_wfo_stats_panel(self, metrics: Dict[str, object]) -> None**  (L1106)  — 
+  - **BacktestTab._overlay_wfo_equity(self, df_train: Optional[pd.DataFrame], df_test: Optional[pd.DataFrame]) -> None**  (L1131)  — Overlay Train/Test equity lines onto the current plot axes.
+- **class _WFOResult**  (L1181)  — Walk-Forward 検証の結果セットをまとめて持つだけの小さな入れ物。
+  - **BacktestTab._WFOResult.__init__(self, report_json: Dict[str, Any], equity_train: Optional[pd.DataFrame], equity_test: Optional[pd.DataFrame], run_id: str, parent: Optional[QtCore.QObject]=None) -> None**  (L1190)  — 
+  - **BacktestTab._find_latest_wfo_files(self) -> Optional['_WFOResult']**  (L1208)  — logs/retrain/ 配下から最新の report_*.json を探し、
+  - **BacktestTab._debug_print_wfo_summary(self, wfo: '_WFOResult') -> None**  (L1281)  — とりあえず「ちゃんと読めたか」を確認するために、
+  - **BacktestTab._load_model_info(self)**  (L1303)  — 
+  - **BacktestTab._update_data(self)**  (L1318)  — 
+  - **BacktestTab._run_test(self)**  (L1352)  — 
+  - **BacktestTab._on_proc_ready_read_stdout(self)**  (L1454)  — 
+  - **BacktestTab._on_proc_ready_read_stderr(self)**  (L1495)  — 
+  - **BacktestTab._on_proc_finished(self, code: int, status: QtCore.QProcess.ExitStatus, sym: str, tf: str, mode: str)**  (L1534)  — 
+  - **BacktestTab._pick_file(self)**  (L1690)  — 
+  - **BacktestTab._save_png(self)**  (L1696)  — 
+  - **BacktestTab._export_result_json(self)**  (L1705)  — 
+  - **BacktestTab._show_heatmap(self)**  (L1736)  — 
+  - **BacktestTab._pop_out(self)**  (L1770)  — 
+  - **BacktestTab._load_plot(self, path_or_csv)**  (L1808)  — 
+  - **BacktestTab._load_metrics(self, metrics_path: Path)**  (L1888)  — 
+  - **BacktestTab._on_range_jump(self, mode: str) -> None**  (L1931)  — Backtestタブのインライン描画と、ポップアウト済みウィンドウの両方に期間ジャンプを適用する。
 
 ## app/gui/control_tab.py
 - **class ControlTab**  (L20)  — 
@@ -188,10 +188,15 @@
   - **DashboardTab._set(self, key: str, val: str) -> None**  (L95)  — 
 
 ## app/gui/history_tab.py
-- **class HistoryTab**  (L13)  — 
-  - **HistoryTab.__init__(self, parent=None)**  (L14)  — 
-  - **HistoryTab.refresh(self) -> None**  (L43)  — 
-  - **HistoryTab._export_csv(self) -> None**  (L52)  — 
+- **class HistoryTab**  (L17)  — 
+  - **HistoryTab.__init__(self, parent=None)**  (L18)  — 
+  - **HistoryTab.refresh(self) -> None**  (L83)  — 
+  - **HistoryTab._refresh_ops_cards(self) -> None**  (L96)  — Ops履歴カードを更新する。
+  - **HistoryTab._create_ops_card(self, item: dict) -> Optional[QWidget]**  (L122)  — Ops履歴カードを作成する。
+  - **HistoryTab._get_phase_style(self, phase: str) -> str**  (L206)  — phaseに応じたスタイルを返す。
+  - **HistoryTab._format_timeline(self, timeline: dict) -> str**  (L216)  — timelineをフォーマットする。
+  - **HistoryTab._format_diff(self, diff: dict) -> str**  (L229)  — diffをフォーマットする。
+  - **HistoryTab._export_csv(self) -> None**  (L240)  — 
 
 ## app/gui/kpi_tab.py
 - **class KPITab**  (L19)  — 運用KPIタブ（メインタブ）
@@ -206,16 +211,27 @@
 - **def main() -> None**  (L144)  — 
 
 ## app/gui/ops_tab.py
-- **class OpsTab**  (L31)  — Ops実行タブ（tools/ops_start.ps1 の実行と結果表示）
-  - **OpsTab.__init__(self, parent: Optional[QWidget]=None) -> None**  (L34)  — 
-  - **OpsTab._setup_ui(self) -> None**  (L40)  — 
-  - **OpsTab._load_defaults(self) -> None**  (L139)  — デフォルト値を読み込む。
-  - **OpsTab._on_run_clicked(self) -> None**  (L152)  — 実行ボタン押下時。
-  - **OpsTab._display_result(self, result: dict) -> None**  (L203)  — 結果を表示する。
-  - **OpsTab._populate_tree(self, parent: QTreeWidgetItem, data: Any, key: str='') -> None**  (L256)  — dict/list を再帰的にツリーに追加する。
-  - **OpsTab._load_history(self) -> None**  (L289)  — 履歴を読み込んで表示する。
-  - **OpsTab._on_history_selected(self) -> None**  (L328)  — 履歴が選択されたときに結果を再表示する。
-  - **OpsTab._replay_selected(self) -> None**  (L348)  — 選択中の履歴レコードを再実行する。
+- **class OpsTab**  (L33)  — Ops実行タブ（tools/ops_start.ps1 の実行と結果表示）
+  - **OpsTab.__init__(self, parent: Optional[QWidget]=None) -> None**  (L36)  — 
+  - **OpsTab._setup_ui(self) -> None**  (L42)  — 
+  - **OpsTab._load_defaults(self) -> None**  (L165)  — デフォルト値を読み込む。
+  - **OpsTab._on_run_clicked(self) -> None**  (L178)  — 実行ボタン押下時。
+  - **OpsTab._display_result(self, result: dict) -> None**  (L231)  — 結果を表示する。
+  - **OpsTab._populate_tree(self, parent: QTreeWidgetItem, data: Any, key: str='') -> None**  (L297)  — dict/list を再帰的にツリーに追加する。
+  - **OpsTab._load_history(self) -> None**  (L330)  — 履歴を読み込んで表示する。
+  - **OpsTab._on_history_selected(self) -> None**  (L372)  — 履歴が選択されたときに結果を再表示する。
+  - **OpsTab._replay_selected(self) -> None**  (L392)  — 選択中の履歴レコードを再実行する。
+  - **OpsTab._replay_with_params(self, record: dict, params: dict) -> None**  (L509)  — paramsを使って再実行する。
+  - **OpsTab._refresh_ops_actions(self) -> None**  (L563)  — 最新Opsレコードを取得してnext_actionを判定し、PROMOTE/RETRYボタンの表示を更新する。
+  - **OpsTab._on_promote_clicked(self) -> None**  (L655)  — PROMOTEボタン押下時のハンドラ。
+  - **OpsTab._on_retry_clicked(self) -> None**  (L696)  — RETRYボタン押下時のハンドラ。
+
+## app/gui/ops_ui_rules.py
+- **class ActionUiSpec**  (L14)  — next_actionのUI表示仕様
+- **def _ui_spec_from_priority(priority: int, kind: Optional[str]=None) -> ActionUiSpec**  (L29)  — priorityからUI仕様を決定する（重複排除・1箇所集約）。
+- **def ui_for_next_action(next_action: Optional[dict]) -> ActionUiSpec**  (L89)  — next_actionからUI仕様を取得する（priority優先）。
+- **def format_action_hint_text(next_action: Optional[dict]) -> str**  (L113)  — next_actionから行動ヒントの表示テキストを生成する。
+- **def get_action_priority(next_action: Optional[dict]) -> int**  (L137)  — next_actionからpriorityを取得する（ソート用、priority優先）。
 
 ## app/gui/settings_tab.py
 - **class SettingsTab**  (L27)  — MT5 口座設定タブ。
@@ -384,12 +400,12 @@
 
 ## app/services/event_store.py
 - **class UiEvent**  (L23)  — 
-- **def _now() -> str**  (L36)  — 
-- **class _EventStore**  (L40)  — 
-  - **_EventStore.__init__(self, maxlen: int=1000)**  (L41)  — 
-  - **_EventStore.append(self, ev: UiEvent) -> None**  (L44)  — 
-  - **_EventStore.add(self, **kwargs: Any) -> None**  (L50)  — 
-  - **_EventStore.recent(self, n: int=200) -> List[UiEvent]**  (L54)  — 
+- **def _now() -> str**  (L38)  — 
+- **class _EventStore**  (L42)  — 
+  - **_EventStore.__init__(self, maxlen: int=1000)**  (L43)  — 
+  - **_EventStore.append(self, ev: UiEvent) -> None**  (L46)  — 
+  - **_EventStore.add(self, **kwargs: Any) -> None**  (L52)  — 
+  - **_EventStore.recent(self, n: int=200) -> List[UiEvent]**  (L56)  — 
 
 ## app/services/execution_service.py
 - **def _symbol_to_filename(symbol: str) -> str**  (L34)  — シンボル名を安全なファイル名に変換
@@ -493,25 +509,32 @@
   - **MT5Service.safe_order_modify_sl(self, ticket: int, side: str, symbol: str, desired_sl: float, reason: str='') -> Tuple[bool, Optional[float], str]**  (L118)  — 返り値: (成功/失敗, 実際に送ったSL, 詳細メッセージ)
 
 ## app/services/ops_history_service.py
-- **class OpsHistoryService**  (L16)  — Ops実行履歴サービス
-  - **OpsHistoryService.__init__(self) -> None**  (L19)  — 
-  - **OpsHistoryService.append_ops_result(self, rec: dict) -> None**  (L26)  — logs/ops/ops_result.jsonl に 1行追記（UTF-8、JSONL）
-  - **OpsHistoryService._normalize_record(self, rec: dict) -> dict**  (L53)  — レコードを正規化する。
-  - **OpsHistoryService.load_ops_history(self, symbol: Optional[str]=None, limit: int=200) -> list[dict]**  (L114)  — JSONL を末尾から最大 limit 件読み、壊れ行はスキップ。
-  - **OpsHistoryService._parse_started_at(self, s: str) -> Optional[datetime]**  (L160)  — started_at 文字列を datetime に変換する（複数フォーマット対応）。
-  - **OpsHistoryService.summarize_ops_history(self, symbol: Optional[str]=None) -> dict**  (L198)  — 履歴を集計する。
-- **def get_ops_history_service() -> OpsHistoryService**  (L326)  — OpsHistoryService のシングルトンインスタンスを返す。
-- **def summarize_ops_history(symbol: Optional[str]=None) -> dict**  (L335)  — 履歴を集計する（トップレベル関数ラッパー）。
-- **def load_ops_history(symbol: Optional[str]=None, limit: int=200) -> list[dict]**  (L348)  — JSONL を末尾から最大 limit 件読み込む（トップレベル関数ラッパー）。
-- **def append_ops_result(rec: dict) -> None**  (L362)  — logs/ops/ops_result.jsonl に 1行追記（トップレベル関数ラッパー）。
-- **def replay_from_record(record: dict, *, run: bool=False) -> dict**  (L372)  — レコードから条件を復元して再実行する。
+- **def _normalize_human_text(s: str) -> str**  (L23)  — 表示用テキストを正規化する。
+- **def _normalize_profiles(profiles_raw) -> list[str]**  (L43)  — profiles を list[str] に正規化する。
+- **def _is_dry_record(record: dict, cmd: object | None=None) -> bool | None**  (L90)  — レコードまたはコマンドからdryフラグを判定する（dry優先）。
+- **class OpsHistoryService**  (L149)  — Ops実行履歴サービス
+  - **OpsHistoryService.__init__(self) -> None**  (L152)  — 
+  - **OpsHistoryService.append_ops_result(self, rec: dict) -> None**  (L159)  — logs/ops/ops_result.jsonl に 1行追記（UTF-8、JSONL）
+  - **OpsHistoryService._normalize_record(self, rec: dict) -> dict**  (L186)  — レコードを正規化する。
+  - **OpsHistoryService._calc_next_action(self, record: dict) -> dict**  (L251)  — recordからnext_actionを軽量ルールで計算する（replay_from_recordを呼ばない）。
+  - **OpsHistoryService._to_ops_view(self, rec: dict, prev_rec: Optional[dict]=None) -> Optional[dict]**  (L364)  — レコードを表示用ビューに変換する。
+  - **OpsHistoryService.load_ops_history(self, symbol: Optional[str]=None, limit: int=200) -> list[dict]**  (L482)  — JSONL を末尾から最大 limit 件読み、壊れ行はスキップ。
+  - **OpsHistoryService._parse_started_at(self, s: str) -> Optional[datetime]**  (L531)  — started_at 文字列を datetime に変換する（複数フォーマット対応）。
+  - **OpsHistoryService._to_epoch(self, s: Optional[str]) -> Optional[float]**  (L569)  — ISO文字列またはNoneをUTC epoch秒（浮動小数）に変換する（ソート用）。
+  - **OpsHistoryService._generate_record_id(self, rec: dict) -> str**  (L597)  — レコードから安定したrecord_idを生成する。
+  - **OpsHistoryService.summarize_ops_history(self, symbol: Optional[str]=None, cache_sec: int=5) -> dict**  (L618)  — 履歴を集計する。
+- **def get_ops_history_service() -> OpsHistoryService**  (L897)  — OpsHistoryService のシングルトンインスタンスを返す。
+- **def summarize_ops_history(symbol: Optional[str]=None, cache_sec: int=5) -> dict**  (L906)  — 履歴を集計する（トップレベル関数ラッパー）。
+- **def load_ops_history(symbol: Optional[str]=None, limit: int=200) -> list[dict]**  (L920)  — JSONL を末尾から最大 limit 件読み込む（トップレベル関数ラッパー）。
+- **def append_ops_result(rec: dict) -> None**  (L934)  — logs/ops/ops_result.jsonl に 1行追記（トップレベル関数ラッパー）。
+- **def replay_from_record(record: dict, *, run: bool=False, overrides: dict | None=None) -> dict**  (L944)  — レコードから条件を復元して再実行する。
 
 ## app/services/ops_service.py
 - **class OpsService**  (L18)  — Ops実行サービス（内部用）
   - **OpsService.__init__(self) -> None**  (L21)  — 
   - **OpsService.run_ops_start(self, *, symbol: str='USDJPY-', dry: bool=False, close_now: bool=True, profile: Optional[str]=None, profiles: Optional[list[str]]=None) -> dict**  (L28)  — tools/ops_start.ps1 を実行して結果を返す。
-  - **OpsService._append_to_history(self, result: dict, symbol: str, profile: Optional[str], profiles: Optional[list[str]]) -> None**  (L232)  — 履歴に追記する。
-- **def get_ops_service() -> OpsService**  (L285)  — OpsService のシングルトンインスタンスを返す。
+  - **OpsService._append_to_history(self, result: dict, symbol: str, profile: Optional[str], profiles: Optional[list[str]], dry: bool, cmd_str: str, close_now: bool) -> None**  (L233)  — 履歴に追記する。
+- **def get_ops_service() -> OpsService**  (L298)  — OpsService のシングルトンインスタンスを返す。
 
 ## app/services/orderbook_stub.py
 - **class MockPosition**  (L12)  — 
