@@ -1,0 +1,20 @@
+{
+  "start_equity": 100000.0,
+  "end_equity": 100000.0,
+  "total_return": 0.0,
+  "max_drawdown": 0.0,
+  "sharpe_like": 0.0,
+  "bars": 2857,
+  "max_dd_days": 13,
+  "output_ok": true,
+  "output_errors": [],
+  "n_signal_buy": 2857,
+  "n_signal_sell": 0,
+  "n_filter_pass": 0,
+  "n_filter_fail": 2857,
+  "n_entries": 0,
+  "n_exits": 0,
+  "n_trades": 0,
+  "n_bars": 2857,
+  "n_signals": 2857
+}

@@ -583,17 +583,24 @@ def trade_metrics(trades: pd.DataFrame) -> dict:
     consec_win = _max_consecutive(seq, 1)
     consec_loss = _max_consecutive(1 - seq, 1)
 
+    # 列欠損に強くする（KeyError を防ぐ）
+    if len(trades) and "holding_bars" in trades.columns:
+        holding_bars_mean = float(trades["holding_bars"].mean())
+    else:
+        holding_bars_mean = 0.0
+
+    if len(trades) and "holding_days" in trades.columns:
+        holding_days_mean = float(trades["holding_days"].mean())
+    else:
+        holding_days_mean = 0.0
+
     return {
         "trades": int(len(trades)),
         "win_rate": float(wins.mean()) if len(trades) else 0.0,
         "avg_pnl": float(trades["pnl"].mean()) if len(trades) else 0.0,
         "profit_factor": pf,
-        "avg_holding_bars": (
-            float(trades["holding_bars"].mean()) if len(trades) else 0.0
-        ),
-        "avg_holding_days": (
-            float(trades["holding_days"].mean()) if len(trades) else 0.0
-        ),
+        "avg_holding_bars": holding_bars_mean,
+        "avg_holding_days": holding_days_mean,
         "max_consec_win": int(consec_win),
         "max_consec_loss": int(consec_loss),
     }
@@ -709,6 +716,34 @@ def run_backtest(
         if not trades_df.empty:
             tmet = trade_metrics(trades_df)
             base.update(tmet)
+
+        # 成果物検証（BacktestEngine.run() が返す）を metrics に含める
+        try:
+            output_ok = results.get("output_ok", None) if isinstance(results, dict) else None
+            output_errors = results.get("output_errors", None) if isinstance(results, dict) else None
+        except Exception:
+            output_ok = None
+            output_errors = None
+
+        if isinstance(base, dict):
+            if output_ok is not None:
+                base["output_ok"] = bool(output_ok)
+            if output_errors is not None:
+                # list[str] へ安全に寄せる
+                if not isinstance(output_errors, list):
+                    output_errors = []
+                base["output_errors"] = [str(e) for e in output_errors if e]
+
+            # デバッグカウンタを metrics に含める
+            try:
+                debug_counters = results.get("debug_counters", None) if isinstance(results, dict) else None
+                if debug_counters is not None and isinstance(debug_counters, dict):
+                    # フラットにマージ（既存の互換性のため）
+                    base.update(debug_counters)
+                    # ネスト形式でも保存（GUI経由でも確実に取得できるように）
+                    base["debug_counters"] = debug_counters
+            except Exception:
+                pass
 
         (out_dir / "metrics.json").write_text(
             json.dumps(base, ensure_ascii=False, indent=2)

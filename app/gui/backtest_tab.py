@@ -164,6 +164,8 @@ class PlotWindow(QtWidgets.QDialog):
         price_df: Optional[pd.DataFrame] = None,
         wfo_train_df: Optional[pd.DataFrame] = None,
         wfo_test_df: Optional[pd.DataFrame] = None,
+        last_view_kind: str | None = None,
+        last_csv: str | None = None,
     ):
         super().__init__(parent)
         self.setWindowTitle("FXBot — Chart")
@@ -180,8 +182,8 @@ class PlotWindow(QtWidgets.QDialog):
         self.span = None
         # _last_kind: ログ/表示用の状態（"equity" or "price"）
         # 注意: これはUIの見た目分岐（ボタン表示や強調）には使わない。UIはpriorityルールに従う。
-        self._last_kind: str | None = None
-        self._last_csv: str | None = None
+        self._last_kind: str | None = last_view_kind
+        self._last_csv: str | None = last_csv
         self._overlay_lines: list = []
 
         # データを保持
@@ -683,8 +685,15 @@ class PlotWindow(QtWidgets.QDialog):
         if mode not in valid_modes:
             raise ValueError(f"Unknown mode: {mode}")
 
-        if self._last_kind not in {"equity", "price"} or not self._last_csv:
-            raise RuntimeError("直近に価格/エクイティを表示してから操作してください。")
+        # 安全フォールバック: _last_kind が None の場合は price を既定にする
+        if self._last_kind not in {"equity", "price"}:
+            self._last_kind = "price"
+
+        # _last_csv が None の場合は、描画中のデータから推定を試みる
+        if not self._last_csv:
+            # データからCSVパスを推定できない場合は警告を出してreturn
+            print(f"[pop] jump_range warn: _last_csv is None, cannot determine CSV path")
+            return
 
         csv_path = Path(self._last_csv)
         if not csv_path.exists():
@@ -958,6 +967,12 @@ class BacktestTab(QtWidgets.QWidget):
         self.progress_bar.setValue(0)
         self.progress_bar.setTextVisible(True)
 
+        # 成果物検証表示ラベル（控えめ表示）
+        self.output_status_label = QtWidgets.QLabel("")
+        self.output_status_label.setWordWrap(True)
+        self.output_status_label.setStyleSheet("font-size: 11px; color: #666;")
+        self.output_status_label.hide()
+
         # ★進捗アニメーション用の状態 & タイマー
         self._progress_value = 0          # 実際にバーに表示している値
         self._progress_target = 0         # エンジンから報告された目標値
@@ -1000,6 +1015,7 @@ class BacktestTab(QtWidgets.QWidget):
         lay.addWidget(QtWidgets.QLabel("モデル情報:")); lay.addWidget(self.model_info)
         lay.addWidget(QtWidgets.QLabel("メトリクス:")); lay.addWidget(self.table)
         lay.addWidget(self.progress_bar)
+        lay.addWidget(self.output_status_label)  # 成果物検証表示（控えめ）
         lay.addWidget(QtWidgets.QLabel("進捗ログ:")); lay.addWidget(self.progress_box, 2)
         lay.addWidget(self.wfo_stats_group)
 
@@ -1350,6 +1366,11 @@ class BacktestTab(QtWidgets.QWidget):
 
     # ------------------ 実行（QProcess） ------------------
     def _run_test(self):
+        # 成果物検証表示をリセット（前回のNGが残らないように）
+        if hasattr(self, "output_status_label"):
+            self.output_status_label.hide()
+            self.output_status_label.setText("")
+
         # 多重起動防止：既にプロセスが稼働中なら return
         if self.proc and self.proc.state() != QProcess.ProcessState.NotRunning:
             state_text = {
@@ -1791,6 +1812,7 @@ class BacktestTab(QtWidgets.QWidget):
                 pass
 
         # データのみを新ウインドウに渡す（Figure/Axesは渡さない）
+        # 直近表示種別とCSVパスも渡す（期間ジャンプ用）
         self._pop = PlotWindow(
             parent=self,
             mode=mode,
@@ -1798,6 +1820,8 @@ class BacktestTab(QtWidgets.QWidget):
             price_df=price_df,
             wfo_train_df=wfo_train_df,
             wfo_test_df=wfo_test_df,
+            last_view_kind=self._last_plot_kind,
+            last_csv=self._last_plot_data,
         )
         self.plot_window = self._pop
         self._pop.show()
@@ -1833,6 +1857,10 @@ class BacktestTab(QtWidgets.QWidget):
                 self._last_plot_kind = "equity"
                 self._last_plot_data = str(p)  # CSVパスを記憶（期間ジャンプで利用）
                 self._last_plot_note = p.name
+                # 直近表示種別を保存（期間ジャンプ用）
+                if self._pop is not None:
+                    self._pop._last_kind = "equity"
+                    self._pop._last_csv = str(p)
             except Exception as e:
                 self.label_meta.setText(f"描画失敗: {e}")
                 self._append_progress(f"[gui] plot error: {e}")
@@ -1860,6 +1888,10 @@ class BacktestTab(QtWidgets.QWidget):
                 self._last_plot_kind = "price"
                 self._last_plot_data = str(p)
                 self._last_plot_note = p.name
+                # 直近表示種別を保存（期間ジャンプ用）
+                if self._pop is not None:
+                    self._pop._last_kind = "price"
+                    self._pop._last_csv = str(p)
             else:
                 raise ValueError(f"CSVに 'close' 列が含まれていません。columns={list(df.columns)}")
 
@@ -1890,6 +1922,31 @@ class BacktestTab(QtWidgets.QWidget):
         try:
             txt = Path(metrics_path).read_text(encoding="utf-8")
             m = json.loads(txt)
+
+            # 成果物検証結果を読んで表示更新
+            output_ok = m.get("output_ok", None)
+            output_errors = m.get("output_errors") or []
+            # list[str] を想定。違う型でも安全に list[str] へ寄せる
+            if not isinstance(output_errors, list):
+                output_errors = []
+            output_errors = [str(e) for e in output_errors if e]
+
+            if hasattr(self, "output_status_label"):
+                if output_ok is False:
+                    # NG時: 赤系で「成果物検証NG」＋ output_errors を最大3行
+                    error_lines = output_errors[:3]
+                    error_text = "\n".join([f"- {err}" for err in error_lines])
+                    if len(output_errors) > 3:
+                        error_text += "\n…"
+                    status_text = f"成果物検証NG\n{error_text}"
+                    self.output_status_label.setText(status_text)
+                    self.output_status_label.setStyleSheet("font-size: 11px; color: #b00020;")
+                    self.output_status_label.show()
+                elif output_ok is True:
+                    # OK時: 非表示（推奨）
+                    self.output_status_label.hide()
+                # output_ok is None の場合は何もしない（非表示のまま）
+
             # WFO の場合は {train:{}, test:{}} 形式
             if "train" in m and "test" in m:
                 # test 側を表に出す、train はログに

@@ -132,16 +132,34 @@ class StrategyFilterEngine:
 
         ctx["timestamp"]: datetime
         ctx["time_window"]: {"start": int, "end": int} を受け取れれば優先
-        なければ 8〜22 時をデフォルトとする
+        time_window が未設定/空/不正なら「ウィンドウ制限なし（pass）」とする
         """
         ts: datetime | None = ctx.get("timestamp")
         if ts is None or not isinstance(ts, datetime):
             # 時刻不明な場合は安全のため NG にしておく
             return False
 
-        window = ctx.get("time_window") or {}
-        start_hour = int(window.get("start", 8))
-        end_hour = int(window.get("end", 22))
+        window = ctx.get("time_window")
+        # time_window が未設定/空/不正なら「ウィンドウ制限なし（pass）」
+        if not window or not isinstance(window, dict):
+            return True
+
+        # start/end が None または空の場合は pass
+        start_hour_raw = window.get("start")
+        end_hour_raw = window.get("end")
+        if start_hour_raw is None or end_hour_raw is None:
+            return True
+
+        # start/end を int に変換（失敗したら pass）
+        try:
+            start_hour = int(start_hour_raw)
+            end_hour = int(end_hour_raw)
+        except (TypeError, ValueError):
+            return True
+
+        # start == end の場合は pass（終日制限なしとみなす）
+        if start_hour == end_hour:
+            return True
 
         hour = ts.hour
         return start_hour <= hour <= end_hour
@@ -152,8 +170,23 @@ class StrategyFilterEngine:
         ctx["atr"]: float
         ctx["atr_band"]: {"min": float, "max": float} を優先利用
         無ければ 0.02〜5.0 をデフォルトとする
+
+        値が None/NaN の場合は pass（未設定扱い、全落ち回避）
         """
-        atr = float(ctx.get("atr") or 0.0)
+        atr_raw = ctx.get("atr")
+        # atr が None/NaN の場合は pass（未設定扱い）
+        if atr_raw is None:
+            return True
+
+        # NaN チェック（float変換後）
+        try:
+            atr = float(atr_raw)
+            import math
+            if math.isnan(atr):
+                return True
+        except (TypeError, ValueError):
+            return True
+
         band = ctx.get("atr_band") or {}
         min_atr = float(band.get("min", 0.02))
         max_atr = float(band.get("max", 5.0))
@@ -170,8 +203,23 @@ class StrategyFilterEngine:
         ctx["volatility"]: float
         ctx["vol_band"]: {"min": float, "max": float} を優先利用
         v0 では min=0.3, max=None というイメージ
+
+        値が None/NaN の場合は pass（未設定扱い、全落ち回避）
         """
-        vol = float(ctx.get("volatility") or 0.0)
+        vol_raw = ctx.get("volatility")
+        # volatility が None/NaN の場合は pass（未設定扱い）
+        if vol_raw is None:
+            return True
+
+        # NaN チェック（float変換後）
+        try:
+            vol = float(vol_raw)
+            import math
+            if math.isnan(vol):
+                return True
+        except (TypeError, ValueError):
+            return True
+
         band = ctx.get("vol_band") or {}
         min_vol = band.get("min", 0.3)
         max_vol = band.get("max")  # None なら上限なし
@@ -190,8 +238,23 @@ class StrategyFilterEngine:
         ctx["trend_strength"]: float
         ctx["trend_band"]: {"min": float, "max": float} を優先利用
         v0 では -0.8〜0.8 を許容
+
+        値が None/NaN の場合は pass（未設定扱い、全落ち回避）
         """
-        strength = float(ctx.get("trend_strength") or 0.0)
+        strength_raw = ctx.get("trend_strength")
+        # trend_strength が None/NaN の場合は pass（未設定扱い）
+        if strength_raw is None:
+            return True
+
+        # NaN チェック（float変換後）
+        try:
+            strength = float(strength_raw)
+            import math
+            if math.isnan(strength):
+                return True
+        except (TypeError, ValueError):
+            return True
+
         band = ctx.get("trend_band") or {}
         min_t = band.get("min", -0.8)
         max_t = band.get("max", 0.8)

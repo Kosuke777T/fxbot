@@ -130,6 +130,21 @@ class BacktestEngine:
 
         # 各バーを処理
         print(f"[BacktestEngine] Processing {len(df_features)} bars...", flush=True)
+
+        # デバッグカウンタを初期化
+        debug_counters = {
+            "n_signal_buy": 0,
+            "n_signal_sell": 0,
+            "n_filter_pass": 0,
+            "n_filter_fail": 0,
+            "n_entries": 0,
+            "n_exits": 0,
+            "n_entry_attempts": 0,  # エントリー試行回数（任意）
+            "filter_fail_reason": None,  # 最初の1件の失敗理由
+            "filter_fail_reason_count": 0,  # 同じ理由の出現回数（optional）
+            "entry_block_reason": None,  # 最初の1件のエントリーブロック理由
+        }
+
         from tools.backtest_run import iter_with_progress
         for idx, row in iter_with_progress(df_features, step=5, use_iterrows=True):
             timestamp = pd.Timestamp(row["time"])
@@ -156,6 +171,26 @@ class BacktestEngine:
                 filter_reasons=filter_reasons,
                 entry_context=entry_context,
             )
+
+            # シグナルカウンタを更新
+            signal_side = decision.get("signal", {}).get("side")
+            if signal_side == "BUY":
+                debug_counters["n_signal_buy"] += 1
+            elif signal_side == "SELL":
+                debug_counters["n_signal_sell"] += 1
+
+            # フィルタカウンタを更新
+            if filter_pass:
+                debug_counters["n_filter_pass"] += 1
+            else:
+                debug_counters["n_filter_fail"] += 1
+                # 最初の1件の失敗理由を記録（ログ爆発を防ぐ）
+                if debug_counters["n_filter_fail"] == 1:
+                    # filter_reasons が空でない場合は最初の理由を、空の場合は "unknown" を記録
+                    if filter_reasons and len(filter_reasons) > 0:
+                        debug_counters["filter_fail_reason"] = str(filter_reasons[0])
+                    else:
+                        debug_counters["filter_fail_reason"] = "unknown"
 
             # decisions.jsonl に記録
             decision_trace = self._build_decision_trace(
@@ -203,6 +238,8 @@ class BacktestEngine:
                     closed_trade = self.executor.close_position(close_price, timestamp)
 
                     if closed_trade:
+                        # エグジットカウンタを更新
+                        debug_counters["n_exits"] += 1
                         # 連敗カウンタを更新
                         if closed_trade.pnl < 0:
                             self.consecutive_losses += 1
@@ -210,32 +247,78 @@ class BacktestEngine:
                             self.consecutive_losses = 0
 
             # filter_pass = True の場合のみ SimulatedExecution に渡す
-            if decision.get("action") in ("BUY", "SELL"):
-                side = decision["action"]
-                lot = decision.get("lot", 0.1)
-                atr = entry_context.get("atr")
-                sl = decision.get("signal", {}).get("sl")
-                tp = decision.get("signal", {}).get("tp")
+            # エントリー試行カウンタを更新
+            debug_counters["n_entry_attempts"] += 1
 
-                self.executor.open_position(
-                    side=side,
-                    price=price,
-                    timestamp=timestamp,
-                    lot=lot,
-                    atr=atr,
-                    sl=sl,
-                    tp=tp,
-                )
+            # 既存ポジション保有中の場合はブロック
+            if self.executor._open_position is not None:
+                if debug_counters["entry_block_reason"] is None:
+                    debug_counters["entry_block_reason"] = "already_in_position"
+                continue
+
+            # decision.action が "ENTRY" でない、または side が None の場合はブロック
+            action = decision.get("action")
+            side = decision.get("side")
+            if action != "ENTRY" or side is None:
+                if debug_counters["entry_block_reason"] is None:
+                    if action != "ENTRY":
+                        debug_counters["entry_block_reason"] = f"action_not_entry:{action}"
+                    elif side is None:
+                        signal_side = decision.get("signal", {}).get("side")
+                        if signal_side is None:
+                            debug_counters["entry_block_reason"] = "signal_none"
+                        else:
+                            debug_counters["entry_block_reason"] = f"side_none:signal={signal_side}"
+                continue
+
+            # BUY/SELL のチェック（後方互換のため）
+            if side not in ("BUY", "SELL"):
+                if debug_counters["entry_block_reason"] is None:
+                    debug_counters["entry_block_reason"] = f"invalid_side:{side}"
+                continue
+
+            lot = decision.get("lot", 0.1)
+            atr = entry_context.get("atr")
+            sl = decision.get("signal", {}).get("sl")
+            tp = decision.get("signal", {}).get("tp")
+
+            self.executor.open_position(
+                side=side,
+                price=price,
+                timestamp=timestamp,
+                lot=lot,
+                atr=atr,
+                sl=sl,
+                tp=tp,
+            )
+            # エントリーカウンタを更新
+            debug_counters["n_entries"] += 1
 
         # 最終バーで強制クローズ
         if self.executor._open_position is not None:
             final_price = float(df_features.iloc[-1]["close"])
             final_timestamp = pd.Timestamp(df_features.iloc[-1]["time"])
-            self.executor.force_close_all(final_price, final_timestamp)
+            # force_close_all()は戻り値がないので、close_position()を直接呼ぶ
+            closed_trade = self.executor.close_position(final_price, final_timestamp)
+            if closed_trade:
+                debug_counters["n_exits"] += 1
 
         # 出力ファイルを生成
         print(f"[BacktestEngine] Generating output files...", flush=True)
-        return self._generate_outputs(df_features, out_dir, symbol)
+        result = self._generate_outputs(df_features, out_dir, symbol)
+
+        # トレード数をカウント
+        trades_df = self.executor.get_trades_df()
+        debug_counters["n_trades"] = len(trades_df)
+
+        # 追加カウンタを計算
+        debug_counters["n_bars"] = len(df_features)
+        debug_counters["n_signals"] = debug_counters["n_signal_buy"] + debug_counters["n_signal_sell"]
+
+        # デバッグカウンタを結果に追加
+        result["debug_counters"] = debug_counters
+
+        return result
 
     def _build_entry_context(self, row: pd.Series, timestamp: pd.Timestamp) -> Dict[str, Any]:
         """
