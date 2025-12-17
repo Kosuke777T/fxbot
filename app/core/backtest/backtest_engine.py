@@ -447,6 +447,97 @@ class BacktestEngine:
             return tuple(self._normalize_for_json_recursive(v) for v in obj)
         return self._normalize_for_json(obj)
 
+    def _validate_outputs(self, outputs: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        出力ファイルの検証を行う。
+
+        Parameters
+        ----------
+        outputs : dict
+            出力ファイルのパスを含む辞書
+
+        Returns
+        -------
+        dict
+            {"ok": bool, "errors": list[str]}
+        """
+        errors: List[str] = []
+
+        # 必須ファイルの存在確認
+        required_files = ["equity_curve", "trades", "monthly_returns", "decisions"]
+        for key in required_files:
+            file_path = outputs.get(key)
+            if file_path is None:
+                errors.append(f"Missing output key: {key}")
+                continue
+
+            path = Path(file_path) if not isinstance(file_path, Path) else file_path
+            if not path.exists():
+                errors.append(f"Output file does not exist: {path}")
+
+        # equity_curve.csv の内容検証（空でない、必須列がある）
+        equity_path = outputs.get("equity_curve")
+        if equity_path:
+            try:
+                path = Path(equity_path) if not isinstance(equity_path, Path) else equity_path
+                if path.exists():
+                    df = pd.read_csv(path)
+                    if df.empty:
+                        errors.append(f"equity_curve.csv is empty: {path}")
+                    elif "time" not in df.columns or "equity" not in df.columns:
+                        errors.append(f"equity_curve.csv missing required columns (time, equity): {path}")
+            except Exception as e:
+                errors.append(f"Failed to validate equity_curve.csv: {e}")
+
+        # monthly_returns.csv 必須列チェック
+        monthly_returns_path = outputs.get("monthly_returns")
+        if monthly_returns_path:
+            mr = Path(monthly_returns_path) if not isinstance(monthly_returns_path, Path) else monthly_returns_path
+            if not mr.exists():
+                errors.append(f"missing: {mr}")
+            else:
+                try:
+                    df = pd.read_csv(mr)
+                    need = ["year_month", "return_pct", "max_dd_pct", "total_trades", "pf"]
+                    miss = [c for c in need if c not in df.columns]
+                    if miss:
+                        errors.append(f"monthly_returns missing columns: {miss}")
+                    if len(df) == 0:
+                        errors.append("monthly_returns is empty")
+                except Exception as e:
+                    errors.append(f"failed to read monthly_returns: {e!r}")
+
+        # decisions.jsonl が最低1行dictとして読めるか
+        decisions_path = outputs.get("decisions")
+        if decisions_path:
+            dj = Path(decisions_path) if not isinstance(decisions_path, Path) else decisions_path
+            if not dj.exists():
+                errors.append(f"missing: {dj}")
+            else:
+                ok_any = False
+                try:
+                    with dj.open("r", encoding="utf-8", errors="replace") as f:
+                        for line in f:
+                            line = line.strip()
+                            if not line or not line.startswith("{"):
+                                continue
+                            try:
+                                obj = json.loads(line)
+                            except Exception:
+                                continue
+                            if isinstance(obj, dict):
+                                ok_any = True
+                                break
+                    if not ok_any:
+                        errors.append("decisions.jsonl has no readable JSON dict line")
+                except Exception as e:
+                    errors.append(f"failed to read decisions.jsonl: {e!r}")
+
+        return {
+            "ok": len(errors) == 0,
+            "errors": errors,
+        }
+
     def _generate_outputs(
         self,
         df_features: pd.DataFrame,
@@ -534,10 +625,17 @@ class BacktestEngine:
         except Exception as e:
             print(f"[BacktestEngine][warn] could not update aggregate decisions.jsonl: {e!r}", flush=True)
 
-        return {
+        result = {
             "equity_curve": equity_csv,
             "trades": trades_csv,
             "monthly_returns": monthly_csv,
             "decisions": decisions_jsonl,
         }
+
+        # 出力ファイルの検証
+        validation_result = self._validate_outputs(result)
+        result["output_ok"] = validation_result["ok"]
+        result["output_errors"] = validation_result["errors"]
+
+        return result
 

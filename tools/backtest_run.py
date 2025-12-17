@@ -687,6 +687,16 @@ def run_backtest(
         results = engine.run(df, out_dir, symbol=symbol)
         # _print_progress(60)  # iter_with_progress で5%刻みになるので削除
 
+        # 出力ファイルの検証結果を確認
+        output_ok = results.get("output_ok", True)
+        if not output_ok:
+            output_errors = results.get("output_errors", [])
+            print(f"[bt] Output validation failed:", flush=True)
+            for err in output_errors:
+                print(f"[bt]   ERROR: {err}", flush=True)
+            print(f"[bt] Backtest completed with validation errors", flush=True)
+            sys.exit(2)
+
         eq_csv = results["equity_curve"]
         print(f"[bt] Backtest completed. Output: {eq_csv}", flush=True)
         # _print_progress(80)  # iter_with_progress で5%刻みになるので削除

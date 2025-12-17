@@ -33,19 +33,35 @@ class DecisionRecord:
 
 
 def _iter_jsonl(path: Path) -> Iterable[dict[str, Any]]:
-    """JSONL ファイルを 1 行ずつ dict として返すジェネレータ。壊れた行はスキップ。"""
+    """
+    JSONL ファイルを 1 行ずつ dict として返すジェネレータ。壊れた行はスキップ。
+
+    encoding/errors/行フィルタ/型チェックを堅牢化。
+    """
     try:
-        with path.open("r", encoding="utf-8") as f:
-            for line in f:
+        with path.open("r", encoding="utf-8", errors="replace") as f:
+            for line_num, line in enumerate(f, start=1):
+                # 行フィルタ: 空行・空白のみ行をスキップ
                 line = line.strip()
                 if not line:
                     continue
+
+                # JSON解析
                 try:
-                    yield json.loads(line)
-                except Exception:
-                    # 壊れた1行があっても全体は止めない
+                    obj = json.loads(line)
+                except (json.JSONDecodeError, ValueError) as e:
+                    # 壊れた1行があっても全体は止めない（ログは出さない）
                     continue
+
+                # 型チェック: dict でない場合はスキップ
+                if not isinstance(obj, dict):
+                    continue
+
+                yield obj
     except FileNotFoundError:
+        return
+    except (UnicodeDecodeError, IOError, OSError):
+        # ファイル読み込みエラー（encoding/IO）は静かに終了
         return
 
 
