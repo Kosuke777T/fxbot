@@ -270,21 +270,33 @@ class AISvc:
             return
 
         self._active_meta = meta
-        fname = meta.get("file")
-        if not fname:
-            logger.error("[AISvc] active_model.json に 'file' がありません")
+
+        # model_path を取得（フォールバック: file から models/<file> を組み立て）
+        model_path = meta.get("model_path")
+        if not model_path:
+            # model_path が None/空の場合、file から models/<file> を組み立て
+            file = meta.get("file")
+            if file:
+                p = Path("models") / file
+                if p.exists():
+                    model_path = str(p)
+
+        if not model_path:
+            logger.error("[AISvc] active_model.json に 'model_path' または 'file' がありません")
             return
 
-        model_path = Path("models") / fname
-        if not model_path.exists():
-            logger.error("[AISvc] モデルファイルが見つかりません: {path}", path=model_path.as_posix())
+        # model_path を Path オブジェクトに変換
+        model_path_obj = Path(model_path)
+        if not model_path_obj.exists():
+            logger.error("[AISvc] モデルファイルが見つかりません: {path}", path=model_path_obj.as_posix())
             return
 
         try:
-            model = joblib.load(model_path)
+            model = joblib.load(model_path_obj)
+            logger.info("[AISvc] pickleがロードされました: path={path}", path=model_path_obj.as_posix())
         except Exception as exc:
             logger.error("[AISvc] モデルのロードに失敗: path={path} err={err}",
-                         path=model_path.as_posix(), err=exc)
+                         path=model_path_obj.as_posix(), err=exc)
             return
 
         # とりあえず 'lgbm' というキーで登録（SHAP などから参照される）

@@ -1,6 +1,7 @@
 # app/services/execution_service.py
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 from datetime import datetime
@@ -36,6 +37,31 @@ def _symbol_to_filename(symbol: str) -> str:
     import re
     safe = re.sub(r"[^A-Za-z0-9_]+", "_", symbol)
     return safe.strip("_") or "UNKNOWN"
+
+
+def _compute_features_hash(features: Dict[str, float]) -> str:
+    """
+    features dictから安定ハッシュを生成する。
+
+    Parameters
+    ----------
+    features : Dict[str, float]
+        特徴量の辞書
+
+    Returns
+    -------
+    str
+        ハッシュ値（先頭10文字）
+    """
+    if not features:
+        return ""
+    try:
+        # sort_keys=Trueで安定したハッシュを生成
+        features_json = json.dumps(features, sort_keys=True, ensure_ascii=False)
+        hash_obj = hashlib.sha1(features_json.encode("utf-8"))
+        return hash_obj.hexdigest()[:10]
+    except Exception:
+        return ""
 
 
 def _normalize_filter_reasons(reasons: Any) -> list[str]:
@@ -87,9 +113,9 @@ class DecisionsLogger:
                 "type": "decision",
                 "symbol": "USDJPY-",
 
-                "strategy": "signal_smoke_test",   # self.ai_service.model_name など
-                "prob_buy": 0.52,
-                "prob_sell": 0.48,
+                "strategy": "LightGBM_clf",   # self.ai_service.model_name など（例示）
+                "prob_buy": 0.5187,           # 実際の値（固定値ではない、例示）
+                "prob_sell": 0.4813,          # 実際の値（固定値ではない、例示）
 
                 "filter_pass": false,
                 "filter_reasons": ["time_window", "atr", "volatility"],
@@ -345,8 +371,53 @@ class ExecutionService:
         pred = self.ai_service.predict(features)
 
         # ProbOut オブジェクトから確率を取得（確率は pred から取得）
+        # 固定値は設定しない（デバッグ時のみに限定）
         prob_buy = getattr(pred, "p_buy", None)
         prob_sell = getattr(pred, "p_sell", None)
+
+        # 確率が取得できない場合はエラーログを出してSKIPで返す（固定値は設定しない）
+        if prob_buy is None or prob_sell is None:
+            log = logging.getLogger(__name__)
+            log.error(
+                "[ExecutionService] AI予測結果から確率を取得できませんでした: "
+                "prob_buy=%s, prob_sell=%s, pred=%s",
+                prob_buy, prob_sell, type(pred).__name__
+            )
+            # SKIPでログを出して終了（固定BUYにしない）
+            ts_str = now_jst_iso()
+            try:
+                strategy_name = getattr(self.ai_service, "model_name", getattr(self.ai_service, "calibrator_name", "unknown"))
+            except Exception:
+                strategy_name = "unknown"
+
+            # features_hash を生成（入力featuresが同一かを判定するため）
+            features_hash_failed = _compute_features_hash(features) if features else ""
+
+            DecisionsLogger.log({
+                "timestamp": ts_str,
+                "ts_jst": ts_str,
+                "type": "decision",
+                "symbol": symbol,
+                "strategy": strategy_name,
+                "prob_buy": None,
+                "prob_sell": None,
+                # 入力特徴量のハッシュ（同一入力判定用）
+                "features_hash": features_hash_failed,
+                "filter_pass": False,
+                "filter_reasons": ["ai_prediction_failed"],
+                "decision": "SKIP",
+                "side": None,
+                "filters": {},
+                "meta": {},
+                "decision_detail": {
+                    "action": "SKIP",
+                    "side": None,
+                    "signal": None,
+                    "filter_pass": False,
+                    "filter_reasons": ["ai_prediction_failed"],
+                },
+            })
+            return {"ok": False, "reasons": ["ai_prediction_failed"]}
 
         # best_threshold を取得
         try:
@@ -471,6 +542,9 @@ class ExecutionService:
         # logging 用のタイムスタンプ（ts_jst と timestamp は同じ値）
         ts_str = now_jst_iso()
 
+        # features_hash を生成（入力featuresが同一かを判定するため）
+        features_hash = _compute_features_hash(features) if features else ""
+
         # --- 4) フィルタでNGの場合ここで終了 ---
         if not ok:
             DecisionsLogger.log({
@@ -484,6 +558,8 @@ class ExecutionService:
                 # 確率は pred から取得（signal は意思決定結果のみ）
                 "prob_buy": prob_buy,
                 "prob_sell": prob_sell,
+                # 入力特徴量のハッシュ（同一入力判定用）
+                "features_hash": features_hash,
                 # フィルタ結果（トップレベル要約）
                 "filter_pass": ok,
                 "filter_reasons": normalized_reasons,
@@ -535,6 +611,8 @@ class ExecutionService:
                 # 確率は pred から取得
                 "prob_buy": prob_buy,
                 "prob_sell": prob_sell,
+                # 入力特徴量のハッシュ（同一入力判定用）
+                "features_hash": features_hash,
                 "filter_pass": ok,
                 "filter_reasons": normalized_reasons,
                 "decision": decision,
@@ -567,6 +645,8 @@ class ExecutionService:
             # 確率は pred から取得（signal は意思決定結果のみ）
             "prob_buy": prob_buy,
             "prob_sell": prob_sell,
+            # 入力特徴量のハッシュ（同一入力判定用）
+            "features_hash": features_hash,
             # フィルタ結果（トップレベル要約）
             "filter_pass": ok,
             "filter_reasons": normalized_reasons,
@@ -656,6 +736,8 @@ class ExecutionService:
                 "strategy": "unknown",
                 "prob_buy": sim_pos.get("prob_buy"),
                 "prob_sell": sim_pos.get("prob_sell"),
+                # 入力特徴量のハッシュ（EXITの場合は空）
+                "features_hash": "",
                 "filter_pass": True,
                 "filter_reasons": [],
                 "decision": "EXIT_SIMULATED",
