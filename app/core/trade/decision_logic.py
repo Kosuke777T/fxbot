@@ -18,6 +18,43 @@ class SignalDecision:
     pass_threshold: bool
     reason: str  # "no_prob", "threshold_ng", "threshold_ok", "tie"
 
+    def to_decision_detail(
+        self,
+        action: str,
+        ai_margin: float = 0.03,
+        cooldown_sec: Optional[int] = None,
+        blocked_reason: Optional[str] = None,
+    ) -> dict:
+        """
+        decision_detail 辞書を生成する。
+
+        Parameters
+        ----------
+        action : str
+            "ENTRY" / "BLOCKED" / "HOLD" / "SKIP" など
+        ai_margin : float, optional
+            AI判定のマージン（デフォルト: 0.03）
+        cooldown_sec : int, optional
+            クールダウン秒数（デフォルト: None）
+        blocked_reason : str, optional
+            ブロック理由（デフォルト: None）
+
+        Returns
+        -------
+        dict
+            decision_detail 辞書
+        """
+        return {
+            "action": action,
+            "side": self.side,
+            "prob_buy": float(self.prob_buy),
+            "prob_sell": float(self.prob_sell),
+            "threshold": float(self.best_threshold),
+            "ai_margin": float(ai_margin),
+            "cooldown_sec": int(cooldown_sec) if cooldown_sec is not None else None,
+            "blocked_reason": blocked_reason,
+        }
+
 
 def decide_signal(
     prob_buy: Optional[float],

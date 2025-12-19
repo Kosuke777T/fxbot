@@ -88,6 +88,85 @@ def _normalize_filter_reasons(reasons: Any) -> list[str]:
     return []
 
 
+def _ensure_decision_detail_minimum(dd: dict, decision: str, signal=None, ai_margin: float = 0.03) -> dict:
+    """
+    decision_detail に必要な最小限のキーが含まれるように補完する。
+
+    Parameters
+    ----------
+    dd : dict
+        decision_detail 辞書（既存の値は保持される）
+    decision : str
+        決定アクション（"ENTRY", "SKIP", "EXIT_SIMULATED" など）
+    signal : SignalDecision, optional
+        SignalDecision オブジェクト（prob_buy/prob_sell/threshold の取得に使用）
+    ai_margin : float, optional
+        AI判定のマージン（デフォルト: 0.03）
+
+    Returns
+    -------
+    dict
+        補完された decision_detail 辞書
+    """
+    # action / side
+    dd.setdefault("action", decision)
+    dd.setdefault("side", getattr(signal, "side", None) if signal is not None else None)
+
+    # prob_buy / prob_sell
+    if "prob_buy" not in dd or dd.get("prob_buy") is None:
+        conf = getattr(signal, "confidence", None) if signal is not None else None
+        if conf is not None:
+            conf = float(conf)
+            side = dd.get("side")
+            # confidence が BUY側確率っぽい前提（既存実装に合わせる）
+            dd["prob_buy"] = conf if side == "BUY" else 1.0 - conf
+
+    if "prob_sell" not in dd or dd.get("prob_sell") is None:
+        if dd.get("prob_buy") is not None:
+            dd["prob_sell"] = 1.0 - float(dd["prob_buy"])
+
+    # threshold
+    if "threshold" not in dd or dd.get("threshold") is None:
+        bt = getattr(signal, "best_threshold", None) if signal is not None else None
+        if bt is not None:
+            dd["threshold"] = float(bt)
+
+    # ai_margin
+    dd.setdefault("ai_margin", float(ai_margin))
+
+    return dd
+
+
+def _features_hash_from_record(record: dict) -> str | None:
+    """
+    record 辞書から features を抽出してハッシュを生成する。
+
+    Parameters
+    ----------
+    record : dict
+        decisions ログレコード
+
+    Returns
+    -------
+    str | None
+        ハッシュ値（先頭10文字）、features が見つからない場合は None
+    """
+    feats = None
+    if isinstance(record.get("features"), dict):
+        feats = record.get("features")
+    else:
+        ec = record.get("entry_context")
+        if isinstance(ec, dict) and isinstance(ec.get("features"), dict):
+            feats = ec.get("features")
+
+    if not isinstance(feats, dict) or not feats:
+        return None
+
+    # 順序でブレないようにソートしてJSON化 → sha1
+    payload = json.dumps(feats, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    return hashlib.sha1(payload.encode("utf-8")).hexdigest()[:10]
+
+
 class DecisionsLogger:
     """決定ログ専用のロガークラス"""
 
@@ -161,6 +240,11 @@ class DecisionsLogger:
           v5.1 以降は上記のフィールドを標準とする。
         """
         symbol = record.get("symbol", "UNKNOWN")
+        # features_hash が無い場合は自動計算して埋める
+        if "features_hash" not in record or not record.get("features_hash"):
+            h = _features_hash_from_record(record)
+            if h:
+                record["features_hash"] = h
         fname = LOG_DIR / f"decisions_{_symbol_to_filename(symbol)}.jsonl"
         with open(fname, "a", encoding="utf-8") as fp:
             fp.write(json.dumps(record, ensure_ascii=False) + "\n")
@@ -393,6 +477,26 @@ class ExecutionService:
             # features_hash を生成（入力featuresが同一かを判定するため）
             features_hash_failed = _compute_features_hash(features) if features else ""
 
+            decision_detail_failed = {
+                "action": "SKIP",
+                "side": None,
+                "prob_buy": None,
+                "prob_sell": None,
+                "threshold": None,
+                "ai_margin": None,
+                "cooldown_sec": None,
+                "blocked_reason": "ai_prediction_failed",
+                "signal": None,
+                "filter_pass": False,
+                "filter_reasons": ["ai_prediction_failed"],
+            }
+            decision_detail_failed = _ensure_decision_detail_minimum(
+                decision_detail_failed,
+                decision="SKIP",
+                signal=None,
+                ai_margin=0.03,
+            )
+
             DecisionsLogger.log({
                 "timestamp": ts_str,
                 "ts_jst": ts_str,
@@ -409,13 +513,7 @@ class ExecutionService:
                 "side": None,
                 "filters": {},
                 "meta": {},
-                "decision_detail": {
-                    "action": "SKIP",
-                    "side": None,
-                    "signal": None,
-                    "filter_pass": False,
-                    "filter_reasons": ["ai_prediction_failed"],
-                },
+                "decision_detail": decision_detail_failed,
             })
             return {"ok": False, "reasons": ["ai_prediction_failed"]}
 
@@ -518,10 +616,18 @@ class ExecutionService:
         else:
             decision = "ENTRY"
 
-        # BacktestEngine と完全一致する decision_detail を構築
-        # - action / side はトップレベルと同じ値
-        # - signal は AI シグナルの詳細
-        # - filter_pass / filter_reasons はトップレベルと同じ値をミラー
+        # SignalDecision から decision_detail を生成（core層で確定）
+        # ai_margin は固定値 0.03（ai_service.py の build_decision_from_probs と一致）
+        ai_margin = 0.03
+        cooldown_sec = None  # 現在は未実装
+        decision_detail = signal.to_decision_detail(
+            action=decision,
+            ai_margin=ai_margin,
+            cooldown_sec=cooldown_sec,
+            blocked_reason=blocked_reason,
+        )
+
+        # 既存の signal / filter_pass / filter_reasons も保持（後方互換性）
         signal_detail = {
             "side": getattr(signal, "side", None),
             "confidence": getattr(signal, "confidence", None),
@@ -529,16 +635,11 @@ class ExecutionService:
             "pass_threshold": getattr(signal, "pass_threshold", None),
             "reason": getattr(signal, "reason", None),
         }
-
-        decision_detail = {
-            "action": decision,
-            "side": signal_detail["side"],
-            "signal": signal_detail,
-            "filter_pass": ok,
-            "filter_reasons": normalized_reasons,
-            # reason を blocked_reason に揃える（filter_reasons と一致させる）
-            "reason": blocked_reason or (normalized_reasons[0] if normalized_reasons else None),
-        }
+        decision_detail["signal"] = signal_detail
+        decision_detail["filter_pass"] = ok
+        decision_detail["filter_reasons"] = normalized_reasons
+        # reason を blocked_reason に揃える（filter_reasons と一致させる）
+        decision_detail["reason"] = blocked_reason or (normalized_reasons[0] if normalized_reasons else None)
 
         # --- 3) decisions.jsonl へ統合出力（v5.1 仕様に準拠） ---
         # logging 用のタイムスタンプ（ts_jst と timestamp は同じ値）
@@ -549,6 +650,12 @@ class ExecutionService:
 
         # --- 4) フィルタでNGの場合ここで終了 ---
         if not ok:
+            decision_detail = _ensure_decision_detail_minimum(
+                decision_detail if isinstance(decision_detail, dict) else {},
+                decision=decision,
+                signal=signal,
+                ai_margin=0.03,
+            )
             DecisionsLogger.log({
                 # 時刻・識別
                 "timestamp": ts_str,
@@ -604,6 +711,12 @@ class ExecutionService:
             )
 
             # decisions.jsonl に出力（ENTRY_SIMULATED として）
+            decision_detail = _ensure_decision_detail_minimum(
+                decision_detail if isinstance(decision_detail, dict) else {},
+                decision=decision,
+                signal=signal,
+                ai_margin=0.03,
+            )
             DecisionsLogger.log({
                 "timestamp": ts_str,
                 "ts_jst": ts_str,
@@ -636,6 +749,12 @@ class ExecutionService:
         }
 
         # 通常モードの場合、decision_detail は "ENTRY" のまま
+        decision_detail = _ensure_decision_detail_minimum(
+            decision_detail if isinstance(decision_detail, dict) else {},
+            decision=decision,
+            signal=signal,
+            ai_margin=0.03,
+        )
         DecisionsLogger.log({
             # 時刻・識別
             "timestamp": ts_str,
@@ -722,6 +841,12 @@ class ExecutionService:
             decision_detail = {
                 "action": "EXIT_SIMULATED",
                 "side": sim_pos.get("side"),
+                "prob_buy": sim_pos.get("prob_buy"),
+                "prob_sell": sim_pos.get("prob_sell"),
+                "threshold": None,
+                "ai_margin": None,
+                "cooldown_sec": None,
+                "blocked_reason": None,
                 "signal": {
                     "side": sim_pos.get("side"),
                     "confidence": sim_pos.get("prob_buy") if sim_pos.get("side") == "BUY" else sim_pos.get("prob_sell"),
@@ -729,6 +854,12 @@ class ExecutionService:
                 "filter_pass": True,
                 "filter_reasons": [],
             }
+            decision_detail = _ensure_decision_detail_minimum(
+                decision_detail,
+                decision="EXIT_SIMULATED",
+                signal=None,
+                ai_margin=0.03,
+            )
 
             DecisionsLogger.log({
                 "timestamp": ts_str,

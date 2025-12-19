@@ -1,6 +1,7 @@
 # app/core/strategy_filter_engine.py
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Dict, List, Tuple
@@ -127,6 +128,11 @@ class StrategyFilterEngine:
     # 個別フィルタ（ここは v0 ロジック。閾値は後で profile/config に逃がせる設計）
     # ============================================================
 
+    @staticmethod
+    def _debug_relax_filters_enabled() -> bool:
+        """デバッグモードでフィルタを緩めるかどうかを判定する"""
+        return os.getenv("FXBOT_DEBUG_RELAX_FILTERS", "").strip() in ("1", "true", "True", "on", "ON")
+
     def _check_time_window(self, ctx: Dict) -> bool:
         """取引時間帯フィルタ
 
@@ -134,6 +140,10 @@ class StrategyFilterEngine:
         ctx["time_window"]: {"start": int, "end": int} を受け取れれば優先
         time_window が未設定/空/不正なら「ウィンドウ制限なし（pass）」とする
         """
+        # デバッグモード時は常に通過（観測最優先）
+        if self._debug_relax_filters_enabled():
+            return True
+
         ts: datetime | None = ctx.get("timestamp")
         if ts is None or not isinstance(ts, datetime):
             # 時刻不明な場合は安全のため NG にしておく
@@ -206,6 +216,10 @@ class StrategyFilterEngine:
 
         値が None/NaN の場合は pass（未設定扱い、全落ち回避）
         """
+        # デバッグモード時は常に通過（観測最優先）
+        if self._debug_relax_filters_enabled():
+            return True
+
         vol_raw = ctx.get("volatility")
         # volatility が None/NaN の場合は pass（未設定扱い）
         if vol_raw is None:
