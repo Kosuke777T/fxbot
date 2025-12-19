@@ -959,17 +959,28 @@ class AISvc:
         p_buy = probs["p_buy"]
         p_sell = probs["p_sell"]
 
-        # SKIP 条件
-        if p_buy < thr and p_sell < thr:
+        # margin を導入（拮抗時をSKIPするための閾値）
+        margin = 0.03
+
+        # confidence と diff を計算
+        confidence = max(p_buy, p_sell)
+        diff = abs(p_buy - p_sell)
+
+        # SKIP 条件1: confidence が threshold 未満
+        if confidence < thr:
             return {"action": "SKIP", "reason": "ai_threshold"}
+
+        # SKIP 条件2: diff が margin 未満（拮抗時）
+        if diff < margin:
+            return {"action": "SKIP", "reason": "ai_margin"}
 
         # どちらを選ぶか
         if p_buy >= p_sell:
             side = "BUY"
-            prob = p_buy
+            prob = p_buy  # side側のprob（既存構造に合わせる）
         else:
             side = "SELL"
-            prob = p_sell
+            prob = p_sell  # side側のprob（既存構造に合わせる）
 
         return {
             "action": "ENTRY",

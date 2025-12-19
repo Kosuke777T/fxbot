@@ -108,6 +108,9 @@ def _extract_decision_record(j: dict[str, Any]) -> DecisionRecord:
     filters_raw = j.get("filters") or {}
     filters = filters_raw if isinstance(filters_raw, dict) else {}
     blocked = filters.get("blocked")
+    # blocked が None のとき blocked_reason も参照する
+    if blocked is None:
+        blocked = filters.get("blocked_reason")
     if blocked is not None:
         blocked = str(blocked)
 

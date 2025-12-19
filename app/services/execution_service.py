@@ -536,6 +536,8 @@ class ExecutionService:
             "signal": signal_detail,
             "filter_pass": ok,
             "filter_reasons": normalized_reasons,
+            # reason を blocked_reason に揃える（filter_reasons と一致させる）
+            "reason": blocked_reason or (normalized_reasons[0] if normalized_reasons else None),
         }
 
         # --- 3) decisions.jsonl へ統合出力（v5.1 仕様に準拠） ---

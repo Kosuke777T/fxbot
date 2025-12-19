@@ -1,5 +1,6 @@
 ﻿from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -424,6 +425,31 @@ def _normalize_filter_reasons(reasons: Any) -> list[str]:
     return []
 
 
+def _compute_features_hash(features: Dict[str, float]) -> str:
+    """
+    features dictから安定ハッシュを生成する。
+
+    Parameters
+    ----------
+    features : Dict[str, float]
+        特徴量の辞書
+
+    Returns
+    -------
+    str
+        ハッシュ値（先頭10文字）
+    """
+    if not features:
+        return ""
+    try:
+        # sort_keys=Trueで安定したハッシュを生成
+        features_json = json.dumps(features, sort_keys=True, ensure_ascii=False)
+        hash_obj = hashlib.sha1(features_json.encode("utf-8"))
+        return hash_obj.hexdigest()[:10]
+    except Exception:
+        return ""
+
+
 def _build_decision_trace(
     *,
     ts_jst: str,
@@ -435,6 +461,7 @@ def _build_decision_trace(
     prob_threshold: float,
     calibrator_name: str,
     entry_context: Optional[Dict[str, Any]] = None,  # ★追加
+    features: Optional[Dict[str, float]] = None,  # ★追加：features_hash用
 ) -> Dict[str, Any]:
     """
     v5.1 仕様に準拠した決定トレースを構築する
@@ -526,6 +553,9 @@ def _build_decision_trace(
     if not isinstance(meta_val, dict):
         meta_val = {}
 
+    # features_hash を生成（入力featuresが同一かを判定するため）
+    features_hash = _compute_features_hash(features) if features else ""
+
     trace = {
         "ts_jst": ts_jst,
         "type": "decision",
@@ -533,6 +563,8 @@ def _build_decision_trace(
         "strategy": strategy_name,
         "prob_buy": prob_buy,
         "prob_sell": prob_sell,
+        # 入力特徴量のハッシュ（同一入力判定用）
+        "features_hash": features_hash,
         "filter_pass": filter_pass_val,  # bool | None: True=通過, False=NG, None=フィルタ無効
         "filter_reasons": list(filter_reasons_val or []),  # 必ず list に正規化
         "filters": filters_ctx,  # EntryContext + filter結果を含む
@@ -882,6 +914,7 @@ class ExecutionStub:
                 prob_threshold=prob_threshold,
                 calibrator_name=self.ai.calibrator_name,
                 entry_context=entry_context,  # ★追加
+                features=features,  # ★追加：features_hash用
             )
             trace["runtime"] = runtime_cfg
             _write_decision_log(symbol, trace)
@@ -1218,6 +1251,8 @@ class ExecutionStub:
 
         if filter_pass is False:
             # フィルタ NG の場合は BLOCKED としてログに記録
+            # features_hash を生成（入力featuresが同一かを判定するため）
+            features_hash_blocked = _compute_features_hash(features) if features else ""
             blocked_payload = {
                 "action": "BLOCKED",
                 "reason": "filtered",
@@ -1225,6 +1260,8 @@ class ExecutionStub:
                 "dec": decision_info,
                 "filter_pass": False,
                 "filter_reasons": filter_reasons,
+                # 入力特徴量のハッシュ（同一入力判定用）
+                "features_hash": features_hash_blocked,
             }
             filters_ctx_blocked = dict(base_filters)
             _emit(blocked_payload, filters_ctx_blocked, level="warning")
