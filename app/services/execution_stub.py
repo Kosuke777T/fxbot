@@ -6,7 +6,7 @@ import os
 import re
 import statistics
 from collections import deque, defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 from dataclasses import asdict, dataclass, is_dataclass
 from typing import Any, DefaultDict, Dict, Optional, Tuple
 from zoneinfo import ZoneInfo
@@ -236,14 +236,13 @@ def _register_trailing_state(symbol: str, signal: Dict[str, Any], tick_dict: Opt
         "symbol": symbol,
         "entry": float(entry_price),
     }
-    # no_metrics=True のときは metrics 更新をスキップ
-    if not no_metrics:
-        publish_metrics({
-            "trail_activated": False,
-            "trail_be_locked": False,
-            "trail_layers":    0,
-            "trail_current_sl": None,
-        })
+    # no_metrics=True のときは metrics 更新をスキップ（publish_metrics 内で判定）
+    publish_metrics({
+        "trail_activated": False,
+        "trail_be_locked": False,
+        "trail_layers":    0,
+        "trail_current_sl": None,
+    }, no_metrics=no_metrics)
     signal["entry_price"] = float(entry_price)
 
 def _update_trailing_state(symbol: str, tick_dict: Optional[Dict[str, float]]) -> Optional[Dict[str, Any]]:
@@ -668,7 +667,7 @@ class ExecutionStub:
     """
     cb: circuit_breaker.CircuitBreaker
     ai: AISvc
-    no_metrics: bool = False  # True の場合、metrics の更新を行わない
+    no_metrics: bool = True  # True の場合、metrics の更新を行わない（デフォルト: True で metrics を無効化）
 
     def __post_init__(self) -> None:
         try:
@@ -685,6 +684,44 @@ class ExecutionStub:
         except Exception:
             pass
 
+    @staticmethod
+    def _to_jst_iso(ts_val) -> str:
+        """
+        ts_val を JST の ISO 形式文字列に正規化する。
+
+        Parameters
+        ----------
+        ts_val : None | str(ISO) | datetime
+            タイムスタンプ（None, ISO文字列, datetimeオブジェクト）
+
+        Returns
+        -------
+        str
+            JST の ISO 形式文字列
+        """
+        JST = ZoneInfo("Asia/Tokyo")
+
+        if ts_val is None:
+            # 既存の now_jst_iso() があるならそれを使う
+            return now_jst_iso()
+
+        if isinstance(ts_val, datetime):
+            dt = ts_val
+        elif isinstance(ts_val, str):
+            s = ts_val.strip().replace("Z", "+00:00")
+            try:
+                dt = datetime.fromisoformat(s)
+            except Exception:
+                return now_jst_iso()
+        else:
+            return now_jst_iso()
+
+        # tzinfo 無しは UTC 扱い（内部の一貫性重視）
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+
+        # JSTへ変換して ISO
+        return dt.astimezone(JST).isoformat()
 
     def on_tick(
         self,
@@ -692,7 +729,10 @@ class ExecutionStub:
         features: Dict[str, float],
         runtime_cfg: Dict[str, Any],
     ) -> Dict[str, Any]:
-        ts = now_jst_iso()
+        # ts を runtime_cfg から取得して JST に正規化（cooldown測定のため）
+        ts = self._to_jst_iso(runtime_cfg.get("ts"))
+        # ★追加：以降のログ/filters/runtime が参照する ts を統一する
+        runtime_cfg["ts"] = ts
 
         cb_status = self.cb.status()
         ai_out = self.ai.predict(features, no_metrics=self.no_metrics)
@@ -839,11 +879,54 @@ class ExecutionStub:
             filter_reasons = _normalize_filter_reasons(reasons)  # 必ず list[str] に正規化
         # --- フィルタ評価の共通ロジック（ここまで） ---
 
+        def _ensure_decision_detail_minimum(payload: dict, ai_out: Any, decision_info: Optional[Dict] = None) -> dict:
+            """
+            decision_payload に必要な最小限のキーを追加する。
+            """
+            # action / side
+            payload.setdefault("action", payload.get("action") or "SKIP")
+            payload.setdefault("side", payload.get("side") or (decision_info.get("side") if decision_info else None) or "(none)")
+
+            # prob_buy / prob_sell
+            if "prob_buy" not in payload or payload.get("prob_buy") is None:
+                if decision_info and "prob_buy" in decision_info:
+                    payload["prob_buy"] = float(decision_info["prob_buy"])
+                else:
+                    payload["prob_buy"] = float(getattr(ai_out, "p_buy", 0.0))
+
+            if "prob_sell" not in payload or payload.get("prob_sell") is None:
+                if decision_info and "prob_sell" in decision_info:
+                    payload["prob_sell"] = float(decision_info["prob_sell"])
+                else:
+                    payload["prob_sell"] = float(getattr(ai_out, "p_sell", 0.0))
+
+            # threshold
+            if "threshold" not in payload or payload.get("threshold") is None:
+                if decision_info and "threshold_buy" in decision_info:
+                    payload["threshold"] = float(decision_info["threshold_buy"])
+                else:
+                    # prob_threshold は on_tick のローカル変数なのでアクセス可能
+                    # フォールバックとして BEST_THRESHOLD を使用
+                    try:
+                        payload["threshold"] = float(prob_threshold)
+                    except NameError:
+                        from app.core.ai.service import BEST_THRESHOLD
+                        payload["threshold"] = float(BEST_THRESHOLD)
+
+            # ai_margin
+            payload.setdefault("ai_margin", 0.03)
+
+            return payload
+
         def _emit(decision: Any, filters_ctx: Dict[str, Any], level: str = "info") -> None:
             # decision が str ("SKIP" など) の場合は dict として扱わずに抜ける
             if not isinstance(decision, dict):
                 print("decision は dict ではありません:", decision)
                 return
+
+            # decision_payload に必須キーを補完
+            decision_info = decision.get("dec")  # decision_info が dec キーに含まれている場合
+            decision = _ensure_decision_detail_minimum(decision, ai_out, decision_info)
 
             action = decision.get("action")
             reason = decision.get("reason")
@@ -865,24 +948,23 @@ class ExecutionStub:
                 cb += 1
 
             # --- まとめて publish（KVS更新＋runtime/metrics.json原子的書き換え） ---
-            # no_metrics=True のときは metrics 更新をスキップ
-            if not self.no_metrics:
-                publish_metrics({
-                    "last_decision": action,
-                    "last_reason":   reason,
-                    "atr_ref":       float(atr_ref),
-                    "atr_gate_state": gate_state,
-                    "post_fill_grace": bool(post_grace),
-                    "spread":          filters_ctx.get("spread"),
-                    "adx":             filters_ctx.get("adx"),
-                    "min_adx":         filters_ctx.get("min_adx"),
-                    "prob_threshold":  filters_ctx.get("prob_threshold"),
-                    "min_atr_pct":     filters_ctx.get("min_atr_pct"),
-                    "count_entry":     ce,
-                    "count_skip":      cs,
-                    "count_blocked":   cb,
-                    # ts は publish_metrics 側でも自動付与するが、ここで入れても良い
-                })
+            # no_metrics=True のときは metrics 更新をスキップ（publish_metrics 内で判定）
+            publish_metrics({
+                "last_decision": action,
+                "last_reason":   reason,
+                "atr_ref":       float(atr_ref),
+                "atr_gate_state": gate_state,
+                "post_fill_grace": bool(post_grace),
+                "spread":          filters_ctx.get("spread"),
+                "adx":             filters_ctx.get("adx"),
+                "min_adx":         filters_ctx.get("min_adx"),
+                "prob_threshold":  filters_ctx.get("prob_threshold"),
+                "min_atr_pct":     filters_ctx.get("min_atr_pct"),
+                "count_entry":     ce,
+                "count_skip":      cs,
+                "count_blocked":   cb,
+                # ts は publish_metrics 側でも自動付与するが、ここで入れても良い
+            }, no_metrics=self.no_metrics)
 
 
             trail_signal = decision.get("signal") if isinstance(decision, dict) else None
@@ -916,7 +998,10 @@ class ExecutionStub:
                 entry_context=entry_context,  # ★追加
                 features=features,  # ★追加：features_hash用
             )
-            trace["runtime"] = runtime_cfg
+            # runtime 辞書を作成（ts は正規化済みのものを使用）
+            runtime = dict(runtime_cfg)
+            runtime["ts"] = ts  # 正規化済みの ts を明示的に設定
+            trace["runtime"] = runtime
             _write_decision_log(symbol, trace)
 
             ai_payload = _ai_to_dict(ai_out)
@@ -945,14 +1030,13 @@ class ExecutionStub:
             filters_ctx["trail_state"] = trail_info["state"]
             filters_ctx["trail_new_sl"] = trail_info["new_sl"]
             filters_ctx["trail_price"] = trail_info["price"]
-            # no_metrics=True のときは metrics 更新をスキップ
-            if not self.no_metrics:
-                publish_metrics({
-                    "trail_activated": bool(trail_info["state"].get("activated")),
-                    "trail_be_locked": bool(trail_info["state"].get("be_locked")),
-                    "trail_layers":    int(trail_info["state"].get("layers") or 0),
-                    "trail_current_sl": trail_info["state"].get("current_sl"),
-                })
+            # no_metrics=True のときは metrics 更新をスキップ（publish_metrics 内で判定）
+            publish_metrics({
+                "trail_activated": bool(trail_info["state"].get("activated")),
+                "trail_be_locked": bool(trail_info["state"].get("be_locked")),
+                "trail_layers":    int(trail_info["state"].get("layers") or 0),
+                "trail_current_sl": trail_info["state"].get("current_sl"),
+            }, no_metrics=self.no_metrics)
 
             decision_payload = {
                 "action": "TRAIL_UPDATE",
@@ -992,16 +1076,22 @@ class ExecutionStub:
             _emit(decision_payload, filters_ctx, level="warning")
             return {"ai": ai_out, "cb": cb_status, "ts": ts, "decision": None}
 
+        # デバッグモード時はADXフィルタを緩和（観測最優先）
+        debug_relax_filters = os.getenv("FXBOT_DEBUG_RELAX_FILTERS", "").strip() in ("1", "true", "True", "on", "ON")
         if not grace_active and not disable_adx_gate and cur_adx < min_adx:
-            filters_ctx = dict(base_filters)
-            decision_payload = {
-                "action": "BLOCKED",
-                "reason": "adx_low",
-                "filter_pass": filter_pass,
-                "filter_reasons": filter_reasons,
-            }
-            _emit(decision_payload, filters_ctx, level="warning")
-            return {"ai": ai_out, "cb": cb_status, "ts": ts, "decision": None}
+            # デバッグモード時はADXフィルタを通過させる
+            if debug_relax_filters:
+                pass  # ADXフィルタをスキップして続行
+            else:
+                filters_ctx = dict(base_filters)
+                decision_payload = {
+                    "action": "BLOCKED",
+                    "reason": "adx_low",
+                    "filter_pass": filter_pass,
+                    "filter_reasons": filter_reasons,
+                }
+                _emit(decision_payload, filters_ctx, level="warning")
+                return {"ai": ai_out, "cb": cb_status, "ts": ts, "decision": None}
 
         if not grace_active and not atr_gate_ok:
             filters_ctx = dict(base_filters)
@@ -1405,7 +1495,7 @@ def evaluate_and_log_once() -> None:
             ai = DummyAISvc(threshold=best_threshold)
         #
         print(f"[exec] AISvc model: {getattr(ai, 'model_name', 'unknown')} (threshold={best_threshold})")
-        stub = ExecutionStub(cb=cb, ai=ai)
+        stub = ExecutionStub(cb=cb, ai=ai, no_metrics=True)
 
         runtime_payload = {
             "threshold_buy": best_threshold,
@@ -1470,8 +1560,9 @@ def debug_emit_single_decision() -> None:
     ai_out = DummyProbOut()
 
     # 2) フィルタ用コンテキストを作る（EntryContext）
+    ts_debug = now_jst_iso()  # テスト用関数なので now_jst_iso() を使用
     entry_context = {
-        "timestamp": datetime.now(),
+        "timestamp": ts_debug,
         "atr": 0.5,
         "volatility": 1.0,
         "trend_strength": 0.1,
@@ -1504,7 +1595,7 @@ def debug_emit_single_decision() -> None:
 
     # 5) _build_decision_trace を使って trace を作成
     trace = _build_decision_trace(
-        ts_jst=now_jst_iso(),
+        ts_jst=ts_debug,  # テスト用関数なので統一された ts を使用
         symbol="USDJPY-",
         ai_out=ai_out,
         cb_status=cb_status,

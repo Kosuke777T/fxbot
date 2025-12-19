@@ -93,7 +93,7 @@ def prepare_state(cfg: dict, args: argparse.Namespace) -> ExecutionStub:
         reset_atr_gate_state()
     except Exception:
         pass
-    return ExecutionStub(cb=cb, ai=ai)
+    return ExecutionStub(cb=cb, ai=ai, no_metrics=True)
 
 
 def main(argv: list[str]) -> None:

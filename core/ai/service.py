@@ -169,7 +169,24 @@ class AISvc:
             return _ProbOut(0.5, 0.5, model_name=self.model_name, version="na", features_hash="")
 
         df = _as_2d_frame(X)
-        if self.expected_features:
+
+        # モデルの feature_name() があればそれを最優先で使用（入力順序を固定）
+        order = None
+        try:
+            bm = getattr(self.model, "base_model", None)
+            x = bm or self.model
+            if hasattr(x, "feature_name"):
+                order = list(x.feature_name())
+        except Exception:
+            order = None
+
+        # 順序が決まっていればそれを使用、なければ expected_features を使用
+        if order:
+            for col in order:
+                if col not in df.columns:
+                    df[col] = 0.0
+            df = df[order]
+        elif self.expected_features:
             for col in self.expected_features:
                 if col not in df.columns:
                     df[col] = 0.0
