@@ -19,16 +19,16 @@ MT5 のリアル発注は絶対に行いません。
 
 【動作確認コマンド】
     # 出力されたログを確認（最後の5件）
-    Get-Content logs\decisions\decisions_USDJPY.jsonl | Select-Object -Last 5
+    # Get-Content logs\\decisions\\decisions_USDJPY.jsonl | Select-Object -Last 5
 
     # filter_reasons が含まれているか確認
-    Get-Content logs\decisions\decisions_USDJPY.jsonl | Select-String '"filter_reasons"'
+    # Get-Content logs\\decisions\\decisions_USDJPY.jsonl | Select-String '"filter_reasons"'
 
     # filter_pass と filter_reasons の両方が含まれているか確認
-    Get-Content logs\decisions\decisions_USDJPY.jsonl | Select-String '"filter_pass"|"filter_reasons"'
+    # Get-Content logs\\decisions\\decisions_USDJPY.jsonl | Select-String '"filter_pass"|"filter_reasons"'
 
     # 最新の1件を整形して表示
-    Get-Content logs\decisions\decisions_USDJPY.jsonl | Select-Object -Last 1 | ConvertFrom-Json | ConvertTo-Json -Depth 10
+    # Get-Content logs\\decisions\\decisions_USDJPY.jsonl | Select-Object -Last 1 | ConvertFrom-Json | ConvertTo-Json -Depth 10
 """
 
 from __future__ import annotations
@@ -266,10 +266,42 @@ def main() -> None:
     print(f"[Demo] Running {30} ticks...")
     print()
 
+    # 作業2: 仮ポジション状態の管理
+    sim_open_position = False
+    sim_pos_until_tick = -1
+
+    # 環境変数のチェック（sim_pos_guard バイパス用）
+    import os
+    debug_relax_pos_guard = os.getenv("FXBOT_DEBUG_RELAX_POS_GUARD", "").strip() in ("1", "true", "True", "on", "ON")
+
+    # 擬似ポジションの保持tick数を環境変数で制御
+    default_hold_ticks = 10
+    sim_pos_hold_ticks = default_hold_ticks
+    env_hold_ticks = os.getenv("FXBOT_SIM_POS_TICKS", "").strip()
+    if env_hold_ticks:
+        try:
+            hold_val = int(env_hold_ticks)
+            if hold_val >= 0:
+                sim_pos_hold_ticks = hold_val
+            else:
+                print(f"[Demo] WARNING: FXBOT_SIM_POS_TICKS={env_hold_ticks} is negative, using default={default_hold_ticks}")
+        except (ValueError, TypeError):
+            print(f"[Demo] WARNING: FXBOT_SIM_POS_TICKS={env_hold_ticks} is invalid, using default={default_hold_ticks}")
+    print(f"[Demo] Simulated position hold ticks: {sim_pos_hold_ticks}")
+
     # メインループ: 30 ticks をシミュレート
     for tick_idx in range(30):
+        # 仮ポジションのタイムアウト処理
+        if sim_open_position and tick_idx >= sim_pos_until_tick:
+            sim_open_position = False
+            print(f"[Tick {tick_idx:3d}] Simulated position closed (timeout)")
+
         # runtime_cfg の作成（各 tick ごとに再作成）
         runtime_payload = _create_runtime_cfg(cfg, symbol, prob_threshold, stub)
+        # 仮ポジション状態を runtime_cfg に追加
+        runtime_payload["_sim_open_position"] = 1 if sim_open_position else 0
+        # 保持tick数を runtime_cfg に追加（decisions.jsonl に記録される）
+        runtime_payload["_sim_pos_hold_ticks"] = sim_pos_hold_ticks
 
         # expected_features に基づいてダミーの特徴量を生成
         features = _build_dummy_features(tick_idx, expected_features)
@@ -279,19 +311,45 @@ def main() -> None:
             result = stub.on_tick(symbol, features, runtime_payload)
 
             # 結果をログ出力
-            blocked = result.get("blocked", False)
             decision = result.get("decision")
             if decision:
                 action = decision.get("action", "UNKNOWN")
+                # blocked は action から判定（action=BLOCKED の場合は blocked=True）
+                blocked = action == "BLOCKED"
                 reason = decision.get("reason", "")
                 filter_pass = decision.get("filter_pass")
                 filter_reasons = decision.get("filter_reasons", [])
 
-                print(f"[Tick {tick_idx:3d}] action={action:10s} reason={reason:20s} "
-                      f"blocked={blocked} filter_pass={filter_pass} "
-                      f"filter_reasons={filter_reasons}")
+                # シミュレーション用の単一ポジション保護: sim_pos=True の間は ENTRY を防ぐ
+                # ただし、debug_relax_pos_guard が有効な場合はバイパスする（ENTRY を許可）
+                if action == "ENTRY" and sim_open_position and not debug_relax_pos_guard:
+                    # ENTRY 決定を BLOCKED に上書き（relax_pos_guard=0 の場合のみ防ぐ）
+                    action = "BLOCKED"
+                    reason = "sim_pos_guard"
+                    decision["action"] = action
+                    decision["reason"] = reason
+                    # filters に sim_pos_guard 情報を追加
+                    if "filters" not in decision:
+                        decision["filters"] = {}
+                    decision["filters"]["sim_pos_guard_hit"] = True
+                    decision["filters"]["sim_pos_guard_reason"] = "already_in_simulated_position"
+                    print(f"[Tick {tick_idx:3d}] ENTRY blocked by sim_pos_guard (sim_pos=True) -> action={action} reason={reason}")
+                elif action == "ENTRY":
+                    # ENTRY が出たら仮ポジションを開始
+                    sim_open_position = True
+                    sim_pos_until_tick = tick_idx + sim_pos_hold_ticks
+                    print(f"[Tick {tick_idx:3d}] action={action:10s} reason={reason:20s} "
+                          f"blocked={blocked} filter_pass={filter_pass} "
+                          f"filter_reasons={filter_reasons} -> SIM POS OPEN (until tick {sim_pos_until_tick}, hold_ticks={sim_pos_hold_ticks})")
+                else:
+                    print(f"[Tick {tick_idx:3d}] action={action:10s} reason={reason:20s} "
+                          f"blocked={blocked} filter_pass={filter_pass} "
+                          f"filter_reasons={filter_reasons} "
+                          f"sim_pos={sim_open_position}")
             else:
-                print(f"[Tick {tick_idx:3d}] decision=None, blocked={blocked}")
+                # decision=None の場合は blocked は False
+                blocked = False
+                print(f"[Tick {tick_idx:3d}] decision=None, blocked={blocked} sim_pos={sim_open_position}")
         except Exception as exc:
             print(f"[Tick {tick_idx:3d}] ERROR: {exc}")
             import traceback

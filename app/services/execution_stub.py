@@ -1131,13 +1131,21 @@ class ExecutionStub:
 
         config = load_config()
         entry_cfg = config.get("entry", {}) if isinstance(config, dict) else {}
-        edge = float(entry_cfg.get("entry_min_edge", entry_cfg.get("min_edge", 0.0)))
+        min_edge_cfg = float(entry_cfg.get("entry_min_edge", entry_cfg.get("min_edge", 0.0)))
+        # min_edge_effective: 環境変数で上書き可能な閾値
+        min_edge_effective = min_edge_cfg
+        debug_edge = os.getenv("FXBOT_DEBUG_MIN_EDGE", "").strip()
+        if debug_edge:
+            try:
+                min_edge_effective = float(debug_edge)
+            except (ValueError, TypeError):
+                pass
         buy_threshold = prob_threshold
         sell_threshold = max(min(1.0 - prob_threshold, 1.0), 0.0)
 
         base_filters["threshold_buy"] = buy_threshold
         base_filters["threshold_sell"] = sell_threshold
-        base_filters["edge"] = edge
+        base_filters["min_edge_effective"] = min_edge_effective
 
         filters_ctx = dict(base_filters)
 
@@ -1149,6 +1157,10 @@ class ExecutionStub:
 
         p_buy = float(ai_out.p_buy)
         p_sell = float(ai_out.p_sell)
+
+        # edge_raw: 実測値（確率の差の絶対値）
+        edge_raw = abs(p_buy - p_sell)
+        base_filters["edge_raw"] = edge_raw
 
         buy_ok = p_buy >= buy_threshold
         sell_ok = p_sell >= sell_threshold
@@ -1179,17 +1191,20 @@ class ExecutionStub:
         decision_info: Dict[str, Any] = {
             "threshold_buy": buy_threshold,
             "threshold_sell": sell_threshold,
-            "edge": edge,
+            "edge_raw": edge_raw,
+            "min_edge_effective": min_edge_effective,
             "prob_buy": p_buy,
             "prob_sell": p_sell,
         }
 
         if chosen_side is None:
             decision_info.update({"decision": "SKIP", "reason": "ai_threshold"})
+            filters_ctx = dict(base_filters)  # edge_raw, min_edge_effective を含む最新の base_filters から再作成
+            filters_ctx["side_bias"] = side_bias
             decision_payload = {
                 "action": "SKIP",
                 "reason": "ai_threshold",
-                "ai_meta": ai_out.meta,
+                "ai_meta": getattr(ai_out, "meta", None) or {},
                 "dec": decision_info,
                 "filter_pass": filter_pass,
                 "filter_reasons": filter_reasons,
@@ -1197,12 +1212,14 @@ class ExecutionStub:
             _emit(decision_payload, filters_ctx, level="info")
             return {"ai": ai_out, "cb": cb_status, "ts": ts, "decision": decision_payload}
 
-        if (chosen_prob - other_prob) < edge:
+        if edge_raw < min_edge_effective:
             decision_info.update({"decision": "SKIP", "reason": "ai_low_edge"})
+            filters_ctx = dict(base_filters)  # edge_raw, min_edge_effective を含む最新の base_filters から再作成
+            filters_ctx["side_bias"] = side_bias
             decision_payload = {
                 "action": "SKIP",
                 "reason": "ai_low_edge",
-                "ai_meta": ai_out.meta,
+                "ai_meta": getattr(ai_out, "meta", None) or {},
                 "dec": decision_info,
                 "filter_pass": filter_pass,
                 "filter_reasons": filter_reasons,
@@ -1216,22 +1233,113 @@ class ExecutionStub:
                 "side": chosen_side,
                 "prob": chosen_prob,
                 "edge_delta": chosen_prob - other_prob,
+                "edge_raw": edge_raw,
+                "min_edge_effective": min_edge_effective,
             }
         )
 
-        if not trade_service.can_open_new_position(symbol):
-            filters_ctx = dict(base_filters)
+        # 作業1: pos_guard 判定の可視化情報を base_filters に追加
+        # runtime_cfg に _sim_open_position があればそれを使う（demo_run_stub 用）
+        sim_open_position = runtime_cfg.get("_sim_open_position")
+        open_position_detected = False
+        try:
+            trade_svc = getattr(trade_service, "SERVICE", None)
+            if sim_open_position is not None:
+                # demo_run_stub から渡された仮ポジション状態を使用
+                open_position_detected = bool(sim_open_position)
+            elif trade_svc and hasattr(trade_svc, "pos_guard"):
+                pg = trade_svc.pos_guard
+                if hasattr(pg, "state") and hasattr(pg.state, "open_count"):
+                    open_position_detected = pg.state.open_count > 0
+        except Exception:
+            pass  # 取得失敗時は False のまま
+
+        pos_guard_enabled = True  # pos_guard は常に有効
+        base_filters["pos_guard_enabled"] = pos_guard_enabled
+        base_filters["open_position_detected"] = open_position_detected
+
+        # 作業3: デバッグ時だけ pos_guard をバイパス（観測用）
+        debug_relax_pos_guard = os.getenv("FXBOT_DEBUG_RELAX_POS_GUARD", "").strip() in ("1", "true", "True", "on", "ON")
+        # runtime_cfg に _sim_open_position がある場合は、その値に基づいて can_open を決定（demo_run_stub 用）
+        sim_pos_guard_active = False
+        if sim_open_position is not None:
+            max_pos = runtime_cfg.get("max_positions", 1)
+            # sim_open_position が 1 以上の場合、max_positions に達していれば can_open = False
+            sim_pos_count = int(sim_open_position) if isinstance(sim_open_position, (int, float)) else (1 if sim_open_position else 0)
+            can_open_real = sim_pos_count < max_pos
+            # シミュレーション用の pos_guard: relax_pos_guard が有効な場合はバイパス可能
+            sim_pos_guard_active = sim_pos_count > 0
+            # debug_relax_pos_guard が有効な場合は sim_pos_guard もバイパスする
+            if debug_relax_pos_guard:
+                can_open = can_open_real  # sim_pos_guard をバイパス
+            else:
+                can_open = can_open_real and not sim_pos_guard_active
+        else:
+            can_open = trade_service.can_open_new_position(symbol)
+        pos_guard_bypassed = False
+
+        # pos_guard 判定結果を記録
+        pos_guard_hit = not can_open and not debug_relax_pos_guard
+        pos_guard_reason = None
+        if pos_guard_hit:
+            pos_guard_reason = "max_positions_reached" if open_position_detected else "unknown"
+        # シミュレーション用の pos_guard が有効な場合も記録
+        if sim_pos_guard_active:
+            if debug_relax_pos_guard:
+                # debug_relax_pos_guard が有効な場合はバイパスしたことを記録
+                base_filters["sim_pos_guard_bypassed"] = True
+                base_filters["sim_pos_guard_hit"] = False
+            else:
+                base_filters["sim_pos_guard_hit"] = True
+                base_filters["sim_pos_guard_reason"] = "already_in_simulated_position"
+        base_filters["pos_guard_hit"] = pos_guard_hit
+        if pos_guard_reason:
+            base_filters["pos_guard_reason"] = pos_guard_reason
+
+        if not can_open and not debug_relax_pos_guard:
+            # 通常モード：pos_guard でブロック
+            filters_ctx = dict(base_filters)  # pos_guard_* 情報は既に base_filters に含まれている
+            # 作業1: 観測用フィールドを追加
             decision_payload = {
                 "action": "BLOCKED",
                 "reason": "pos_guard",
-                "ai_meta": ai_out.meta,
+                "ai_meta": getattr(ai_out, "meta", None) or {},
                 "dec": decision_info,
                 "filter_pass": filter_pass,
                 "filter_reasons": filter_reasons,
+                "runtime_open_positions": runtime_cfg.get("open_positions", "missing"),
+                "runtime_max_positions": runtime_cfg.get("max_positions", "missing"),
+                "post_fill_grace": grace_active,
+                "spread_pips": cur_spread,
+                "edge_raw": edge_raw,
+                "min_edge_effective": min_edge_effective,
+                "prob_buy": p_buy,
+                "prob_sell": p_sell,
             }
+            # pos_guard_state を追加（取得可能な範囲で）
+            try:
+                trade_svc = getattr(trade_service, "SERVICE", None)
+                if trade_svc and hasattr(trade_svc, "pos_guard"):
+                    pg = trade_svc.pos_guard
+                    pos_guard_state = {
+                        "open_count": getattr(pg.state, "open_count", None) if hasattr(pg, "state") else None,
+                        "max_positions": getattr(pg, "max_positions", None),
+                        "inflight_count": len(getattr(pg.state, "inflight_orders", {})) if hasattr(pg, "state") else None,
+                    }
+                    decision_payload["pos_guard_state"] = pos_guard_state
+            except Exception:
+                pass  # pos_guard_state の取得に失敗しても続行
             _emit(decision_payload, filters_ctx, level="warning")
             position_guard.on_order_rejected_or_canceled(symbol)
-            return {"ai": ai_out, "cb": cb_status, "ts": ts, "decision": None}
+            return {"ai": ai_out, "cb": cb_status, "ts": ts, "decision": decision_payload}
+        elif not can_open and debug_relax_pos_guard:
+            # デバッグモード：バイパスして ENTRY に進む（ログに印を残す）
+            # sim_pos_guard もバイパス済み（can_open の計算で既にバイパスしている）
+            pos_guard_bypassed = True
+            if sim_pos_guard_active:
+                # sim_pos_guard もバイパスしたことを記録
+                base_filters["sim_pos_guard_bypassed"] = True
+            # ENTRY に進む（下記の処理を続行）
 
         signal = {
             "side": chosen_side,
@@ -1271,7 +1379,13 @@ class ExecutionStub:
         _register_trailing_state(symbol, signal, tick_dict, no_metrics=self.no_metrics)
 
         trade_service.mark_filled_now()
-        filters_ctx = dict(base_filters)
+        filters_ctx = dict(base_filters)  # pos_guard_* 情報は既に base_filters に含まれている
+        # 作業3: pos_guard_bypassed フラグを filters_ctx に追加（ログ集計用）
+        if pos_guard_bypassed:
+            filters_ctx["pos_guard_bypassed"] = True
+        # sim_pos_guard_bypassed も filters_ctx に追加
+        if sim_pos_guard_active and debug_relax_pos_guard:
+            filters_ctx["sim_pos_guard_bypassed"] = True
         # --- ロット計算挿入ブロック ----------------------
         profile = get_profile("michibiki_std")
 
@@ -1330,7 +1444,7 @@ class ExecutionStub:
         decision_payload = {
             "action": "ENTRY",
             "reason": decision_info.get("reason","entry_ok"),
-            "ai_meta": ai_out.meta,
+            "ai_meta": getattr(ai_out, "meta", None) or {},
             "signal": signal,
             "dec": decision_info,
             "lot": (lot_info.get("lot") if isinstance(lot_info, dict) else None),
@@ -1338,6 +1452,16 @@ class ExecutionStub:
             "filter_pass": filter_pass,
             "filter_reasons": filter_reasons,
         }
+        # 作業3: pos_guard_bypassed フラグを decision_payload に追加（ログ集計用）
+        if pos_guard_bypassed:
+            decision_payload["pos_guard_bypassed"] = True
+        # sim_pos_guard_bypassed も decision_payload に追加
+        if sim_pos_guard_active and debug_relax_pos_guard:
+            decision_payload["sim_pos_guard_bypassed"] = True
+        # sim_pos_hold_ticks を decision_payload に追加（デバッグ用）
+        sim_pos_hold_ticks = runtime_cfg.get("_sim_pos_hold_ticks")
+        if sim_pos_hold_ticks is not None:
+            decision_payload["sim_pos_hold_ticks"] = sim_pos_hold_ticks
 
         if filter_pass is False:
             # フィルタ NG の場合は BLOCKED としてログに記録
@@ -1346,7 +1470,7 @@ class ExecutionStub:
             blocked_payload = {
                 "action": "BLOCKED",
                 "reason": "filtered",
-                "ai_meta": ai_out.meta,
+                "ai_meta": getattr(ai_out, "meta", None) or {},
                 "dec": decision_info,
                 "filter_pass": False,
                 "filter_reasons": filter_reasons,
@@ -1576,7 +1700,7 @@ def debug_emit_single_decision() -> None:
     decision = {
         "action": "ENTRY" if ok else "BLOCKED",
         "reason": "entry_ok" if ok else "filtered",
-        "ai_meta": ai_out.meta,
+        "ai_meta": getattr(ai_out, "meta", None) or {},
         "filter_pass": ok,
         "filter_reasons": reasons,
     }
