@@ -1,0 +1,42 @@
+{
+  "summary": {
+    "total_records": 403425,
+    "live_records": 0,
+    "backtest_records": 403425,
+    "groups": 2
+  },
+  "groups": {
+    "unknown|unknown|unknown|unknown|unknown": {
+      "mode": "unknown",
+      "source": "unknown",
+      "profile": "unknown",
+      "timeframe": "unknown",
+      "symbol": "unknown",
+      "metrics": {
+        "n": 403105,
+        "filter_pass_rate": 0.0,
+        "entry_rate": 0.0,
+        "skip_rate": 1.0,
+        "blocked_rate": 0.0,
+        "side_buy_rate": "unknown",
+        "top_blocked_reason": "atr"
+      }
+    },
+    "backtest|backtest|michibiki_std|unknown|USDJPY-": {
+      "mode": "backtest",
+      "source": "backtest",
+      "profile": "michibiki_std",
+      "timeframe": "unknown",
+      "symbol": "USDJPY-",
+      "metrics": {
+        "n": 320,
+        "filter_pass_rate": 1.0,
+        "entry_rate": 1.0,
+        "skip_rate": 0.0,
+        "blocked_rate": 0.0,
+        "side_buy_rate": 1.0,
+        "top_blocked_reason": null
+      }
+    }
+  }
+}

@@ -20,6 +20,7 @@ from app.core.strategy_profile import get_profile
 from app.services.edition_guard import filter_level, EditionGuard
 from app.services import trade_state
 from core.utils.timeutil import now_jst_iso
+from app.core import market
 
 # プロジェクトルート = app/services/ から 2 つ上
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -87,6 +88,67 @@ def _normalize_filter_reasons(reasons: Any) -> list[str]:
         return [str(r) for r in reasons if r is not None]
     # その他の型は空リストに
     return []
+
+
+def _build_decision_context(
+    prob_buy: Optional[float],
+    prob_sell: Optional[float],
+    strategy_name: str,
+    best_threshold: float,
+    filters_dict: Dict[str, Any],
+    decision_detail: Dict[str, Any],
+    meta: Dict[str, Any],
+) -> Dict[str, Any]:
+    """
+    decision_context を構築する（判断材料を分離）
+
+    Parameters
+    ----------
+    prob_buy : Optional[float]
+        BUY確率
+    prob_sell : Optional[float]
+        SELL確率
+    strategy_name : str
+        戦略名
+    best_threshold : float
+        ベストしきい値
+    filters_dict : Dict[str, Any]
+        フィルタ情報
+    decision_detail : Dict[str, Any]
+        決定詳細
+    meta : Dict[str, Any]
+        メタ情報
+
+    Returns
+    -------
+    Dict[str, Any]
+        decision_context 辞書
+    """
+    return {
+        "ai": {
+            "prob_buy": prob_buy,
+            "prob_sell": prob_sell,
+            "model_name": strategy_name,
+            "threshold": best_threshold,
+        },
+        "filters": {
+            "filter_pass": filters_dict.get("filter_pass"),
+            "filter_reasons": filters_dict.get("filter_reasons", []),
+            "spread": filters_dict.get("spread"),
+            "adx": filters_dict.get("adx"),
+            "min_adx": filters_dict.get("min_adx"),
+            "atr_pct": filters_dict.get("atr_pct"),
+            "volatility": filters_dict.get("volatility"),
+            "filter_level": filters_dict.get("filter_level"),
+        },
+        "decision": {
+            "action": decision_detail.get("action"),
+            "side": decision_detail.get("side"),
+            "reason": decision_detail.get("reason"),
+            "blocked_reason": decision_detail.get("blocked_reason"),
+        },
+        "meta": meta or {},
+    }
 
 
 def _ensure_decision_detail_minimum(dd: dict, decision: str, signal=None, ai_margin: float = 0.03) -> dict:
@@ -240,15 +302,16 @@ class DecisionsLogger:
         - 古いバージョンのログには追加キー (ai, model, cb など) が混在するが、
           v5.1 以降は上記のフィールドを標準とする。
         """
+        # execution_stub の _write_decision_log を使用（validate_runtime を含む）
+        from app.services.execution_stub import _write_decision_log
         symbol = record.get("symbol", "UNKNOWN")
         # features_hash が無い場合は自動計算して埋める
         if "features_hash" not in record or not record.get("features_hash"):
             h = _features_hash_from_record(record)
             if h:
                 record["features_hash"] = h
-        fname = LOG_DIR / f"decisions_{_symbol_to_filename(symbol)}.jsonl"
-        with open(fname, "a", encoding="utf-8") as fp:
-            fp.write(json.dumps(record, ensure_ascii=False) + "\n")
+        # _write_decision_log を呼ぶ（validate_runtime が含まれる）
+        _write_decision_log(symbol, record)
 
 
 class ExecutionService:
@@ -498,29 +561,48 @@ class ExecutionService:
                 ai_margin=0.03,
             )
 
+            # decision_context を構築
+            decision_context = _build_decision_context(
+                prob_buy=None,
+                prob_sell=None,
+                strategy_name=strategy_name,
+                best_threshold=0.52,  # フォールバック値
+                filters_dict={},
+                decision_detail=decision_detail_failed,
+                meta={},
+            )
+
             record = {
                 "timestamp": ts_str,
                 "ts_jst": ts_str,
                 "type": "decision",
                 "symbol": symbol,
                 "strategy": strategy_name,
-                "prob_buy": None,
-                "prob_sell": None,
+                "prob_buy": None,  # 後方互換のため残す
+                "prob_sell": None,  # 後方互換のため残す
                 # 入力特徴量のハッシュ（同一入力判定用）
                 "features_hash": features_hash_failed,
-                "filter_pass": False,
-                "filter_reasons": ["ai_prediction_failed"],
-                "decision": "SKIP",
-                "side": None,
-                "filters": {},
-                "meta": {},
-                "decision_detail": decision_detail_failed,
+                "filter_pass": False,  # 後方互換のため残す
+                "filter_reasons": ["ai_prediction_failed"],  # 後方互換のため残す
+                "decision": "SKIP",  # 後方互換のため残す
+                "side": None,  # 後方互換のため残す
+                "filters": {},  # 後方互換のため残す
+                "meta": {},  # 後方互換のため残す
+                "decision_detail": decision_detail_failed,  # 後方互換のため残す
+                "decision_context": decision_context,  # 新規追加：判断材料を分離
             }
             # ---- runtime normalization (decision log) ----
-            # runtime は TradeRuntime の正規出口に固定する
+            # build_runtime() を使用して live/demo で統一（v2）
             # 既存 runtime があれば runtime_detail に退避
             _prev_rt = record.get("runtime")
-            record["runtime"] = trade_state.runtime_as_dict()
+            runtime = trade_state.build_runtime(
+                symbol,
+                market=market,
+                ts_str=ts_str,  # JST ISO形式に正規化済み
+                mode="live",  # ExecutionService は live モード
+                source="mt5",  # ExecutionService は mt5 ソース
+            )
+            record["runtime"] = runtime
             if _prev_rt and isinstance(_prev_rt, dict):
                 record["runtime_detail"] = _prev_rt
             # ---------------------------------------------
@@ -666,6 +748,17 @@ class ExecutionService:
                 signal=signal,
                 ai_margin=0.03,
             )
+            # decision_context を構築
+            decision_context = _build_decision_context(
+                prob_buy=prob_buy,
+                prob_sell=prob_sell,
+                strategy_name=strategy_name,
+                best_threshold=best_threshold,
+                filters_dict=filters_dict,
+                decision_detail=decision_detail,
+                meta=meta_val or {},
+            )
+
             record = {
                 # 時刻・識別
                 "timestamp": ts_str,
@@ -675,31 +768,58 @@ class ExecutionService:
                 # 戦略情報
                 "strategy": strategy_name,
                 # 確率は pred から取得（signal は意思決定結果のみ）
-                "prob_buy": prob_buy,
-                "prob_sell": prob_sell,
+                "prob_buy": prob_buy,  # 後方互換のため残す
+                "prob_sell": prob_sell,  # 後方互換のため残す
                 # 入力特徴量のハッシュ（同一入力判定用）
                 "features_hash": features_hash,
                 # フィルタ結果（トップレベル要約）
-                "filter_pass": ok,
-                "filter_reasons": normalized_reasons,
+                "filter_pass": ok,  # 後方互換のため残す
+                "filter_reasons": normalized_reasons,  # 後方互換のため残す
                 # 決定内容（トップレベル）
-                "decision": decision,
-                "side": getattr(signal, "side", None),
+                "decision": decision,  # 後方互換のため残す
+                "side": getattr(signal, "side", None),  # 後方互換のため残す
                 # 生フィルタ情報 / メタ情報
-                "filters": filters_dict,
-                "meta": meta_val or {},
+                "filters": filters_dict,  # 後方互換のため残す
+                "meta": meta_val or {},  # 後方互換のため残す
                 # 詳細
-                "decision_detail": decision_detail,
+                "decision_detail": decision_detail,  # 後方互換のため残す
+                "decision_context": decision_context,  # 新規追加：判断材料を分離
             }
             # ---- runtime normalization (decision log) ----
-            # runtime は TradeRuntime の正規出口に固定する
+            # build_runtime() を使用して live/demo で統一（v2）
             # 既存 runtime があれば runtime_detail に退避
             _prev_rt = record.get("runtime")
-            record["runtime"] = trade_state.runtime_as_dict()
+            runtime = trade_state.build_runtime(
+                symbol,
+                market=market,
+                ts_str=ts_str,  # JST ISO形式に正規化済み
+                mode="live",  # ExecutionService は live モード
+                source="mt5",  # ExecutionService は mt5 ソース
+            )
+            record["runtime"] = runtime
             if _prev_rt and isinstance(_prev_rt, dict):
                 record["runtime_detail"] = _prev_rt
             # ---------------------------------------------
             DecisionsLogger.log(record)
+
+            # --- metrics に runtime 情報を追加 ---
+            from app.services.metrics import publish_metrics
+            runtime_for_metrics = {
+                "schema_version": runtime.get("schema_version", 2),
+                "symbol": runtime.get("symbol", symbol),
+                "mode": runtime.get("mode"),
+                "source": runtime.get("source"),
+                "timeframe": runtime.get("timeframe"),
+                "profile": runtime.get("profile"),
+                "ts": runtime.get("ts"),
+                "spread_pips": runtime.get("spread_pips", 0.0),
+                "open_positions": runtime.get("open_positions", 0),
+                "max_positions": runtime.get("max_positions", 1),
+            }
+            publish_metrics({
+                "runtime": runtime_for_metrics,  # 新規追加：runtime 情報
+            }, no_metrics=False)
+
             return {"ok": False, "reasons": reasons}
 
         # --- 5) dry_run モードの場合、MT5発注の直前で分岐 ---
@@ -736,24 +856,36 @@ class ExecutionService:
                 signal=signal,
                 ai_margin=0.03,
             )
+            # decision_context を構築
+            decision_context = _build_decision_context(
+                prob_buy=prob_buy,
+                prob_sell=prob_sell,
+                strategy_name=strategy_name,
+                best_threshold=best_threshold,
+                filters_dict=filters_dict,
+                decision_detail=decision_detail,
+                meta=meta_val or {},
+            )
+
             DecisionsLogger.log({
                 "timestamp": ts_str,
                 "ts_jst": ts_str,
                 "type": "decision",
                 "symbol": symbol,
-                "strategy": strategy_name,
+                "strategy": strategy_name,  # 後方互換のため残す
                 # 確率は pred から取得
-                "prob_buy": prob_buy,
-                "prob_sell": prob_sell,
+                "prob_buy": prob_buy,  # 後方互換のため残す
+                "prob_sell": prob_sell,  # 後方互換のため残す
                 # 入力特徴量のハッシュ（同一入力判定用）
                 "features_hash": features_hash,
-                "filter_pass": ok,
-                "filter_reasons": normalized_reasons,
-                "decision": decision,
-                "side": getattr(signal, "side", None),
-                "filters": filters_dict,
-                "meta": meta_val or {},
-                "decision_detail": decision_detail,
+                "filter_pass": ok,  # 後方互換のため残す
+                "filter_reasons": normalized_reasons,  # 後方互換のため残す
+                "decision": decision,  # 後方互換のため残す
+                "side": getattr(signal, "side", None),  # 後方互換のため残す
+                "filters": filters_dict,  # 後方互換のため残す
+                "meta": meta_val or {},  # 後方互換のため残す
+                "decision_detail": decision_detail,  # 後方互換のため残す
+                "decision_context": decision_context,  # 新規追加：判断材料を分離
             })
 
         return {
@@ -800,17 +932,39 @@ class ExecutionService:
             "decision_detail": decision_detail,
         }
         # ---- runtime normalization (decision log) ----
-        # runtime は TradeRuntime の正規出口に固定する
+        # build_runtime() を使用して live/demo で統一（v2）
         # 既存 runtime があれば runtime_detail に退避
         _prev_rt = record.get("runtime")
-        record["runtime"] = trade_state.runtime_as_dict()
+        runtime = trade_state.build_runtime(
+            symbol,
+            market=market,
+            ts_str=ts_str,  # JST ISO形式に正規化済み
+            mode="live",  # ExecutionService は live モード
+            source="mt5",  # ExecutionService は mt5 ソース
+        )
+        record["runtime"] = runtime
         if _prev_rt and isinstance(_prev_rt, dict):
             record["runtime_detail"] = _prev_rt
         # ---------------------------------------------
         DecisionsLogger.log(record)
 
-        # --- 6) 実際のMT5発注（dry_run=False の場合のみ） ---
-        # 発注ロジックはそのまま（TradeService などを呼び出す想定）
+        # --- metrics に runtime 情報を追加 ---
+        from app.services.metrics import publish_metrics
+        runtime_for_metrics = {
+            "schema_version": runtime.get("schema_version", 2),
+            "symbol": runtime.get("symbol", symbol),
+            "mode": runtime.get("mode"),
+            "source": runtime.get("source"),
+            "timeframe": runtime.get("timeframe"),
+            "profile": runtime.get("profile"),
+            "ts": runtime.get("ts"),
+            "spread_pips": runtime.get("spread_pips", 0.0),
+            "open_positions": runtime.get("open_positions", 0),
+            "max_positions": runtime.get("max_positions", 1),
+        }
+        publish_metrics({
+            "runtime": runtime_for_metrics,  # 新規追加：runtime 情報
+        }, no_metrics=False)
 
         # --- 6) 実際のMT5発注（dry_run=False の場合のみ） ---
         # 発注ロジックはそのまま（TradeService などを呼び出す想定）
@@ -889,29 +1043,48 @@ class ExecutionService:
                 ai_margin=0.03,
             )
 
+            # decision_context を構築
+            decision_context = _build_decision_context(
+                prob_buy=sim_pos.get("prob_buy"),
+                prob_sell=sim_pos.get("prob_sell"),
+                strategy_name="unknown",
+                best_threshold=0.52,  # フォールバック値
+                filters_dict={},
+                decision_detail=decision_detail,
+                meta={},
+            )
+
             record = {
                 "timestamp": ts_str,
                 "ts_jst": ts_str,
                 "type": "decision",
                 "symbol": symbol,
-                "strategy": "unknown",
-                "prob_buy": sim_pos.get("prob_buy"),
-                "prob_sell": sim_pos.get("prob_sell"),
+                "strategy": "unknown",  # 後方互換のため残す
+                "prob_buy": sim_pos.get("prob_buy"),  # 後方互換のため残す
+                "prob_sell": sim_pos.get("prob_sell"),  # 後方互換のため残す
                 # 入力特徴量のハッシュ（EXITの場合は空）
                 "features_hash": "",
-                "filter_pass": True,
-                "filter_reasons": [],
-                "decision": "EXIT_SIMULATED",
-                "side": sim_pos.get("side"),
-                "filters": {},
-                "meta": {},
-                "decision_detail": decision_detail,
+                "filter_pass": True,  # 後方互換のため残す
+                "filter_reasons": [],  # 後方互換のため残す
+                "decision": "EXIT_SIMULATED",  # 後方互換のため残す
+                "side": sim_pos.get("side"),  # 後方互換のため残す
+                "filters": {},  # 後方互換のため残す
+                "meta": {},  # 後方互換のため残す
+                "decision_detail": decision_detail,  # 後方互換のため残す
+                "decision_context": decision_context,  # 新規追加：判断材料を分離
             }
             # ---- runtime normalization (decision log) ----
-            # runtime は TradeRuntime の正規出口に固定する
+            # build_runtime() を使用して live/demo で統一（v2）
             # 既存 runtime があれば runtime_detail に退避
             _prev_rt = record.get("runtime")
-            record["runtime"] = trade_state.runtime_as_dict()
+            runtime = trade_state.build_runtime(
+                symbol,
+                market=market,
+                ts_str=ts_str,  # JST ISO形式に正規化済み
+                mode="live",  # ExecutionService は live モード
+                source="mt5",  # ExecutionService は mt5 ソース
+            )
+            record["runtime"] = runtime
             if _prev_rt and isinstance(_prev_rt, dict):
                 record["runtime_detail"] = _prev_rt
             # ---------------------------------------------

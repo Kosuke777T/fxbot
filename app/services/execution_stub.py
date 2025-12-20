@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import hashlib
 import json
@@ -371,6 +371,30 @@ def _write_decision_log(symbol: str, record: Dict[str, Any]) -> None:
         if "runtime" in record and isinstance(record["runtime"], dict):
             record["runtime"] = _normalize_runtime_cfg(record["runtime"])
 
+            # validate_runtime で検証（strict=True で必須キー・型チェック）
+            try:
+                warnings = validate_runtime(record["runtime"], strict=True)
+                # warnings があれば logger.warning で出力
+                # 注意: validate_runtime が返す警告メッセージには既に [runtime_schema] プレフィックスが含まれている
+                for warning in warnings:
+                    logger.warning(warning)  # プレフィックスは既に含まれている
+            except (TypeError, ValueError) as e:
+                # 検証で例外が出た場合はそのまま例外で落とす（仕様崩壊の早期検知が目的）
+                logger.error(f"[runtime_schema] validation failed: {e}")
+                raise
+
+        # decision_context の検証（warn-only、strict=False）
+        if "decision_context" in record and isinstance(record["decision_context"], dict):
+            try:
+                dc_warnings = validate_decision_context(record["decision_context"], strict=False)
+                # warnings があれば logger.warning で出力
+                # 注意: validate_decision_context が返す警告メッセージには既に [decision_context_schema] プレフィックスが含まれている
+                for warning in dc_warnings:
+                    logger.warning(warning)  # プレフィックスは既に含まれている
+            except (TypeError, ValueError) as e:
+                # 検証で例外が出た場合も warn-only なので警告のみ（運用で落とさない）
+                logger.warning(f"[decision_context_schema] validation failed (warn-only): {e}")
+
     fname = LOG_DIR / f"decisions_{_symbol_to_filename(symbol)}.jsonl"
     with open(fname, "a", encoding="utf-8") as fp:
         fp.write(json.dumps(record, ensure_ascii=False) + "\n")
@@ -540,6 +564,248 @@ def _normalize_runtime_cfg(runtime_cfg: Dict[str, Any]) -> Dict[str, Any]:
     return normalized
 
 
+def validate_decision_context(decision_context: Dict[str, Any], strict: bool = False) -> list[str]:
+    """
+    decision_context dict を検証し、必須キー・型チェックを行う（warn-only推奨）。
+
+    Parameters
+    ----------
+    decision_context : Dict[str, Any]
+        検証対象の decision_context dict
+    strict : bool, optional
+        True の場合、必須キー欠落や型不正で例外を発生させる。デフォルト: False（warn-only）
+
+    Returns
+    -------
+    list[str]
+        warnings のリスト（必須キー欠落や型不正が存在した場合）
+
+    Raises
+    ------
+    TypeError
+        decision_context が dict でない場合、または strict=True で型不正の場合
+    ValueError
+        必須キーが欠落している場合（strict=True 時）
+    """
+    warnings: list[str] = []
+
+    # decision_context が dict でない場合は例外
+    if not isinstance(decision_context, dict):
+        if strict:
+            raise TypeError(f"decision_context must be dict, got {type(decision_context).__name__}")
+        warnings.append(f"[decision_context_schema] decision_context must be dict, got {type(decision_context).__name__}")
+        return warnings
+
+    # 必須キーのチェック（型のみ、中身は踏み込まない）
+    required_keys = {
+        "ai": dict,
+        "filters": dict,
+        "decision": dict,
+        "meta": dict,
+    }
+
+    for key, expected_type in required_keys.items():
+        if key not in decision_context:
+            if strict:
+                raise ValueError(f"decision_context must have '{key}' key")
+            warnings.append(f"[decision_context_schema] decision_context missing '{key}' key")
+        else:
+            value = decision_context[key]
+            # None は許容（オプション扱い）
+            if value is not None and not isinstance(value, expected_type):
+                if strict:
+                    raise TypeError(f"decision_context.{key} must be {expected_type.__name__} or None, got {type(value).__name__}")
+                warnings.append(f"[decision_context_schema] decision_context.{key} is {type(value).__name__} (should be {expected_type.__name__} or None)")
+
+    return warnings
+
+
+def validate_runtime(runtime: Dict[str, Any], strict: bool = True) -> list[str]:
+    """
+    runtime dict を検証し、必須キー・型チェックを行う（v1/v2 両対応）。
+
+    Parameters
+    ----------
+    runtime : Dict[str, Any]
+        検証対象の runtime dict
+    strict : bool, optional
+        True の場合、必須キー欠落や型不正で例外を発生させる。デフォルト: True
+
+    Returns
+    -------
+    list[str]
+        warnings のリスト（deprecated/forbidden keys が存在した場合）
+
+    Raises
+    ------
+    TypeError
+        runtime が dict でない場合、または必須キーの型が不正な場合
+    ValueError
+        schema_version が 1 または 2 でない場合、または必須キーが欠落している場合（strict=True 時）
+    """
+    warnings: list[str] = []
+
+    # runtime が dict でない場合は例外
+    if not isinstance(runtime, dict):
+        raise TypeError(f"runtime must be dict, got {type(runtime).__name__}")
+
+    # schema_version のチェック（v1/v2 両対応）
+    if "schema_version" not in runtime:
+        if strict:
+            raise ValueError("runtime must have 'schema_version' key")
+        warnings.append("runtime missing 'schema_version' key")
+    else:
+        schema_ver = runtime["schema_version"]
+        # bool は int として扱わない
+        if isinstance(schema_ver, bool):
+            if strict:
+                raise TypeError("runtime.schema_version must be int, not bool")
+            warnings.append("runtime.schema_version is bool (should be int)")
+        elif not isinstance(schema_ver, int):
+            if strict:
+                raise TypeError(f"runtime.schema_version must be int, got {type(schema_ver).__name__}")
+            warnings.append(f"runtime.schema_version is {type(schema_ver).__name__} (should be int)")
+        elif schema_ver not in (1, 2):
+            if strict:
+                raise ValueError(f"runtime.schema_version must be 1 or 2, got {schema_ver}")
+            warnings.append(f"runtime.schema_version is {schema_ver} (expected 1 or 2)")
+
+    # v1/v2 共通の必須キー（v1 の必須キーをベース）
+    required_keys_v1 = {
+        "ts": str,
+        "spread_pips": (int, float),
+        "open_positions": int,
+        "max_positions": int,
+    }
+
+    # v1/v2 共通の必須キーチェック
+    # ts のチェック
+    if "ts" not in runtime:
+        if strict:
+            raise ValueError("runtime must have 'ts' key")
+        warnings.append("runtime missing 'ts' key")
+    elif not isinstance(runtime["ts"], str):
+        if strict:
+            raise TypeError(f"runtime.ts must be str, got {type(runtime['ts']).__name__}")
+        warnings.append(f"runtime.ts is {type(runtime['ts']).__name__} (should be str)")
+
+    # spread_pips のチェック
+    if "spread_pips" not in runtime:
+        if strict:
+            raise ValueError("runtime must have 'spread_pips' key")
+        warnings.append("runtime missing 'spread_pips' key")
+    else:
+        spread = runtime["spread_pips"]
+        if not isinstance(spread, (int, float)):
+            if strict:
+                raise TypeError(f"runtime.spread_pips must be number, got {type(spread).__name__}")
+            warnings.append(f"runtime.spread_pips is {type(spread).__name__} (should be number)")
+
+    # open_positions のチェック
+    if "open_positions" not in runtime:
+        if strict:
+            raise ValueError("runtime must have 'open_positions' key")
+        warnings.append("runtime missing 'open_positions' key")
+    else:
+        open_pos = runtime["open_positions"]
+        # bool は int として扱わない
+        if isinstance(open_pos, bool):
+            if strict:
+                raise TypeError("runtime.open_positions must be int, not bool")
+            warnings.append("runtime.open_positions is bool (should be int)")
+        elif not isinstance(open_pos, int):
+            if strict:
+                raise TypeError(f"runtime.open_positions must be int, got {type(open_pos).__name__}")
+            warnings.append(f"runtime.open_positions is {type(open_pos).__name__} (should be int)")
+
+    # max_positions のチェック
+    if "max_positions" not in runtime:
+        if strict:
+            raise ValueError("runtime must have 'max_positions' key")
+        warnings.append("runtime missing 'max_positions' key")
+    else:
+        max_pos = runtime["max_positions"]
+        # bool は int として扱わない
+        if isinstance(max_pos, bool):
+            if strict:
+                raise TypeError("runtime.max_positions must be int, not bool")
+            warnings.append("runtime.max_positions is bool (should be int)")
+        elif not isinstance(max_pos, int):
+            if strict:
+                raise TypeError(f"runtime.max_positions must be int, got {type(max_pos).__name__}")
+            warnings.append(f"runtime.max_positions is {type(max_pos).__name__} (should be int)")
+
+    # v2 追加キーのチェック（v2 の場合のみ、取れないものは None 許容）
+    schema_ver = runtime.get("schema_version")
+    if schema_ver == 2:
+        # symbol のチェック（v2 必須）
+        if "symbol" not in runtime:
+            if strict:
+                raise ValueError("runtime v2 must have 'symbol' key")
+            warnings.append("runtime v2 missing 'symbol' key")
+        elif not isinstance(runtime["symbol"], str):
+            if strict:
+                raise TypeError(f"runtime.symbol must be str, got {type(runtime['symbol']).__name__}")
+            warnings.append(f"runtime.symbol is {type(runtime['symbol']).__name__} (should be str)")
+
+        # mode のチェック（v2 必須、None 許容）
+        if "mode" in runtime and runtime["mode"] is not None:
+            if not isinstance(runtime["mode"], str):
+                if strict:
+                    raise TypeError(f"runtime.mode must be str or None, got {type(runtime['mode']).__name__}")
+                warnings.append(f"runtime.mode is {type(runtime['mode']).__name__} (should be str or None)")
+
+        # source のチェック（v2 必須、None 許容）
+        if "source" in runtime and runtime["source"] is not None:
+            if not isinstance(runtime["source"], str):
+                if strict:
+                    raise TypeError(f"runtime.source must be str or None, got {type(runtime['source']).__name__}")
+                warnings.append(f"runtime.source is {type(runtime['source']).__name__} (should be str or None)")
+
+        # timeframe のチェック（v2 オプション、None 許容）
+        if "timeframe" in runtime and runtime["timeframe"] is not None:
+            if not isinstance(runtime["timeframe"], str):
+                if strict:
+                    raise TypeError(f"runtime.timeframe must be str or None, got {type(runtime['timeframe']).__name__}")
+                warnings.append(f"runtime.timeframe is {type(runtime['timeframe']).__name__} (should be str or None)")
+
+        # profile のチェック（v2 オプション、None 許容）
+        if "profile" in runtime and runtime["profile"] is not None:
+            if not isinstance(runtime["profile"], str):
+                if strict:
+                    raise TypeError(f"runtime.profile must be str or None, got {type(runtime['profile']).__name__}")
+                warnings.append(f"runtime.profile is {type(runtime['profile']).__name__} (should be str or None)")
+
+        # price のチェック（v2 オプション、None 許容）
+        if "price" in runtime and runtime["price"] is not None:
+            if not isinstance(runtime["price"], (int, float)):
+                if strict:
+                    raise TypeError(f"runtime.price must be number or None, got {type(runtime['price']).__name__}")
+                warnings.append(f"runtime.price is {type(runtime['price']).__name__} (should be number or None)")
+
+    # deprecated/forbidden keys のチェック（warn のみ、例外は発生させない）
+    deprecated_prefixes = ["_sim_"]
+    deprecated_exact = ["runtime_open_positions", "runtime_max_positions", "sim_pos_hold_ticks"]
+
+    # 禁止キーのチェック（判断材料が混入していないか）
+    forbidden_keys = ["ai", "filters", "decision", "decision_detail", "decision_context"]
+    for key in runtime.keys():
+        if key in forbidden_keys:
+            warnings.append(f"[runtime_schema] runtime should not contain decision keys: {key}")
+
+    for key in runtime.keys():
+        # prefix チェック
+        for prefix in deprecated_prefixes:
+            if key.startswith(prefix):
+                warnings.append(f"[runtime_schema] deprecated key with prefix '{prefix}': {key}")
+
+        # exact チェック
+        if key in deprecated_exact:
+            warnings.append(f"[runtime_schema] deprecated key: {key}")
+
+    return warnings
+
+
 def _build_decision_trace(
     *,
     ts_jst: str,
@@ -662,19 +928,48 @@ def _build_decision_trace(
     # features_hash を生成（入力featuresが同一かを判定するため）
     features_hash = _compute_features_hash(features) if features else ""
 
+    # decision_context を構築（判断材料を分離）
+    decision_context = {
+        "ai": {
+            "prob_buy": prob_buy,
+            "prob_sell": prob_sell,
+            "model_name": strategy_name,
+            "calibrator_name": calibrator_name,
+            "threshold": prob_threshold,
+        },
+        "filters": {
+            "filter_pass": filter_pass_val,
+            "filter_reasons": list(filter_reasons_val or []),
+            "spread": filters_ctx.get("spread"),
+            "adx": filters_ctx.get("adx"),
+            "min_adx": filters_ctx.get("min_adx"),
+            "atr_pct": filters_ctx.get("atr_pct"),
+            "volatility": filters_ctx.get("volatility"),
+            "filter_level": filters_ctx.get("filter_level"),
+        },
+        "decision": {
+            "action": decision.get("action") if isinstance(decision, dict) else None,
+            "side": decision.get("side") if isinstance(decision, dict) else None,
+            "reason": decision.get("reason") if isinstance(decision, dict) else None,
+            "blocked_reason": blocked_reason,
+        },
+        "meta": meta_val or {},
+    }
+
     trace = {
         "ts_jst": ts_jst,
         "type": "decision",
         "symbol": symbol,
         "strategy": strategy_name,
-        "prob_buy": prob_buy,
-        "prob_sell": prob_sell,
+        "prob_buy": prob_buy,  # 後方互換のため残す
+        "prob_sell": prob_sell,  # 後方互換のため残す
         # 入力特徴量のハッシュ（同一入力判定用）
         "features_hash": features_hash,
-        "filter_pass": filter_pass_val,  # bool | None: True=通過, False=NG, None=フィルタ無効
-        "filter_reasons": list(filter_reasons_val or []),  # 必ず list に正規化
-        "filters": filters_ctx,  # EntryContext + filter結果を含む
-        "meta": meta_val or {},  # 必ず dict
+        "filter_pass": filter_pass_val,  # 後方互換のため残す
+        "filter_reasons": list(filter_reasons_val or []),  # 後方互換のため残す
+        "filters": filters_ctx,  # 後方互換のため残す（EntryContext + filter結果を含む）
+        "meta": meta_val or {},  # 後方互換のため残す
+        "decision_context": decision_context,  # 新規追加：判断材料を分離
     }
     if isinstance(decision, dict):
         trace["decision_detail"] = decision
@@ -1055,6 +1350,33 @@ class ExecutionStub:
                 cb += 1
 
             # --- まとめて publish（KVS更新＋runtime/metrics.json原子的書き換え） ---
+            # runtime 情報を取得（metrics に含める）
+            # _emit() 内で publish_metrics() を呼ぶ時点では trace がまだ作成されていないため、
+            # runtime を直接生成する
+            from app.core import market
+            runtime = trade_state.build_runtime(
+                symbol,
+                market=market,
+                ts_str=ts,
+                spread_pips=runtime_cfg.get("spread_pips"),
+                mode="demo",
+                source="stub",
+                timeframe=runtime_cfg.get("timeframe"),
+                profile=runtime_cfg.get("profile"),
+            )
+            runtime_for_metrics = {
+                "schema_version": runtime.get("schema_version", 2),
+                "symbol": runtime.get("symbol", symbol),
+                "mode": runtime.get("mode"),
+                "source": runtime.get("source"),
+                "timeframe": runtime.get("timeframe"),
+                "profile": runtime.get("profile"),
+                "ts": runtime.get("ts"),
+                "spread_pips": runtime.get("spread_pips", 0.0),
+                "open_positions": runtime.get("open_positions", 0),
+                "max_positions": runtime.get("max_positions", 1),
+            }
+
             # no_metrics=True のときは metrics 更新をスキップ（publish_metrics 内で判定）
             publish_metrics({
                 "last_decision": action,
@@ -1070,6 +1392,7 @@ class ExecutionStub:
                 "count_entry":     ce,
                 "count_skip":      cs,
                 "count_blocked":   cb,
+                "runtime": runtime_for_metrics,  # 新規追加：runtime 情報
                 # ts は publish_metrics 側でも自動付与するが、ここで入れても良い
             }, no_metrics=self.no_metrics)
 
@@ -1106,16 +1429,26 @@ class ExecutionStub:
                 features=features,  # ★追加：features_hash用
             )
             # runtime フィールドを追加（正規出口で統一、純化）
-            # runtime は trade_state.runtime_as_dict() のみ（標準キー: schema_version, open_positions, max_positions 等）
-            trace["runtime"] = trade_state.runtime_as_dict()
+            # build_runtime() を使用して live/demo で統一（v2）
+            from app.core import market
+            runtime = trade_state.build_runtime(
+                symbol,
+                market=market,
+                ts_str=ts,  # JST ISO形式に正規化済み
+                spread_pips=runtime_cfg.get("spread_pips"),  # runtime_cfg から取得、なければ None（build_runtime で補完）
+                mode="demo",  # ExecutionStub は demo モード
+                source="stub",  # ExecutionStub は stub ソース
+                timeframe=runtime_cfg.get("timeframe"),  # runtime_cfg から取得
+                profile=runtime_cfg.get("profile"),  # runtime_cfg から取得
+            )
+            trace["runtime"] = runtime  # _emit() 内で publish_metrics() が trace から runtime を取得できるように先に追加
 
-            # 追加情報（ts, pos_hold_ticks, tick, 閾値など）は runtime_detail に分離
+            # 追加情報（pos_hold_ticks, tick, 閾値など）は runtime_detail に分離
             runtime_detail = {}
-            runtime_detail["ts"] = ts  # JST ISO形式に正規化済み
             if "pos_hold_ticks" in runtime_cfg:
                 runtime_detail["pos_hold_ticks"] = runtime_cfg["pos_hold_ticks"]
             # その他の runtime_cfg のフィールドも runtime_detail に追加
-            for key in ["spread_pips", "spread_limit_pips", "prob_threshold", "threshold_buy", "threshold_sell",
+            for key in ["spread_limit_pips", "prob_threshold", "threshold_buy", "threshold_sell",
                         "ai_threshold", "min_adx", "disable_adx_gate", "min_atr_pct", "tick", "side_bias"]:
                 if key in runtime_cfg:
                     runtime_detail[key] = runtime_cfg[key]
@@ -1863,8 +2196,15 @@ def debug_emit_single_decision() -> None:
     )
 
     # runtime フィールドを追加（正規出口で統一、純化）
-    # runtime は trade_state.runtime_as_dict() のみ（標準キー: schema_version, open_positions, max_positions 等）
-    trace["runtime"] = trade_state.runtime_as_dict()
+    # build_runtime() を使用して live/demo で統一（v2）
+    runtime = trade_state.build_runtime(
+        symbol,
+        ts_str=ts_debug,  # テスト用の ts
+        spread_pips=0.0,  # テスト用のデフォルト値
+        mode="demo",  # デバッグ用は demo モード
+        source="stub",  # デバッグ用は stub ソース
+    )
+    trace["runtime"] = runtime
 
     # 追加情報（ts など）は runtime_detail に分離
     trace["runtime_detail"] = {"ts": ts_debug}  # テスト用の ts を追加

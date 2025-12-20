@@ -116,3 +116,106 @@ def runtime_as_dict(rt: Optional["TradeRuntime"] = None) -> dict[str, Any]:
 
 # （任意）呼び出し名のブレを吸収する alias（関数は増やさない）
 as_runtime_dict = runtime_as_dict
+
+
+def build_runtime(
+    symbol: str,
+    *,
+    market=None,
+    ts_str: Optional[str] = None,
+    spread_pips: Optional[float] = None,
+    mode: Optional[str] = None,
+    source: Optional[str] = None,
+    timeframe: Optional[str] = None,
+    profile: Optional[str] = None,
+    price: Optional[float] = None,
+) -> dict[str, Any]:
+    """
+    runtime dict を構築し、validate_runtime を通す（live/demo 統一の出口）。
+
+    Parameters
+    ----------
+    symbol : str
+        シンボル名（spread_pips 取得時に使用）
+    market : module, optional
+        market モジュール（spread_pips 取得時に使用）。None の場合は import する
+    ts_str : str, optional
+        タイムスタンプ（JST ISO形式）。None の場合は現在時刻を生成
+    spread_pips : float, optional
+        スプレッド（pips単位）。None の場合は market から取得、それでも無ければ 0.0
+    mode : str, optional
+        実行モード（例: "live", "demo", "backtest"）。v2 追加キー
+    source : str, optional
+        データソース（例: "mt5", "csv", "stub"）。v2 追加キー
+    timeframe : str, optional
+        タイムフレーム（例: "M5", "H1"）。v2 追加キー
+    profile : str, optional
+        プロファイル名（例: "michibiki_std"）。v2 追加キー
+    price : float, optional
+        現在価格。v2 追加キー
+
+    Returns
+    -------
+    dict[str, Any]
+        validate_runtime を通した runtime dict（schema_version=2, ts, spread_pips, open_positions, max_positions, symbol, mode, source 等を含む）
+
+    Raises
+    ------
+    TypeError, ValueError
+        validate_runtime で strict=True の検証に失敗した場合
+    """
+    from core.utils.timeutil import now_jst_iso
+    from app.services.execution_stub import validate_runtime
+
+    # 1. 基本 runtime（schema_version=2, open_positions, max_positions）
+    runtime = runtime_as_dict()
+    runtime["schema_version"] = 2  # v2 を返す
+
+    # 2. ts を追加（引数優先、なければ現在時刻）
+    if ts_str is None:
+        ts_str = now_jst_iso()
+    runtime["ts"] = ts_str
+
+    # 3. spread_pips を追加（引数優先 → market から取得 → デフォルト値）
+    if spread_pips is None:
+        if market is None:
+            try:
+                from app.core import market as market_module
+                market = market_module
+            except ImportError:
+                market = None
+
+        if market is not None:
+            try:
+                spread_pips_val = market.spread_pips(symbol)
+                spread_pips = float(spread_pips_val) if spread_pips_val is not None else 0.0
+            except Exception:
+                spread_pips = 0.0
+        else:
+            spread_pips = 0.0
+
+    runtime["spread_pips"] = float(spread_pips)
+
+    # 4. v2 追加キー（最低限: symbol, mode, source）
+    runtime["symbol"] = symbol
+    runtime["mode"] = mode if mode is not None else None
+    runtime["source"] = source if source is not None else None
+
+    # 5. v2 追加キー（取れれば追加: timeframe, profile, price）
+    if timeframe is not None:
+        runtime["timeframe"] = timeframe
+    if profile is not None:
+        runtime["profile"] = profile
+    if price is not None:
+        runtime["price"] = float(price)
+
+    # 6. validate_runtime で検証（strict=True で必須キー・型チェック）
+    warnings = validate_runtime(runtime, strict=True)
+    # warnings があれば logger.warning で出力（ただし例外は発生させない）
+    # 注意: validate_runtime が返す警告メッセージには既に [runtime_schema] プレフィックスが含まれている
+    if warnings:
+        from loguru import logger
+        for warning in warnings:
+            logger.warning(warning)  # プレフィックスは既に含まれている
+
+    return runtime

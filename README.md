@@ -1,4 +1,4 @@
-﻿# FX AI Bot (Python + MT5 + PyQt6)
+# FX AI Bot (Python + MT5 + PyQt6)
 Python 3.13 / PyQt6 / MetaTrader5
 
 ## 環境セットアップ
@@ -20,6 +20,37 @@ source venv/bin/activate
 ```powershell
 pip install -r requirements.txt
 ```
+
+## 開発・検証手順
+
+### Runtime Schema 検証（必須）
+
+コミット前やCIで実行する統合検証スクリプト：
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/smoke_all.ps1
+```
+
+このスクリプトは以下を検証します：
+1. Demo側の runtime schema 警告が 0 件であること
+2. LIVE側の runtime schema 警告が 0 件であること（負のテスト含む）
+3. decisions.jsonl に旧キー（`_sim_*`, `runtime_open_positions`, `runtime_max_positions`, `sim_pos_hold_ticks`）が混入していないこと
+
+**Exit Code:**
+- `0`: すべての検証が成功
+- それ以外: 検証失敗（詳細はエラーメッセージを参照）
+
+**個別実行:**
+- Demo側: `python -X utf8 scripts/demo_run_stub.py`
+- LIVE側: `python -X utf8 tools/live_runtime_smoke.py`
+- 負のテスト: `python -X utf8 tools/live_runtime_smoke.py --inject-runtime-warn`
+
+**注意:**
+- `scripts/smoke_all.ps1` は実行に使用された Python（command / executable / version）を冒頭に必ず表示します。
+- `scripts/demo_run_stub.py` は `no_metrics=True` 既定で metrics は更新されません。metrics 確認は `tools/live_runtime_smoke.py` または `tools/backtest_run.py` を使用してください。
+
+**詳細仕様:**
+- Runtime Schema v1 の定義: `docs/runtime_schema.md`
 
 ## データ更新手順
 

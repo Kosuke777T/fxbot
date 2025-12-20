@@ -717,6 +717,31 @@ def run_backtest(
             tmet = trade_metrics(trades_df)
             base.update(tmet)
 
+        # runtime 情報を追加（metrics に含める）
+        from app.services import trade_state
+        from core.utils.timeutil import now_jst_iso
+        runtime = trade_state.build_runtime(
+            symbol,
+            ts_str=now_jst_iso(),
+            spread_pips=0.0,  # backtest では spread は未設定
+            mode="backtest",
+            source="backtest",
+            timeframe=None,  # backtest では timeframe は未設定
+            profile=profile,
+        )
+        base["runtime"] = {
+            "schema_version": runtime.get("schema_version", 2),
+            "symbol": runtime.get("symbol", symbol),
+            "mode": runtime.get("mode"),
+            "source": runtime.get("source"),
+            "timeframe": runtime.get("timeframe"),
+            "profile": runtime.get("profile"),
+            "ts": runtime.get("ts"),
+            "spread_pips": runtime.get("spread_pips", 0.0),
+            "open_positions": runtime.get("open_positions", 0),
+            "max_positions": runtime.get("max_positions", 1),
+        }
+
         # 成果物検証（BacktestEngine.run() が返す）を metrics に含める
         try:
             output_ok = results.get("output_ok", None) if isinstance(results, dict) else None

@@ -460,25 +460,67 @@ class BacktestEngine:
         # signal情報を取得
         signal_info = decision.get("signal", {})
 
+        # decision_context を構築（判断材料を分離）
+        decision_context = {
+            "ai": {
+                "prob_buy": round(prob_buy, 6),
+                "prob_sell": round(prob_sell, 6),
+                "model_name": getattr(ai_out, "model_name", "unknown"),
+                "threshold": self.best_threshold,
+            },
+            "filters": {
+                "filter_pass": decision.get("filter_pass"),
+                "filter_reasons": filters_ctx.get("filter_reasons", []),
+                "spread": filters_ctx.get("spread"),
+                "adx": filters_ctx.get("adx"),
+                "min_adx": filters_ctx.get("min_adx"),
+                "atr_pct": filters_ctx.get("atr_pct"),
+                "volatility": filters_ctx.get("volatility"),
+                "filter_level": filters_ctx.get("filter_level"),
+            },
+            "decision": {
+                "action": decision.get("action", "SKIP"),
+                "side": decision.get("side"),
+                "reason": decision.get("reason"),
+                "blocked_reason": None,  # backtest では通常 None
+            },
+            "meta": meta,
+        }
+
+        # runtime を構築（環境状態のみ）
+        from app.services import trade_state
+        from core.utils.timeutil import now_jst_iso
+        runtime = trade_state.build_runtime(
+            symbol,
+            ts_str=now_jst_iso(),  # backtest では現在時刻を使用
+            spread_pips=filters_ctx.get("spread", 0.0),
+            mode="backtest",
+            source="backtest",
+            timeframe=None,  # backtest では timeframe は未設定
+            profile=self.profile,
+        )
+
         return {
             "ts_jst": ts_jst,
             "type": "decision",
             "symbol": symbol,
             "strategy": getattr(ai_out, "model_name", "unknown"),
-            "prob_buy": round(prob_buy, 6),
-            "prob_sell": round(prob_sell, 6),
-            "filter_pass": decision.get("filter_pass"),
-            "filter_reasons": filters_ctx.get("filter_reasons", []),
-            "filters": filters_ctx,
-            "meta": meta,
-            "decision": decision.get("action", "SKIP"),
-            "decision_detail": {
+            "prob_buy": round(prob_buy, 6),  # 後方互換のため残す
+            "prob_sell": round(prob_sell, 6),  # 後方互換のため残す
+            "filter_pass": decision.get("filter_pass"),  # 後方互換のため残す
+            "filter_reasons": filters_ctx.get("filter_reasons", []),  # 後方互換のため残す
+            "filters": filters_ctx,  # 後方互換のため残す
+            "meta": meta,  # 後方互換のため残す
+            "decision": decision.get("action", "SKIP"),  # 後方互換のため残す
+            "decision_detail": {  # 後方互換のため残す
                 "action": decision.get("action", "SKIP"),
                 "side": decision.get("side"),
                 "signal": signal_info,
                 "filter_pass": decision.get("filter_pass"),
                 "filter_reasons": filters_ctx.get("filter_reasons", []),
             },
+            "decision_context": decision_context,  # 新規追加：判断材料を分離
+            "runtime": runtime,  # 新規追加：環境状態のみ
         }
 
     def _normalize_for_json(self, obj: Any) -> Any:

@@ -1,0 +1,90 @@
+{
+  "summary": {
+    "total_records": 4429,
+    "live_records": 4429,
+    "backtest_records": 0,
+    "groups": 5
+  },
+  "groups": {
+    "unknown|unknown|unknown|unknown|unknown": {
+      "mode": "unknown",
+      "source": "unknown",
+      "profile": "unknown",
+      "timeframe": "unknown",
+      "symbol": "unknown",
+      "metrics": {
+        "n": 3712,
+        "filter_pass_rate": 0.0,
+        "entry_rate": 0.4119,
+        "skip_rate": 0.5752,
+        "blocked_rate": 0.0129,
+        "side_buy_rate": 0.0011,
+        "top_blocked_reason": "ai_skip"
+      }
+    },
+    "unknown|unknown|unknown|unknown|USDJPY-": {
+      "mode": "unknown",
+      "source": "unknown",
+      "profile": "unknown",
+      "timeframe": "unknown",
+      "symbol": "USDJPY-",
+      "metrics": {
+        "n": 480,
+        "filter_pass_rate": 0.0,
+        "entry_rate": 0.0,
+        "skip_rate": 0.0,
+        "blocked_rate": 1.0,
+        "side_buy_rate": "unknown",
+        "top_blocked_reason": "adx_low"
+      }
+    },
+    "unknown|unknown|michibiki_aggr|unknown|USDJPY-": {
+      "mode": "unknown",
+      "source": "unknown",
+      "profile": "michibiki_aggr",
+      "timeframe": "unknown",
+      "symbol": "USDJPY-",
+      "metrics": {
+        "n": 37,
+        "filter_pass_rate": 0.0,
+        "entry_rate": 0.0,
+        "skip_rate": 1.0,
+        "blocked_rate": 0.0,
+        "side_buy_rate": 1.0,
+        "top_blocked_reason": "volatility"
+      }
+    },
+    "demo|stub|unknown|unknown|USDJPY-": {
+      "mode": "demo",
+      "source": "stub",
+      "profile": "unknown",
+      "timeframe": "unknown",
+      "symbol": "USDJPY-",
+      "metrics": {
+        "n": 180,
+        "filter_pass_rate": 0.0,
+        "entry_rate": 0.0,
+        "skip_rate": 0.0,
+        "blocked_rate": 1.0,
+        "side_buy_rate": "unknown",
+        "top_blocked_reason": "adx_low"
+      }
+    },
+    "live|mt5|michibiki_aggr|unknown|USDJPY-": {
+      "mode": "live",
+      "source": "mt5",
+      "profile": "michibiki_aggr",
+      "timeframe": "unknown",
+      "symbol": "USDJPY-",
+      "metrics": {
+        "n": 20,
+        "filter_pass_rate": 0.0,
+        "entry_rate": 0.0,
+        "skip_rate": 1.0,
+        "blocked_rate": 0.0,
+        "side_buy_rate": 1.0,
+        "top_blocked_reason": "volatility"
+      }
+    }
+  }
+}
