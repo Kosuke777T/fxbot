@@ -1,0 +1,36 @@
+{
+  "train": {
+    "start_equity": 100000.0,
+    "end_equity": 99772.17079334309,
+    "total_return": -0.002278292066569154,
+    "max_drawdown": -0.007867327069094876,
+    "sharpe_like": -3.098749787707006,
+    "bars": 402,
+    "max_dd_days": 0,
+    "trades": 1,
+    "win_rate": 0.0,
+    "avg_pnl": -227.8292066568155,
+    "profit_factor": 0.0,
+    "avg_holding_bars": 402.0,
+    "avg_holding_days": 3.0,
+    "max_consec_win": 0,
+    "max_consec_loss": 1
+  },
+  "test": {
+    "start_equity": 100000.0,
+    "end_equity": 99617.42896515514,
+    "total_return": -0.0038257103484485855,
+    "max_drawdown": -0.005929657470450267,
+    "sharpe_like": -19.84330176888522,
+    "bars": 173,
+    "max_dd_days": 0,
+    "trades": 1,
+    "win_rate": 0.0,
+    "avg_pnl": -382.571034844803,
+    "profit_factor": 0.0,
+    "avg_holding_bars": 173.0,
+    "avg_holding_days": 0.0,
+    "max_consec_win": 0,
+    "max_consec_loss": 1
+  }
+}
