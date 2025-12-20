@@ -298,10 +298,10 @@ def main() -> None:
 
         # runtime_cfg の作成（各 tick ごとに再作成）
         runtime_payload = _create_runtime_cfg(cfg, symbol, prob_threshold, stub)
-        # 仮ポジション状態を runtime_cfg に追加
-        runtime_payload["_sim_open_position"] = 1 if sim_open_position else 0
-        # 保持tick数を runtime_cfg に追加（decisions.jsonl に記録される）
-        runtime_payload["_sim_pos_hold_ticks"] = sim_pos_hold_ticks
+        # 仮ポジション状態を runtime_cfg の open_positions に設定（demo/live 共通）
+        runtime_payload["open_positions"] = 1 if sim_open_position else 0
+        # 保持tick数を runtime_cfg に追加（demo/live 共通、decisions.jsonl に記録される）
+        runtime_payload["pos_hold_ticks"] = sim_pos_hold_ticks
 
         # expected_features に基づいてダミーの特徴量を生成
         features = _build_dummy_features(tick_idx, expected_features)

@@ -352,9 +352,24 @@ def _symbol_to_filename(symbol: str) -> str:
 
 
 def _write_decision_log(symbol: str, record: Dict[str, Any]) -> None:
-    # decisions.jsonl の最終整形：symbol は引数を絶対優先（運用/BTで統一）
+    """
+    decisions.jsonl にログを出力する（最終出口）。
+
+    Parameters
+    ----------
+    symbol : str
+        シンボル名（ファイル名の決定に使用）
+    record : Dict[str, Any]
+        ログレコード（trace）。runtime フィールドが存在する場合、正規化される。
+    """
     if isinstance(record, dict):
         record["symbol"] = symbol
+
+        # runtime フィールドの正規化（最終出口での統一処理）
+        # _sim_* キーを標準キーにマッピング・削除（どこから来ても確実に正規化）
+        if "runtime" in record and isinstance(record["runtime"], dict):
+            record["runtime"] = _normalize_runtime_cfg(record["runtime"])
+
     fname = LOG_DIR / f"decisions_{_symbol_to_filename(symbol)}.jsonl"
     with open(fname, "a", encoding="utf-8") as fp:
         fp.write(json.dumps(record, ensure_ascii=False) + "\n")
@@ -449,6 +464,81 @@ def _compute_features_hash(features: Dict[str, float]) -> str:
         return ""
 
 
+def _normalize_runtime_cfg(runtime_cfg: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    runtime_cfg を正規化して、_sim_* キーを標準キーにマッピング・削除する。
+
+    decisions.jsonl の runtime フィールドには _sim_* キーを含めないため、
+    ログ出力前に必ずこの関数を通す。
+
+    Parameters
+    ----------
+    runtime_cfg : Dict[str, Any]
+        元の runtime_cfg 辞書（変更されない）
+
+    Returns
+    -------
+    Dict[str, Any]
+        正規化された runtime_cfg（_sim_* キーが削除され、標準キーにマッピング済み）
+
+    Notes
+    -----
+    - _sim_open_position が存在し、open_positions が無ければ open_positions に変換
+    - _sim_pos_hold_ticks が存在し、pos_hold_ticks が無ければ pos_hold_ticks に変換
+    - 既に標準キーが存在する場合は標準キーを優先（旧キーは無視）
+    - 最後に _sim_open_position, _sim_pos_hold_ticks を削除
+    """
+    # 元の辞書をコピー（変更を避けるため）
+    normalized = dict(runtime_cfg)
+
+    # _sim_open_position → open_positions へのマッピング
+    if "_sim_open_position" in normalized:
+        if "open_positions" not in normalized:
+            # 標準キーが無い場合のみ変換（bool/int を int に正規化）
+            val = normalized["_sim_open_position"]
+            normalized["open_positions"] = int(bool(val)) if val is not None else 0
+        # 旧キーは削除（標準キーがある場合も削除）
+        normalized.pop("_sim_open_position", None)
+
+    # _sim_pos_hold_ticks → pos_hold_ticks へのマッピング
+    if "_sim_pos_hold_ticks" in normalized:
+        if "pos_hold_ticks" not in normalized:
+            # 標準キーが無い場合のみ変換（int/None に正規化）
+            val = normalized["_sim_pos_hold_ticks"]
+            if val is not None:
+                try:
+                    normalized["pos_hold_ticks"] = int(val)
+                except (ValueError, TypeError):
+                    normalized["pos_hold_ticks"] = None
+            else:
+                normalized["pos_hold_ticks"] = None
+        # 旧キーは削除（標準キーがある場合も削除）
+        normalized.pop("_sim_pos_hold_ticks", None)
+
+    # 開発時ガード: _sim_* キーが残っていないことを確認（回帰防止）
+    # 本番環境では例外を発生させず、警告ログのみ（DEBUG モード時のみ assert）
+    if "_sim_open_position" in normalized or "_sim_pos_hold_ticks" in normalized:
+        # これは通常あり得ない（上記の処理で削除されているはず）
+        # もしここに到達した場合、正規化ロジックにバグがある可能性
+        import os
+        if os.getenv("FXBOT_DEBUG", "").strip().lower() in ("1", "true", "on"):
+            # DEBUG モード時のみ例外を発生
+            raise AssertionError(
+                f"_sim_* keys still present after normalization: "
+                f"_sim_open_position={normalized.get('_sim_open_position')}, "
+                f"_sim_pos_hold_ticks={normalized.get('_sim_pos_hold_ticks')}"
+            )
+        else:
+            # 本番環境では警告ログのみ
+            logger.warning(
+                "[NormalizeRuntime] _sim_* keys detected after normalization (should not happen): "
+                f"_sim_open_position={normalized.get('_sim_open_position')}, "
+                f"_sim_pos_hold_ticks={normalized.get('_sim_pos_hold_ticks')}"
+            )
+
+    return normalized
+
+
 def _build_decision_trace(
     *,
     ts_jst: str,
@@ -469,6 +559,22 @@ def _build_decision_trace(
     - EntryContext の全フィールドを含める
     - filter_level を含める
     - blocked の理由（最初の理由 or None）を含める
+
+    【runtime フィールド仕様（decisions.jsonl 出力）】
+    trace["runtime"] には以下の標準キーが含まれる（runtime_cfg の内容がそのまま反映）:
+      - runtime.ts: str（JST ISO形式に正規化済み）
+      - runtime.open_positions: int（現在のオープンポジション数、0以上）
+      - runtime.max_positions: int（最大ポジション数、デフォルト: 1）
+      - runtime.pos_hold_ticks: int | None（ポジション保持tick数、demo/dry_run でのみ設定）
+      - runtime.spread_pips: float（現在のスプレッド、pips単位）
+      - runtime.spread_limit_pips: float（スプレッド上限、pips単位）
+      - runtime.prob_threshold: float（確率閾値）
+      - runtime.threshold_buy: float（買い閾値）
+      - runtime.threshold_sell: float（売り閾値）
+      - その他 runtime_cfg に含まれる全フィールド
+
+    注意: trace["runtime"] は trace["decision_detail"] とは別の位置に配置される。
+          decision_detail.runtime_open_positions などは deprecated（互換性のため残す場合あり）。
     """
     if isinstance(decision, dict):
         action = str(decision.get("action") or "").upper()
@@ -998,9 +1104,11 @@ class ExecutionStub:
                 entry_context=entry_context,  # ★追加
                 features=features,  # ★追加：features_hash用
             )
-            # runtime 辞書を作成（ts は正規化済みのものを使用）
+            # runtime 辞書を作成（decisions.jsonl の runtime フィールド仕様に準拠）
+            # 標準キー: ts (JST ISO), open_positions (int), max_positions (int), pos_hold_ticks (int|None), など
+            # 注意: _sim_* キーの正規化は _write_decision_log() 内で実施（最終出口で統一）
             runtime = dict(runtime_cfg)
-            runtime["ts"] = ts  # 正規化済みの ts を明示的に設定
+            runtime["ts"] = ts  # JST ISO形式に正規化済み
             trace["runtime"] = runtime
             _write_decision_log(symbol, trace)
 
@@ -1238,52 +1346,78 @@ class ExecutionStub:
             }
         )
 
-        # 作業1: pos_guard 判定の可視化情報を base_filters に追加
-        # runtime_cfg に _sim_open_position があればそれを使う（demo_run_stub 用）
-        sim_open_position = runtime_cfg.get("_sim_open_position")
+        # ===================================================================
+        # pos_guard 判定仕様（demo/dry_run/live 共通）
+        # ===================================================================
+        # 【入力】
+        #   - runtime_cfg["open_positions"]: 現在のオープンポジション数（int, 0以上）
+        #   - runtime_cfg["max_positions"]: 最大ポジション数（int, デフォルト: 1）
+        #   これらは runtime の標準キーであり、特殊キーは使用しない。
+        #
+        # 【判定ロジック】
+        #   1. runtime_cfg["open_positions"] が設定されている場合（int/float型）:
+        #      - can_open_real = (open_positions < max_positions)
+        #      - sim_pos_guard_active = (open_positions > 0)
+        #      - debug_relax_pos_guard が有効な場合: can_open = can_open_real
+        #      - それ以外: can_open = can_open_real and not sim_pos_guard_active
+        #      - demo/dry_run でも live でも同じ判定ロジックを使用
+        #
+        #   2. runtime_cfg["open_positions"] が設定されていない場合:
+        #      - live 実装（TradeService.can_open_new_position）にフォールバック
+        #      - TradeService の pos_guard が実際のポジション状態を確認
+        #
+        # 【デバッグオプション】
+        #   - FXBOT_DEBUG_RELAX_POS_GUARD=1 の場合、pos_guard をバイパスして ENTRY を許可
+        #     ただし、ログには pos_guard_bypassed=True を記録
+        #
+        # 【出力（decisions.jsonl）】
+        #   - runtime.open_positions: int（runtime_cfg の open_positions がそのまま反映）
+        #   - runtime.max_positions: int（runtime_cfg の max_positions がそのまま反映）
+        #   - runtime.pos_hold_ticks: int | None（runtime_cfg の pos_hold_ticks がそのまま反映）
+        #   - filters.open_position_detected: bool（実際に検出されたポジション状態）
+        #   - filters.pos_guard_hit: bool（pos_guard が発動したか）
+        #   - filters.pos_guard_reason: str（発動理由）
+        #   - decision_detail.pos_guard_bypassed: bool（バイパスされた場合）
+        #   - decision_detail.runtime_open_positions: deprecated（runtime.open_positions を使用）
+        #   - decision_detail.runtime_max_positions: deprecated（runtime.max_positions を使用）
+        # ===================================================================
+
+        open_positions_count = runtime_cfg.get("open_positions", 0)
+        max_pos = runtime_cfg.get("max_positions", 1)
         open_position_detected = False
         try:
             trade_svc = getattr(trade_service, "SERVICE", None)
-            if sim_open_position is not None:
-                # demo_run_stub から渡された仮ポジション状態を使用
-                open_position_detected = bool(sim_open_position)
+            if isinstance(open_positions_count, (int, float)) and open_positions_count > 0:
+                open_position_detected = True
             elif trade_svc and hasattr(trade_svc, "pos_guard"):
                 pg = trade_svc.pos_guard
                 if hasattr(pg, "state") and hasattr(pg.state, "open_count"):
                     open_position_detected = pg.state.open_count > 0
         except Exception:
-            pass  # 取得失敗時は False のまま
+            pass
 
-        pos_guard_enabled = True  # pos_guard は常に有効
+        pos_guard_enabled = True
         base_filters["pos_guard_enabled"] = pos_guard_enabled
         base_filters["open_position_detected"] = open_position_detected
 
-        # 作業3: デバッグ時だけ pos_guard をバイパス（観測用）
         debug_relax_pos_guard = os.getenv("FXBOT_DEBUG_RELAX_POS_GUARD", "").strip() in ("1", "true", "True", "on", "ON")
-        # runtime_cfg に _sim_open_position がある場合は、その値に基づいて can_open を決定（demo_run_stub 用）
         sim_pos_guard_active = False
-        if sim_open_position is not None:
-            max_pos = runtime_cfg.get("max_positions", 1)
-            # sim_open_position が 1 以上の場合、max_positions に達していれば can_open = False
-            sim_pos_count = int(sim_open_position) if isinstance(sim_open_position, (int, float)) else (1 if sim_open_position else 0)
-            can_open_real = sim_pos_count < max_pos
-            # シミュレーション用の pos_guard: relax_pos_guard が有効な場合はバイパス可能
-            sim_pos_guard_active = sim_pos_count > 0
-            # debug_relax_pos_guard が有効な場合は sim_pos_guard もバイパスする
+
+        if isinstance(open_positions_count, (int, float)):
+            can_open_real = int(open_positions_count) < max_pos
+            sim_pos_guard_active = int(open_positions_count) > 0
             if debug_relax_pos_guard:
-                can_open = can_open_real  # sim_pos_guard をバイパス
+                can_open = can_open_real
             else:
                 can_open = can_open_real and not sim_pos_guard_active
         else:
             can_open = trade_service.can_open_new_position(symbol)
         pos_guard_bypassed = False
 
-        # pos_guard 判定結果を記録
         pos_guard_hit = not can_open and not debug_relax_pos_guard
         pos_guard_reason = None
         if pos_guard_hit:
             pos_guard_reason = "max_positions_reached" if open_position_detected else "unknown"
-        # シミュレーション用の pos_guard が有効な場合も記録
         if sim_pos_guard_active:
             if debug_relax_pos_guard:
                 # debug_relax_pos_guard が有効な場合はバイパスしたことを記録
@@ -1297,9 +1431,7 @@ class ExecutionStub:
             base_filters["pos_guard_reason"] = pos_guard_reason
 
         if not can_open and not debug_relax_pos_guard:
-            # 通常モード：pos_guard でブロック
-            filters_ctx = dict(base_filters)  # pos_guard_* 情報は既に base_filters に含まれている
-            # 作業1: 観測用フィールドを追加
+            filters_ctx = dict(base_filters)
             decision_payload = {
                 "action": "BLOCKED",
                 "reason": "pos_guard",
@@ -1307,6 +1439,8 @@ class ExecutionStub:
                 "dec": decision_info,
                 "filter_pass": filter_pass,
                 "filter_reasons": filter_reasons,
+                # deprecated: runtime_open_positions/runtime_max_positions は trace["runtime"] に統合済み
+                # 互換性のため残す（将来のバージョンで削除予定）
                 "runtime_open_positions": runtime_cfg.get("open_positions", "missing"),
                 "runtime_max_positions": runtime_cfg.get("max_positions", "missing"),
                 "post_fill_grace": grace_active,
@@ -1316,7 +1450,7 @@ class ExecutionStub:
                 "prob_buy": p_buy,
                 "prob_sell": p_sell,
             }
-            # pos_guard_state を追加（取得可能な範囲で）
+            # pos_guard_state を追加（live 環境の場合のみ）
             try:
                 trade_svc = getattr(trade_service, "SERVICE", None)
                 if trade_svc and hasattr(trade_svc, "pos_guard"):
@@ -1333,13 +1467,9 @@ class ExecutionStub:
             position_guard.on_order_rejected_or_canceled(symbol)
             return {"ai": ai_out, "cb": cb_status, "ts": ts, "decision": decision_payload}
         elif not can_open and debug_relax_pos_guard:
-            # デバッグモード：バイパスして ENTRY に進む（ログに印を残す）
-            # sim_pos_guard もバイパス済み（can_open の計算で既にバイパスしている）
             pos_guard_bypassed = True
             if sim_pos_guard_active:
-                # sim_pos_guard もバイパスしたことを記録
                 base_filters["sim_pos_guard_bypassed"] = True
-            # ENTRY に進む（下記の処理を続行）
 
         signal = {
             "side": chosen_side,
@@ -1379,11 +1509,9 @@ class ExecutionStub:
         _register_trailing_state(symbol, signal, tick_dict, no_metrics=self.no_metrics)
 
         trade_service.mark_filled_now()
-        filters_ctx = dict(base_filters)  # pos_guard_* 情報は既に base_filters に含まれている
-        # 作業3: pos_guard_bypassed フラグを filters_ctx に追加（ログ集計用）
+        filters_ctx = dict(base_filters)
         if pos_guard_bypassed:
             filters_ctx["pos_guard_bypassed"] = True
-        # sim_pos_guard_bypassed も filters_ctx に追加
         if sim_pos_guard_active and debug_relax_pos_guard:
             filters_ctx["sim_pos_guard_bypassed"] = True
         # --- ロット計算挿入ブロック ----------------------
@@ -1452,16 +1580,15 @@ class ExecutionStub:
             "filter_pass": filter_pass,
             "filter_reasons": filter_reasons,
         }
-        # 作業3: pos_guard_bypassed フラグを decision_payload に追加（ログ集計用）
         if pos_guard_bypassed:
             decision_payload["pos_guard_bypassed"] = True
-        # sim_pos_guard_bypassed も decision_payload に追加
         if sim_pos_guard_active and debug_relax_pos_guard:
             decision_payload["sim_pos_guard_bypassed"] = True
-        # sim_pos_hold_ticks を decision_payload に追加（デバッグ用）
-        sim_pos_hold_ticks = runtime_cfg.get("_sim_pos_hold_ticks")
-        if sim_pos_hold_ticks is not None:
-            decision_payload["sim_pos_hold_ticks"] = sim_pos_hold_ticks
+        pos_hold_ticks = runtime_cfg.get("pos_hold_ticks")
+        if pos_hold_ticks is not None:
+            decision_payload["pos_hold_ticks"] = pos_hold_ticks
+            # 互換性のため sim_pos_hold_ticks も残す（deprecated）
+            decision_payload["sim_pos_hold_ticks"] = pos_hold_ticks
 
         if filter_pass is False:
             # フィルタ NG の場合は BLOCKED としてログに記録
