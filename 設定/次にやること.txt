@@ -1,0 +1,71 @@
+1) 残ってる “deprecatedキー” を計画的に消す
+
+いま runtime からは _sim_* が消えたけど、ログ本文にはまだ「互換性のため残す」系が残ってるはず。
+
+decision_detail.sim_pos_hold_ticks（deprecated）
+
+decision_detail.runtime_open_positions / runtime_max_positions（deprecated っぽいやつ）
+
+やること：
+
+まず 参照している箇所がゼロ か検索で確認
+
+ゼロなら削除（or 1リリース猶予を置いて削除予定コメントへ）
+
+参照が残ってたら、参照側を標準キーに寄せてから削除
+
+狙い：ログ仕様を「正規ルート1本」にして、未来の混乱ポイントを削る。
+
+2) runtime仕様を “バージョン付き” にして固定する
+
+今は docstring で仕様が明文化された。次は「機械が検証できる形」にすると強い。
+
+やること例：
+
+runtime.schema_version = 1 を追加
+
+_write_decision_log() の出口で
+
+必須キー存在チェック（例：ts, spread_pips, open_positions, max_positions）
+
+型チェック（int/float/bool）
+
+余計なキー（_sim_* など）は reject / warn
+
+狙い：仕様が崩れたら即座に分かる状態にする（静かに壊れない）。
+
+3) TradeService / live側の runtime 注入を統一
+
+demo側は整った。次は live 側が同じ契約で runtime を出しているか確認。
+
+やること：
+
+trade_service.py（や ai_service.py）で runtime_cfg を作ってる場所を確認
+
+open_positions / max_positions の値が live でも正しく入るか（pos_guardの状態と一致するか）
+
+可能なら「runtime生成は1関数」に寄せる（build_runtime() 的なやつ）
+
+狙い：demoだけ綺麗、liveが別物、を防ぐ。
+
+4) ログ→集計→GUI の参照キーを一本化
+
+decision_log.py / recent_kpi.py / GUI が、まだ古いフィールド名を見てないか最後に掃除。
+
+やること：
+
+集計コードが参照するキーを「標準キー」に統一
+
+参照の互換分岐（if old_key else new_key）を削除していく
+
+狙い：仕様が一本なら、バグも一本（減る）。
+
+次スレの最初にやる“具体的な作業メニュー”（そのままCursorに貼れるやつ）
+
+rg -n "_sim_|sim_pos_|runtime_open_positions|runtime_max_positions" -S app tests scripts
+
+参照がゼロなら削除、残ってたら参照側を runtime.open_positions 等へ置換
+
+runtime.schema_version = 1 を runtime に追加し、出口で必須キー・型を軽く検証
+
+TradeService の runtime 注入経路を確認して、同じ標準キーが入るように統一

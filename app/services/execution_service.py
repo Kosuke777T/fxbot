@@ -18,6 +18,7 @@ from app.services.ai_service import get_ai_service, get_model_metrics
 from app.services.loss_streak_service import get_consecutive_losses
 from app.core.strategy_profile import get_profile
 from app.services.edition_guard import filter_level, EditionGuard
+from app.services import trade_state
 from core.utils.timeutil import now_jst_iso
 
 # プロジェクトルート = app/services/ から 2 つ上
@@ -497,7 +498,7 @@ class ExecutionService:
                 ai_margin=0.03,
             )
 
-            DecisionsLogger.log({
+            record = {
                 "timestamp": ts_str,
                 "ts_jst": ts_str,
                 "type": "decision",
@@ -514,7 +515,16 @@ class ExecutionService:
                 "filters": {},
                 "meta": {},
                 "decision_detail": decision_detail_failed,
-            })
+            }
+            # ---- runtime normalization (decision log) ----
+            # runtime は TradeRuntime の正規出口に固定する
+            # 既存 runtime があれば runtime_detail に退避
+            _prev_rt = record.get("runtime")
+            record["runtime"] = trade_state.runtime_as_dict()
+            if _prev_rt and isinstance(_prev_rt, dict):
+                record["runtime_detail"] = _prev_rt
+            # ---------------------------------------------
+            DecisionsLogger.log(record)
             return {"ok": False, "reasons": ["ai_prediction_failed"]}
 
         # best_threshold を取得
@@ -656,7 +666,7 @@ class ExecutionService:
                 signal=signal,
                 ai_margin=0.03,
             )
-            DecisionsLogger.log({
+            record = {
                 # 時刻・識別
                 "timestamp": ts_str,
                 "ts_jst": ts_str,
@@ -680,7 +690,16 @@ class ExecutionService:
                 "meta": meta_val or {},
                 # 詳細
                 "decision_detail": decision_detail,
-            })
+            }
+            # ---- runtime normalization (decision log) ----
+            # runtime は TradeRuntime の正規出口に固定する
+            # 既存 runtime があれば runtime_detail に退避
+            _prev_rt = record.get("runtime")
+            record["runtime"] = trade_state.runtime_as_dict()
+            if _prev_rt and isinstance(_prev_rt, dict):
+                record["runtime_detail"] = _prev_rt
+            # ---------------------------------------------
+            DecisionsLogger.log(record)
             return {"ok": False, "reasons": reasons}
 
         # --- 5) dry_run モードの場合、MT5発注の直前で分岐 ---
@@ -755,7 +774,7 @@ class ExecutionService:
             signal=signal,
             ai_margin=0.03,
         )
-        DecisionsLogger.log({
+        record = {
             # 時刻・識別
             "timestamp": ts_str,
             "ts_jst": ts_str,
@@ -779,7 +798,16 @@ class ExecutionService:
             "meta": meta_val or {},
             # 詳細
             "decision_detail": decision_detail,
-        })
+        }
+        # ---- runtime normalization (decision log) ----
+        # runtime は TradeRuntime の正規出口に固定する
+        # 既存 runtime があれば runtime_detail に退避
+        _prev_rt = record.get("runtime")
+        record["runtime"] = trade_state.runtime_as_dict()
+        if _prev_rt and isinstance(_prev_rt, dict):
+            record["runtime_detail"] = _prev_rt
+        # ---------------------------------------------
+        DecisionsLogger.log(record)
 
         # --- 6) 実際のMT5発注（dry_run=False の場合のみ） ---
         # 発注ロジックはそのまま（TradeService などを呼び出す想定）
@@ -861,7 +889,7 @@ class ExecutionService:
                 ai_margin=0.03,
             )
 
-            DecisionsLogger.log({
+            record = {
                 "timestamp": ts_str,
                 "ts_jst": ts_str,
                 "type": "decision",
@@ -878,7 +906,16 @@ class ExecutionService:
                 "filters": {},
                 "meta": {},
                 "decision_detail": decision_detail,
-            })
+            }
+            # ---- runtime normalization (decision log) ----
+            # runtime は TradeRuntime の正規出口に固定する
+            # 既存 runtime があれば runtime_detail に退避
+            _prev_rt = record.get("runtime")
+            record["runtime"] = trade_state.runtime_as_dict()
+            if _prev_rt and isinstance(_prev_rt, dict):
+                record["runtime_detail"] = _prev_rt
+            # ---------------------------------------------
+            DecisionsLogger.log(record)
 
             return {
                 "ok": True,

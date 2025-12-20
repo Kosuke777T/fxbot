@@ -367,6 +367,7 @@ def _write_decision_log(symbol: str, record: Dict[str, Any]) -> None:
 
         # runtime フィールドの正規化（最終出口での統一処理）
         # _sim_* キーを標準キーにマッピング・削除（どこから来ても確実に正規化）
+        # NOTE: deprecated _sim_* keys removed here (schema_version=1, runtime is canonical)
         if "runtime" in record and isinstance(record["runtime"], dict):
             record["runtime"] = _normalize_runtime_cfg(record["runtime"])
 
@@ -561,20 +562,20 @@ def _build_decision_trace(
     - blocked の理由（最初の理由 or None）を含める
 
     【runtime フィールド仕様（decisions.jsonl 出力）】
-    trace["runtime"] には以下の標準キーが含まれる（runtime_cfg の内容がそのまま反映）:
-      - runtime.ts: str（JST ISO形式に正規化済み）
+    trace["runtime"] には以下の標準キーが含まれる（trade_state.runtime_as_dict() のみ、純化済み）:
+      - runtime.schema_version: int（runtime の標準キー定義のバージョン、デフォルト: 1）
       - runtime.open_positions: int（現在のオープンポジション数、0以上）
       - runtime.max_positions: int（最大ポジション数、デフォルト: 1）
-      - runtime.pos_hold_ticks: int | None（ポジション保持tick数、demo/dry_run でのみ設定）
-      - runtime.spread_pips: float（現在のスプレッド、pips単位）
-      - runtime.spread_limit_pips: float（スプレッド上限、pips単位）
-      - runtime.prob_threshold: float（確率閾値）
-      - runtime.threshold_buy: float（買い閾値）
-      - runtime.threshold_sell: float（売り閾値）
-      - その他 runtime_cfg に含まれる全フィールド
+      - その他 TradeRuntime のフィールド（last_ticket, last_side, last_symbol 等）
+
+    trace["runtime_detail"] には追加情報が含まれる（任意）:
+      - runtime_detail.ts: str（JST ISO形式に正規化済み）
+      - runtime_detail.pos_hold_ticks: int | None（ポジション保持tick数、demo/dry_run でのみ設定）
+      - runtime_detail.spread_pips: float（現在のスプレッド、pips単位）
+      - その他 runtime_cfg に含まれる追加フィールド
 
     注意: trace["runtime"] は trace["decision_detail"] とは別の位置に配置される。
-          decision_detail.runtime_open_positions などは deprecated（互換性のため残す場合あり）。
+          runtime は純化されており、TradeRuntime の標準キーのみを含む。
     """
     if isinstance(decision, dict):
         action = str(decision.get("action") or "").upper()
@@ -1104,12 +1105,23 @@ class ExecutionStub:
                 entry_context=entry_context,  # ★追加
                 features=features,  # ★追加：features_hash用
             )
-            # runtime 辞書を作成（decisions.jsonl の runtime フィールド仕様に準拠）
-            # 標準キー: ts (JST ISO), open_positions (int), max_positions (int), pos_hold_ticks (int|None), など
-            # 注意: _sim_* キーの正規化は _write_decision_log() 内で実施（最終出口で統一）
-            runtime = dict(runtime_cfg)
-            runtime["ts"] = ts  # JST ISO形式に正規化済み
-            trace["runtime"] = runtime
+            # runtime フィールドを追加（正規出口で統一、純化）
+            # runtime は trade_state.runtime_as_dict() のみ（標準キー: schema_version, open_positions, max_positions 等）
+            trace["runtime"] = trade_state.runtime_as_dict()
+
+            # 追加情報（ts, pos_hold_ticks, tick, 閾値など）は runtime_detail に分離
+            runtime_detail = {}
+            runtime_detail["ts"] = ts  # JST ISO形式に正規化済み
+            if "pos_hold_ticks" in runtime_cfg:
+                runtime_detail["pos_hold_ticks"] = runtime_cfg["pos_hold_ticks"]
+            # その他の runtime_cfg のフィールドも runtime_detail に追加
+            for key in ["spread_pips", "spread_limit_pips", "prob_threshold", "threshold_buy", "threshold_sell",
+                        "ai_threshold", "min_adx", "disable_adx_gate", "min_atr_pct", "tick", "side_bias"]:
+                if key in runtime_cfg:
+                    runtime_detail[key] = runtime_cfg[key]
+            if runtime_detail:
+                trace["runtime_detail"] = runtime_detail
+
             _write_decision_log(symbol, trace)
 
             ai_payload = _ai_to_dict(ai_out)
@@ -1378,8 +1390,6 @@ class ExecutionStub:
         #   - filters.pos_guard_hit: bool（pos_guard が発動したか）
         #   - filters.pos_guard_reason: str（発動理由）
         #   - decision_detail.pos_guard_bypassed: bool（バイパスされた場合）
-        #   - decision_detail.runtime_open_positions: deprecated（runtime.open_positions を使用）
-        #   - decision_detail.runtime_max_positions: deprecated（runtime.max_positions を使用）
         # ===================================================================
 
         open_positions_count = runtime_cfg.get("open_positions", 0)
@@ -1439,10 +1449,6 @@ class ExecutionStub:
                 "dec": decision_info,
                 "filter_pass": filter_pass,
                 "filter_reasons": filter_reasons,
-                # deprecated: runtime_open_positions/runtime_max_positions は trace["runtime"] に統合済み
-                # 互換性のため残す（将来のバージョンで削除予定）
-                "runtime_open_positions": runtime_cfg.get("open_positions", "missing"),
-                "runtime_max_positions": runtime_cfg.get("max_positions", "missing"),
                 "post_fill_grace": grace_active,
                 "spread_pips": cur_spread,
                 "edge_raw": edge_raw,
@@ -1587,8 +1593,7 @@ class ExecutionStub:
         pos_hold_ticks = runtime_cfg.get("pos_hold_ticks")
         if pos_hold_ticks is not None:
             decision_payload["pos_hold_ticks"] = pos_hold_ticks
-            # 互換性のため sim_pos_hold_ticks も残す（deprecated）
-            decision_payload["sim_pos_hold_ticks"] = pos_hold_ticks
+            # NOTE: deprecated sim_pos_hold_ticks removed (schema_version=1, pos_hold_ticks is canonical)
 
         if filter_pass is False:
             # フィルタ NG の場合は BLOCKED としてログに記録
@@ -1856,6 +1861,13 @@ def debug_emit_single_decision() -> None:
         calibrator_name=ai_out.calibrator_name,
         entry_context=entry_context,  # ★追加
     )
+
+    # runtime フィールドを追加（正規出口で統一、純化）
+    # runtime は trade_state.runtime_as_dict() のみ（標準キー: schema_version, open_positions, max_positions 等）
+    trace["runtime"] = trade_state.runtime_as_dict()
+
+    # 追加情報（ts など）は runtime_detail に分離
+    trace["runtime_detail"] = {"ts": ts_debug}  # テスト用の ts を追加
 
     # 6) decisions.jsonl に出力
     _write_decision_log("USDJPY-", trace)
