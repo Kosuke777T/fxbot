@@ -12,9 +12,11 @@ import time
 import copy
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Any
 
 from loguru import logger
+
+from app.services.wfo_stability_service import evaluate_wfo_stability
 
 # TTLキャッシュ（モジュールレベル）
 _SUMMARY_CACHE = {"ts": 0.0, "value": None}
@@ -248,6 +250,50 @@ class OpsHistoryService:
 
         return normalized
 
+    def _load_latest_wfo_inputs(self) -> Optional[dict[str, Any]]:
+        """
+        WFO安定性評価に必要な入力を最新の成果物から集める。
+        - metrics_wfo.json（train/test統計）
+        - logs/retrain/report_*.json（wfo指標入り）
+        返り値は wfo_stability_service が想定する input dict に合わせる。
+        """
+        # 1) 最新 metrics_wfo.json（backtests と logs/backtest を優先）
+        roots = [Path("backtests"), Path("logs") / "backtest"]
+        metrics_candidates: list[Path] = []
+        for r in roots:
+            if r.exists():
+                metrics_candidates.extend(r.rglob("metrics_wfo.json"))
+        if not metrics_candidates:
+            return None
+        metrics_candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+        metrics_path = metrics_candidates[0]
+
+        try:
+            metrics = json.loads(metrics_path.read_text(encoding="utf-8", errors="replace"))
+        except Exception:
+            return None
+
+        # 2) 最新 report_*.json（logs/retrain）
+        report_dir = Path("logs") / "retrain"
+        report_candidates = list(report_dir.glob("report_*.json")) if report_dir.exists() else []
+        report_candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+        report_json = None
+        if report_candidates:
+            try:
+                report_json = json.loads(report_candidates[0].read_text(encoding="utf-8", errors="replace"))
+            except Exception:
+                report_json = None
+
+        # wfo_stability_service が欲しい形に合わせて返す
+        return {
+            "metrics_wfo": metrics,
+            "report": report_json,
+            "paths": {
+                "metrics_wfo": str(metrics_path),
+                "report": str(report_candidates[0]) if report_candidates else None,
+            },
+        }
+
     def _calc_next_action(self, record: dict) -> dict:
         """
         recordからnext_actionを軽量ルールで計算する（replay_from_recordを呼ばない）。
@@ -285,25 +331,55 @@ class OpsHistoryService:
             # 軽量ルールでnext_actionを決定
             # promoted扱い: step == "promoted" が最優先、promoted_at は補助（stepが空またはpromotedの場合のみ）
             if step == "promoted":
-                # stepが明確にpromoted → 適用可能
+                # stepが明確にpromoted → 適用可能（WFO安定性チェック）
                 logger.debug(
                     f"[next_action] branch=promoted_step step_raw={repr(step_raw)} step={repr(step)} "
                     f"promoted_at={repr(promoted_at)} applied_at={repr(record.get('applied_at'))} "
                     f"apply_performed={repr(apply_performed)} ok={repr(ok)} dry={repr(dry)}"
                 )
+                wfo_inputs = self._load_latest_wfo_inputs()
+                if not wfo_inputs:
+                    return _normalize_next_action({
+                        "kind": "NONE",
+                        "reason": "wfo_result_missing",
+                        "params": {},
+                    })
+                out = evaluate_wfo_stability(wfo_inputs.get("metrics_wfo"))
+                stable = bool(out.get("stable"))
+                if not stable:
+                    return _normalize_next_action({
+                        "kind": "NONE",
+                        "reason": "wfo_unstable",
+                        "params": {"wfo": out},
+                    })
                 return _normalize_next_action({
                     "kind": "PROMOTE",
                     "reason": "適用可能（PROMOTED済み）",
                     "params": {},
                 })
             elif promoted_at is not None and (step_raw is None or step == "" or step == "promoted"):
-                # promoted_atがあり、stepがNone/空文字列/promotedの場合のみ → 適用可能
+                # promoted_atがあり、stepがNone/空文字列/promotedの場合のみ → 適用可能（WFO安定性チェック）
                 # stepが明確に別値（例: "done", "applied"）の場合は次の判定へ
                 logger.debug(
                     f"[next_action] branch=promoted_at step_raw={repr(step_raw)} step={repr(step)} "
                     f"promoted_at={repr(promoted_at)} applied_at={repr(record.get('applied_at'))} "
                     f"apply_performed={repr(apply_performed)} ok={repr(ok)} dry={repr(dry)}"
                 )
+                wfo_inputs = self._load_latest_wfo_inputs()
+                if not wfo_inputs:
+                    return _normalize_next_action({
+                        "kind": "NONE",
+                        "reason": "wfo_result_missing",
+                        "params": {},
+                    })
+                out = evaluate_wfo_stability(wfo_inputs.get("metrics_wfo"))
+                stable = bool(out.get("stable"))
+                if not stable:
+                    return _normalize_next_action({
+                        "kind": "NONE",
+                        "reason": "wfo_unstable",
+                        "params": {"wfo": out},
+                    })
                 return _normalize_next_action({
                     "kind": "PROMOTE",
                     "reason": "適用可能（PROMOTED済み）",
@@ -322,12 +398,27 @@ class OpsHistoryService:
                     "params": {},
                 })
             elif step in ("done", "completed", "success") and ok and dry:
-                # dry run成功 → 本番反映可能
+                # dry run成功 → 本番反映可能（WFO安定性チェック）
                 logger.debug(
                     f"[next_action] branch=dry_run_success step_raw={repr(step_raw)} step={repr(step)} "
                     f"promoted_at={repr(promoted_at)} applied_at={repr(record.get('applied_at'))} "
                     f"apply_performed={repr(apply_performed)} ok={repr(ok)} dry={repr(dry)}"
                 )
+                wfo_inputs = self._load_latest_wfo_inputs()
+                if not wfo_inputs:
+                    return _normalize_next_action({
+                        "kind": "NONE",
+                        "reason": "wfo_result_missing",
+                        "params": {},
+                    })
+                out = evaluate_wfo_stability(wfo_inputs.get("metrics_wfo"))
+                stable = bool(out.get("stable"))
+                if not stable:
+                    return _normalize_next_action({
+                        "kind": "NONE",
+                        "reason": "wfo_unstable",
+                        "params": {"wfo": out},
+                    })
                 return _normalize_next_action({
                     "kind": "PROMOTE",
                     "reason": "本番反映可能（dry run成功）",
@@ -492,35 +583,60 @@ class OpsHistoryService:
         Returns:
             レコードのリスト（新しい順）
         """
-        if not self.history_file.exists():
+        # 候補ファイルを列挙（ops_result_*.jsonl と ops_start_*.jsonl）
+        base_dir = self.project_root / "logs" / "ops"
+        if not base_dir.exists():
             return []
+
+        candidates = []
+        candidates += list(base_dir.glob("ops_result_*.jsonl"))
+        candidates += list(base_dir.glob("ops_start_*.jsonl"))
+        if not candidates:
+            return []
+
+        # 更新日時でソート（最新順）
+        candidates = sorted(candidates, key=lambda p: p.stat().st_mtime, reverse=True)
 
         records = []
         try:
-            # ファイルを末尾から読み込む（効率化のため全行読み込み）
-            with self.history_file.open("r", encoding="utf-8") as f:
-                lines = f.readlines()
-
-            # 末尾から逆順に処理
-            for line in reversed(lines):
-                line = line.strip()
-                if not line:
-                    continue
+            # すべての候補ファイルから読み込む（最新のファイルから順に）
+            for candidate_file in candidates:
+                if len(records) >= limit:
+                    break
 
                 try:
-                    rec = json.loads(line)
-                    # symbol フィルタ
-                    if symbol and rec.get("symbol") != symbol:
-                        continue
-                    # record_idを付与（読み取り時に生成）
-                    if "record_id" not in rec:
-                        rec["record_id"] = self._generate_record_id(rec)
-                    records.append(rec)
-                    if len(records) >= limit:
-                        break
-                except json.JSONDecodeError:
-                    # 壊れ行はスキップ
-                    logger.warning(f"Skipping invalid JSON line in {self.history_file}")
+                    # ファイルを末尾から読み込む（効率化のため全行読み込み）
+                    with candidate_file.open("r", encoding="utf-8") as f:
+                        lines = f.readlines()
+
+                    # 末尾から逆順に処理
+                    for line in reversed(lines):
+                        if len(records) >= limit:
+                            break
+
+                        line = line.strip()
+                        if not line:
+                            continue
+
+                        # JSONじゃない行（プレーンログ）を静かにスキップ
+                        if not line.startswith("{"):
+                            continue
+
+                        try:
+                            rec = json.loads(line)
+                            # symbol フィルタ
+                            if symbol and rec.get("symbol") != symbol:
+                                continue
+                            # record_idを付与（読み取り時に生成）
+                            if "record_id" not in rec:
+                                rec["record_id"] = self._generate_record_id(rec)
+                            records.append(rec)
+                        except Exception:
+                            # 本当に壊れたJSON行（{... が途中で欠けてる場合）は警告
+                            logger.warning(f"Skipping invalid JSON line in {candidate_file}")
+                            continue
+                except Exception as e:
+                    logger.warning(f"Failed to read {candidate_file}: {e}")
                     continue
 
         except Exception as e:
@@ -788,7 +904,7 @@ class OpsHistoryService:
                     next_action_cache[cache_key] = next_action
                 except Exception as e:
                     logger.warning(f"Failed to calculate next_action for view {idx}: {e}")
-                    next_action_cache[cache_key] = {"kind": "NONE", "reason": "", "params": {}}
+                    next_action_cache[cache_key] = {"kind": "NONE", "reason": "", "params": {}, "priority": 0}
 
             # viewにnext_actionを付与
             view["next_action"] = next_action_cache[cache_key]

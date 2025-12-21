@@ -568,15 +568,9 @@ class OpsTab(QWidget):
             history_service = get_ops_history_service()
             summary = history_service.summarize_ops_history()
 
-            # lastを取得
-            last = summary.get("last")
-            if not last:
-                # lastが無い場合はitemsの先頭を取得
-                items = summary.get("items", [])
-                if items:
-                    last = items[0]
-                else:
-                    last = None
+            # last_viewを優先、次にlast、最後にitemsの先頭
+            rec = summary.get("last_view") or summary.get("last") or (summary.get("items") or [None])[0]
+            last = rec
 
             self._current_ops_record = last
 

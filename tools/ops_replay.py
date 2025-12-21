@@ -10,12 +10,20 @@ Usage:
 """
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+# tools/*.py を直接実行した場合でも "app" を import できるようにする
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 import argparse
 import json
 import subprocess
-import sys
-from pathlib import Path
-from typing import Optional
+from typing import Optional, Any
+
+from app.services.wfo_stability_service import evaluate_wfo_stability
 
 # プロジェクトルートを推定（tools/ops_replay.py → tools/ → プロジェクトルート）
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -208,6 +216,47 @@ def build_ops_start_command(params: dict, project_root: Path) -> list[str]:
     return cmd
 
 
+def _load_latest_wfo_inputs() -> Optional[dict[str, Any]]:
+    """
+    WFO安定性評価に必要な入力を最新の成果物から集める。
+    - metrics_wfo.json（train/test統計）
+    - logs/retrain/report_*.json（wfo指標入り）
+    """
+    roots = [Path("backtests"), Path("logs") / "backtest"]
+    metrics_candidates: list[Path] = []
+    for r in roots:
+        if r.exists():
+            metrics_candidates.extend(r.rglob("metrics_wfo.json"))
+    if not metrics_candidates:
+        return None
+    metrics_candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    metrics_path = metrics_candidates[0]
+
+    try:
+        metrics = json.loads(metrics_path.read_text(encoding="utf-8", errors="replace"))
+    except Exception:
+        return None
+
+    report_dir = Path("logs") / "retrain"
+    report_candidates = list(report_dir.glob("report_*.json")) if report_dir.exists() else []
+    report_candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    report_json = None
+    if report_candidates:
+        try:
+            report_json = json.loads(report_candidates[0].read_text(encoding="utf-8", errors="replace"))
+        except Exception:
+            report_json = None
+
+    return {
+        "metrics_wfo": metrics,
+        "report": report_json,
+        "paths": {
+            "metrics_wfo": str(metrics_path),
+            "report": str(report_candidates[0]) if report_candidates else None,
+        },
+    }
+
+
 def main() -> int:
     """メイン処理。"""
     parser = argparse.ArgumentParser(description="Ops履歴から条件を復元して再実行")
@@ -277,6 +326,20 @@ def main() -> int:
         except Exception as e:
             print(f"Warning: Failed to save profiles: {e}", file=sys.stderr)
             # プロファイル保存失敗でも続行
+
+    # PROMOTE実行前のWFO安定性チェック
+    wfo_inputs = _load_latest_wfo_inputs()
+    if not wfo_inputs:
+        print("[ops_replay] PROMOTE blocked: wfo_result_missing", flush=True, file=sys.stderr)
+        return 2
+
+    out = evaluate_wfo_stability(wfo_inputs.get("metrics_wfo"))
+    if not bool(out.get("stable")):
+        print("[ops_replay] PROMOTE blocked: wfo_unstable", flush=True, file=sys.stderr)
+        print(f"[ops_replay] details: {out}", flush=True, file=sys.stderr)
+        return 2
+
+    # stable True なら、ここから既存の実行を続行
 
     # 実際に実行
     try:
