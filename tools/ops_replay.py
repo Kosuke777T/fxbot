@@ -333,7 +333,11 @@ def main() -> int:
         print("[ops_replay] PROMOTE blocked: wfo_result_missing", flush=True, file=sys.stderr)
         return 2
 
-    out = evaluate_wfo_stability(wfo_inputs.get("metrics_wfo"))
+    out = evaluate_wfo_stability(
+        wfo_inputs.get("metrics_wfo"),
+        metrics_path=wfo_inputs.get("paths", {}).get("metrics_wfo"),
+        report_path=wfo_inputs.get("paths", {}).get("report"),
+    )
     if not bool(out.get("stable")):
         print("[ops_replay] PROMOTE blocked: wfo_unstable", flush=True, file=sys.stderr)
         print(f"[ops_replay] details: {out}", flush=True, file=sys.stderr)

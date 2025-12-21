@@ -344,7 +344,11 @@ class OpsHistoryService:
                         "reason": "wfo_result_missing",
                         "params": {},
                     })
-                out = evaluate_wfo_stability(wfo_inputs.get("metrics_wfo"))
+                out = evaluate_wfo_stability(
+                    wfo_inputs.get("metrics_wfo"),
+                    metrics_path=wfo_inputs.get("paths", {}).get("metrics_wfo"),
+                    report_path=wfo_inputs.get("paths", {}).get("report"),
+                )
                 stable = bool(out.get("stable"))
                 if not stable:
                     return _normalize_next_action({
@@ -372,7 +376,11 @@ class OpsHistoryService:
                         "reason": "wfo_result_missing",
                         "params": {},
                     })
-                out = evaluate_wfo_stability(wfo_inputs.get("metrics_wfo"))
+                out = evaluate_wfo_stability(
+                    wfo_inputs.get("metrics_wfo"),
+                    metrics_path=wfo_inputs.get("paths", {}).get("metrics_wfo"),
+                    report_path=wfo_inputs.get("paths", {}).get("report"),
+                )
                 stable = bool(out.get("stable"))
                 if not stable:
                     return _normalize_next_action({
@@ -411,7 +419,11 @@ class OpsHistoryService:
                         "reason": "wfo_result_missing",
                         "params": {},
                     })
-                out = evaluate_wfo_stability(wfo_inputs.get("metrics_wfo"))
+                out = evaluate_wfo_stability(
+                    wfo_inputs.get("metrics_wfo"),
+                    metrics_path=wfo_inputs.get("paths", {}).get("metrics_wfo"),
+                    report_path=wfo_inputs.get("paths", {}).get("report"),
+                )
                 stable = bool(out.get("stable"))
                 if not stable:
                     return _normalize_next_action({
