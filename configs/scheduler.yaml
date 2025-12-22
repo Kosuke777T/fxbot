@@ -1,6 +1,8 @@
+scheduler_level: 2
 jobs:
   - id: smoke_job
     enabled: true
+    scheduler_level: 1
     weekday: 0
     hour: 16
     minute: 21

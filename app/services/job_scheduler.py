@@ -29,6 +29,7 @@ class JobScheduler:
         self.config_path = config_path or Path("configs/scheduler.yaml")
         self.jobs: List[Dict[str, Any]] = []
         self.jobs_state: Dict[str, Dict[str, Any]] = {}
+        self._scheduler_level_cfg: int | None = None
         self._load_jobs()
 
     def _load_jobs(self) -> None:
@@ -43,13 +44,25 @@ class JobScheduler:
 
             with self.config_path.open("r", encoding="utf-8") as f:
                 data = yaml.safe_load(f) or {}
+            
+            # scheduler_level を読み込む（-1 は未設定を意味）
+            scheduler_level_raw = data.get("scheduler_level")
+            if scheduler_level_raw is not None:
+                try:
+                    self._scheduler_level_cfg = int(scheduler_level_raw)
+                except (ValueError, TypeError):
+                    logger.warning(f"[JobScheduler] invalid scheduler_level: {scheduler_level_raw}, using None")
+                    self._scheduler_level_cfg = None
+            else:
+                self._scheduler_level_cfg = None
+            
             jobs_raw = data.get("jobs", [])
             if not isinstance(jobs_raw, list):
                 logger.warning(f"[JobScheduler] jobs is not list in {self.config_path}")
                 self.jobs = []
                 return
             self.jobs = jobs_raw
-            logger.info(f"[JobScheduler] loaded {len(self.jobs)} jobs from {self.config_path}")
+            logger.info(f"[JobScheduler] loaded {len(self.jobs)} jobs from {self.config_path} (scheduler_level={self._scheduler_level_cfg})")
         except Exception as e:
             logger.error(f"[JobScheduler] failed to load jobs from {self.config_path}: {e}")
             self.jobs = []
@@ -76,7 +89,7 @@ class JobScheduler:
 
     def _edition_allow(self, job: Dict[str, Any]) -> bool:
         """
-        Edition 制御によるジョブ実行可否を判定する（T-41 の差し込み口）。
+        Edition 制御によるジョブ実行可否を判定する（T-41 実装）。
 
         Parameters
         ----------
@@ -86,10 +99,14 @@ class JobScheduler:
         Returns
         -------
         bool
-            実行可能な場合 True（T-40 では常に True、T-41 で scheduler_level を適用）
+            実行可能な場合 True
         """
-        # T-40: 常に True を返す（T-41 で scheduler_guard を統合予定）
-        return True
+        from app.services.scheduler_guard import allow_job_by_scheduler_level
+
+        ok, reason = allow_job_by_scheduler_level(job, self._scheduler_level_cfg)
+        if not ok:
+            logger.debug(f"[JobScheduler] job {job.get('id')} denied: {reason}")
+        return ok
 
     def _should_run(self, job: Dict[str, Any], now: datetime) -> bool:
         """
@@ -247,7 +264,7 @@ class JobScheduler:
         """
         now = datetime.now(timezone.utc)
 
-        # Edition 制御でフィルタリング（T-40: _edition_allow は常に True、T-41 で scheduler_guard を統合予定）
+        # Edition 制御でフィルタリング（T-41: scheduler_guard を統合済み）
         filtered_jobs = [job for job in self.jobs if self._edition_allow(job)]
 
         results: List[Dict[str, Any]] = []

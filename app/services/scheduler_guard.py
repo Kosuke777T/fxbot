@@ -9,18 +9,13 @@ from loguru import logger
 from app.services import edition_guard
 
 
-# Edition の「強さ順」定義（小文字も対応）
+# Edition の「強さ順」定義（大文字のみ、_edition_rank で upper() するため）
 _EDITION_ORDER = {
     "FREE": 0,
     "BASIC": 1,
     "PRO": 2,
     "EXPERT": 3,
     "MASTER": 4,
-    "free": 0,
-    "basic": 1,
-    "pro": 2,
-    "expert": 3,
-    "master": 4,
 }
 
 
@@ -119,3 +114,85 @@ def filter_jobs_for_current_edition(
     )
 
     return limited_jobs
+
+
+def get_effective_scheduler_level(config_level: int | None) -> int:
+    """
+    設定ファイルの scheduler_level と EditionGuard の scheduler_level を統合して、
+    実効的な scheduler_level を返す。
+
+    Parameters
+    ----------
+    config_level : int | None
+        configs/scheduler.yaml の scheduler_level（-1 は未設定を意味）
+
+    Returns
+    -------
+    int
+        実効的な scheduler_level（0-3、範囲外の値はクランプされる）
+    """
+    # EditionGuard から現在の scheduler_level を取得
+    edition_level = edition_guard.get_capability("scheduler_level")
+    if edition_level is None:
+        edition_level = 0
+
+    # edition_level も 0..3 の範囲にクランプ（安全ガード）
+    edition_level = max(0, min(3, edition_level))
+
+    # config_level が指定されていれば、それと edition_level の小さい方を採用
+    if config_level is not None and config_level >= 0:
+        # config_level も先にクランプしてから min() を使う（仕様がコードに刻まれる）
+        config_level_clamped = max(0, min(3, config_level))
+        effective = min(config_level_clamped, edition_level)
+    else:
+        # config_level が未設定なら edition_level をそのまま使用
+        effective = edition_level
+
+    # 0..3 の範囲にクランプ（念のため、二重チェック）
+    return max(0, min(3, effective))
+
+
+def allow_job_by_scheduler_level(job: Dict[str, Any], config_level: int | None) -> tuple[bool, str]:
+    """
+    ジョブの scheduler_level 要求と実効レベルを比較して、実行可否を判定する。
+
+    Parameters
+    ----------
+    job : dict
+        ジョブ定義（scheduler_level キーを含む可能性がある）
+    config_level : int | None
+        configs/scheduler.yaml の scheduler_level（-1 は未設定を意味）
+
+    Returns
+    -------
+    tuple[bool, str]
+        (実行可能か, 理由文字列)
+    """
+    effective_level = get_effective_scheduler_level(config_level)
+
+    # effective_level が 0 なら常に False（表示のみ）
+    if effective_level == 0:
+        return False, "scheduler_level=0 (表示のみ)"
+
+    # ジョブの要求レベルを取得（デフォルト 0、int化失敗時は即拒否）
+    try:
+        required_level = int(job.get("scheduler_level", 0))
+    except (ValueError, TypeError):
+        logger.warning(
+            "[SchedulerGuard] invalid scheduler_level in job {}, deny execution",
+            job.get("id"),
+        )
+        return False, "invalid scheduler_level"
+
+    # 0..3 の範囲にクランプ（yaml誤設定で 999 などが入った場合の安全ガード）
+    required_level = max(0, min(3, required_level))
+
+    # required_level <= effective_level のとき True
+    if required_level > effective_level:
+        return False, f"required_level({required_level}) > effective_level({effective_level})"
+
+    # effective_level==2 のときは「1ジョブのみ」制限
+    # これは JobScheduler 側で「実行対象ジョブが複数ある状態」を抑止する必要がある
+    # ただし、ここでは単一ジョブの判定のみを行う（複数ジョブの制限は JobScheduler 側で実装）
+
+    return True, f"allowed (required={required_level}, effective={effective_level})"
