@@ -18,6 +18,21 @@ from loguru import logger
 
 from app.services.wfo_stability_service import evaluate_wfo_stability
 
+
+def _load_saved_wfo_stability(run_id: str) -> dict | None:
+    """logs/retrain/stability_{run_id}.json を最優先で読む。壊れてたら None。"""
+    try:
+        p = Path("logs") / "retrain" / f"stability_{run_id}.json"
+        if not p.exists():
+            return None
+        data = json.loads(p.read_text(encoding="utf-8"))
+        if isinstance(data, dict):
+            return data
+        return None
+    except Exception:
+        return None
+
+
 # TTLキャッシュ（モジュールレベル）
 _SUMMARY_CACHE = {"ts": 0.0, "value": None}
 
@@ -344,11 +359,28 @@ class OpsHistoryService:
                         "reason": "wfo_result_missing",
                         "params": {},
                     })
-                out = evaluate_wfo_stability(
-                    wfo_inputs.get("metrics_wfo"),
-                    metrics_path=wfo_inputs.get("paths", {}).get("metrics_wfo"),
-                    report_path=wfo_inputs.get("paths", {}).get("report"),
-                )
+                # まず保存済み stability_{run_id}.json を最優先で採用
+                out = None
+                run_id = None
+                try:
+                    m = wfo_inputs.get("metrics_wfo") or {}
+                    rid = m.get("run_id")
+                    if rid is not None:
+                        run_id = str(rid)
+                except Exception:
+                    run_id = None
+
+                if run_id:
+                    out = _load_saved_wfo_stability(run_id)
+                    if out is not None:
+                        logger.debug(f"[wfo] loaded saved stability run_id={run_id}")
+
+                # 保存済みが無い場合のみ従来の再計算にフォールバック
+                if out is None:
+                    out = evaluate_wfo_stability(
+                        wfo_inputs.get("metrics_wfo"),
+                        metrics_path=wfo_inputs.get("paths", {}).get("metrics_wfo"),
+                    )
                 stable = bool(out.get("stable"))
                 if not stable:
                     return _normalize_next_action({
@@ -376,11 +408,28 @@ class OpsHistoryService:
                         "reason": "wfo_result_missing",
                         "params": {},
                     })
-                out = evaluate_wfo_stability(
-                    wfo_inputs.get("metrics_wfo"),
-                    metrics_path=wfo_inputs.get("paths", {}).get("metrics_wfo"),
-                    report_path=wfo_inputs.get("paths", {}).get("report"),
-                )
+                # まず保存済み stability_{run_id}.json を最優先で採用
+                out = None
+                run_id = None
+                try:
+                    m = wfo_inputs.get("metrics_wfo") or {}
+                    rid = m.get("run_id")
+                    if rid is not None:
+                        run_id = str(rid)
+                except Exception:
+                    run_id = None
+
+                if run_id:
+                    out = _load_saved_wfo_stability(run_id)
+                    if out is not None:
+                        logger.debug(f"[wfo] loaded saved stability run_id={run_id}")
+
+                # 保存済みが無い場合のみ従来の再計算にフォールバック
+                if out is None:
+                    out = evaluate_wfo_stability(
+                        wfo_inputs.get("metrics_wfo"),
+                        metrics_path=wfo_inputs.get("paths", {}).get("metrics_wfo"),
+                    )
                 stable = bool(out.get("stable"))
                 if not stable:
                     return _normalize_next_action({
@@ -419,11 +468,28 @@ class OpsHistoryService:
                         "reason": "wfo_result_missing",
                         "params": {},
                     })
-                out = evaluate_wfo_stability(
-                    wfo_inputs.get("metrics_wfo"),
-                    metrics_path=wfo_inputs.get("paths", {}).get("metrics_wfo"),
-                    report_path=wfo_inputs.get("paths", {}).get("report"),
-                )
+                # まず保存済み stability_{run_id}.json を最優先で採用
+                out = None
+                run_id = None
+                try:
+                    m = wfo_inputs.get("metrics_wfo") or {}
+                    rid = m.get("run_id")
+                    if rid is not None:
+                        run_id = str(rid)
+                except Exception:
+                    run_id = None
+
+                if run_id:
+                    out = _load_saved_wfo_stability(run_id)
+                    if out is not None:
+                        logger.debug(f"[wfo] loaded saved stability run_id={run_id}")
+
+                # 保存済みが無い場合のみ従来の再計算にフォールバック
+                if out is None:
+                    out = evaluate_wfo_stability(
+                        wfo_inputs.get("metrics_wfo"),
+                        metrics_path=wfo_inputs.get("paths", {}).get("metrics_wfo"),
+                    )
                 stable = bool(out.get("stable"))
                 if not stable:
                     return _normalize_next_action({

@@ -25,6 +25,24 @@ from typing import Optional, Any
 
 from app.services.wfo_stability_service import evaluate_wfo_stability
 
+
+def _load_saved_wfo_stability(run_id: str) -> dict | None:
+    """logs/retrain/stability_{run_id}.json を最優先で読む。壊れてたら None。"""
+    try:
+        from pathlib import Path
+        import json
+
+        p = Path("logs") / "retrain" / f"stability_{run_id}.json"
+        if not p.exists():
+            return None
+        data = json.loads(p.read_text(encoding="utf-8"))
+        if isinstance(data, dict):
+            return data
+        return None
+    except Exception:
+        return None
+
+
 # プロジェクトルートを推定（tools/ops_replay.py → tools/ → プロジェクトルート）
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -333,11 +351,28 @@ def main() -> int:
         print("[ops_replay] PROMOTE blocked: wfo_result_missing", flush=True, file=sys.stderr)
         return 2
 
-    out = evaluate_wfo_stability(
-        wfo_inputs.get("metrics_wfo"),
-        metrics_path=wfo_inputs.get("paths", {}).get("metrics_wfo"),
-        report_path=wfo_inputs.get("paths", {}).get("report"),
-    )
+    # まず保存済み stability_{run_id}.json を最優先で採用
+    out = None
+    run_id = None
+    try:
+        m = wfo_inputs.get("metrics_wfo") or {}
+        rid = m.get("run_id")
+        if rid is not None:
+            run_id = str(rid)
+    except Exception:
+        run_id = None
+
+    if run_id:
+        out = _load_saved_wfo_stability(run_id)
+        if out is not None:
+            print(f"[ops_replay] loaded saved stability run_id={run_id}", flush=True, file=sys.stderr)
+
+    # 保存済みが無い場合のみ従来の再計算にフォールバック
+    if out is None:
+        out = evaluate_wfo_stability(
+            wfo_inputs.get("metrics_wfo"),
+            metrics_path=wfo_inputs.get("paths", {}).get("metrics_wfo"),
+        )
     if not bool(out.get("stable")):
         print("[ops_replay] PROMOTE blocked: wfo_unstable", flush=True, file=sys.stderr)
         print(f"[ops_replay] details: {out}", flush=True, file=sys.stderr)
