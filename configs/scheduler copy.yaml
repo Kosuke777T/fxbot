@@ -1,0 +1,8 @@
+jobs:
+  - id: weekly_retrain
+    enabled: true
+    edition_min: basic
+    weekday: 5  # 土曜日 (0=月曜日, 5=土曜日)
+    hour: 3
+    minute: 0
+    command: python -m scripts.weekly_retrain

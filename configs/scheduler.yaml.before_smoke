@@ -1,0 +1,7 @@
+jobs:
+  - id: smoke_job
+    enabled: true
+    weekday: 0
+    hour: 16
+    minute: 21
+    command: echo smoke
