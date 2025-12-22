@@ -394,3 +394,61 @@ class JobScheduler:
         self._load_jobs()
         logger.info(f"[JobScheduler] reloaded {len(self.jobs)} jobs")
 
+
+
+# --- T-42-3-3: persistence helpers ---
+
+    def _save_jobs(self) -> None:
+        """Persist current jobs to configs/scheduler.yaml (atomic write)."""
+        try:
+            import yaml  # type: ignore
+        except Exception as e:
+            raise RuntimeError("PyYAML is required to save scheduler.yaml") from e
+
+        p = self.config_path
+
+        # load existing doc (preserve top-level keys)
+        doc = {}
+        if p.exists():
+            try:
+                doc = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+            except Exception:
+                doc = {}
+
+        if not isinstance(doc, dict):
+            doc = {}
+
+        # keep scheduler_level if already present; otherwise reflect current cfg
+        if "scheduler_level" not in doc:
+            doc["scheduler_level"] = self._scheduler_level_cfg
+
+        doc["jobs"] = list(self.jobs or [])
+
+        # atomic write: tmp -> replace
+        tmp = Path(str(p) + ".tmp")
+        data = yaml.safe_dump(doc, sort_keys=False, allow_unicode=True)
+        tmp.write_text(data, encoding="utf-8")
+        tmp.replace(p)
+
+    def _add_job(self, job: dict) -> None:
+        # job_id の存在は必須（GUI側でも保証するが二重化）
+        jid = (job or {}).get("id")
+        if not jid:
+            raise ValueError("job.id is required")
+
+        # 既存IDがあれば上書き（更新扱い）
+        new_jobs = [j for j in (self.jobs or []) if j.get("id") != jid]
+        new_jobs.append(job)
+        self.jobs = new_jobs
+        self._save_jobs()
+
+    def _remove_job(self, job_id: str) -> bool:
+        if not job_id:
+            return False
+        before = len(self.jobs or [])
+        self.jobs = [j for j in (self.jobs or []) if j.get("id") != job_id]
+        changed = (len(self.jobs or []) != before)
+        if changed:
+            self._save_jobs()
+        return changed
+

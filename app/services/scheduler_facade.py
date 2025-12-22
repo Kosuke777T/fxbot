@@ -105,3 +105,30 @@ def _calc_next_run_utc(weekday: Any, hour: Any, minute: Any) -> str | None:
 
     return None
 
+
+
+
+def add_scheduler_job(job: dict) -> dict:
+    """Add/Update a scheduler job and persist to YAML (T-42-3-3)."""
+    # use local singleton: _get_scheduler()
+    snap = get_scheduler_snapshot()
+    if not snap.get("can_edit"):
+        return {"ok": False, "error": "scheduler is read-only (can_edit=false)"}
+
+    sch = _get_scheduler()
+    sch._add_job(job)
+    return {"ok": True, "snapshot": get_scheduler_snapshot()}
+
+def remove_scheduler_job(job_id: str) -> dict:
+    """Remove a scheduler job and persist to YAML (T-42-3-3)."""
+    # use local singleton: _get_scheduler()
+    snap = get_scheduler_snapshot()
+    if not snap.get("can_edit"):
+        return {"ok": False, "error": "scheduler is read-only (can_edit=false)"}
+
+    sch = _get_scheduler()
+    changed = sch._remove_job(job_id)
+    return {"ok": True, "removed": bool(changed), "snapshot": get_scheduler_snapshot()}
+
+
+
