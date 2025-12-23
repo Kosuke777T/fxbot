@@ -13,6 +13,13 @@ from PyQt6.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
     QMessageBox,
+    QDialog,
+    QFormLayout,
+    QLineEdit,
+    QCheckBox,
+    QComboBox,
+    QSpinBox,
+    QDialogButtonBox,
 )
 
 from app.services.scheduler_facade import (
@@ -20,6 +27,83 @@ from app.services.scheduler_facade import (
     add_scheduler_job,
     remove_scheduler_job,
 )
+
+
+class AddJobDialog(QDialog):
+    """Schedulerジョブ追加（最小UI）"""
+
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("ジョブ追加")
+        self.setModal(True)
+
+        form = QFormLayout(self)
+
+        self.id_edit = QLineEdit(self)
+        self.enabled_cb = QCheckBox(self)
+        self.enabled_cb.setChecked(True)
+
+        self.command_edit = QLineEdit(self)
+        self.command_edit.setPlaceholderText("例: python -m scripts.walkforward_retrain --profile michibiki_std")
+
+        self.weekday_combo = QComboBox(self)
+        self.weekday_combo.addItem("毎日（指定なし）", None)
+        names = ["月(0)", "火(1)", "水(2)", "木(3)", "金(4)", "土(5)", "日(6)"]
+        for i, n in enumerate(names):
+            self.weekday_combo.addItem(n, i)
+
+        self.hour_spin = QSpinBox(self)
+        self.hour_spin.setRange(0, 23)
+        self.hour_spin.setValue(0)
+
+        self.minute_spin = QSpinBox(self)
+        self.minute_spin.setRange(0, 59)
+        self.minute_spin.setValue(0)
+
+        self.level_spin = QSpinBox(self)
+        self.level_spin.setRange(0, 3)
+        self.level_spin.setValue(3)
+
+        form.addRow("id（必須）", self.id_edit)
+        form.addRow("enabled", self.enabled_cb)
+        form.addRow("command（必須）", self.command_edit)
+        form.addRow("weekday", self.weekday_combo)
+        form.addRow("hour", self.hour_spin)
+        form.addRow("minute", self.minute_spin)
+        form.addRow("scheduler_level", self.level_spin)
+
+        btns = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel,
+            parent=self,
+        )
+        btns.accepted.connect(self.accept)
+        btns.rejected.connect(self.reject)
+        form.addRow(btns)
+
+    def get_value(self) -> dict | None:
+        """ダイアログを表示し、入力値を返す。キャンセル時は None。"""
+        if self.exec() != QDialog.DialogCode.Accepted:
+            return None
+
+        job_id = (self.id_edit.text() or "").strip()
+        cmd = (self.command_edit.text() or "").strip()
+        if not job_id or not cmd:
+            QMessageBox.warning(self, "入力エラー", "id と command は必須です。")
+            return None
+
+        weekday = self.weekday_combo.currentData()  # None or int 0..6
+        job = {
+            "id": job_id,
+            "enabled": bool(self.enabled_cb.isChecked()),
+            "command": cmd,
+            "schedule": {
+                "weekday": weekday,  # None or int 0..6
+                "hour": int(self.hour_spin.value()),
+                "minute": int(self.minute_spin.value()),
+            },
+            "scheduler_level": int(self.level_spin.value()),
+        }
+        return job
 
 
 class SchedulerTab(QWidget):
@@ -150,30 +234,23 @@ class SchedulerTab(QWidget):
 
     def _on_add(self) -> None:
         """ジョブ追加ハンドラ（facade経由）"""
-        # 簡易入力ダイアログ（将来的には専用ダイアログに拡張可能）
-        from PyQt6.QtWidgets import QInputDialog
-
-        job_id, ok = QInputDialog.getText(self, "ジョブ追加", "ジョブID:")
-        if not ok or not job_id:
+        dlg = AddJobDialog(self)
+        job = dlg.get_value()
+        if not job:
             return
 
-        # 最小限のジョブ定義（将来的にはフォームで拡張）
-        job = {
-            "id": job_id,
-            "enabled": True,
-            "weekday": None,
-            "hour": None,
-            "minute": None,
-            "command": f"echo {job_id}",
-        }
-
-        r = add_scheduler_job(job)
-        if r.get("ok"):
+        # T-42-3-4 で接続済みの facade を使用（services層）
+        res = add_scheduler_job(job)  # 戻り: {'ok': True, 'snapshot': {...}} を想定
+        if res.get("ok"):
+            job_id = job.get("id", "?")
             QMessageBox.information(self, "Scheduler", f"ジョブ '{job_id}' を追加しました")
-            self.refresh(r.get("snapshot"))  # 追加後に即更新（最重要、戻り値のsnapshotを使用）
+            snap = res.get("snapshot")
+            self.refresh(snap=snap)  # T-42-3-4 の refresh(snap=...) 対応済み前提
         else:
-            error = r.get("error", "unknown error")
-            QMessageBox.warning(self, "Scheduler", f"追加に失敗: {error}")
+            # facade が返す情報を落とさず見える化
+            error = res.get("error", "unknown error")
+            detail = json.dumps(res, ensure_ascii=False, indent=2)
+            QMessageBox.warning(self, "Scheduler", f"追加に失敗: {error}\n\n{detail}")
 
     def _on_remove(self) -> None:
         """ジョブ削除ハンドラ（facade経由）"""
