@@ -92,15 +92,19 @@ class AddJobDialog(QDialog):
             return None
 
         weekday = self.weekday_combo.currentData()  # None or int 0..6
+        hour = int(self.hour_spin.value())
+        minute = int(self.minute_spin.value())
+
         job = {
             "id": job_id,
             "enabled": bool(self.enabled_cb.isChecked()),
             "command": cmd,
-            "schedule": {
-                "weekday": weekday,  # None or int 0..6
-                "hour": int(self.hour_spin.value()),
-                "minute": int(self.minute_spin.value()),
-            },
+            # ★services側が期待していそうなトップレベル（yamlもこの形）
+            "weekday": weekday,
+            "hour": hour,
+            "minute": minute,
+            # ★UI/表示側との整合用に schedule も同梱（害はない）
+            "schedule": {"weekday": weekday, "hour": hour, "minute": minute},
             "scheduler_level": int(self.level_spin.value()),
         }
         return job

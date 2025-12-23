@@ -145,6 +145,8 @@ def add_scheduler_job(job: dict) -> dict:
 
     sch = _get_scheduler()
     sch.add_job(job)
+    # ★永続化（追加の直後）
+    sch._save_jobs()
     return {"ok": True, "snapshot": get_scheduler_snapshot()}
 
 def remove_scheduler_job(job_id: str) -> dict:
@@ -156,6 +158,9 @@ def remove_scheduler_job(job_id: str) -> dict:
 
     sch = _get_scheduler()
     changed = sch.remove_job(job_id)
+    # ★永続化（削除の直後）
+    if changed:
+        sch._save_jobs()
     return {"ok": True, "removed": bool(changed), "snapshot": get_scheduler_snapshot()}
 
 
