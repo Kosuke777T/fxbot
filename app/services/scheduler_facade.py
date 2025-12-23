@@ -63,12 +63,40 @@ def get_scheduler_snapshot() -> Dict[str, Any]:
             "last_result": st.get("last_result"),
         })
 
+    scheduler_level = _get_scheduler_level(sch)
     return {
-        "scheduler_level": sch._scheduler_level_cfg,  # 表示専用（編集不可）
-        "can_edit": bool((sch._scheduler_level_cfg or 0) >= 3),
+        "scheduler_level": scheduler_level,  # 表示用
+        "can_edit": bool((scheduler_level or 0) >= 3),
         "jobs": jobs_view,
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }
+
+
+def _get_scheduler_level(sch: JobScheduler) -> int | None:
+    """
+    scheduler_level を安全に取得する（public API 優先、fallback で private 属性）。
+
+    Parameters
+    ----------
+    sch : JobScheduler
+        JobScheduler インスタンス
+
+    Returns
+    -------
+    int | None
+        scheduler_level（取得できない場合は None）
+    """
+    # public API があれば優先
+    lvl = None
+    try:
+        if hasattr(sch, "get_scheduler_level"):
+            lvl = sch.get_scheduler_level()  # type: ignore[attr-defined]
+    except Exception:
+        lvl = None
+    # fallback（既存互換）
+    if lvl is None:
+        lvl = getattr(sch, "_scheduler_level_cfg", None)
+    return lvl
 
 
 def _calc_next_run_utc(weekday: Any, hour: Any, minute: Any) -> str | None:
@@ -116,7 +144,7 @@ def add_scheduler_job(job: dict) -> dict:
         return {"ok": False, "error": "scheduler is read-only (can_edit=false)"}
 
     sch = _get_scheduler()
-    sch._add_job(job)
+    sch.add_job(job)
     return {"ok": True, "snapshot": get_scheduler_snapshot()}
 
 def remove_scheduler_job(job_id: str) -> dict:
@@ -127,7 +155,7 @@ def remove_scheduler_job(job_id: str) -> dict:
         return {"ok": False, "error": "scheduler is read-only (can_edit=false)"}
 
     sch = _get_scheduler()
-    changed = sch._remove_job(job_id)
+    changed = sch.remove_job(job_id)
     return {"ok": True, "removed": bool(changed), "snapshot": get_scheduler_snapshot()}
 
 

@@ -15,7 +15,11 @@ from PyQt6.QtWidgets import (
     QMessageBox,
 )
 
-from app.services.scheduler_facade import get_scheduler_snapshot
+from app.services.scheduler_facade import (
+    get_scheduler_snapshot,
+    add_scheduler_job,
+    remove_scheduler_job,
+)
 
 
 class SchedulerTab(QWidget):
@@ -66,9 +70,14 @@ class SchedulerTab(QWidget):
         # 初回描画
         self.refresh()
 
-    def refresh(self) -> None:
+    def refresh(self, checked: bool = False, snap: dict | None = None) -> None:
+        # clicked(bool) から来た checked が snap に入らないよう防御（保険）
+        if snap is not None and not isinstance(snap, dict):
+            snap = None
+
         try:
-            snap = get_scheduler_snapshot()
+            if snap is None:
+                snap = get_scheduler_snapshot()
         except Exception as e:
             QMessageBox.critical(self, "Scheduler", f"snapshot取得に失敗: {e}")
             return
@@ -76,9 +85,9 @@ class SchedulerTab(QWidget):
         level = snap.get("scheduler_level")
         gen = snap.get("generated_at")
         can_edit = bool(snap.get("can_edit"))
-        # Expertのみ編集UIを表示
-        self.btn_add.setVisible(can_edit)
-        self.btn_remove.setVisible(can_edit)
+        # Expertのみ編集UIを有効化
+        self.btn_add.setEnabled(can_edit)
+        self.btn_remove.setEnabled(can_edit)
         self.header.setText(f"Scheduler（scheduler_level={level}） 生成: {gen}")
 
         jobs: List[Dict[str, Any]] = snap.get("jobs") or []
@@ -140,16 +149,65 @@ class SchedulerTab(QWidget):
             QMessageBox.warning(self, "Scheduler", f"詳細表示に失敗: {e}")
 
     def _on_add(self) -> None:
-        # T-42-3-3 で実装（保存含む）
-        QMessageBox.information(self, "Scheduler", "追加は Expert 機能（T-42-3-3 で実装します）")
+        """ジョブ追加ハンドラ（facade経由）"""
+        # 簡易入力ダイアログ（将来的には専用ダイアログに拡張可能）
+        from PyQt6.QtWidgets import QInputDialog
+
+        job_id, ok = QInputDialog.getText(self, "ジョブ追加", "ジョブID:")
+        if not ok or not job_id:
+            return
+
+        # 最小限のジョブ定義（将来的にはフォームで拡張）
+        job = {
+            "id": job_id,
+            "enabled": True,
+            "weekday": None,
+            "hour": None,
+            "minute": None,
+            "command": f"echo {job_id}",
+        }
+
+        r = add_scheduler_job(job)
+        if r.get("ok"):
+            QMessageBox.information(self, "Scheduler", f"ジョブ '{job_id}' を追加しました")
+            self.refresh(r.get("snapshot"))  # 追加後に即更新（最重要、戻り値のsnapshotを使用）
+        else:
+            error = r.get("error", "unknown error")
+            QMessageBox.warning(self, "Scheduler", f"追加に失敗: {error}")
 
     def _on_remove(self) -> None:
-        # T-42-3-3 で実装（保存含む）
+        """ジョブ削除ハンドラ（facade経由）"""
         row = self.table.currentRow()
         if row < 0:
             QMessageBox.warning(self, "Scheduler", "削除する行を選択してください")
             return
+
         job_id_item = self.table.item(row, 0)
         job_id = job_id_item.text() if job_id_item else ""
-        QMessageBox.information(self, "Scheduler", f"削除は Expert 機能（T-42-3-3 で実装します）\\njob_id={job_id}")
+        if not job_id:
+            QMessageBox.warning(self, "Scheduler", "ジョブIDが取得できません")
+            return
+
+        # 確認ダイアログ
+        reply = QMessageBox.question(
+            self,
+            "ジョブ削除",
+            f"ジョブ '{job_id}' を削除しますか？",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        r = remove_scheduler_job(job_id)
+        if r.get("ok"):
+            removed = r.get("removed", False)
+            if removed:
+                QMessageBox.information(self, "Scheduler", f"ジョブ '{job_id}' を削除しました")
+            else:
+                QMessageBox.warning(self, "Scheduler", f"ジョブ '{job_id}' が見つかりませんでした")
+            self.refresh(r.get("snapshot"))  # 削除後に即更新（最重要、戻り値のsnapshotを使用）
+        else:
+            error = r.get("error", "unknown error")
+            QMessageBox.warning(self, "Scheduler", f"削除に失敗: {error}")
+
 
