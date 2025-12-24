@@ -136,6 +136,18 @@ def get_model_metrics(models_dir: str | Path = "models") -> Dict[str, Any]:
     return result
 
 
+def get_active_model_meta() -> dict:
+    """
+    Public thin wrapper for active model meta.
+    Keep GUI/services boundary: GUI should not call private functions.
+    """
+    try:
+        meta = _load_active_meta()  # existing internal loader
+        return meta or {}
+    except Exception:
+        return {}
+
+
 class AISvc:
     """
     既存の推論サービス想定。モデル群は self.models に格納されている想定。

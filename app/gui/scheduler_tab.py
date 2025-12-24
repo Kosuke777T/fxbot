@@ -27,6 +27,8 @@ from PyQt6.QtWidgets import (
     QGroupBox,
 )
 
+from app.services.ai_service import get_model_metrics, get_active_model_meta
+from app.services.recent_kpi import KPIService as RecentKPIService
 from app.services.scheduler_facade import (
     get_scheduler_snapshot,
     add_scheduler_job,
@@ -192,6 +194,59 @@ class SchedulerTab(QWidget):
         self.header.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         root.addWidget(self.header)
 
+        # ---- Overview Panel (T-42-3-13) ----
+        self.overview_group = QGroupBox("Overview", self)
+        overview_layout = QHBoxLayout()
+
+        # Opsセクション
+        ops_layout = QVBoxLayout()
+        ops_label = QLabel("Ops", self)
+        ops_label.setStyleSheet("font-weight: bold;")
+        self.lbl_ops_month = QLabel("今月損益: -", self)
+        self.lbl_ops_progress = QLabel("進捗: -", self)
+        ops_layout.addWidget(ops_label)
+        ops_layout.addWidget(self.lbl_ops_month)
+        ops_layout.addWidget(self.lbl_ops_progress)
+
+        # Schedulerセクション
+        sched_layout = QVBoxLayout()
+        sched_label = QLabel("Scheduler", self)
+        sched_label.setStyleSheet("font-weight: bold;")
+        self.lbl_sched_daemon = QLabel("daemon: -", self)
+        self.lbl_sched_editable = QLabel("編集可否: -", self)
+        self.lbl_sched_jobs = QLabel("ジョブ数: -", self)
+        self.lbl_sched_next = QLabel("次回実行: -", self)
+        sched_layout.addWidget(sched_label)
+        sched_layout.addWidget(self.lbl_sched_daemon)
+        sched_layout.addWidget(self.lbl_sched_editable)
+        sched_layout.addWidget(self.lbl_sched_jobs)
+        sched_layout.addWidget(self.lbl_sched_next)
+
+        # AIセクション
+        ai_layout = QVBoxLayout()
+        ai_label = QLabel("AI", self)
+        ai_label.setStyleSheet("font-weight: bold;")
+        self.lbl_ai_model = QLabel("model: -", self)
+        self.lbl_ai_trained = QLabel("trained_at: -", self)
+        self.lbl_ai_threshold = QLabel("threshold: -", self)
+        self.lbl_ai_features = QLabel("features: -", self)
+        ai_layout.addWidget(ai_label)
+        ai_layout.addWidget(self.lbl_ai_model)
+        ai_layout.addWidget(self.lbl_ai_trained)
+        ai_layout.addWidget(self.lbl_ai_threshold)
+        ai_layout.addWidget(self.lbl_ai_features)
+
+        overview_layout.addLayout(ops_layout)
+        overview_layout.addSpacing(12)
+        overview_layout.addLayout(sched_layout)
+        overview_layout.addSpacing(12)
+        overview_layout.addLayout(ai_layout)
+        overview_layout.addStretch(1)
+
+        self.overview_group.setLayout(overview_layout)
+        root.addWidget(self.overview_group)
+        # ---- /Overview Panel ----
+
         # ボタン行
         row = QHBoxLayout()
         self.btn_refresh = QPushButton("更新", self)
@@ -327,6 +382,9 @@ class SchedulerTab(QWidget):
         # 最後のsnapshotを保持（詳細表示用）
         self._last_snapshot: dict | None = None
 
+        # KPIサービスを初期化
+        self._recent_kpi = RecentKPIService()
+
         # 初回描画
         self.refresh()
 
@@ -378,6 +436,9 @@ class SchedulerTab(QWidget):
 
         # 常時実行ジョブテーブルを更新
         self._populate_table(self.table_always, always_jobs)
+
+        # Overviewパネルを更新
+        self._refresh_overview(snap)
 
     def _populate_table(self, table: QTableWidget, jobs: List[Dict[str, Any]]) -> None:
         """テーブルにジョブを表示（共通処理）"""
@@ -678,6 +739,93 @@ class SchedulerTab(QWidget):
         else:
             error = r.get("error", "unknown error")
             QMessageBox.warning(self, "Scheduler", f"削除に失敗: {error}")
+
+    # ---- Overview Panel (T-42-3-13) ----
+    def _refresh_overview(self, snap: dict) -> None:
+        """Overviewパネルを更新（Ops/Scheduler/AI）"""
+        # Ops: 今月の運用KPI
+        try:
+            kpi = self._recent_kpi.get_kpi(profile="default")
+            month_ret = kpi.get("current_month_return_pct", 0.0)
+            max_dd = kpi.get("max_monthly_dd_pct", 0.0)
+            self.lbl_ops_month.setText(f"今月損益: {month_ret:.2f}% (DD: {max_dd:.2f}%)")
+            # 進捗は簡易的に月次リターン系列の長さで表現（必要に応じて拡張）
+            monthly_list = kpi.get("monthly_returns", [])
+            progress = len(monthly_list)
+            self.lbl_ops_progress.setText(f"進捗: {progress}ヶ月分")
+        except Exception as e:
+            self.lbl_ops_month.setText("今月損益: (n/a)")
+            self.lbl_ops_progress.setText(f"進捗: (error: {e})")
+
+        # Scheduler: daemon稼働/編集可否/ジョブ数/次回実行
+        try:
+            daemon_status = get_scheduler_daemon_status()
+            daemon_running = bool(daemon_status.get("running"))
+            self.lbl_sched_daemon.setText(f"daemon: {'稼働中' if daemon_running else '停止'}")
+
+            can_edit = bool(snap.get("can_edit"))
+            self.lbl_sched_editable.setText(f"編集可否: {'可' if can_edit else '不可'}")
+
+            jobs = snap.get("jobs", [])
+            self.lbl_sched_jobs.setText(f"ジョブ数: {len(jobs)}")
+
+            # 次回実行時刻（最も近いnext_run_atを探す）
+            next_runs = [j.get("next_run_at") for j in jobs if j.get("next_run_at")]
+            if next_runs:
+                next_run = min(next_runs)
+                self.lbl_sched_next.setText(f"次回実行: {next_run}")
+            else:
+                self.lbl_sched_next.setText("次回実行: -")
+        except Exception as e:
+            self.lbl_sched_daemon.setText("daemon: (n/a)")
+            self.lbl_sched_editable.setText("編集可否: (n/a)")
+            self.lbl_sched_jobs.setText("ジョブ数: (n/a)")
+            self.lbl_sched_next.setText("次回実行: (n/a)")
+
+        # AI: active model情報
+        try:
+            model_info = get_model_metrics() or {}
+            meta = get_active_model_meta() or {}
+
+            # 表示名: model_name があればそれ、無ければ model_path の末尾などを表示
+            model_name = model_info.get("model_name")
+            model_path = model_info.get("model_path")
+            if model_name:
+                model_disp = str(model_name)
+            elif model_path:
+                model_disp = str(model_path)
+            else:
+                model_disp = "(n/a)"
+            self.lbl_ai_model.setText(f"model: {model_disp}")
+
+            trained_at = model_info.get("trained_at") or "(n/a)"
+            self.lbl_ai_trained.setText(f"trained_at: {trained_at}")
+
+            threshold = model_info.get("best_threshold")
+            if threshold is not None:
+                self.lbl_ai_threshold.setText(f"threshold: {float(threshold):.3f}")
+            else:
+                self.lbl_ai_threshold.setText("threshold: (n/a)")
+
+            # features: active meta の feature_order / features を最優先
+            ef = meta.get("feature_order") or meta.get("features")
+            if isinstance(ef, list):
+                self.lbl_ai_features.setText(f"features: {len(ef)}")
+            else:
+                # フォールバック（あれば）
+                features_count = meta.get("expected_features_count")
+                if features_count is None:
+                    features_count = meta.get("n_features")
+                if features_count is not None:
+                    self.lbl_ai_features.setText(f"features: {features_count}")
+                else:
+                    self.lbl_ai_features.setText("features: (n/a)")
+        except Exception:
+            self.lbl_ai_model.setText("model: (n/a)")
+            self.lbl_ai_trained.setText("trained_at: (n/a)")
+            self.lbl_ai_threshold.setText("threshold: (n/a)")
+            self.lbl_ai_features.setText("features: (n/a)")
+    # ---- /Overview Panel ----
 
     # ---- Daemon Control Handlers (T-42-3-12) ----
     def _refresh_daemon_status(self) -> None:
