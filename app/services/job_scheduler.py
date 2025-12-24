@@ -44,7 +44,7 @@ class JobScheduler:
 
             with self.config_path.open("r", encoding="utf-8") as f:
                 data = yaml.safe_load(f) or {}
-            
+
             # scheduler_level を読み込む（-1 は未設定を意味）
             scheduler_level_raw = data.get("scheduler_level")
             if scheduler_level_raw is not None:
@@ -55,7 +55,7 @@ class JobScheduler:
                     self._scheduler_level_cfg = None
             else:
                 self._scheduler_level_cfg = None
-            
+
             jobs_raw = data.get("jobs", [])
             if not isinstance(jobs_raw, list):
                 logger.warning(f"[JobScheduler] jobs is not list in {self.config_path}")
@@ -292,14 +292,20 @@ class JobScheduler:
             else:
                 st["state"] = "FAILED"
 
-            # 結果を保存
-            st["last_result"] = {
+            # 結果を保存（stdout/stderr/errorが無い場合に補完）
+            last_result = {
                 "ok": ok,
                 "rc": result.get("rc", -1),
-                "stdout": (result.get("stdout") or "")[:1000],  # 最初1000文字のみ
-                "stderr": (result.get("stderr") or "")[:1000],
+                "stdout": result.get("stdout", ""),
+                "stderr": result.get("stderr", ""),
                 "error": result.get("error"),
             }
+            # stdout/stderrが無い場合は空文字列で補完
+            if "stdout" not in last_result:
+                last_result["stdout"] = ""
+            if "stderr" not in last_result:
+                last_result["stderr"] = ""
+            st["last_result"] = last_result
 
             results.append({"job_id": job_id, "result": result})
 

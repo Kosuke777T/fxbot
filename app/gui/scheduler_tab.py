@@ -21,6 +21,8 @@ from PyQt6.QtWidgets import (
     QComboBox,
     QSpinBox,
     QDialogButtonBox,
+    QPlainTextEdit,
+    QSplitter,
 )
 
 _JOB_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
@@ -198,6 +200,10 @@ class SchedulerTab(QWidget):
         row.addStretch(1)
         root.addLayout(row)
 
+        # スプリッター（テーブルと詳細ビューを分割）
+        splitter = QSplitter(Qt.Orientation.Vertical, self)
+        root.addWidget(splitter)
+
         # テーブル（ジョブ一覧）
         self.table = QTableWidget(self)
         self.table.setColumnCount(7)
@@ -214,7 +220,25 @@ class SchedulerTab(QWidget):
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         self.table.cellDoubleClicked.connect(self._on_double_click)
-        root.addWidget(self.table)
+        self.table.itemSelectionChanged.connect(self._on_job_selected)
+        splitter.addWidget(self.table)
+
+        # 詳細ビュー（実行ログ）
+        detail_group = QWidget(self)
+        detail_layout = QVBoxLayout(detail_group)
+        detail_label = QLabel("実行ログ（選択中）", self)
+        detail_layout.addWidget(detail_label)
+        self.detail_text = QPlainTextEdit(self)
+        self.detail_text.setReadOnly(True)
+        self.detail_text.setMaximumBlockCount(1000)  # メモリ保護
+        detail_layout.addWidget(self.detail_text)
+        splitter.addWidget(detail_group)
+
+        # スプリッターのサイズ比率（テーブル:詳細 = 2:1）
+        splitter.setSizes([200, 100])
+
+        # 最後のsnapshotを保持（詳細表示用）
+        self._last_snapshot: dict | None = None
 
         # 初回描画
         self.refresh()
@@ -239,6 +263,9 @@ class SchedulerTab(QWidget):
         self.btn_edit.setEnabled(can_edit)
         self.btn_remove.setEnabled(can_edit)
         self.header.setText(f"Scheduler（scheduler_level={level}） 生成: {gen}")
+
+        # snapshotを保持（詳細表示用）
+        self._last_snapshot = snap
 
         jobs: List[Dict[str, Any]] = snap.get("jobs") or []
         self.table.setRowCount(len(jobs))
@@ -281,6 +308,70 @@ class SchedulerTab(QWidget):
             code = err.get("code") if isinstance(err, dict) else str(err)
             return f"ok={ok} rc={rc} err={code}"
         return f"ok={ok} rc={rc}"
+
+    def _on_job_selected(self) -> None:
+        """ジョブ選択時の詳細表示更新"""
+        if not self._last_snapshot:
+            self.detail_text.clear()
+            return
+
+        row = self.table.currentRow()
+        if row < 0:
+            self.detail_text.clear()
+            return
+
+        try:
+            jobs = self._last_snapshot.get("jobs") or []
+            if row < 0 or row >= len(jobs):
+                self.detail_text.clear()
+                return
+
+            job = jobs[row]
+            job_id = str(job.get("id") or "")
+            state = str(job.get("state") or "")
+            last_run_at = str(job.get("last_run_at") or "-")
+            next_run_at = str(job.get("next_run_at") or "-")
+            last_result = job.get("last_result")
+
+            # 詳細表示の整形
+            lines = []
+            lines.append(f"id: {job_id}")
+            lines.append(f"state: {state}")
+            lines.append(f"last_run_at: {last_run_at}")
+            lines.append(f"next_run_at: {next_run_at}")
+            lines.append("")
+
+            if last_result:
+                ok = last_result.get("ok")
+                rc = last_result.get("rc")
+                error = last_result.get("error")
+                stdout = last_result.get("stdout", "")
+                stderr = last_result.get("stderr", "")
+
+                lines.append(f"last_result.ok: {ok}")
+                lines.append(f"last_result.rc: {rc}")
+                if error:
+                    error_code = error.get("code", "") if isinstance(error, dict) else str(error)
+                    error_msg = error.get("message", "") if isinstance(error, dict) else ""
+                    lines.append(f"last_result.error: {error_code} - {error_msg}")
+                lines.append("")
+
+                if stdout:
+                    lines.append("--- stdout ---")
+                    lines.append(str(stdout))
+                    lines.append("")
+
+                if stderr:
+                    lines.append("--- stderr ---")
+                    lines.append(str(stderr))
+                    lines.append("")
+            else:
+                lines.append("(no last_result)")
+
+            self.detail_text.setPlainText("\n".join(lines))
+
+        except Exception as e:
+            self.detail_text.setPlainText(f"詳細表示エラー: {e}")
 
     def _on_double_click(self, row: int, col: int) -> None:
         # last_result を詳細表示（stdout/stderr/error）

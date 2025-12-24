@@ -52,6 +52,17 @@ def get_scheduler_snapshot() -> Dict[str, Any]:
         job_id = str(job.get("id") or job.get("name") or "?")
         st = sch.get_job_state(job_id) or {}
 
+        # last_resultを補完（stdout/stderr/errorが無い場合）
+        last_result = st.get("last_result")
+        if last_result and isinstance(last_result, dict):
+            # 足りないキーがあれば補完
+            if "stdout" not in last_result:
+                last_result["stdout"] = ""
+            if "stderr" not in last_result:
+                last_result["stderr"] = ""
+            if "error" not in last_result:
+                last_result["error"] = None
+
         jobs_view.append({
             "id": job_id,
             "enabled": bool(job.get("enabled", True)),
@@ -65,7 +76,7 @@ def get_scheduler_snapshot() -> Dict[str, Any]:
             "next_run_at": _calc_next_run_utc(job.get("weekday"), job.get("hour"), job.get("minute")),
             "state": st.get("state"),
             "last_run_at": st.get("last_run_at"),
-            "last_result": st.get("last_result"),
+            "last_result": last_result,
         })
 
     scheduler_level = _get_scheduler_level(sch)

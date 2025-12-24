@@ -45,3 +45,9 @@ jobs:
   weekday: null
   hour: null
   minute: null
+- id: log_test
+  enabled: true
+  command: python -c "print('OUT'); import sys; print('ERR', file=sys.stderr)"
+  weekday: 2
+  hour: 6
+  minute: 17
