@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from functools import partial
 from typing import Any, Dict, List, Optional
 
 from PyQt6.QtCore import Qt
@@ -31,6 +32,7 @@ from app.services.scheduler_facade import (
     get_scheduler_snapshot,
     add_scheduler_job,
     remove_scheduler_job,
+    run_scheduler_job_now,
 )
 
 
@@ -174,10 +176,15 @@ class SchedulerTab(QWidget):
         super().__init__(parent)
 
         root = QVBoxLayout(self)
+        root.setContentsMargins(8, 6, 8, 8)  # 上を詰める
+        root.setSpacing(6)
 
         # ヘッダ（scheduler_level 表示）
         self.header = QLabel("Scheduler", self)
         self.header.setWordWrap(True)
+        self.header.setContentsMargins(0, 0, 0, 0)
+        from PyQt6.QtWidgets import QSizePolicy
+        self.header.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         root.addWidget(self.header)
 
         # ボタン行
@@ -200,14 +207,23 @@ class SchedulerTab(QWidget):
         row.addStretch(1)
         root.addLayout(row)
 
-        # スプリッター（テーブルと詳細ビューを分割）
-        splitter = QSplitter(Qt.Orientation.Vertical, self)
-        root.addWidget(splitter)
+        # メインスプリッター（水平分割：左=ジョブテーブル、右=詳細ビュー）
+        main_splitter = QSplitter(Qt.Orientation.Horizontal, self)
+        root.addWidget(main_splitter, 1)  # stretch=1 を明示
 
-        # テーブル（ジョブ一覧）
-        self.table = QTableWidget(self)
-        self.table.setColumnCount(7)
-        self.table.setHorizontalHeaderLabels([
+        # 左側：ジョブテーブル（垂直分割：上=スケジュール、下=常時実行）
+        jobs_splitter = QSplitter(Qt.Orientation.Vertical, self)
+        main_splitter.addWidget(jobs_splitter)
+
+        # スケジュールジョブテーブル
+        scheduled_group = QWidget(self)
+        scheduled_layout = QVBoxLayout(scheduled_group)
+        scheduled_label = QLabel("スケジュールジョブ", self)
+        scheduled_layout.addWidget(scheduled_label)
+        self.table_scheduled = QTableWidget(self)
+        self.table_scheduled.setColumnCount(8)
+        self.table_scheduled.setHorizontalHeaderLabels([
+            "実行",
             "id",
             "enabled",
             "schedule",
@@ -216,14 +232,40 @@ class SchedulerTab(QWidget):
             "last_run_at",
             "last_result",
         ])
-        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
-        self.table.cellDoubleClicked.connect(self._on_double_click)
-        self.table.itemSelectionChanged.connect(self._on_job_selected)
-        splitter.addWidget(self.table)
+        self.table_scheduled.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.table_scheduled.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.table_scheduled.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+        self.table_scheduled.cellDoubleClicked.connect(self._on_double_click)
+        self.table_scheduled.itemSelectionChanged.connect(self._on_job_selected)
+        scheduled_layout.addWidget(self.table_scheduled)
+        jobs_splitter.addWidget(scheduled_group)
 
-        # 詳細ビュー（実行ログ）
+        # 常時実行ジョブテーブル
+        always_group = QWidget(self)
+        always_layout = QVBoxLayout(always_group)
+        always_label = QLabel("常時実行ジョブ", self)
+        always_layout.addWidget(always_label)
+        self.table_always = QTableWidget(self)
+        self.table_always.setColumnCount(8)
+        self.table_always.setHorizontalHeaderLabels([
+            "実行",
+            "id",
+            "enabled",
+            "schedule",
+            "next_run_at",
+            "state",
+            "last_run_at",
+            "last_result",
+        ])
+        self.table_always.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.table_always.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.table_always.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+        self.table_always.cellDoubleClicked.connect(self._on_double_click)
+        self.table_always.itemSelectionChanged.connect(self._on_job_selected)
+        always_layout.addWidget(self.table_always)
+        jobs_splitter.addWidget(always_group)
+
+        # 右側：詳細ビュー（実行ログ）
         detail_group = QWidget(self)
         detail_layout = QVBoxLayout(detail_group)
         detail_label = QLabel("実行ログ（選択中）", self)
@@ -232,10 +274,11 @@ class SchedulerTab(QWidget):
         self.detail_text.setReadOnly(True)
         self.detail_text.setMaximumBlockCount(1000)  # メモリ保護
         detail_layout.addWidget(self.detail_text)
-        splitter.addWidget(detail_group)
+        main_splitter.addWidget(detail_group)
 
-        # スプリッターのサイズ比率（テーブル:詳細 = 2:1）
-        splitter.setSizes([200, 100])
+        # スプリッターのサイズ比率
+        jobs_splitter.setSizes([200, 100])  # スケジュール:常時実行 = 2:1
+        main_splitter.setSizes([300, 200])  # ジョブテーブル:詳細 = 3:2
 
         # 最後のsnapshotを保持（詳細表示用）
         self._last_snapshot: dict | None = None
@@ -268,7 +311,33 @@ class SchedulerTab(QWidget):
         self._last_snapshot = snap
 
         jobs: List[Dict[str, Any]] = snap.get("jobs") or []
-        self.table.setRowCount(len(jobs))
+
+        # ジョブを2つに分ける
+        scheduled_jobs: List[Dict[str, Any]] = []
+        always_jobs: List[Dict[str, Any]] = []
+
+        for j in jobs:
+            sch = j.get("schedule") or {}
+            weekday = sch.get("weekday")
+            hour = sch.get("hour")
+            minute = sch.get("minute")
+            run_always = bool(j.get("run_always", False))
+
+            # weekday/hour/minute が全部 None かつ run_always=True なら常時実行
+            if weekday is None and hour is None and minute is None and run_always:
+                always_jobs.append(j)
+            else:
+                scheduled_jobs.append(j)
+
+        # スケジュールジョブテーブルを更新
+        self._populate_table(self.table_scheduled, scheduled_jobs)
+
+        # 常時実行ジョブテーブルを更新
+        self._populate_table(self.table_always, always_jobs)
+
+    def _populate_table(self, table: QTableWidget, jobs: List[Dict[str, Any]]) -> None:
+        """テーブルにジョブを表示（共通処理）"""
+        table.setRowCount(len(jobs))
 
         for r, j in enumerate(jobs):
             job_id = str(j.get("id") or "")
@@ -284,20 +353,32 @@ class SchedulerTab(QWidget):
             last_result = j.get("last_result")
             last_result_str = "-" if not last_result else self._summarize_result(last_result)
 
-            self._set_item(r, 0, job_id)
-            self._set_item(r, 1, enabled)
-            self._set_item(r, 2, schedule_str)
-            self._set_item(r, 3, str(next_run_at))
-            self._set_item(r, 4, state)
-            self._set_item(r, 5, str(last_run_at))
-            self._set_item(r, 6, last_result_str)
+            # 「今すぐ実行」ボタン（col=0、一番左）
+            btn = QPushButton("実行", self)
+            btn.clicked.connect(partial(self._on_run_now_clicked, job_id))
+            table.setCellWidget(r, 0, btn)
 
-        self.table.resizeColumnsToContents()
+            # 以降、列を1つ右へずらす
+            self._set_item(table, r, 1, job_id)
+            self._set_item(table, r, 2, enabled)
+            self._set_item(table, r, 3, schedule_str)
+            self._set_item(table, r, 4, str(next_run_at))
+            self._set_item(table, r, 5, state)
+            self._set_item(table, r, 6, str(last_run_at))
+            self._set_item(table, r, 7, last_result_str)
 
-    def _set_item(self, row: int, col: int, text: str) -> None:
+        table.resizeColumnsToContents()
+
+        # 実行列（0列目）を固定幅にして見切れ/揺れを防止
+        from PyQt6.QtWidgets import QHeaderView
+        table.setColumnWidth(0, 60)
+        hdr = table.horizontalHeader()
+        hdr.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
+
+    def _set_item(self, table: QTableWidget, row: int, col: int, text: str) -> None:
         it = QTableWidgetItem(text)
         it.setFlags(it.flags() & ~Qt.ItemFlag.ItemIsEditable)
-        self.table.setItem(row, col, it)
+        table.setItem(row, col, it)
 
     def _summarize_result(self, res: Dict[str, Any]) -> str:
         # jobs_state に入る last_result の想定: {"ok":bool,"rc":int,"stdout":str,"stderr":str,"error":...}
@@ -309,24 +390,35 @@ class SchedulerTab(QWidget):
             return f"ok={ok} rc={rc} err={code}"
         return f"ok={ok} rc={rc}"
 
+    def _get_selected_job_id(self) -> str:
+        """選択中のジョブIDを取得（scheduled優先、無ければalways）"""
+        for table in (self.table_scheduled, self.table_always):
+            row = table.currentRow()
+            if row >= 0:
+                it = table.item(row, 1)  # id列は1（実行ボタンが0）
+                if it and it.text():
+                    return it.text()
+        return ""
+
     def _on_job_selected(self) -> None:
         """ジョブ選択時の詳細表示更新"""
         if not self._last_snapshot:
             self.detail_text.clear()
             return
 
-        row = self.table.currentRow()
-        if row < 0:
+        job_id = self._get_selected_job_id()
+        if not job_id:
             self.detail_text.clear()
             return
 
         try:
+
+            # snapshotから該当ジョブを検索
             jobs = self._last_snapshot.get("jobs") or []
-            if row < 0 or row >= len(jobs):
+            job = next((j for j in jobs if str(j.get("id", "")) == job_id), None)
+            if not job:
                 self.detail_text.clear()
                 return
-
-            job = jobs[row]
             job_id = str(job.get("id") or "")
             state = str(job.get("state") or "")
             last_run_at = str(job.get("last_run_at") or "-")
@@ -376,11 +468,27 @@ class SchedulerTab(QWidget):
     def _on_double_click(self, row: int, col: int) -> None:
         # last_result を詳細表示（stdout/stderr/error）
         try:
+            # どちらのテーブルからダブルクリックされたか判定
+            sender_table = self.sender()
+            if sender_table == self.table_scheduled:
+                table = self.table_scheduled
+            elif sender_table == self.table_always:
+                table = self.table_always
+            else:
+                return
+
+            # job_idを取得（id列は1）
+            job_id_item = table.item(row, 1)
+            job_id = job_id_item.text() if job_id_item else ""
+            if not job_id:
+                return
+
             snap = get_scheduler_snapshot()
             jobs = snap.get("jobs") or []
-            if row < 0 or row >= len(jobs):
+            j = next((j for j in jobs if str(j.get("id", "")) == job_id), None)
+            if not j:
                 return
-            j = jobs[row]
+
             title = f"Job detail: {j.get('id')}"
             msg = json.dumps(j.get("last_result"), indent=2, ensure_ascii=False)
             if not msg or msg == "null":
@@ -388,6 +496,37 @@ class SchedulerTab(QWidget):
             QMessageBox.information(self, title, msg)
         except Exception as e:
             QMessageBox.warning(self, "Scheduler", f"詳細表示に失敗: {e}")
+
+    def _on_run_now_clicked(self, job_id: str) -> None:
+        """「今すぐ実行」ボタンのハンドラ"""
+        try:
+            res = run_scheduler_job_now(job_id)
+            if res.get("ok"):
+                result = res.get("result") or {}
+                rc = result.get("rc", -1)
+                stdout = result.get("stdout", "")
+                stderr = result.get("stderr", "")
+
+                # 詳細ビューに追記
+                lines = [f"[run_now] {job_id} ok=True rc={rc}"]
+                if stdout:
+                    lines.append("--- stdout ---")
+                    lines.append(stdout.rstrip())
+                if stderr:
+                    lines.append("--- stderr ---")
+                    lines.append(stderr.rstrip())
+                self.detail_text.appendPlainText("\n".join(lines))
+
+                # 実行後スナップショットで再描画
+                snap = res.get("snapshot")
+                if snap:
+                    self.refresh(snap=snap)
+                    QMessageBox.information(self, "Scheduler", f"ジョブ '{job_id}' を実行しました")
+            else:
+                error = res.get("error", "unknown error")
+                QMessageBox.warning(self, "Scheduler", f"実行に失敗: {error}")
+        except Exception as e:
+            QMessageBox.warning(self, "Scheduler", f"実行エラー: {e}")
 
     def _on_add(self) -> None:
         """ジョブ追加ハンドラ（facade経由）"""
@@ -411,8 +550,8 @@ class SchedulerTab(QWidget):
 
     def _on_edit(self) -> None:
         """ジョブ編集ハンドラ（facade経由）"""
-        row = self.table.currentRow()
-        if row < 0:
+        job_id = self._get_selected_job_id()
+        if not job_id:
             QMessageBox.warning(self, "Scheduler", "編集する行を選択してください")
             return
 
@@ -420,16 +559,6 @@ class SchedulerTab(QWidget):
         try:
             snap = get_scheduler_snapshot()
             jobs = snap.get("jobs") or []
-            if row < 0 or row >= len(jobs):
-                QMessageBox.warning(self, "Scheduler", "ジョブが見つかりません")
-                return
-
-            # テーブルからjob_idを取得してjobsリストから検索
-            job_id_item = self.table.item(row, 0)
-            job_id = job_id_item.text() if job_id_item else ""
-            if not job_id:
-                QMessageBox.warning(self, "Scheduler", "ジョブIDが取得できません")
-                return
 
             # jobsリストから該当ジョブを検索
             job = next((j for j in jobs if str(j.get("id", "")) == job_id), None)
@@ -478,15 +607,9 @@ class SchedulerTab(QWidget):
 
     def _on_remove(self) -> None:
         """ジョブ削除ハンドラ（facade経由）"""
-        row = self.table.currentRow()
-        if row < 0:
-            QMessageBox.warning(self, "Scheduler", "削除する行を選択してください")
-            return
-
-        job_id_item = self.table.item(row, 0)
-        job_id = job_id_item.text() if job_id_item else ""
+        job_id = self._get_selected_job_id()
         if not job_id:
-            QMessageBox.warning(self, "Scheduler", "ジョブIDが取得できません")
+            QMessageBox.warning(self, "Scheduler", "削除する行を選択してください")
             return
 
         # 確認ダイアログ

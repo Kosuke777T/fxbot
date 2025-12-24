@@ -71,3 +71,10 @@ jobs:
   hour: null
   minute: null
   run_always: true
+- id: always_test
+  enabled: true
+  command: python -c "print('ALWAYS_OUT'); import sys; print('ALWAYS_ERR', file=sys.stderr)"
+  weekday: null
+  hour: null
+  minute: null
+  run_always: true

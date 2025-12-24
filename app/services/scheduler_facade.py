@@ -68,6 +68,7 @@ def get_scheduler_snapshot() -> Dict[str, Any]:
             "enabled": bool(job.get("enabled", True)),
             "command": job.get("command", ""),  # 編集機能のために追加
             "scheduler_level": job.get("scheduler_level"),  # 編集機能のために追加
+            "run_always": bool(job.get("run_always", False)),  # 常時実行判定用
             "schedule": {
                 "weekday": job.get("weekday"),
                 "hour": job.get("hour"),
@@ -226,6 +227,36 @@ def remove_scheduler_job(job_id: str) -> dict:
     if changed:
         sch._save_jobs()
     return {"ok": True, "removed": bool(changed), "snapshot": get_scheduler_snapshot()}
+
+
+def run_scheduler_job_now(job_id: str) -> dict:
+    """
+    GUI用: 指定ジョブを「今すぐ」1回実行する。
+    - GUI -> services のみ
+    - scheduler singleton を facade 経由で叩く
+    """
+    sch = _get_scheduler()
+
+    # jobs から対象を探す（jobs の実体は JobScheduler 側の保持データ）
+    jobs = getattr(sch, "jobs", None) or []
+    job = next((j for j in jobs if (j.get("id") == job_id)), None)
+    if not job:
+        return {"ok": False, "error": f"job not found: {job_id}"}
+
+    if not job.get("enabled", True):
+        return {"ok": False, "error": f"job disabled: {job_id}"}
+
+    # 既存の実行関数に寄せる（最小差分）
+    # _run_job(job, now) は now パラメータが必要
+    now = datetime.now(timezone.utc)
+    if hasattr(sch, "_run_job"):
+        res = sch._run_job(job, now)  # noqa: SLF001 (internal call by design)
+    else:
+        # 最後の保険：既存APIに合わせる（ここは実プロジェクトの実装名に合わせて調整）
+        return {"ok": False, "error": "scheduler has no _run_job()"}
+
+    snap = get_scheduler_snapshot()
+    return {"ok": True, "job_id": job_id, "result": res, "snapshot": snap}
 
 
 
