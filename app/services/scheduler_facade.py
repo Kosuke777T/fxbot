@@ -1,12 +1,16 @@
 # app/services/scheduler_facade.py
 from __future__ import annotations
 
+import json
 import re
+import subprocess
+import sys
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.services.job_scheduler import JobScheduler
+from loguru import logger
 
 _JOB_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
@@ -259,4 +263,206 @@ def run_scheduler_job_now(job_id: str) -> dict:
     return {"ok": True, "job_id": job_id, "result": res, "snapshot": snap}
 
 
+# ============================================================================
+# Daemon管理API（T-42-3-11）
+# ============================================================================
+
+_DAEMON_PID_FILE = Path("logs/scheduler_daemon.pid")
+
+
+def start_scheduler_daemon(poll_sec: float = 1.0) -> dict:
+    """
+    スケジューラデーモンを起動する。
+    """
+    if _DAEMON_PID_FILE.exists():
+        try:
+            pid_data = json.loads(_DAEMON_PID_FILE.read_text(encoding="utf-8"))
+            pid = pid_data.get("pid")
+            if pid and _is_process_running(pid):
+                return {
+                    "ok": False,
+                    "error": f"daemon already running (pid={pid})",
+                    "pid": pid,
+                    "pid_file": str(_DAEMON_PID_FILE),
+                }
+        except Exception:
+            _DAEMON_PID_FILE.unlink(missing_ok=True)
+
+    try:
+        creation_flags = 0
+        if sys.platform == "win32":
+            creation_flags = subprocess.CREATE_NO_WINDOW
+
+        proc = subprocess.Popen(
+            [
+                sys.executable,
+                "-m",
+                "app.services.scheduler_daemon",
+                "--poll-sec",
+                str(poll_sec),
+            ],
+            creationflags=creation_flags,
+        )
+
+        pid_data = {
+            "pid": proc.pid,
+            "started_at": datetime.now(timezone.utc).isoformat(),
+            "poll_sec": poll_sec,
+        }
+        _DAEMON_PID_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _DAEMON_PID_FILE.write_text(json.dumps(pid_data), encoding="utf-8")
+
+        return {
+            "ok": True,
+            "error": None,
+            "pid": proc.pid,
+            "pid_file": str(_DAEMON_PID_FILE),
+        }
+
+    except Exception as e:
+        return {
+            "ok": False,
+            "error": str(e),
+            "pid": None,
+            "pid_file": None,
+        }
+
+
+
+
+def stop_scheduler_daemon(wait_sec: float = 0.5) -> dict:
+    """
+    スケジューラデーモンを停止する（標準ライブラリのみ）。
+
+    Returns
+    -------
+    dict
+        {
+          "ok": bool,
+          "error": str|None,
+          "stopped": bool,
+          "pid": int|None,
+          "pid_file": str
+        }
+    """
+    pid_file = str(_DAEMON_PID_FILE)
+
+    if not _DAEMON_PID_FILE.exists():
+        return {"ok": True, "error": None, "stopped": True, "pid": None, "pid_file": pid_file}
+
+    try:
+        pid_data = json.loads(_DAEMON_PID_FILE.read_text(encoding="utf-8"))
+        pid = pid_data.get("pid")
+        if not pid:
+            _DAEMON_PID_FILE.unlink(missing_ok=True)
+            return {"ok": True, "error": None, "stopped": True, "pid": None, "pid_file": pid_file}
+
+        if not _is_process_running(int(pid)):
+            _DAEMON_PID_FILE.unlink(missing_ok=True)
+            return {"ok": True, "error": None, "stopped": True, "pid": int(pid), "pid_file": pid_file}
+
+        pid = int(pid)
+
+        if sys.platform == "win32":
+            subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True, check=False)
+        else:
+            import os, signal
+            os.kill(pid, signal.SIGTERM)
+
+        import time
+        time.sleep(max(0.0, float(wait_sec)))
+
+        if _is_process_running(pid):
+            return {"ok": False, "error": f"process {pid} still running", "stopped": False, "pid": pid, "pid_file": pid_file}
+
+        _DAEMON_PID_FILE.unlink(missing_ok=True)
+        return {"ok": True, "error": None, "stopped": True, "pid": pid, "pid_file": pid_file}
+
+    except Exception as e:
+        return {"ok": False, "error": f"failed to stop daemon: {e}", "stopped": False, "pid": None, "pid_file": pid_file}
+
+def get_scheduler_daemon_status() -> dict:
+    """
+    スケジューラデーモンの状態を取得する。
+
+    Returns
+    -------
+    dict
+        {
+            "running": bool,
+            "pid": int | None,
+            "started_at": str | None,
+            "poll_sec": float | None,
+            "pid_file": str | None,
+        }
+    """
+    if not _DAEMON_PID_FILE.exists():
+        return {
+            "running": False,
+            "pid": None,
+            "started_at": None,
+            "poll_sec": None,
+            "pid_file": str(_DAEMON_PID_FILE),
+        }
+
+    try:
+        pid_data = json.loads(_DAEMON_PID_FILE.read_text(encoding="utf-8"))
+        pid = pid_data.get("pid")
+        started_at = pid_data.get("started_at")
+        poll_sec = pid_data.get("poll_sec")
+
+        if pid and _is_process_running(pid):
+            return {
+                "running": True,
+                "pid": pid,
+                "started_at": started_at,
+                "poll_sec": poll_sec,
+                "pid_file": str(_DAEMON_PID_FILE),
+            }
+        else:
+            # PIDファイルはあるがプロセスが存在しない（ゾンビPIDファイル）
+            return {
+                "running": False,
+                "pid": pid,
+                "started_at": started_at,
+                "poll_sec": poll_sec,
+                "pid_file": str(_DAEMON_PID_FILE),
+            }
+
+    except Exception as e:
+        return {
+            "running": False,
+            "pid": None,
+            "started_at": None,
+            "poll_sec": None,
+            "pid_file": str(_DAEMON_PID_FILE),
+            "error": str(e),
+        }
+
+
+def _is_process_running(pid: int) -> bool:
+    """
+    プロセスが実行中かどうかをチェック（標準ライブラリのみ使用）
+    """
+    if sys.platform == "win32":
+        try:
+            import locale
+
+            result = subprocess.run(
+                ["tasklist", "/FI", f"PID eq {pid}"],
+                capture_output=True,
+                check=False,
+            )
+            enc = locale.getpreferredencoding(False) or "mbcs"
+            out = (result.stdout or b"").decode(enc, errors="replace")
+            return any(str(pid) in line for line in out.splitlines())
+        except Exception:
+            return False
+    else:
+        import os
+        try:
+            os.kill(pid, 0)
+            return True
+        except OSError:
+            return False
 
