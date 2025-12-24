@@ -52,6 +52,8 @@ def get_scheduler_snapshot() -> Dict[str, Any]:
         jobs_view.append({
             "id": job_id,
             "enabled": bool(job.get("enabled", True)),
+            "command": job.get("command", ""),  # 編集機能のために追加
+            "scheduler_level": job.get("scheduler_level"),  # 編集機能のために追加
             "schedule": {
                 "weekday": job.get("weekday"),
                 "hour": job.get("hour"),

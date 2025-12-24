@@ -5,12 +5,13 @@
   - **BacktestEngine.__init__(self, profile: str='michibiki_std', initial_capital: float=100000.0, contract_size: int=100000, filter_level: int=3)**  (L27)  — Parameters
   - **BacktestEngine._normalize_filter_ctx(self, filters_ctx: dict | None) -> dict**  (L69)  — Backtest 用 filters_ctx を v5.1 仕様に揃える:
   - **BacktestEngine.run(self, df: pd.DataFrame, out_dir: Path, symbol: str='USDJPY-') -> Dict[str, Any]**  (L93)  — バックテストを実行する
-  - **BacktestEngine._build_entry_context(self, row: pd.Series, timestamp: pd.Timestamp) -> Dict[str, Any]**  (L240)  — EntryContext を作成する
-  - **BacktestEngine._build_decision(self, ai_out: Any, filter_pass: bool, filter_reasons: List[str], entry_context: Dict[str, Any]) -> Dict[str, Any]**  (L274)  — 決定を構築する
-  - **BacktestEngine._build_decision_trace(self, timestamp: pd.Timestamp, symbol: str, ai_out: Any, decision: Dict[str, Any], entry_context: Dict[str, Any]) -> Dict[str, Any]**  (L332)  — decisions.jsonl 用のトレースを構築する
-  - **BacktestEngine._normalize_for_json(self, obj: Any) -> Any**  (L401)  — JSON シリアライズ可能な形式に変換する
-  - **BacktestEngine._normalize_for_json_recursive(self, obj: Any) -> Any**  (L428)  — JSON シリアライズ可能な形式に再帰的に変換する
-  - **BacktestEngine._generate_outputs(self, df_features: pd.DataFrame, out_dir: Path, symbol: str) -> Dict[str, Any]**  (L450)  — 出力ファイルを生成する
+  - **BacktestEngine._build_entry_context(self, row: pd.Series, timestamp: pd.Timestamp) -> Dict[str, Any]**  (L323)  — EntryContext を作成する
+  - **BacktestEngine._build_decision(self, ai_out: Any, filter_pass: bool, filter_reasons: List[str], entry_context: Dict[str, Any]) -> Dict[str, Any]**  (L357)  — 決定を構築する
+  - **BacktestEngine._build_decision_trace(self, timestamp: pd.Timestamp, symbol: str, ai_out: Any, decision: Dict[str, Any], entry_context: Dict[str, Any]) -> Dict[str, Any]**  (L415)  — decisions.jsonl 用のトレースを構築する
+  - **BacktestEngine._normalize_for_json(self, obj: Any) -> Any**  (L526)  — JSON シリアライズ可能な形式に変換する
+  - **BacktestEngine._normalize_for_json_recursive(self, obj: Any) -> Any**  (L553)  — JSON シリアライズ可能な形式に再帰的に変換する
+  - **BacktestEngine._validate_outputs(self, outputs: Dict[str, Any]) -> Dict[str, Any]**  (L575)  — 出力ファイルの検証を行う。
+  - **BacktestEngine._generate_outputs(self, df_features: pd.DataFrame, out_dir: Path, symbol: str) -> Dict[str, Any]**  (L666)  — 出力ファイルを生成する
 
 ## app/core/backtest/simulated_execution.py
 - **class SimulatedTrade**  (L12)  — シミュレートされたトレード
@@ -52,16 +53,17 @@
 - **def _print_current() -> None**  (L245)  — 
 
 ## app/core/filter/strategy_filter_engine.py
-- **class FilterConfig**  (L10)  — フィルタエンジンの設定
-- **class StrategyFilterEngine**  (L25)  — ミチビキ v5.1 フィルタエンジン（コア層）
-  - **StrategyFilterEngine.__init__(self, config: FilterConfig | None=None)**  (L39)  — 初期化
-  - **StrategyFilterEngine.evaluate(self, ctx: Dict, filter_level: int) -> Tuple[bool, List[str]]**  (L49)  — エントリー可否を評価する
-  - **StrategyFilterEngine._check_time_window(self, ctx: Dict) -> bool**  (L130)  — 取引時間帯フィルタ
-  - **StrategyFilterEngine._check_atr(self, ctx: Dict) -> bool**  (L149)  — ATR フィルタ
-  - **StrategyFilterEngine._check_volatility(self, ctx: Dict) -> bool**  (L167)  — ボラティリティ帯フィルタ
-  - **StrategyFilterEngine._check_trend(self, ctx: Dict) -> bool**  (L187)  — トレンド強度フィルタ
-  - **StrategyFilterEngine._check_losing_streak(self, ctx: Dict, reasons: List[str]) -> bool**  (L201)  — 連敗回避フィルタ（T-21 本番仕様）:
-  - **StrategyFilterEngine._check_profile_autoswitch(self, ctx: dict, reasons: list[str]) -> None**  (L252)  — profile_stats から最適プロファイルを推奨し、
+- **class FilterConfig**  (L11)  — フィルタエンジンの設定
+- **class StrategyFilterEngine**  (L26)  — ミチビキ v5.1 フィルタエンジン（コア層）
+  - **StrategyFilterEngine.__init__(self, config: FilterConfig | None=None)**  (L40)  — 初期化
+  - **StrategyFilterEngine.evaluate(self, ctx: Dict, filter_level: int) -> Tuple[bool, List[str]]**  (L50)  — エントリー可否を評価する
+  - **StrategyFilterEngine._debug_relax_filters_enabled() -> bool**  (L132)  — デバッグモードでフィルタを緩めるかどうかを判定する
+  - **StrategyFilterEngine._check_time_window(self, ctx: Dict) -> bool**  (L136)  — 取引時間帯フィルタ
+  - **StrategyFilterEngine._check_atr(self, ctx: Dict) -> bool**  (L177)  — ATR フィルタ
+  - **StrategyFilterEngine._check_volatility(self, ctx: Dict) -> bool**  (L210)  — ボラティリティ帯フィルタ
+  - **StrategyFilterEngine._check_trend(self, ctx: Dict) -> bool**  (L249)  — トレンド強度フィルタ
+  - **StrategyFilterEngine._check_losing_streak(self, ctx: Dict, reasons: List[str]) -> bool**  (L278)  — 連敗回避フィルタ（T-21 本番仕様）:
+  - **StrategyFilterEngine._check_profile_autoswitch(self, ctx: dict, reasons: list[str]) -> None**  (L329)  — profile_stats から最適プロファイルを推奨し、
 
 ## app/core/logger.py
 - **def setup()**  (L9)  — Loguru ロガーの共通設定
@@ -112,7 +114,8 @@
 
 ## app/core/trade/decision_logic.py
 - **class SignalDecision**  (L12)  — 
-- **def decide_signal(prob_buy: Optional[float], prob_sell: Optional[float], best_threshold: float) -> SignalDecision**  (L22)  — best_threshold に基づくシグナル判定を共通化する関数。
+  - **SignalDecision.to_decision_detail(self, action: str, ai_margin: float=0.03, cooldown_sec: Optional[int]=None, blocked_reason: Optional[str]=None) -> dict**  (L21)  — decision_detail 辞書を生成する。
+- **def decide_signal(prob_buy: Optional[float], prob_sell: Optional[float], best_threshold: float) -> SignalDecision**  (L59)  — best_threshold に基づくシグナル判定を共通化する関数。
 
 ## app/gui/ai_tab.py
 - **class AITab**  (L34)  — 
@@ -124,46 +127,47 @@
 - **def _thousands(x, pos)**  (L29)  — 
 - **def _find_trades_csv(equity_csv: Path)**  (L35)  — equity_curve.csv と同じフォルダにある trades*.csv を探す（優先: test -> train -> trades）
 - **def plot_equity_with_markers_to_figure(fig: Figure, csv_path: str, note: str='')**  (L47)  — equity_curve.csv を描画。signal変化点でマーク。変化が無ければ trades*.csv の entry_time でマーク。
-- **class PlotWindow**  (L158)  — 
-  - **PlotWindow.__init__(self, parent=None, mode: str='bt', equity_df: Optional[pd.DataFrame]=None, price_df: Optional[pd.DataFrame]=None, wfo_train_df: Optional[pd.DataFrame]=None, wfo_test_df: Optional[pd.DataFrame]=None)**  (L159)  — 
-  - **PlotWindow.showEvent(self, event)**  (L197)  — ウインドウが表示されたときに必ず描画を実行
-  - **PlotWindow._plot(self)**  (L203)  — modeに応じて描画を実行する。
-  - **PlotWindow._plot_bt_equity(self)**  (L228)  — Backtestモード: equity curveを描画
-  - **PlotWindow._plot_wfo(self)**  (L309)  — Walk-Forwardモード: train/test equity + overlay
-  - **PlotWindow._plot_price(self)**  (L382)  — Price previewを描画
-  - **PlotWindow.plot_equity_csv(self, csv_path: str)**  (L419)  — 
-  - **PlotWindow.overlay_wfo_equity(self, df_train: Optional[pd.DataFrame], df_test: Optional[pd.DataFrame]) -> None**  (L483)  — Overlay WFO train/test equity lines on this window's axes.
-  - **PlotWindow.plot_price_preview(self, csv_path: str, note: str='')**  (L545)  — 
-  - **PlotWindow.plot_heatmap(self, df, note: str='')**  (L576)  — tools/backtest_run が生成する monthly_returns_*.csv の形式に対応したヒートマップ描画。
-  - **PlotWindow.jump_range(self, mode: str) -> None**  (L676)  — ポップアウト表示で 1W / 1M / ALL の X 範囲を切り替える。
-- **class BacktestTab**  (L841)  — 
-  - **BacktestTab.__init__(self, parent: QtWidgets.QWidget | None=None, kpi_service: Optional[Any]=None, profile_name: str='michibiki_std') -> None**  (L842)  — 
-  - **BacktestTab._on_progress_timer(self)**  (L1047)  — 
-  - **BacktestTab._append_progress(self, text: str)**  (L1056)  — 
-  - **BacktestTab._on_mode_changed(self, checked: bool=False)**  (L1059)  — 
-  - **BacktestTab._current_mode_text(self) -> str**  (L1064)  — UI 上のモード文字列を返す（Backtest / Walk-Forward / Overlay）。
-  - **BacktestTab._find_latest_wfo_dir(self) -> Optional[pathlib.Path]**  (L1072)  — 
-  - **BacktestTab._load_latest_wfo_data(self) -> Optional[Dict[str, object]]**  (L1084)  — 
-  - **BacktestTab._update_wfo_stats_panel(self, metrics: Dict[str, object]) -> None**  (L1106)  — 
-  - **BacktestTab._overlay_wfo_equity(self, df_train: Optional[pd.DataFrame], df_test: Optional[pd.DataFrame]) -> None**  (L1131)  — Overlay Train/Test equity lines onto the current plot axes.
-- **class _WFOResult**  (L1181)  — Walk-Forward 検証の結果セットをまとめて持つだけの小さな入れ物。
-  - **BacktestTab._WFOResult.__init__(self, report_json: Dict[str, Any], equity_train: Optional[pd.DataFrame], equity_test: Optional[pd.DataFrame], run_id: str, parent: Optional[QtCore.QObject]=None) -> None**  (L1190)  — 
-  - **BacktestTab._find_latest_wfo_files(self) -> Optional['_WFOResult']**  (L1208)  — logs/retrain/ 配下から最新の report_*.json を探し、
-  - **BacktestTab._debug_print_wfo_summary(self, wfo: '_WFOResult') -> None**  (L1281)  — とりあえず「ちゃんと読めたか」を確認するために、
-  - **BacktestTab._load_model_info(self)**  (L1303)  — 
-  - **BacktestTab._update_data(self)**  (L1318)  — 
-  - **BacktestTab._run_test(self)**  (L1352)  — 
-  - **BacktestTab._on_proc_ready_read_stdout(self)**  (L1454)  — 
-  - **BacktestTab._on_proc_ready_read_stderr(self)**  (L1495)  — 
-  - **BacktestTab._on_proc_finished(self, code: int, status: QtCore.QProcess.ExitStatus, sym: str, tf: str, mode: str)**  (L1534)  — 
-  - **BacktestTab._pick_file(self)**  (L1690)  — 
-  - **BacktestTab._save_png(self)**  (L1696)  — 
-  - **BacktestTab._export_result_json(self)**  (L1705)  — 
-  - **BacktestTab._show_heatmap(self)**  (L1736)  — 
-  - **BacktestTab._pop_out(self)**  (L1770)  — 
-  - **BacktestTab._load_plot(self, path_or_csv)**  (L1808)  — 
-  - **BacktestTab._load_metrics(self, metrics_path: Path)**  (L1888)  — 
-  - **BacktestTab._on_range_jump(self, mode: str) -> None**  (L1931)  — Backtestタブのインライン描画と、ポップアウト済みウィンドウの両方に期間ジャンプを適用する。
+- **class PlotWindow**  (L178)  — 
+  - **PlotWindow.__init__(self, parent=None, mode: str='bt', equity_df: Optional[pd.DataFrame]=None, price_df: Optional[pd.DataFrame]=None, wfo_train_df: Optional[pd.DataFrame]=None, wfo_test_df: Optional[pd.DataFrame]=None, last_view_kind: str | None=None, last_csv: str | None=None)**  (L179)  — 
+  - **PlotWindow.showEvent(self, event)**  (L219)  — ウインドウが表示されたときに必ず描画を実行
+  - **PlotWindow._plot(self)**  (L225)  — modeに応じて描画を実行する。
+  - **PlotWindow._plot_bt_equity(self)**  (L250)  — Backtestモード: equity curveを描画
+  - **PlotWindow._plot_wfo(self)**  (L331)  — Walk-Forwardモード: train/test equity + overlay
+  - **PlotWindow._plot_price(self)**  (L404)  — Price previewを描画
+  - **PlotWindow.plot_equity_csv(self, csv_path: str)**  (L441)  — 
+  - **PlotWindow.overlay_wfo_equity(self, df_train: Optional[pd.DataFrame], df_test: Optional[pd.DataFrame]) -> None**  (L505)  — Overlay WFO train/test equity lines on this window's axes.
+  - **PlotWindow.plot_price_preview(self, csv_path: str, note: str='')**  (L567)  — 
+  - **PlotWindow.plot_heatmap(self, df, note: str='')**  (L598)  — tools/backtest_run が生成する monthly_returns_*.csv の形式に対応したヒートマップ描画。
+  - **PlotWindow.jump_range(self, mode: str) -> None**  (L698)  — ポップアウト表示で 1W / 1M / ALL の X 範囲を切り替える。
+- **class BacktestTab**  (L870)  — 
+  - **BacktestTab.__init__(self, parent: QtWidgets.QWidget | None=None, kpi_service: Optional[Any]=None, profile_name: str='michibiki_std') -> None**  (L871)  — 
+  - **BacktestTab._on_progress_timer(self)**  (L1083)  — 
+  - **BacktestTab._append_progress(self, text: str)**  (L1092)  — 
+  - **BacktestTab._on_mode_changed(self, checked: bool=False)**  (L1095)  — 
+  - **BacktestTab._current_mode_text(self) -> str**  (L1100)  — UI 上のモード文字列を返す（Backtest / Walk-Forward / Overlay）。
+  - **BacktestTab._find_latest_bt_dir(self, out_dir: Path) -> Optional[Path]**  (L1108)  — backtest_* フォルダの中から最新のものを探す
+  - **BacktestTab._find_latest_wfo_dir(self) -> Optional[pathlib.Path]**  (L1115)  — 
+  - **BacktestTab._load_latest_wfo_data(self) -> Optional[Dict[str, object]]**  (L1127)  — 
+  - **BacktestTab._update_wfo_stats_panel(self, metrics: Dict[str, object]) -> None**  (L1149)  — 
+  - **BacktestTab._overlay_wfo_equity(self, df_train: Optional[pd.DataFrame], df_test: Optional[pd.DataFrame]) -> None**  (L1174)  — Overlay Train/Test equity lines onto the current plot axes.
+- **class _WFOResult**  (L1224)  — Walk-Forward 検証の結果セットをまとめて持つだけの小さな入れ物。
+  - **BacktestTab._WFOResult.__init__(self, report_json: Dict[str, Any], equity_train: Optional[pd.DataFrame], equity_test: Optional[pd.DataFrame], run_id: str, parent: Optional[QtCore.QObject]=None) -> None**  (L1233)  — 
+  - **BacktestTab._find_latest_wfo_files(self) -> Optional['_WFOResult']**  (L1251)  — logs/retrain/ 配下から最新の report_*.json を探し、
+  - **BacktestTab._debug_print_wfo_summary(self, wfo: '_WFOResult') -> None**  (L1324)  — とりあえず「ちゃんと読めたか」を確認するために、
+  - **BacktestTab._load_model_info(self)**  (L1346)  — 
+  - **BacktestTab._update_data(self)**  (L1361)  — 
+  - **BacktestTab._run_test(self)**  (L1395)  — 
+  - **BacktestTab._on_proc_ready_read_stdout(self)**  (L1502)  — 
+  - **BacktestTab._on_proc_ready_read_stderr(self)**  (L1543)  — 
+  - **BacktestTab._on_proc_finished(self, code: int, status: QtCore.QProcess.ExitStatus, sym: str, tf: str, mode: str)**  (L1582)  — 
+  - **BacktestTab._pick_file(self)**  (L1765)  — 
+  - **BacktestTab._save_png(self)**  (L1771)  — 
+  - **BacktestTab._export_result_json(self)**  (L1780)  — 
+  - **BacktestTab._show_heatmap(self)**  (L1811)  — 
+  - **BacktestTab._pop_out(self)**  (L1845)  — 
+  - **BacktestTab._load_plot(self, path_or_csv)**  (L1886)  — 
+  - **BacktestTab._load_metrics(self, metrics_path: Path)**  (L1995)  — 
+  - **BacktestTab._on_range_jump(self, mode: str) -> None**  (L2063)  — Backtestタブのインライン描画と、ポップアウト済みウィンドウの両方に期間ジャンプを適用する。
 
 ## app/gui/control_tab.py
 - **class ControlTab**  (L20)  — 
@@ -205,10 +209,10 @@
   - **KPITab._update_ops_stats(self) -> None**  (L116)  — 再学習実績を更新する。
 
 ## app/gui/main.py
-- **class MainWindow**  (L30)  — 
-  - **MainWindow.__init__(self) -> None**  (L31)  — 
-  - **MainWindow._on_tab_changed(self, index: int) -> None**  (L125)  — タブが切り替わったときに呼ばれる。
-- **def main() -> None**  (L144)  — 
+- **class MainWindow**  (L31)  — 
+  - **MainWindow.__init__(self) -> None**  (L32)  — 
+  - **MainWindow._on_tab_changed(self, index: int) -> None**  (L127)  — タブが切り替わったときに呼ばれる。
+- **def main() -> None**  (L146)  — 
 
 ## app/gui/ops_tab.py
 - **class OpsTab**  (L33)  — Ops実行タブ（tools/ops_start.ps1 の実行と結果表示）
@@ -223,8 +227,8 @@
   - **OpsTab._replay_selected(self) -> None**  (L392)  — 選択中の履歴レコードを再実行する。
   - **OpsTab._replay_with_params(self, record: dict, params: dict) -> None**  (L509)  — paramsを使って再実行する。
   - **OpsTab._refresh_ops_actions(self) -> None**  (L563)  — 最新Opsレコードを取得してnext_actionを判定し、PROMOTE/RETRYボタンの表示を更新する。
-  - **OpsTab._on_promote_clicked(self) -> None**  (L655)  — PROMOTEボタン押下時のハンドラ。
-  - **OpsTab._on_retry_clicked(self) -> None**  (L696)  — RETRYボタン押下時のハンドラ。
+  - **OpsTab._on_promote_clicked(self) -> None**  (L649)  — PROMOTEボタン押下時のハンドラ。
+  - **OpsTab._on_retry_clicked(self) -> None**  (L690)  — RETRYボタン押下時のハンドラ。
 
 ## app/gui/ops_ui_rules.py
 - **class ActionUiSpec**  (L14)  — next_actionのUI表示仕様
@@ -232,6 +236,20 @@
 - **def ui_for_next_action(next_action: Optional[dict]) -> ActionUiSpec**  (L89)  — next_actionからUI仕様を取得する（priority優先）。
 - **def format_action_hint_text(next_action: Optional[dict]) -> str**  (L113)  — next_actionから行動ヒントの表示テキストを生成する。
 - **def get_action_priority(next_action: Optional[dict]) -> int**  (L137)  — next_actionからpriorityを取得する（ソート用、priority優先）。
+
+## app/gui/scheduler_tab.py
+- **class AddJobDialog**  (L32)  — Schedulerジョブ追加/編集（最小UI）
+  - **AddJobDialog.__init__(self, parent: Optional[QWidget]=None, job: Optional[Dict[str, Any]]=None) -> None**  (L35)  — 
+  - **AddJobDialog.get_value(self) -> dict | None**  (L114)  — ダイアログを表示し、入力値を返す。キャンセル時は None。
+- **class SchedulerTab**  (L144)  — 
+  - **SchedulerTab.__init__(self, parent: Optional[QWidget]=None) -> None**  (L145)  — 
+  - **SchedulerTab.refresh(self, checked: bool=False, snap: dict | None=None) -> None**  (L196)  — 
+  - **SchedulerTab._set_item(self, row: int, col: int, text: str) -> None**  (L244)  — 
+  - **SchedulerTab._summarize_result(self, res: Dict[str, Any]) -> str**  (L249)  — 
+  - **SchedulerTab._on_double_click(self, row: int, col: int) -> None**  (L259)  — 
+  - **SchedulerTab._on_add(self) -> None**  (L275)  — ジョブ追加ハンドラ（facade経由）
+  - **SchedulerTab._on_edit(self) -> None**  (L295)  — ジョブ編集ハンドラ（facade経由）
+  - **SchedulerTab._on_remove(self) -> None**  (L362)  — ジョブ削除ハンドラ（facade経由）
 
 ## app/gui/settings_tab.py
 - **class SettingsTab**  (L27)  — MT5 口座設定タブ。
@@ -323,16 +341,16 @@
 - **class ProbOut**  (L246)  — AISvc 内部で使うだけのシンプルな入出力コンテナ。
   - **AISvc.ProbOut.__init__(self, p_buy: float, p_sell: float, p_skip: float=0.0) -> None**  (L251)  — 
   - **AISvc._ensure_model_loaded(self) -> None**  (L256)  — self.models に推論用モデルが未ロードなら、active_model.json を見てロードする。
-  - **AISvc.predict(self, X: np.ndarray | Dict[str, float], *, no_metrics: bool=False) -> 'AISvc.ProbOut'**  (L320)  — 単一サンプルの特徴量を受け取り、p_buy / p_sell / p_skip を返す。
-  - **AISvc.get_feature_importance(self, method: str='gain', top_n: int=20, cache_sec: int=300) -> pd.DataFrame**  (L407)  — GUI から呼び出して Feature Importance を取得する API。
-  - **AISvc._load_shap_background_features(self, max_rows: int=2000, *, csv_path: Path | None=None) -> pd.DataFrame**  (L495)  — SHAP計算用の背景特徴量を読み込むヘルパ。
-  - **AISvc.get_shap_top_features(self, *, top_n: int=20, max_background: int=2000, csv_path: Path | None=None, cache_sec: int=300) -> pd.DataFrame**  (L537)  — LightGBMモデルに対する SHAP グローバル重要度（平均絶対SHAP）を計算し、
-  - **AISvc.get_shap_values(self)**  (L649)  — SHAP 結果を EditionGuard に従って制限して返す。
-  - **AISvc.feature_importance(self) -> pd.DataFrame**  (L705)  — FI を edition に応じて TopN で返す。
-  - **AISvc.shap_summary(self) -> Dict[str, Any]**  (L759)  — SHAP を edition に応じて TopN で返す。
-  - **AISvc.get_live_probs(self, symbol: str) -> dict[str, float]**  (L831)  — Live 用：execution_stub と同じ特徴量パイプラインを使って
-  - **AISvc.build_decision_from_probs(self, probs: dict, symbol: str) -> dict**  (L938)  — Live 用：execution_stub の ENTRY/SKIP 判定を最小限で再現。
-- **def get_ai_service() -> AISvc**  (L980)  — AISvc のシングルトンインスタンスを返す。
+  - **AISvc.predict(self, X: np.ndarray | Dict[str, float], *, no_metrics: bool=False) -> 'AISvc.ProbOut'**  (L332)  — 単一サンプルの特徴量を受け取り、p_buy / p_sell / p_skip を返す。
+  - **AISvc.get_feature_importance(self, method: str='gain', top_n: int=20, cache_sec: int=300) -> pd.DataFrame**  (L419)  — GUI から呼び出して Feature Importance を取得する API。
+  - **AISvc._load_shap_background_features(self, max_rows: int=2000, *, csv_path: Path | None=None) -> pd.DataFrame**  (L507)  — SHAP計算用の背景特徴量を読み込むヘルパ。
+  - **AISvc.get_shap_top_features(self, *, top_n: int=20, max_background: int=2000, csv_path: Path | None=None, cache_sec: int=300) -> pd.DataFrame**  (L549)  — LightGBMモデルに対する SHAP グローバル重要度（平均絶対SHAP）を計算し、
+  - **AISvc.get_shap_values(self)**  (L661)  — SHAP 結果を EditionGuard に従って制限して返す。
+  - **AISvc.feature_importance(self) -> pd.DataFrame**  (L717)  — FI を edition に応じて TopN で返す。
+  - **AISvc.shap_summary(self) -> Dict[str, Any]**  (L771)  — SHAP を edition に応じて TopN で返す。
+  - **AISvc.get_live_probs(self, symbol: str) -> dict[str, float]**  (L843)  — Live 用：execution_stub と同じ特徴量パイプラインを使って
+  - **AISvc.build_decision_from_probs(self, probs: dict, symbol: str) -> dict**  (L950)  — Live 用：execution_stub の ENTRY/SKIP 判定を最小限で再現。
+- **def get_ai_service() -> AISvc**  (L1003)  — AISvc のシングルトンインスタンスを返す。
 
 ## app/services/aisvc_loader.py
 - **class ActiveModelInfo**  (L10)  — 
@@ -359,11 +377,11 @@
 ## app/services/decision_log.py
 - **class DecisionRecord**  (L19)  — decisions_*.jsonl の 1 行を、GUI や KPI 計算から使いやすい形に薄くラップしたもの。
 - **def _iter_jsonl(path: Path) -> Iterable[dict[str, Any]]**  (L35)  — JSONL ファイルを 1 行ずつ dict として返すジェネレータ。壊れた行はスキップ。
-- **def _extract_decision_record(j: dict[str, Any]) -> DecisionRecord**  (L52)  — JSON を DecisionRecord に薄く変換する（GUI/KPI でよく使う形式）。
-- **def _find_first_numeric_by_keys(container: Any, key_candidates: tuple[str, ...]) -> float | None**  (L110)  — 任意にネストした dict/list 構造の中から、
-- **def _ensure_pnl_column(df: pd.DataFrame) -> pd.DataFrame**  (L138)  — decisions_* の生ログ DataFrame に「pnl 列」が無ければ、
-- **def _get_decision_log_dir() -> Path**  (L178)  — 決定ログのルートディレクトリを返す。
-- **def load_recent_decisions(limit: int | None=None) -> pd.DataFrame**  (L188)  — decisions_*.jsonl から最新の N レコードを pandas.DataFrame で読み込む。
+- **def _extract_decision_record(j: dict[str, Any]) -> DecisionRecord**  (L68)  — JSON を DecisionRecord に薄く変換する（GUI/KPI でよく使う形式）。
+- **def _find_first_numeric_by_keys(container: Any, key_candidates: tuple[str, ...]) -> float | None**  (L129)  — 任意にネストした dict/list 構造の中から、
+- **def _ensure_pnl_column(df: pd.DataFrame) -> pd.DataFrame**  (L157)  — decisions_* の生ログ DataFrame に「pnl 列」が無ければ、
+- **def _get_decision_log_dir() -> Path**  (L197)  — 決定ログのルートディレクトリを返す。
+- **def load_recent_decisions(limit: int | None=None) -> pd.DataFrame**  (L207)  — decisions_*.jsonl から最新の N レコードを pandas.DataFrame で読み込む。
 
 ## app/services/diagnosis_service.py
 - **class DiagnosisParams**  (L14)  — 診断AIの入力条件（必要になれば拡張する）
@@ -408,41 +426,50 @@
   - **_EventStore.recent(self, n: int=200) -> List[UiEvent]**  (L56)  — 
 
 ## app/services/execution_service.py
-- **def _symbol_to_filename(symbol: str) -> str**  (L34)  — シンボル名を安全なファイル名に変換
-- **def _normalize_filter_reasons(reasons: Any) -> list[str]**  (L41)  — filter_reasons を必ず list[str] に正規化する（v5.1 仕様）
-- **class DecisionsLogger**  (L65)  — 決定ログ専用のロガークラス
-  - **DecisionsLogger.log(record: Dict[str, Any]) -> None**  (L69)  — ExecutionService 用 AI判断ログ (decisions.jsonl) を 1 レコード追記する。
-- **class ExecutionService**  (L143)  — Live 用の実行サービス：
-  - **ExecutionService.__init__(self)**  (L150)  — 初期化
-  - **ExecutionService._build_entry_context(self, symbol: str, features: Dict[str, float], timestamp: Optional[datetime]=None) -> Dict[str, Any]**  (L158)  — EntryContext を構築する
-  - **ExecutionService.process_tick(self, symbol: str, price: float, timestamp: datetime, features: Optional[Dict[str, float]]=None, dry_run: bool=False) -> Dict[str, Any]**  (L214)  — 1ティック分の処理をまとめて行うヘルパー。
-  - **ExecutionService._apply_profile_autoswitch(self, symbol: str, reasons: list[str]) -> None**  (L267)  — フィルタ結果の reasons からプロファイル自動切替指示を読み取り、
-  - **ExecutionService.execute_entry(self, features: Dict[str, float], *, symbol: Optional[str]=None, dry_run: bool=False, timestamp: Optional[datetime]=None) -> Dict[str, Any]**  (L310)  — 売買判断 → フィルタ判定 → decisions.jsonl 出力まで一貫処理
-  - **ExecutionService.execute_exit(self, symbol: Optional[str]=None, dry_run: bool=False) -> Dict[str, Any]**  (L598)  — 決済監視/クローズ処理
+- **def _symbol_to_filename(symbol: str) -> str**  (L37)  — シンボル名を安全なファイル名に変換
+- **def _compute_features_hash(features: Dict[str, float]) -> str**  (L44)  — features dictから安定ハッシュを生成する。
+- **def _normalize_filter_reasons(reasons: Any) -> list[str]**  (L69)  — filter_reasons を必ず list[str] に正規化する（v5.1 仕様）
+- **def _build_decision_context(prob_buy: Optional[float], prob_sell: Optional[float], strategy_name: str, best_threshold: float, filters_dict: Dict[str, Any], decision_detail: Dict[str, Any], meta: Dict[str, Any]) -> Dict[str, Any]**  (L93)  — decision_context を構築する（判断材料を分離）
+- **def _ensure_decision_detail_minimum(dd: dict, decision: str, signal=None, ai_margin: float=0.03) -> dict**  (L154)  — decision_detail に必要な最小限のキーが含まれるように補完する。
+- **def _features_hash_from_record(record: dict) -> str | None**  (L203)  — record 辞書から features を抽出してハッシュを生成する。
+- **class DecisionsLogger**  (L233)  — 決定ログ専用のロガークラス
+  - **DecisionsLogger.log(record: Dict[str, Any]) -> None**  (L237)  — ExecutionService 用 AI判断ログ (decisions.jsonl) を 1 レコード追記する。
+- **class ExecutionService**  (L317)  — Live 用の実行サービス：
+  - **ExecutionService.__init__(self)**  (L324)  — 初期化
+  - **ExecutionService._build_entry_context(self, symbol: str, features: Dict[str, float], timestamp: Optional[datetime]=None) -> Dict[str, Any]**  (L332)  — EntryContext を構築する
+  - **ExecutionService.process_tick(self, symbol: str, price: float, timestamp: datetime, features: Optional[Dict[str, float]]=None, dry_run: bool=False) -> Dict[str, Any]**  (L388)  — 1ティック分の処理をまとめて行うヘルパー。
+  - **ExecutionService._apply_profile_autoswitch(self, symbol: str, reasons: list[str]) -> None**  (L441)  — フィルタ結果の reasons からプロファイル自動切替指示を読み取り、
+  - **ExecutionService.execute_entry(self, features: Dict[str, float], *, symbol: Optional[str]=None, dry_run: bool=False, timestamp: Optional[datetime]=None) -> Dict[str, Any]**  (L484)  — 売買判断 → フィルタ判定 → decisions.jsonl 出力まで一貫処理
+  - **ExecutionService.execute_exit(self, symbol: Optional[str]=None, dry_run: bool=False) -> Dict[str, Any]**  (L981)  — 決済監視/クローズ処理
 
 ## app/services/execution_stub.py
-- **def _load_runtime_threshold(default: float=0.5) -> float**  (L53)  — 
-- **def reset_atr_gate_state() -> None**  (L72)  — ???/????????ATR????????????
-- **def _atr_gate_ok(atr_pct_now: float, runtime_cfg: Dict[str, Any]) -> bool**  (L79)  — Hysteresis-enabled ATR gate to avoid rapid flip-flops around thresholds.
-- **def _tick_to_dict(tick: Any) -> Optional[Dict[str, float]]**  (L126)  — 
-- **def _pip_size_for(symbol: str) -> float**  (L145)  — 
-- **def _point_for(symbol: str) -> float**  (L148)  — 
-- **def _mid_price(tick_dict: Optional[Dict[str, float]]) -> Optional[float]**  (L151)  — 
-- **def _current_price_for_side(tick_dict: Optional[Dict[str, float]], side: str, price_source: str) -> Optional[float]**  (L156)  — 
-- **def _register_trailing_state(symbol: str, signal: Dict[str, Any], tick_dict: Optional[Dict[str, float]], *, no_metrics: bool=False) -> None**  (L166)  — 
+- **def _load_runtime_threshold(default: float=0.5) -> float**  (L54)  — 
+- **def reset_atr_gate_state() -> None**  (L73)  — ???/????????ATR????????????
+- **def _atr_gate_ok(atr_pct_now: float, runtime_cfg: Dict[str, Any]) -> bool**  (L80)  — Hysteresis-enabled ATR gate to avoid rapid flip-flops around thresholds.
+- **def _tick_to_dict(tick: Any) -> Optional[Dict[str, float]]**  (L127)  — 
+- **def _pip_size_for(symbol: str) -> float**  (L146)  — 
+- **def _point_for(symbol: str) -> float**  (L149)  — 
+- **def _mid_price(tick_dict: Optional[Dict[str, float]]) -> Optional[float]**  (L152)  — 
+- **def _current_price_for_side(tick_dict: Optional[Dict[str, float]], side: str, price_source: str) -> Optional[float]**  (L157)  — 
+- **def _register_trailing_state(symbol: str, signal: Dict[str, Any], tick_dict: Optional[Dict[str, float]], *, no_metrics: bool=False) -> None**  (L167)  — 
 - **def _update_trailing_state(symbol: str, tick_dict: Optional[Dict[str, float]]) -> Optional[Dict[str, Any]]**  (L248)  — 
 - **def _session_hour_allowed() -> bool**  (L320)  — config.session.allow_hours_jst ??????????????????????
 - **def _symbol_to_filename(symbol: str) -> str**  (L349)  — 
-- **def _write_decision_log(symbol: str, record: Dict[str, Any]) -> None**  (L354)  — 
-- **def _ai_to_dict(ai_out: Any) -> Dict[str, Any]**  (L363)  — AISvc.predict() の戻り値（ProbOut など）を安全に dict 化する。
-- **def _normalize_filter_reasons(reasons: Any) -> list[str]**  (L403)  — filter_reasons を必ず list[str] に正規化する（v5.1 仕様）
-- **def _build_decision_trace(*, ts_jst: str, symbol: str, ai_out: 'ProbOut', cb_status: Dict[str, Any], filters_ctx: Dict[str, Any], decision: Dict[str, Any], prob_threshold: float, calibrator_name: str, entry_context: Optional[Dict[str, Any]]=None) -> Dict[str, Any]**  (L427)  — v5.1 仕様に準拠した決定トレースを構築する
-- **def _collect_features(symbol: str, base_features: Tuple[str, ...], tick: Optional[Tuple[float, float]], spread_pips: Optional[float], open_positions: int) -> Dict[str, float]**  (L558)  — Live 用の軽量なフィーチャ生成。
-- **class ExecutionStub**  (L631)  — ドライラン用の実行スタブ：
-  - **ExecutionStub.__post_init__(self) -> None**  (L641)  — 
-  - **ExecutionStub.on_tick(self, symbol: str, features: Dict[str, float], runtime_cfg: Dict[str, Any]) -> Dict[str, Any]**  (L657)  — 
-- **def evaluate_and_log_once() -> None**  (L1237)  — Dry-run evaluation that mirrors the live decision path.
-- **def debug_emit_single_decision() -> None**  (L1403)  — フィルタ + decisions.jsonl ログを 1 回だけテスト出力するデバッグ関数。
+- **def _write_decision_log(symbol: str, record: Dict[str, Any]) -> None**  (L354)  — decisions.jsonl にログを出力する（最終出口）。
+- **def _ai_to_dict(ai_out: Any) -> Dict[str, Any]**  (L403)  — AISvc.predict() の戻り値（ProbOut など）を安全に dict 化する。
+- **def _normalize_filter_reasons(reasons: Any) -> list[str]**  (L443)  — filter_reasons を必ず list[str] に正規化する（v5.1 仕様）
+- **def _compute_features_hash(features: Dict[str, float]) -> str**  (L467)  — features dictから安定ハッシュを生成する。
+- **def _normalize_runtime_cfg(runtime_cfg: Dict[str, Any]) -> Dict[str, Any]**  (L492)  — runtime_cfg を正規化して、_sim_* キーを標準キーにマッピング・削除する。
+- **def validate_decision_context(decision_context: Dict[str, Any], strict: bool=False) -> list[str]**  (L567)  — decision_context dict を検証し、必須キー・型チェックを行う（warn-only推奨）。
+- **def validate_runtime(runtime: Dict[str, Any], strict: bool=True) -> list[str]**  (L623)  — runtime dict を検証し、必須キー・型チェックを行う（v1/v2 両対応）。
+- **def _build_decision_trace(*, ts_jst: str, symbol: str, ai_out: 'ProbOut', cb_status: Dict[str, Any], filters_ctx: Dict[str, Any], decision: Dict[str, Any], prob_threshold: float, calibrator_name: str, entry_context: Optional[Dict[str, Any]]=None, features: Optional[Dict[str, float]]=None) -> Dict[str, Any]**  (L809)  — v5.1 仕様に準拠した決定トレースを構築する
+- **def _collect_features(symbol: str, base_features: Tuple[str, ...], tick: Optional[Tuple[float, float]], spread_pips: Optional[float], open_positions: int) -> Dict[str, float]**  (L991)  — Live 用の軽量なフィーチャ生成。
+- **class ExecutionStub**  (L1064)  — ドライラン用の実行スタブ：
+  - **ExecutionStub.__post_init__(self) -> None**  (L1074)  — 
+  - **ExecutionStub._to_jst_iso(ts_val) -> str**  (L1090)  — ts_val を JST の ISO 形式文字列に正規化する。
+  - **ExecutionStub.on_tick(self, symbol: str, features: Dict[str, float], runtime_cfg: Dict[str, Any]) -> Dict[str, Any]**  (L1128)  — 
+- **def evaluate_and_log_once() -> None**  (L1953)  — Dry-run evaluation that mirrors the live decision path.
+- **def debug_emit_single_decision() -> None**  (L2119)  — フィルタ + decisions.jsonl ログを 1 回だけテスト出力するデバッグ関数。
 
 ## app/services/feature_importance.py
 - **class FeatureImportanceItem**  (L24)  — 1つの特徴量についての FI 情報.
@@ -456,6 +483,24 @@
 - **def _get_engine() -> StrategyFilterEngine**  (L15)  — StrategyFilterEngine のシングルトンを返す。
 - **def evaluate_entry(entry_context: EntryContext) -> Tuple[bool, List[str]]**  (L27)  — Strategy / Execution から呼び出すための窓口。
 - **def extract_profile_switch(reasons: Iterable[str]) -> Optional[Tuple[str, str]]**  (L60)  — filter_engine の reasons から 'profile_switch:std->aggr' 形式を拾って
+
+## app/services/job_scheduler.py
+- **class JobScheduler**  (L14)  — 内蔵スケジューラ（v5.1 準拠）
+  - **JobScheduler.__init__(self, config_path: Optional[Path]=None)**  (L22)  — Parameters
+  - **JobScheduler._load_jobs(self) -> None**  (L35)  — ジョブ設定を読み込む（YAML または JSON）。
+  - **JobScheduler._initialize_job_state(self, job_id: str) -> None**  (L81)  — ジョブ状態を初期化（初回実行時のみ）。
+  - **JobScheduler._edition_allow(self, job: Dict[str, Any]) -> bool**  (L90)  — Edition 制御によるジョブ実行可否を判定する（T-41 実装）。
+  - **JobScheduler._should_run(self, job: Dict[str, Any], now: datetime) -> bool**  (L111)  — ジョブを実行すべきか判定する（重複防止含む）。
+  - **JobScheduler._run_job(self, job: Dict[str, Any], now: datetime) -> Dict[str, Any]**  (L180)  — ジョブを実行する（内部実装、状態更新は呼び出し元で行う）。
+  - **JobScheduler.run_pending(self) -> List[Dict[str, Any]]**  (L256)  — 実行すべきジョブを実行する（Public API）。
+  - **JobScheduler.get_jobs(self) -> List[Dict[str, Any]]**  (L313)  — 全ジョブのリストを返す（Public API）。
+  - **JobScheduler.get_job_state(self, job_id: str) -> Optional[Dict[str, Any]]**  (L324)  — 指定ジョブの状態を返す（Public API）。
+  - **JobScheduler.add_job(self, job: Dict[str, Any]) -> None**  (L346)  — ジョブを追加する（Public API）。
+  - **JobScheduler.remove_job(self, job_id: str) -> bool**  (L366)  — ジョブを削除する（Public API）。
+  - **JobScheduler.reload(self) -> None**  (L390)  — ジョブ設定を再読み込みする（Public API）。
+  - **JobScheduler._save_jobs(self) -> None**  (L401)  — Persist current jobs to configs/scheduler.yaml (atomic write).
+  - **JobScheduler._add_job(self, job: dict) -> None**  (L433)  — 
+  - **JobScheduler._remove_job(self, job_id: str) -> bool**  (L445)  — 
 
 ## app/services/kpi_service.py
 - **class KpiMonthlyRecord**  (L19)  — 
@@ -476,7 +521,8 @@
 - **def update_on_trade_result(profile: str, symbol: str, pl: float) -> int**  (L30)  — 取引結果を反映して連敗数を更新する。
 
 ## app/services/metrics.py
-- **def publish_metrics(kv: Dict[str, Any]) -> None**  (L9)  — Dashboardが読むランタイム指標を KVS と JSON(atomic write) に出力する。
+- **def _metrics_enabled(no_metrics: bool=False) -> bool**  (L10)  — metrics の書き込みが有効かどうかを判定する。
+- **def publish_metrics(kv: Dict[str, Any], no_metrics: bool=False) -> None**  (L29)  — Dashboardが読むランタイム指標を KVS と JSON(atomic write) に出力する。
 
 ## app/services/mt5_account_store.py
 - **def _default_config() -> Dict[str, Any]**  (L18)  — 設定ファイルが存在しない場合の初期値。
@@ -509,25 +555,27 @@
   - **MT5Service.safe_order_modify_sl(self, ticket: int, side: str, symbol: str, desired_sl: float, reason: str='') -> Tuple[bool, Optional[float], str]**  (L118)  — 返り値: (成功/失敗, 実際に送ったSL, 詳細メッセージ)
 
 ## app/services/ops_history_service.py
-- **def _normalize_human_text(s: str) -> str**  (L23)  — 表示用テキストを正規化する。
-- **def _normalize_profiles(profiles_raw) -> list[str]**  (L43)  — profiles を list[str] に正規化する。
-- **def _is_dry_record(record: dict, cmd: object | None=None) -> bool | None**  (L90)  — レコードまたはコマンドからdryフラグを判定する（dry優先）。
-- **class OpsHistoryService**  (L149)  — Ops実行履歴サービス
-  - **OpsHistoryService.__init__(self) -> None**  (L152)  — 
-  - **OpsHistoryService.append_ops_result(self, rec: dict) -> None**  (L159)  — logs/ops/ops_result.jsonl に 1行追記（UTF-8、JSONL）
-  - **OpsHistoryService._normalize_record(self, rec: dict) -> dict**  (L186)  — レコードを正規化する。
-  - **OpsHistoryService._calc_next_action(self, record: dict) -> dict**  (L251)  — recordからnext_actionを軽量ルールで計算する（replay_from_recordを呼ばない）。
-  - **OpsHistoryService._to_ops_view(self, rec: dict, prev_rec: Optional[dict]=None) -> Optional[dict]**  (L364)  — レコードを表示用ビューに変換する。
-  - **OpsHistoryService.load_ops_history(self, symbol: Optional[str]=None, limit: int=200) -> list[dict]**  (L482)  — JSONL を末尾から最大 limit 件読み、壊れ行はスキップ。
-  - **OpsHistoryService._parse_started_at(self, s: str) -> Optional[datetime]**  (L531)  — started_at 文字列を datetime に変換する（複数フォーマット対応）。
-  - **OpsHistoryService._to_epoch(self, s: Optional[str]) -> Optional[float]**  (L569)  — ISO文字列またはNoneをUTC epoch秒（浮動小数）に変換する（ソート用）。
-  - **OpsHistoryService._generate_record_id(self, rec: dict) -> str**  (L597)  — レコードから安定したrecord_idを生成する。
-  - **OpsHistoryService.summarize_ops_history(self, symbol: Optional[str]=None, cache_sec: int=5) -> dict**  (L618)  — 履歴を集計する。
-- **def get_ops_history_service() -> OpsHistoryService**  (L897)  — OpsHistoryService のシングルトンインスタンスを返す。
-- **def summarize_ops_history(symbol: Optional[str]=None, cache_sec: int=5) -> dict**  (L906)  — 履歴を集計する（トップレベル関数ラッパー）。
-- **def load_ops_history(symbol: Optional[str]=None, limit: int=200) -> list[dict]**  (L920)  — JSONL を末尾から最大 limit 件読み込む（トップレベル関数ラッパー）。
-- **def append_ops_result(rec: dict) -> None**  (L934)  — logs/ops/ops_result.jsonl に 1行追記（トップレベル関数ラッパー）。
-- **def replay_from_record(record: dict, *, run: bool=False, overrides: dict | None=None) -> dict**  (L944)  — レコードから条件を復元して再実行する。
+- **def _load_saved_wfo_stability(run_id: str) -> dict | None**  (L22)  — logs/retrain/stability_{run_id}.json を最優先で読む。壊れてたら None。
+- **def _normalize_human_text(s: str) -> str**  (L40)  — 表示用テキストを正規化する。
+- **def _normalize_profiles(profiles_raw) -> list[str]**  (L60)  — profiles を list[str] に正規化する。
+- **def _is_dry_record(record: dict, cmd: object | None=None) -> bool | None**  (L107)  — レコードまたはコマンドからdryフラグを判定する（dry優先）。
+- **class OpsHistoryService**  (L166)  — Ops実行履歴サービス
+  - **OpsHistoryService.__init__(self) -> None**  (L169)  — 
+  - **OpsHistoryService.append_ops_result(self, rec: dict) -> None**  (L176)  — logs/ops/ops_result.jsonl に 1行追記（UTF-8、JSONL）
+  - **OpsHistoryService._normalize_record(self, rec: dict) -> dict**  (L203)  — レコードを正規化する。
+  - **OpsHistoryService._load_latest_wfo_inputs(self) -> Optional[dict[str, Any]]**  (L268)  — WFO安定性評価に必要な入力を最新の成果物から集める。
+  - **OpsHistoryService._calc_next_action(self, record: dict) -> dict**  (L312)  — recordからnext_actionを軽量ルールで計算する（replay_from_recordを呼ばない）。
+  - **OpsHistoryService._to_ops_view(self, rec: dict, prev_rec: Optional[dict]=None) -> Optional[dict]**  (L533)  — レコードを表示用ビューに変換する。
+  - **OpsHistoryService.load_ops_history(self, symbol: Optional[str]=None, limit: int=200) -> list[dict]**  (L651)  — JSONL を末尾から最大 limit 件読み、壊れ行はスキップ。
+  - **OpsHistoryService._parse_started_at(self, s: str) -> Optional[datetime]**  (L725)  — started_at 文字列を datetime に変換する（複数フォーマット対応）。
+  - **OpsHistoryService._to_epoch(self, s: Optional[str]) -> Optional[float]**  (L763)  — ISO文字列またはNoneをUTC epoch秒（浮動小数）に変換する（ソート用）。
+  - **OpsHistoryService._generate_record_id(self, rec: dict) -> str**  (L791)  — レコードから安定したrecord_idを生成する。
+  - **OpsHistoryService.summarize_ops_history(self, symbol: Optional[str]=None, cache_sec: int=5) -> dict**  (L812)  — 履歴を集計する。
+- **def get_ops_history_service() -> OpsHistoryService**  (L1091)  — OpsHistoryService のシングルトンインスタンスを返す。
+- **def summarize_ops_history(symbol: Optional[str]=None, cache_sec: int=5) -> dict**  (L1100)  — 履歴を集計する（トップレベル関数ラッパー）。
+- **def load_ops_history(symbol: Optional[str]=None, limit: int=200) -> list[dict]**  (L1114)  — JSONL を末尾から最大 limit 件読み込む（トップレベル関数ラッパー）。
+- **def append_ops_result(rec: dict) -> None**  (L1128)  — logs/ops/ops_result.jsonl に 1行追記（トップレベル関数ラッパー）。
+- **def replay_from_record(record: dict, *, run: bool=False, overrides: dict | None=None) -> dict**  (L1138)  — レコードから条件を復元して再実行する。
 
 ## app/services/ops_service.py
 - **class OpsService**  (L18)  — Ops実行サービス（内部用）
@@ -583,9 +631,19 @@
   - **KPIService.get_kpi(self, profile: str='default') -> dict**  (L246)  — GUI側が使うメインAPI
 - **def compute_recent_kpi_from_decisions(limit: Optional[int]=None, *, profit_field: str='pnl', starting_equity: Optional[float]=None) -> RecentKpiResult**  (L319)  — Read logs/decisions/decisions_*.jsonl, filter trades with numeric pnl, and compute recent KPI.
 
+## app/services/scheduler_facade.py
+- **def _get_scheduler() -> JobScheduler**  (L15)  — 
+- **def get_scheduler_snapshot() -> Dict[str, Any]**  (L22)  — GUI 用の Scheduler 状態スナップショット（readonly）
+- **def _get_scheduler_level(sch: JobScheduler) -> int | None**  (L77)  — scheduler_level を安全に取得する（public API 優先、fallback で private 属性）。
+- **def _calc_next_run_utc(weekday: Any, hour: Any, minute: Any) -> str | None**  (L104)  — weekday/hour/minute の単純スケジュールから次回実行(UTC ISO)を計算する。
+- **def add_scheduler_job(job: dict) -> dict**  (L141)  — Add/Update a scheduler job and persist to YAML (T-42-3-3).
+- **def remove_scheduler_job(job_id: str) -> dict**  (L154)  — Remove a scheduler job and persist to YAML (T-42-3-3).
+
 ## app/services/scheduler_guard.py
-- **def _edition_rank(name: Optional[str]) -> int**  (L27)  — Edition 名を「強さ順」の整数に変換する。
-- **def filter_jobs_for_current_edition(jobs: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]**  (L38)  — EditionGuard の設定に基づき、現在のエディションで実行可能な
+- **def _edition_rank(name: Optional[str]) -> int**  (L22)  — Edition 名を「強さ順」の整数に変換する。
+- **def filter_jobs_for_current_edition(jobs: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]**  (L33)  — EditionGuard の設定に基づき、現在のエディションで実行可能な
+- **def get_effective_scheduler_level(config_level: int | None) -> int**  (L119)  — 設定ファイルの scheduler_level と EditionGuard の scheduler_level を統合して、
+- **def allow_job_by_scheduler_level(job: Dict[str, Any], config_level: int | None) -> tuple[bool, str]**  (L155)  — ジョブの scheduler_level 要求と実効レベルを比較して、実行可否を判定する。
 
 ## app/services/shap_service.py
 - **class ShapFeatureImpact**  (L15)  — 1つの特徴量に対するSHAP影響度情報
@@ -632,11 +690,13 @@
 ## app/services/trade_state.py
 - **class TradeSettings**  (L5)  — 
 - **class TradeRuntime**  (L20)  — 
-- **def get_runtime() -> TradeRuntime**  (L29)  — 
-- **def update_runtime(**kwargs: Any) -> None**  (L33)  — 
-- **def get_settings() -> TradeSettings**  (L38)  — 
-- **def update(**kwargs: Any) -> None**  (L41)  — 
-- **def as_dict() -> dict[str, Any]**  (L46)  — 
+- **def get_runtime() -> TradeRuntime**  (L40)  — 
+- **def update_runtime(**kwargs: Any) -> None**  (L44)  — 
+- **def get_settings() -> TradeSettings**  (L49)  — 
+- **def update(**kwargs: Any) -> None**  (L52)  — 
+- **def as_dict() -> dict[str, Any]**  (L57)  — TradeSettings を dict に変換（従来のAPI）
+- **def runtime_as_dict(rt: Optional['TradeRuntime']=None) -> dict[str, Any]**  (L62)  — TradeRuntime を dict に変換し、必須キー・型を検証・矯正する（出口での統一処理）。
+- **def build_runtime(symbol: str, *, market=None, ts_str: Optional[str]=None, spread_pips: Optional[float]=None, mode: Optional[str]=None, source: Optional[str]=None, timeframe: Optional[str]=None, profile: Optional[str]=None, price: Optional[float]=None) -> dict[str, Any]**  (L121)  — runtime dict を構築し、validate_runtime を通す（live/demo 統一の出口）。
 
 ## app/services/trailing.py
 - **class TrailConfig**  (L8)  — 
@@ -659,6 +719,13 @@
 
 ## app/services/trailing_hook.py
 - **def apply_trailing_update(*, ticket: Optional[int], side: str, symbol: str, new_sl: float, reason: str='trail') -> bool**  (L22)  — Apply trailing-stop loss updates (dry-run logs or live MT5 OrderModify).
+
+## app/services/wfo_stability_service.py
+- **def _sha256_file(p: Path) -> Optional[str]**  (L20)  — ファイルのSHA256ハッシュを計算する。
+- **def _stability_path(run_id: str) -> Path**  (L34)  — 安定性評価結果の保存パスを返す。
+- **def load_saved_stability(run_id: str) -> Optional[dict[str, Any]]**  (L39)  — 保存済みの安定性評価結果を読み込む。
+- **def save_stability_result(result: dict[str, Any]) -> Optional[Path]**  (L62)  — 安定性評価結果を保存する。
+- **def evaluate_wfo_stability(metrics: dict[str, Any], *, config: dict[str, Any] | None=None, run_id: str | None=None, metrics_path: str | Path | None=None, report_path: str | Path | None=None) -> dict[str, Any]**  (L98)  — WFOの安定性を評価する。
 
 ## app/strategies/ai_strategy.py
 - **def _load_model_generic(path_str: str)**  (L15)  — 1) joblib.load()
@@ -699,13 +766,27 @@
 - **def monthly_returns_from_equity(eq_df: pd.DataFrame, trades_df: pd.DataFrame | None=None) -> pd.DataFrame**  (L406)  — エクイティ曲線（eq_df）とトレード一覧（trades_df）から、
 - **def trades_from_buyhold(df: pd.DataFrame, capital: float) -> pd.DataFrame**  (L526)  — 
 - **def trade_metrics(trades: pd.DataFrame) -> dict**  (L561)  — 
-- **def slice_period(df: pd.DataFrame, start: str | None=None, end: str | None=None) -> pd.DataFrame**  (L602)  — 指定期間で DataFrame をスライスする。
-- **def run_backtest(data_csv: Path, start: str | None, end: str | None, capital: float, out_dir: Path, profile: str='michibiki_std', symbol: str='USDJPY-') -> Path**  (L621)  — v5.1 準拠のバックテストを実行する
-- **def run_wfo(data_csv: Path, start: str | None, end: str | None, capital: float, out_dir: Path, train_ratio: float=0.7) -> Path**  (L779)  — 
-- **def _normalize_dates_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> tuple[str | None, str | None]**  (L886)  — --start-date / --end-date を優先しつつ、
-- **def _build_period_tag(start: str | None, end: str | None) -> str**  (L918)  — ログ用の期間タグを生成する。
-- **def _mirror_latest_run(period_dir: Path, base_dir: Path) -> None**  (L932)  — 期間付きフォルダに出力されたファイルのうち、
-- **def main() -> None**  (L968)  — 
+- **def slice_period(df: pd.DataFrame, start: str | None=None, end: str | None=None) -> pd.DataFrame**  (L609)  — 指定期間で DataFrame をスライスする。
+- **def run_backtest(data_csv: Path, start: str | None, end: str | None, capital: float, out_dir: Path, profile: str='michibiki_std', symbol: str='USDJPY-') -> Path**  (L628)  — v5.1 準拠のバックテストを実行する
+- **def run_wfo(data_csv: Path, start: str | None, end: str | None, capital: float, out_dir: Path, train_ratio: float=0.7) -> Path**  (L849)  — 
+- **def _normalize_dates_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> tuple[str | None, str | None]**  (L956)  — --start-date / --end-date を優先しつつ、
+- **def _build_period_tag(start: str | None, end: str | None) -> str**  (L988)  — ログ用の期間タグを生成する。
+- **def _mirror_latest_run(period_dir: Path, base_dir: Path) -> None**  (L1002)  — 期間付きフォルダに出力されたファイルのうち、
+- **def main() -> None**  (L1038)  — 
+
+## tools/decision_compare.py
+- **def load_decision_logs(glob_pattern: str) -> List[Dict[str, Any]]**  (L36)  — glob パターンで指定された decision ログファイルを読み込む。
+- **def extract_runtime_info(record: Dict[str, Any]) -> Optional[Dict[str, str]]**  (L78)  — record から runtime 情報を抽出する（フォールバック付き）。
+- **def extract_timestamp(record: Dict[str, Any]) -> Optional[str]**  (L144)  — record からタイムスタンプを抽出する（優先順位付き）。
+- **def calculate_metrics(records: List[Dict[str, Any]]) -> Dict[str, Any]**  (L176)  — records から集計指標を計算する。
+- **def aggregate_by_key(records: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]**  (L292)  — records を集計キー（mode, source, profile, timeframe, symbol）でグループ化する。
+- **def format_blocked_reasons(top_blocked_reasons: List[Dict[str, Any]]) -> str**  (L329)  — top_blocked_reasons を文字列にフォーマットする。
+- **def format_coverage_short(min_ts: Optional[str], max_ts: Optional[str]) -> str**  (L350)  — タイムスタンプを短縮形式でフォーマットする。
+- **def build_comparable_pairs(comparison_groups: Dict[str, Dict[str, Dict[str, Any]]]) -> List[Dict[str, Any]]**  (L378)  — 比較可能なペア（live と backtest の両方が存在し、unknown なし）を構築する。
+- **def build_delta_rankings(pairs: List[Dict[str, Any]], top_n: int) -> Dict[str, List[Dict[str, Any]]]**  (L462)  — 差分ランキングを構築する。
+- **def evaluate_alerts(pairs: List[Dict[str, Any]], thresholds: Dict[str, float]) -> tuple[bool, List[Dict[str, Any]]]**  (L530)  — 閾値アラートを評価する。
+- **def generate_comparison_table(aggregated: Dict[str, List[Dict[str, Any]]], top_n: int=10, violations: Optional[List[Dict[str, Any]]]=None, comparable_pairs: Optional[List[Dict[str, Any]]]=None) -> str**  (L607)  — 集計結果から Markdown テーブルを生成する。
+- **def main() -> int**  (L1031)  — メイン関数
 
 ## tools/dump_feature_importance.py
 - **def _load_latest_report() -> Tuple[str | None, dict[str, Any] | None]**  (L12)  — 
@@ -750,16 +831,21 @@
 - **def print_table(reports: list[WFOReportSummary]) -> None**  (L110)  — 
 - **def main() -> None**  (L149)  — 
 
+## tools/live_runtime_smoke.py
+- **def main() -> int**  (L42)  — LIVE側の runtime schema 検証を実行
+
 ## tools/mt5_smoke.py
 - **def main() -> int**  (L55)  — 
 
 ## tools/ops_replay.py
-- **def _normalize_profiles(profiles_raw) -> list[str]**  (L24)  — profiles を list[str] に正規化する。
-- **def find_latest_ops_result_jsonl() -> Optional[Path]**  (L71)  — logs/ops 配下の最新 ops_result*.jsonl を探索する。
-- **def load_record_from_jsonl(log_path: Path, index: int=1) -> Optional[dict]**  (L92)  — JSONLファイルから末尾から index 番目のレコードを読み込む。
-- **def extract_params(rec: dict) -> dict**  (L137)  — レコードから実行パラメータを抽出する。
-- **def build_ops_start_command(params: dict, project_root: Path) -> list[str]**  (L173)  — ops_start.ps1 実行コマンドを構築する。
-- **def main() -> int**  (L211)  — メイン処理。
+- **def _load_saved_wfo_stability(run_id: str) -> dict | None**  (L29)  — logs/retrain/stability_{run_id}.json を最優先で読む。壊れてたら None。
+- **def _normalize_profiles(profiles_raw) -> list[str]**  (L50)  — profiles を list[str] に正規化する。
+- **def find_latest_ops_result_jsonl() -> Optional[Path]**  (L97)  — logs/ops 配下の最新 ops_result*.jsonl を探索する。
+- **def load_record_from_jsonl(log_path: Path, index: int=1) -> Optional[dict]**  (L118)  — JSONLファイルから末尾から index 番目のレコードを読み込む。
+- **def extract_params(rec: dict) -> dict**  (L163)  — レコードから実行パラメータを抽出する。
+- **def build_ops_start_command(params: dict, project_root: Path) -> list[str]**  (L199)  — ops_start.ps1 実行コマンドを構築する。
+- **def _load_latest_wfo_inputs() -> Optional[dict[str, Any]]**  (L237)  — WFO安定性評価に必要な入力を最新の成果物から集める。
+- **def main() -> int**  (L278)  — メイン処理。
 
 ## tools/ops_start.py
 - **def main() -> int**  (L38)  — 

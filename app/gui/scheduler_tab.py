@@ -30,16 +30,18 @@ from app.services.scheduler_facade import (
 
 
 class AddJobDialog(QDialog):
-    """Schedulerジョブ追加（最小UI）"""
+    """Schedulerジョブ追加/編集（最小UI）"""
 
-    def __init__(self, parent: Optional[QWidget] = None) -> None:
+    def __init__(self, parent: Optional[QWidget] = None, job: Optional[Dict[str, Any]] = None) -> None:
         super().__init__(parent)
-        self.setWindowTitle("ジョブ追加")
+        is_edit = job is not None
+        self.setWindowTitle("ジョブ編集" if is_edit else "ジョブ追加")
         self.setModal(True)
 
         form = QFormLayout(self)
 
         self.id_edit = QLineEdit(self)
+        self.id_edit.setReadOnly(is_edit)  # 編集時はidを変更不可
         self.enabled_cb = QCheckBox(self)
         self.enabled_cb.setChecked(True)
 
@@ -63,6 +65,35 @@ class AddJobDialog(QDialog):
         self.level_spin = QSpinBox(self)
         self.level_spin.setRange(0, 3)
         self.level_spin.setValue(3)
+
+        # 既存ジョブの値をプリセット
+        if job:
+            self.id_edit.setText(str(job.get("id", "")))
+            self.enabled_cb.setChecked(bool(job.get("enabled", True)))
+            self.command_edit.setText(str(job.get("command", "")))
+
+            # weekday: scheduleから取得、なければトップレベルから
+            sch = job.get("schedule") or {}
+            weekday = sch.get("weekday") if sch.get("weekday") is not None else job.get("weekday")
+            if weekday is not None:
+                idx = self.weekday_combo.findData(weekday)
+                if idx >= 0:
+                    self.weekday_combo.setCurrentIndex(idx)
+
+            # hour: scheduleから取得、なければトップレベルから
+            hour = sch.get("hour") if sch.get("hour") is not None else job.get("hour")
+            if hour is not None:
+                self.hour_spin.setValue(int(hour))
+
+            # minute: scheduleから取得、なければトップレベルから
+            minute = sch.get("minute") if sch.get("minute") is not None else job.get("minute")
+            if minute is not None:
+                self.minute_spin.setValue(int(minute))
+
+            # scheduler_level
+            level = job.get("scheduler_level")
+            if level is not None:
+                self.level_spin.setValue(int(level))
 
         form.addRow("id（必須）", self.id_edit)
         form.addRow("enabled", self.enabled_cb)
@@ -131,6 +162,10 @@ class SchedulerTab(QWidget):
         self.btn_add.clicked.connect(self._on_add)
         row.addWidget(self.btn_add)
 
+        self.btn_edit = QPushButton("編集", self)
+        self.btn_edit.clicked.connect(self._on_edit)
+        row.addWidget(self.btn_edit)
+
         self.btn_remove = QPushButton("削除", self)
         self.btn_remove.clicked.connect(self._on_remove)
         row.addWidget(self.btn_remove)
@@ -175,6 +210,7 @@ class SchedulerTab(QWidget):
         can_edit = bool(snap.get("can_edit"))
         # Expertのみ編集UIを有効化
         self.btn_add.setEnabled(can_edit)
+        self.btn_edit.setEnabled(can_edit)
         self.btn_remove.setEnabled(can_edit)
         self.header.setText(f"Scheduler（scheduler_level={level}） 生成: {gen}")
 
@@ -255,6 +291,73 @@ class SchedulerTab(QWidget):
             error = res.get("error", "unknown error")
             detail = json.dumps(res, ensure_ascii=False, indent=2)
             QMessageBox.warning(self, "Scheduler", f"追加に失敗: {error}\n\n{detail}")
+
+    def _on_edit(self) -> None:
+        """ジョブ編集ハンドラ（facade経由）"""
+        row = self.table.currentRow()
+        if row < 0:
+            QMessageBox.warning(self, "Scheduler", "編集する行を選択してください")
+            return
+
+        # 選択中のジョブを取得
+        try:
+            snap = get_scheduler_snapshot()
+            jobs = snap.get("jobs") or []
+            if row < 0 or row >= len(jobs):
+                QMessageBox.warning(self, "Scheduler", "ジョブが見つかりません")
+                return
+
+            # テーブルからjob_idを取得してjobsリストから検索
+            job_id_item = self.table.item(row, 0)
+            job_id = job_id_item.text() if job_id_item else ""
+            if not job_id:
+                QMessageBox.warning(self, "Scheduler", "ジョブIDが取得できません")
+                return
+
+            # jobsリストから該当ジョブを検索
+            job = next((j for j in jobs if str(j.get("id", "")) == job_id), None)
+            if not job:
+                QMessageBox.warning(self, "Scheduler", f"ジョブ '{job_id}' が見つかりません")
+                return
+
+            # 編集用に、snapshotのjobから完全なjob定義を構築
+            # snapshotにはcommandとscheduler_levelが含まれている（T-42-3-6で追加）
+            edit_job = {
+                "id": job.get("id"),
+                "enabled": job.get("enabled"),
+                "command": job.get("command", ""),
+                "weekday": job.get("schedule", {}).get("weekday"),
+                "hour": job.get("schedule", {}).get("hour"),
+                "minute": job.get("schedule", {}).get("minute"),
+                "schedule": job.get("schedule", {}),
+                "scheduler_level": job.get("scheduler_level"),
+            }
+
+        except Exception as e:
+            QMessageBox.warning(self, "Scheduler", f"ジョブ情報の取得に失敗: {e}")
+            return
+
+        # ダイアログを表示（既存ジョブを渡す）
+        dlg = AddJobDialog(self, job=edit_job)
+        updated_job = dlg.get_value()
+        if not updated_job:
+            return
+
+        # 既存のidを維持（編集ではidは変更しない）
+        updated_job["id"] = job_id
+
+        # T-42-3-4 で接続済みの facade を使用（services層）
+        # add_scheduler_jobは既にupdateも対応している（JobScheduler.add_jobが既存ジョブを置き換える）
+        res = add_scheduler_job(updated_job)  # 戻り: {'ok': True, 'snapshot': {...}} を想定
+        if res.get("ok"):
+            QMessageBox.information(self, "Scheduler", f"ジョブ '{job_id}' を更新しました")
+            snap = res.get("snapshot")
+            self.refresh(snap=snap)  # T-42-3-4 の refresh(snap=...) 対応済み前提
+        else:
+            # facade が返す情報を落とさず見える化
+            error = res.get("error", "unknown error")
+            detail = json.dumps(res, ensure_ascii=False, indent=2)
+            QMessageBox.warning(self, "Scheduler", f"更新に失敗: {error}\n\n{detail}")
 
     def _on_remove(self) -> None:
         """ジョブ削除ハンドラ（facade経由）"""

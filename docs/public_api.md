@@ -29,22 +29,30 @@
 ## Services Layer
 
 ### AISvc
-- `AISvc.predict(self, X: np.ndarray | Dict[str, float], *, no_metrics: bool=False) -> 'AISvc.ProbOut'`  (app/services/ai_service.py:L320) — 単一サンプルの特徴量を受け取り、p_buy / p_sell / p_skip を返す。
-- `AISvc.get_feature_importance(self, method: str='gain', top_n: int=20, cache_sec: int=300) -> pd.DataFrame`  (app/services/ai_service.py:L407) — GUI から呼び出して Feature Importance を取得する API。
-- `AISvc.get_shap_top_features(self, *, top_n: int=20, max_background: int=2000, csv_path: Path | None=None, cache_sec: int=300) -> pd.DataFrame`  (app/services/ai_service.py:L537) — LightGBMモデルに対する SHAP グローバル重要度（平均絶対SHAP）を計算し、
-- `AISvc.get_shap_values(self)`  (app/services/ai_service.py:L649) — SHAP 結果を EditionGuard に従って制限して返す。
-- `AISvc.feature_importance(self) -> pd.DataFrame`  (app/services/ai_service.py:L705) — FI を edition に応じて TopN で返す。
-- `AISvc.shap_summary(self) -> Dict[str, Any]`  (app/services/ai_service.py:L759) — SHAP を edition に応じて TopN で返す。
-- `AISvc.get_live_probs(self, symbol: str) -> dict[str, float]`  (app/services/ai_service.py:L831) — Live 用：execution_stub と同じ特徴量パイプラインを使って
-- `AISvc.build_decision_from_probs(self, probs: dict, symbol: str) -> dict`  (app/services/ai_service.py:L938) — Live 用：execution_stub の ENTRY/SKIP 判定を最小限で再現。
+- `AISvc.predict(self, X: np.ndarray | Dict[str, float], *, no_metrics: bool=False) -> 'AISvc.ProbOut'`  (app/services/ai_service.py:L332) — 単一サンプルの特徴量を受け取り、p_buy / p_sell / p_skip を返す。
+- `AISvc.get_feature_importance(self, method: str='gain', top_n: int=20, cache_sec: int=300) -> pd.DataFrame`  (app/services/ai_service.py:L419) — GUI から呼び出して Feature Importance を取得する API。
+- `AISvc.get_shap_top_features(self, *, top_n: int=20, max_background: int=2000, csv_path: Path | None=None, cache_sec: int=300) -> pd.DataFrame`  (app/services/ai_service.py:L549) — LightGBMモデルに対する SHAP グローバル重要度（平均絶対SHAP）を計算し、
+- `AISvc.get_shap_values(self)`  (app/services/ai_service.py:L661) — SHAP 結果を EditionGuard に従って制限して返す。
+- `AISvc.feature_importance(self) -> pd.DataFrame`  (app/services/ai_service.py:L717) — FI を edition に応じて TopN で返す。
+- `AISvc.shap_summary(self) -> Dict[str, Any]`  (app/services/ai_service.py:L771) — SHAP を edition に応じて TopN で返す。
+- `AISvc.get_live_probs(self, symbol: str) -> dict[str, float]`  (app/services/ai_service.py:L843) — Live 用：execution_stub と同じ特徴量パイプラインを使って
+- `AISvc.build_decision_from_probs(self, probs: dict, symbol: str) -> dict`  (app/services/ai_service.py:L950) — Live 用：execution_stub の ENTRY/SKIP 判定を最小限で再現。
 
 ### DiagnosisService
 - `DiagnosisService.analyze(self, profile: str='std', start=None, end=None) -> dict`  (app/services/diagnosis_service.py:L32) — 診断AI v0:
 
 ### ExecutionService
-- `ExecutionService.process_tick(self, symbol: str, price: float, timestamp: datetime, features: Optional[Dict[str, float]]=None, dry_run: bool=False) -> Dict[str, Any]`  (app/services/execution_service.py:L214) — 1ティック分の処理をまとめて行うヘルパー。
-- `ExecutionService.execute_entry(self, features: Dict[str, float], *, symbol: Optional[str]=None, dry_run: bool=False, timestamp: Optional[datetime]=None) -> Dict[str, Any]`  (app/services/execution_service.py:L310) — 売買判断 → フィルタ判定 → decisions.jsonl 出力まで一貫処理
-- `ExecutionService.execute_exit(self, symbol: Optional[str]=None, dry_run: bool=False) -> Dict[str, Any]`  (app/services/execution_service.py:L598) — 決済監視/クローズ処理
+- `ExecutionService.process_tick(self, symbol: str, price: float, timestamp: datetime, features: Optional[Dict[str, float]]=None, dry_run: bool=False) -> Dict[str, Any]`  (app/services/execution_service.py:L388) — 1ティック分の処理をまとめて行うヘルパー。
+- `ExecutionService.execute_entry(self, features: Dict[str, float], *, symbol: Optional[str]=None, dry_run: bool=False, timestamp: Optional[datetime]=None) -> Dict[str, Any]`  (app/services/execution_service.py:L484) — 売買判断 → フィルタ判定 → decisions.jsonl 出力まで一貫処理
+- `ExecutionService.execute_exit(self, symbol: Optional[str]=None, dry_run: bool=False) -> Dict[str, Any]`  (app/services/execution_service.py:L981) — 決済監視/クローズ処理
+
+### JobScheduler
+- `JobScheduler.run_pending(self) -> List[Dict[str, Any]]`  (app/services/job_scheduler.py:L256) — 実行すべきジョブを実行する（Public API）。
+- `JobScheduler.get_jobs(self) -> List[Dict[str, Any]]`  (app/services/job_scheduler.py:L313) — 全ジョブのリストを返す（Public API）。
+- `JobScheduler.get_job_state(self, job_id: str) -> Optional[Dict[str, Any]]`  (app/services/job_scheduler.py:L324) — 指定ジョブの状態を返す（Public API）。
+- `JobScheduler.add_job(self, job: Dict[str, Any]) -> None`  (app/services/job_scheduler.py:L346) — ジョブを追加する（Public API）。
+- `JobScheduler.remove_job(self, job_id: str) -> bool`  (app/services/job_scheduler.py:L366) — ジョブを削除する（Public API）。
+- `JobScheduler.reload(self) -> None`  (app/services/job_scheduler.py:L390) — ジョブ設定を再読み込みする（Public API）。
 
 ### KPIService
 - `KPIService.load_backtest_kpi_summary(self, profile: str) -> Dict[str, Any]`  (app/services/kpi_service.py:L66) — バックテストKPIサマリを読み込む（仕様書 v5.1 準拠）。
@@ -66,7 +74,7 @@
 - `MT5Client.get_positions(self)`  (app/core/mt5_client.py:L261)
 
 ### StrategyFilterEngine
-- `StrategyFilterEngine.evaluate(self, ctx: Dict, filter_level: int) -> Tuple[bool, List[str]]`  (app/core/filter/strategy_filter_engine.py:L49) — エントリー可否を評価する
+- `StrategyFilterEngine.evaluate(self, ctx: Dict, filter_level: int) -> Tuple[bool, List[str]]`  (app/core/filter/strategy_filter_engine.py:L50) — エントリー可否を評価する
 
 ---
 - allowlist entries: 0

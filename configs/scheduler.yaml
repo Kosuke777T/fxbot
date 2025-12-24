@@ -18,11 +18,11 @@ jobs:
   enabled: true
   command: test
   weekday: null
-  hour: 0
+  hour: 1
   minute: 0
   schedule:
     weekday: null
-    hour: 0
+    hour: 1
     minute: 0
   scheduler_level: 3
 - id: ui_smoke2
