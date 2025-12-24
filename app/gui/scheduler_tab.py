@@ -5,7 +5,7 @@ import re
 from functools import partial
 from typing import Any, Dict, List, Optional
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -24,16 +24,21 @@ from PyQt6.QtWidgets import (
     QDialogButtonBox,
     QPlainTextEdit,
     QSplitter,
+    QGroupBox,
 )
-
-_JOB_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
 from app.services.scheduler_facade import (
     get_scheduler_snapshot,
     add_scheduler_job,
     remove_scheduler_job,
     run_scheduler_job_now,
+    start_scheduler_daemon,
+    stop_scheduler_daemon,
+    get_scheduler_daemon_status,
+    open_scheduler_daemon_log,
 )
+
+_JOB_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
 
 class AddJobDialog(QDialog):
@@ -207,6 +212,31 @@ class SchedulerTab(QWidget):
         row.addStretch(1)
         root.addLayout(row)
 
+        # ---- Daemon Control UI (T-42-3-12) ----
+        self.daemon_group = QGroupBox("常駐デーモン", self)
+        dg = QHBoxLayout()
+
+        self.btn_daemon_start = QPushButton("常駐開始", self)
+        self.btn_daemon_stop = QPushButton("常駐停止", self)
+        self.btn_daemon_log = QPushButton("ログを開く", self)
+
+        self.lbl_daemon_running = QLabel("running: -", self)
+        self.lbl_daemon_pid = QLabel("pid: -", self)
+        self.lbl_daemon_started = QLabel("started_at: -", self)
+
+        dg.addWidget(self.btn_daemon_start)
+        dg.addWidget(self.btn_daemon_stop)
+        dg.addWidget(self.btn_daemon_log)
+        dg.addSpacing(12)
+        dg.addWidget(self.lbl_daemon_running)
+        dg.addWidget(self.lbl_daemon_pid)
+        dg.addWidget(self.lbl_daemon_started)
+        dg.addStretch(1)
+
+        self.daemon_group.setLayout(dg)
+        root.addWidget(self.daemon_group)
+        # ---- /Daemon Control UI ----
+
         # メインスプリッター（水平分割：左=ジョブテーブル、右=詳細ビュー）
         main_splitter = QSplitter(Qt.Orientation.Horizontal, self)
         root.addWidget(main_splitter, 1)  # stretch=1 を明示
@@ -264,6 +294,20 @@ class SchedulerTab(QWidget):
         self.table_always.itemSelectionChanged.connect(self._on_job_selected)
         always_layout.addWidget(self.table_always)
         jobs_splitter.addWidget(always_group)
+
+        # デーモン操作のシグナル接続
+        self.btn_daemon_start.clicked.connect(self._on_daemon_start)
+        self.btn_daemon_stop.clicked.connect(self._on_daemon_stop)
+        self.btn_daemon_log.clicked.connect(self._on_daemon_open_log)
+
+        # デーモン状態の自動更新（QTimer）
+        # タイマーは showEvent で start / hideEvent で stop
+        self._daemon_timer = QTimer(self)
+        self._daemon_timer.setInterval(1000)  # 1s
+        self._daemon_timer.timeout.connect(self._refresh_daemon_status)
+
+        # 初回表示用に1回だけ
+        self._refresh_daemon_status()
 
         # 右側：詳細ビュー（実行ログ）
         detail_group = QWidget(self)
@@ -634,5 +678,65 @@ class SchedulerTab(QWidget):
         else:
             error = r.get("error", "unknown error")
             QMessageBox.warning(self, "Scheduler", f"削除に失敗: {error}")
+
+    # ---- Daemon Control Handlers (T-42-3-12) ----
+    def _refresh_daemon_status(self) -> None:
+        """デーモンの状態を取得してUIに反映"""
+        st = get_scheduler_daemon_status() or {}
+        running = bool(st.get("running"))
+        pid = st.get("pid")
+        started_at = st.get("started_at")
+
+        self.lbl_daemon_running.setText(f"running: {running}")
+        self.lbl_daemon_pid.setText(f"pid: {pid if pid is not None else '-'}")
+        self.lbl_daemon_started.setText(f"started_at: {started_at or '-'}")
+
+        # ボタン活性も自然に
+        self.btn_daemon_start.setEnabled(not running)
+        self.btn_daemon_stop.setEnabled(running)
+
+    def _on_daemon_start(self) -> None:
+        """常駐デーモンを開始"""
+        res = start_scheduler_daemon()
+        if not res.get("ok"):
+            error = res.get("error", "unknown error")
+            QMessageBox.warning(self, "Scheduler", f"常駐開始に失敗: {error}")
+        else:
+            QMessageBox.information(self, "Scheduler", "常駐デーモンを開始しました")
+        self._refresh_daemon_status()
+
+    def _on_daemon_stop(self) -> None:
+        """常駐デーモンを停止"""
+        res = stop_scheduler_daemon()
+        if not res.get("ok"):
+            error = res.get("error", "unknown error")
+            QMessageBox.warning(self, "Scheduler", f"常駐停止に失敗: {error}")
+        else:
+            QMessageBox.information(self, "Scheduler", "常駐デーモンを停止しました")
+        self._refresh_daemon_status()
+
+    def _on_daemon_open_log(self) -> None:
+        """デーモンログを開く"""
+        res = open_scheduler_daemon_log()
+        if not res.get("ok"):
+            error = res.get("error", "unknown error")
+            QMessageBox.warning(self, "Scheduler", f"ログを開けませんでした: {error}")
+    # ---- /Daemon Control Handlers ----
+
+    def showEvent(self, event) -> None:
+        """タブが表示されたときにタイマーを開始"""
+        super().showEvent(event)
+        if hasattr(self, "_daemon_timer") and self._daemon_timer is not None:
+            if not self._daemon_timer.isActive():
+                self._daemon_timer.start()
+        # 表示直後に最新化
+        self._refresh_daemon_status()
+
+    def hideEvent(self, event) -> None:
+        """タブが非表示になったときにタイマーを停止"""
+        super().hideEvent(event)
+        if hasattr(self, "_daemon_timer") and self._daemon_timer is not None:
+            if self._daemon_timer.isActive():
+                self._daemon_timer.stop()
 
 

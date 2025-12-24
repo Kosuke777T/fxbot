@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import sys
@@ -459,10 +460,38 @@ def _is_process_running(pid: int) -> bool:
         except Exception:
             return False
     else:
-        import os
         try:
             os.kill(pid, 0)
             return True
         except OSError:
             return False
+
+
+def open_scheduler_daemon_log() -> Dict[str, Any]:
+    """
+    Open logs/scheduler_daemon.log with the default application (OS-dependent).
+    GUI must call only this facade API (path resolving + OS-specific open live here).
+    """
+    try:
+        # project root 推定は、このファイルの位置から固定でOK（services内に閉じる）
+        # app/services/scheduler_facade.py -> project_root = parents[2]
+        root = Path(__file__).resolve().parents[2]
+        log_path = (root / "logs" / "scheduler_daemon.log").resolve()
+
+        # 無ければ作る（"開く"要求でファイルが存在しないと既定アプリが失敗しやすい）
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        if not log_path.exists():
+            log_path.write_text("", encoding="utf-8")
+
+        # OSごとに既定アプリで開く
+        if sys.platform.startswith("win"):
+            os.startfile(str(log_path))  # type: ignore[attr-defined]
+        elif sys.platform == "darwin":
+            subprocess.run(["open", str(log_path)], check=False)
+        else:
+            subprocess.run(["xdg-open", str(log_path)], check=False)
+
+        return {"ok": True, "path": str(log_path), "error": None}
+    except Exception as e:
+        return {"ok": False, "path": None, "error": f"{type(e).__name__}: {e}"}
 
