@@ -51,3 +51,23 @@ jobs:
   weekday: 2
   hour: 6
   minute: 17
+- id: none_time_job
+  enabled: true
+  command: python -c "print(123)"
+  weekday: null
+  hour: null
+  minute: null
+- id: always_job
+  enabled: true
+  command: python -c "print(\"ALWAYS\")"
+  weekday: null
+  hour: null
+  minute: null
+  run_always: true
+- id: always_job2
+  enabled: true
+  command: python -c "print(\"ALWAYS2\")"
+  weekday: null
+  hour: null
+  minute: null
+  run_always: true

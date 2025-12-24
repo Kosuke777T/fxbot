@@ -76,6 +76,7 @@ class JobScheduler:
                     "state": "IDLE",
                     "last_run_at": None,
                     "last_result": None,
+                    "next_run_at": None,  # run_always用
                 }
 
     def _initialize_job_state(self, job_id: str) -> None:
@@ -85,6 +86,7 @@ class JobScheduler:
                 "state": "IDLE",
                 "last_run_at": None,
                 "last_result": None,
+                "next_run_at": None,  # run_always用
             }
 
     def _edition_allow(self, job: Dict[str, Any]) -> bool:
@@ -142,6 +144,29 @@ class JobScheduler:
         hour = job.get("hour")
         minute = job.get("minute")
 
+        # weekday/hour/minute がすべて None の場合の処理
+        if weekday is None and hour is None and minute is None:
+            run_always = bool(job.get("run_always", False))
+            if not run_always:
+                # run_always=False の場合は完全除外（永久機関防止）
+                logger.debug(f"[JobScheduler] job {job_id} has no schedule and run_always=False, skip")
+                return False
+
+            # run_always=True の場合：高頻度実行（最低1分刻み）
+            # jobs_state に next_run_at を保存して、1分以上経過していれば実行可能
+            next_run_at_str = self.jobs_state[job_id].get("next_run_at")
+            if next_run_at_str:
+                try:
+                    next_run_at = datetime.fromisoformat(next_run_at_str.replace("Z", "+00:00"))
+                    if now < next_run_at:
+                        logger.debug(f"[JobScheduler] job {job_id} run_always: next_run_at={next_run_at_str} not reached, skip")
+                        return False
+                except Exception as e:
+                    logger.warning(f"[JobScheduler] failed to parse next_run_at for {job_id}: {e}")
+            # next_run_at が無い、または既に経過している場合は実行可能
+            return True  # run_always(no-schedule): bypass last_run_at daily guard
+
+        # 通常のスケジュールチェック（weekday/hour/minute のいずれかが設定されている場合）
         if weekday is not None:
             if now.weekday() != weekday:
                 return False
@@ -305,7 +330,19 @@ class JobScheduler:
                 last_result["stdout"] = ""
             if "stderr" not in last_result:
                 last_result["stderr"] = ""
+            if "error" not in last_result:
+                last_result["error"] = None
             st["last_result"] = last_result
+
+            # run_always=True の場合、next_run_at を「今 + 1分」に更新（高頻度実行の制御）
+            weekday = job.get("weekday")
+            hour = job.get("hour")
+            minute = job.get("minute")
+            if weekday is None and hour is None and minute is None and bool(job.get("run_always", False)):
+                from datetime import timedelta
+                next_run = now + timedelta(minutes=1)
+                st["next_run_at"] = next_run.isoformat()
+                logger.debug(f"[JobScheduler] job {job_id} run_always: next_run_at updated to {next_run.isoformat()}")
 
             results.append({"job_id": job_id, "result": result})
 
