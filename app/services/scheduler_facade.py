@@ -1,11 +1,14 @@
 # app/services/scheduler_facade.py
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from app.services.job_scheduler import JobScheduler
+
+_JOB_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
 
 # シングルトン的に1インスタンスだけ使う
@@ -138,12 +141,60 @@ def _calc_next_run_utc(weekday: Any, hour: Any, minute: Any) -> str | None:
 
 
 
+def _validate_job_payload(job: dict) -> Tuple[bool, str]:
+    """
+    ジョブペイロードのバリデーション（services層での最終チェック）。
+
+    Parameters
+    ----------
+    job : dict
+        ジョブ定義
+
+    Returns
+    -------
+    Tuple[bool, str]
+        (is_valid, error_message)
+        is_valid=True の場合は error_message は空文字列
+    """
+    job_id = (job.get("id") or "").strip()
+    cmd = (job.get("command") or "").strip()
+
+    if not job_id:
+        return False, "id is required"
+    if not _JOB_ID_RE.match(job_id):
+        return False, "id must match ^[A-Za-z0-9_-]{1,64}$"
+    if not cmd:
+        return False, "command is required"
+
+    weekday = job.get("weekday", None)
+    hour = job.get("hour", None)
+    minute = job.get("minute", None)
+
+    if weekday is not None and (not isinstance(weekday, int) or weekday < 0 or weekday > 6):
+        return False, "weekday must be None or 0..6"
+    # hour: None を許容し、None の場合は range check をスキップ
+    if hour is not None:
+        if not isinstance(hour, int) or hour < 0 or hour > 23:
+            return False, "hour must be None or 0..23"
+    # minute: None を許容し、None の場合は range check をスキップ
+    if minute is not None:
+        if not isinstance(minute, int) or minute < 0 or minute > 59:
+            return False, "minute must be None or 0..59"
+
+    return True, ""
+
+
 def add_scheduler_job(job: dict) -> dict:
     """Add/Update a scheduler job and persist to YAML (T-42-3-3)."""
     # use local singleton: _get_scheduler()
     snap = get_scheduler_snapshot()
     if not snap.get("can_edit"):
         return {"ok": False, "error": "scheduler is read-only (can_edit=false)"}
+
+    # バリデーション（services層での最終チェック）
+    ok, err = _validate_job_payload(job)
+    if not ok:
+        return {"ok": False, "error": err}
 
     sch = _get_scheduler()
     sch.add_job(job)

@@ -14,17 +14,6 @@ jobs:
   hour: 0
   minute: 0
   scheduler_level: 3
-- id: test
-  enabled: true
-  command: test
-  weekday: null
-  hour: 1
-  minute: 0
-  schedule:
-    weekday: null
-    hour: 1
-    minute: 0
-  scheduler_level: 3
 - id: ui_smoke2
   enabled: true
   command: echo hi
@@ -32,3 +21,27 @@ jobs:
   hour: 0
   minute: 0
   scheduler_level: 3
+- id: valid_job_1
+  enabled: true
+  command: echo hi
+  weekday: null
+  hour: 0
+  minute: 0
+- id: none_time_ok
+  enabled: true
+  command: echo hi
+  weekday: null
+  hour: null
+  minute: null
+- id: ok_normal
+  enabled: true
+  command: echo hi
+  weekday: null
+  hour: 0
+  minute: 0
+- id: ok_none_time
+  enabled: true
+  command: echo hi
+  weekday: null
+  hour: null
+  minute: null

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any, Dict, List, Optional
 
 from PyQt6.QtCore import Qt
@@ -21,6 +22,8 @@ from PyQt6.QtWidgets import (
     QSpinBox,
     QDialogButtonBox,
 )
+
+_JOB_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
 from app.services.scheduler_facade import (
     get_scheduler_snapshot,
@@ -111,21 +114,44 @@ class AddJobDialog(QDialog):
         btns.rejected.connect(self.reject)
         form.addRow(btns)
 
+    def _warn(self, msg: str) -> None:
+        """バリデーションエラー時の警告表示"""
+        QMessageBox.warning(self, "入力エラー", msg)
+
     def get_value(self) -> dict | None:
         """ダイアログを表示し、入力値を返す。キャンセル時は None。"""
         if self.exec() != QDialog.DialogCode.Accepted:
             return None
 
+        # 入力値の取得とトリム
         job_id = (self.id_edit.text() or "").strip()
         cmd = (self.command_edit.text() or "").strip()
-        if not job_id or not cmd:
-            QMessageBox.warning(self, "入力エラー", "id と command は必須です。")
-            return None
 
         weekday = self.weekday_combo.currentData()  # None or int 0..6
         hour = int(self.hour_spin.value())
         minute = int(self.minute_spin.value())
 
+        # バリデーション
+        if not job_id:
+            self._warn("id は必須です。")
+            return None
+        if not _JOB_ID_RE.match(job_id):
+            self._warn("id は英数字・_・- のみで、1〜64文字にしてください。")
+            return None
+        if not cmd:
+            self._warn("command は必須です。")
+            return None
+        if weekday is not None and (not isinstance(weekday, int) or weekday < 0 or weekday > 6):
+            self._warn("weekday が不正です（None または 0..6）。")
+            return None
+        if hour < 0 or hour > 23:
+            self._warn("hour が不正です（0..23）。")
+            return None
+        if minute < 0 or minute > 59:
+            self._warn("minute が不正です（0..59）。")
+            return None
+
+        # バリデーションOKならjob dictを組み立て
         job = {
             "id": job_id,
             "enabled": bool(self.enabled_cb.isChecked()),
@@ -389,7 +415,8 @@ class SchedulerTab(QWidget):
                 QMessageBox.information(self, "Scheduler", f"ジョブ '{job_id}' を削除しました")
             else:
                 QMessageBox.warning(self, "Scheduler", f"ジョブ '{job_id}' が見つかりませんでした")
-            self.refresh(r.get("snapshot"))  # 削除後に即更新（最重要、戻り値のsnapshotを使用）
+            snap = r.get("snapshot")
+            self.refresh(snap=snap)  # 削除後に即更新（最重要、戻り値のsnapshotを使用）
         else:
             error = r.get("error", "unknown error")
             QMessageBox.warning(self, "Scheduler", f"削除に失敗: {error}")
