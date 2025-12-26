@@ -124,15 +124,570 @@ Expert：複数ジョブ & ジョブ連鎖
 
 T-42｜Scheduler GUI 完成
 
-ジョブ一覧
 
-実行ログ
+# **T-43 条件探索・比較AI（Ops意思決定を“根拠供給”で強化）**
 
-次回実行時刻
+**目的**
 
-Expert: ジョブ追加/削除
+- 「条件（フィルタ/特徴）の組み合わせが本当に効いているか」を、過去ログから統計的に評価して Opsの判断材料として提示する
+- 予測AIではなく、信用度（信頼性・劣化・再現性）を出すAIとして設計
+- 出力は Ops View が理解できる語彙（next_action / stability / retrain と同じ系統）に寄せる
 
-これで “完全に製品としてのスケジューラ” になる。
+**前提**
+
+- GUI は services の公開APIだけを呼ぶ（新規は薄い facade）
+- 既存の ops_history / retrain / stability を最優先で再利用
+- 評価は「当たった/外れた」ではなく、サンプル数・差分・安定性・劣化を主にする
+
+# **T-43-1 探索対象データの統一取得（Read-only）**
+
+成果物
+
+- 探索AIが参照するデータ取得関数（読み取り専用）
+- “どのログを正とするか”の定義
+
+内容
+
+- decisions.jsonl（Backtest/Live）から必要キーを抽出（既存の標準キーに完全準拠）
+- retrain report / stability / ops_history の run_id や data_range と紐づくビューを作る
+- 時系列ウィンドウ定義（例：recent=直近N日、past=それ以前、など）
+
+Done条件
+
+- PS7 1コマンドで「期間・銘柄・プロファイル指定→件数・期間が返る」
+
+# **T-43-2 条件テンプレと自動生成（Condition DSL）**
+
+成果物
+
+- 条件（ルール）の表現を統一する最小DSL（Python dict でOK）
+- 自動生成器（総当たりし過ぎないガード込み）
+
+内容
+
+- 条件タイプ（例）
+    - フィルタ条件：filter_pass、reasons、spread/atr/adx/volなど既存filters
+    - 確率条件：prob_buy/prob_sell/threshold/ai_margin
+    - 市場条件：time-of-day、曜日、ボラ帯、レンジ/トレンド簡易指標（既存があればそれ優先）
+-
+- 生成戦略
+    - 単体条件 → 2条件AND → 3条件AND（上限あり）
+    - サンプル数が一定未満になる条件は自動で棄却
+    - 近い条件（ほぼ同義）をまとめる（重複抑制）
+-
+
+Done条件
+
+- 生成された条件数と、各条件の成立回数（support）が一覧できる
+
+# **T-43-3 条件ごとの評価（統計・安定性・劣化）**
+
+成果物
+
+- 条件スコアリング関数
+- “最近効いてる/死んだ”判定（degradation）
+
+内容
+
+- 指標（最低限）
+    - support（成立回数）
+    - pass_rate（通過率）
+    - outcome系（あなたの基盤に合わせる）：例）勝率、平均損益、PF、DD、期待値、など 取れる範囲で
+    - recent vs past の差分（lift / delta）
+-
+- 信頼性ガード
+    - support不足は「参考」扱い
+    - 多重比較の暴走を抑える簡易補正（厳密でなくてよいが、誤検出を抑える）
+-
+- 劣化検出
+    - recentで指標が閾値割れ
+    - 安定性（WFO stable/reasons）と矛盾する場合は優先度を下げる
+-
+
+Done条件
+
+- 条件ごとに score / stable / reasons / recent_delta が返る
+
+# **T-43-4 ランキングと「採用候補」生成**
+
+成果物
+
+- 条件ランキング（上位K件）
+- “採用候補”のサマリ（Ops向け）
+
+内容
+
+- ランキング軸（例）
+    - 安定性（stable優先）
+    - recentで改善している
+    - supportが十分
+    - 過剰にピンポイントな条件は減点
+-
+- 出力フォーマット（Ops Viewに刺さる形）
+    - candidates: [{id, description, score, stable, reasons, support, recent_delta, tags}]
+    - warnings: “最近サンプル激減”など
+-
+
+Done条件
+
+- PS7 で「候補TOP10」が見える（description付き）
+
+# **T-43-5 Ops意思決定との接続（next_actionの根拠供給）**
+
+成果物
+
+- next_action の判断に“探索AIの結果”を補助情報として添付
+- 既存ロジックは壊さず、説明力だけ増やす
+
+内容
+
+- next_action に以下を追加（例）
+    - evidence: {top_conditions, degradation_flags, confidence_note}
+-
+- PROMOTE/HOLD/BLOCKED の理由に
+    - “条件が最近劣化”
+    - “有効条件が消失”
+    - “安定性reasonsと整合”
+    を付けられるようにする（あくまで補助）
+-
+
+Done条件
+
+- Ops Viewで「なぜその判断か」に探索AIの根拠が1画面で見える
+
+# **T-43-6 公開API（薄い facade）と検証スクリプト**
+
+成果物
+
+- app/services/condition_mining_facade.py（仮）
+    - get_condition_candidates(profile, symbol, time_range, top_k=10)
+    - get_condition_diagnostics(...)
+-
+- tools/condition_mining_smoke.ps1（Here-String）
+
+Done条件
+
+- 1コマンドで「候補取得→JSON整形→主要キー表示」まで通る
+
+# **T-43-7 ガードレール（運用・性能・安全）**
+
+成果物
+
+- 探索の上限・キャッシュ・タイムアウト
+- ログ出力（perf / 件数 / 上位のみ）
+
+内容
+
+- 条件数上限、AND段数上限、support下限
+- recent/past集計のキャッシュ（同条件再計算を避ける）
+- 異常時は「探索結果なし」でもOpsは動く（必須）
+
+Done条件
+
+- GUIを重くしない（services側で時間制限・結果縮退）
+
+**受け入れ基準（T-43全体）**
+
+- Ops Viewに「候補条件TOP」「最近の劣化フラグ」「信頼度メモ」が出る
+- next_action のロジックは変更しない（根拠が増えるだけ）
+- PS7 smoke で再現できる
+- 境界違反（GUIが内部実装に触る等）が無い
+
+# **T-44｜利益重視設計（Profit-Oriented Design）**
+
+# **目的（Purpose）**
+
+- 勝率ではなく 期待利益・資金曲線の形 を最適化対象にする
+- ENTRY判断を前提として
+EXIT・ポジションサイズ・伸ばす判断を主役に昇格させる
+- 利益が出た／出なかった理由を Opsとして説明可能にする
+
+# **前提（Dependencies）**
+
+- T-42-3-14 完了（Ops語彙が確定）
+- T-43 完了（条件・特徴量の信用度が確定）
+- GUI / services 境界厳守
+- next_action ロジックは壊さない（拡張のみ）
+
+# **T-44-1 利益視点の評価軸を定義（Profit Metrics Layer）**
+
+**成果物**
+
+- 利益評価用の標準指標セット（services 側）
+
+**内容**
+
+勝率以外を主役にする
+
+- expectancy（期待値）
+- avg_win / avg_loss
+- profit_factor
+- right_tail_score（大勝ちの寄与度）
+- max_adverse_excursion / max_favorable_excursion（可能なら）
+
+※ 既存 metrics があれば再利用、無ければ最小限で追加
+
+**Done条件**
+
+- 「この戦略は なぜ 儲かっている/いないか」を
+勝率なしでも説明できる
+
+# **T-44-2 伸びしろ評価（Upside Potential Estimation）**
+
+**成果物**
+
+- 各 ENTRY に対する「伸びる可能性スコア」
+
+**内容**
+
+T-43の結果を前提に、以下を評価：
+
+- 条件が効いている局面での 平均最大伸び
+- recent vs past での伸び分布の変化
+- ボラ × 条件安定性 × 時間帯 などの組み合わせ
+
+※ 予測ではなく 過去分布ベースの期待
+
+**Done条件**
+
+- ENTRY時に
+upside_potential: low / mid / high
+が判断可能
+
+# **T-44-3 EXIT判断を意思決定の一級市民に昇格**
+
+**成果物**
+
+- EXIT専用の判断ロジックとログ
+
+**内容**
+
+EXITを2種類に分離
+
+1. 防御的EXIT
+    - 条件劣化
+    - モデル不整合
+    - 急変・異常
+2.
+3. 利益最大化EXIT
+    - 伸びしろ枯渇
+    - right-tail失速
+    - 利益の質低下
+4.
+
+EXITにも理由コードを付与：
+
+- exit_reason
+- exit_quality（small_win / big_win / scratch など）
+
+**Done条件**
+
+- 「なぜここで利確したか」を Ops View で説明できる
+
+# **T-44-4 ポジションサイズ制御（Sizing as Decision）**
+
+**成果物**
+
+- サイズ決定ロジック（services 側）
+- サイズ理由の明示
+
+**内容**
+
+サイズは以下で決まる：
+
+- condition_confidence（T-43）
+- upside_potential（T-44-2）
+- stability / recent 状態
+- 現在のドローダウン状況
+
+例：
+
+- 高信頼 × 高伸び → size_up
+- 高信頼 × 低伸び → size_normal
+- 劣化兆候 → size_down / HOLD
+
+**Done条件**
+
+- すべてのトレードに
+size_decision と size_reason が残る
+
+# **T-44-5 勝ちトレードの分類と学習（Win Taxonomy）**
+
+**成果物**
+
+- 勝ちトレードの分類ルール
+- 分類別サマリ
+
+**内容**
+
+勝ちを以下のように分類：
+
+- big_win（利益の大半を生む）
+- normal_win
+- small_win / scratch
+
+分析対象：
+
+- big_win が出る条件は何か？
+- それは recent でも再現しているか？
+
+👉 負けより“勝ちの質”を見る設計
+
+**Done条件**
+
+- 「利益の◯%はどの条件から来ているか」が見える
+
+# **T-44-6 Ops意思決定との統合（Profit-aware Ops）**
+
+**成果物**
+
+- next_action に利益視点の補助情報を追加
+
+**内容**
+
+Ops判断に以下を付与：
+
+- profit_health（good / warning / bad）
+- right_tail_active（大勝ち条件が生きているか）
+- capital_efficiency（サイズ調整が機能しているか）
+
+※ next_action 自体は変更しない
+
+（理由と根拠が増えるだけ）
+
+**Done条件**
+
+- PROMOTE / HOLD / BLOCKED の判断が
+利益の観点からも説明可能
+
+# **T-44-7 ガードレール（暴走防止）**
+
+**成果物**
+
+- 利益設計用の安全装置
+
+**内容**
+
+- size 上限 / 連続size_up制限
+- 異常利益後のクールダウン
+- recent 劣化時の自動サイズ縮小
+- 利益偏重によるリスク増大の検知
+
+**Done条件**
+
+- 利益を狙っても
+破滅的な挙動をしない
+
+# **受け入れ基準（T-44全体）**
+
+- 勝率が下がっても、期待値が改善している
+- 利益が出た理由・出なかった理由を Ops が説明できる
+- ENTRYより EXIT / SIZE が主役になっている
+- T-43 の信用度評価を前提に動いている
+- GUI/services 境界を壊していない
+# **T-45｜自動化レベル制御（Automation Governance）**
+
+# **目的**
+
+- T-44で導入した **EXIT・サイズ・PROMOTE等の“攻めの権限”**を、段階的かつ安全に自動化する
+- 「どこまで自動でよいか」を 設定と条件で固定し、気分運用を排除する
+- 事故時に 即停止・縮退できるガードレールを提供する
+- Ops Viewで 自動化の状態・根拠・発動履歴を説明可能にする
+
+# **前提**
+
+- T-42-3-14 完了（Ops語彙・表示枠）
+- T-43 完了（条件の信用度・劣化検知）
+- T-44 完了（利益重視：EXIT/サイズ/伸ばし）
+- next_action の本体ロジックは壊さず、権限管理の上に載せる
+- GUIは services の公開APIのみを呼ぶ
+
+# **自動化レベル定義（共通語彙）**
+
+**レベル（例）**
+
+- L0: OFF（完全手動、提案のみ）
+- L1: AUTO-DEFENSE（守りのみ自動：BLOCKED/size_down/防御EXIT）
+- L2: LIMITED-AUTO（攻めは限定：小さなsize_up、限定的な利益伸ばし）
+- L3: FULL-AUTO（条件を満たす範囲で完全自動）
+
+※ 実装上は int 0..3 で管理。Ops表示と一致させる。
+
+# **T-45-1 自動化ポリシー（Policy）モデルの追加**
+
+# **成果物**
+
+- automation_policy（設定）とバリデーション
+- デフォルトは安全側（L0 or L1）
+
+# **内容（例：設定項目）**
+
+- automation_level: 0..3
+- max_size_up_pct（例：+10%）
+- max_consecutive_size_up（例：2）
+- require_stable_for_size_up: bool
+- require_min_support（例：N>=200）
+- require_recent_ok_days（例：直近7日劣化なし）
+- auto_promote_enabled: bool（最初はfalse）
+- auto_exit_profit_enabled: bool（最初はfalse）
+- cooldown_after_big_win_minutes
+- kill_switch: bool（即停止）
+
+# **Done条件**
+
+- 不正値は拒否され、現在ポリシーが snapshot で取得できる
+
+# **T-45-2 オーソライザ（権限判定）層の実装**
+
+# **成果物**
+
+- allow(action, context) -> (bool, reason) の共通判定関数
+- action種別：
+    - EXEC_ENTRY
+    - EXEC_EXIT_DEFENSE
+    - EXEC_EXIT_PROFIT
+    - SIZE_UP
+    - SIZE_DOWN
+    - PROMOTE_APPLY
+-
+
+# **内容**
+
+- レベル別の許可表を実装（L0〜L3）
+- 判定に使う context（既存優先）：
+    - stability（stable/score/reasons）
+    - T-43の信用度（support/recent_delta/degradation）
+    - T-44の upside_potential / profit_health（あれば）
+    - 現在DD / 連敗 / 異常フラグ
+-
+
+# **Done条件**
+
+- どのアクションが「なぜ拒否されたか」が reason で必ず説明できる
+
+# **T-45-3 “守りの自動化”を確定（Auto-Defense）**
+
+# **成果物**
+
+- L1以上で必ず有効になる防御ルール
+
+# **内容**
+
+- 以下は L1以上で自動許可（ただしkill_switch優先）
+    - BLOCKED発動（異常・不整合・劣化）
+    - size_down（リスク縮小）
+    - 防御EXIT（異常時・条件崩壊時）
+-
+- すべての発動に defense_event を記録
+
+# **Done条件**
+
+- 攻めの自動化がOFFでも、守りだけ自動で働く
+
+# **T-45-4 “攻めの自動化”の段階解放（Limited Auto）**
+
+# **成果物**
+
+- L2で許可する攻め（限定）ルール
+
+# **内容（例）**
+
+- SIZE_UP は最大 +10〜20% まで、回数制限あり
+- EXEC_EXIT_PROFIT は「一段階」だけ
+    - 例：トレール開始までは自動、トレール幅拡大は承認
+-
+- PROMOTE_APPLY は 提案のみ（実行はL3で検討）
+
+# **Done条件**
+
+- 攻めが働いても、損失上限がガードで守られる
+
+# **T-45-5 承認フロー（Human-in-the-loop）**
+
+# **成果物**
+
+- 承認が必要なアクションを「提案」として記録し、UIで実行できる
+
+# **内容**
+
+- propose_action（提案）
+    - action_type, params, reasons, evidence
+-
+- 承認実行は既存の実行APIを呼ぶ（新規は薄いラッパ）
+
+※ Gmail/通知などは不要。まずはOps Viewに表示で十分。
+
+# **Done条件**
+
+- L0でも「提案→人が実行→結果ログ」が通る
+
+# **T-45-6 監査ログ（Audit）と再現性**
+
+# **成果物**
+
+- 自動化に関するイベントログ仕様の追加（ops_historyに統合が理想）
+- 再現可能な“決定の証跡”を残す
+
+# **記録するもの（最低限）**
+
+- automation_level
+- policy_hash（設定のハッシュ）
+- action_requested / action_allowed
+- deny_reason（拒否の場合）
+- evidence_snapshot（stability / degradation / upside など主要キー）
+
+# **Done条件**
+
+- 「なぜその時自動化された/されなかったか」を後から追える
+
+# **T-45-7 キルスイッチと縮退モード**
+
+# **成果物**
+
+- 即停止（kill_switch）と縮退（fallback）動作
+
+# **内容**
+
+- kill_switch=True のとき：
+    - ENTRY/攻めアクション全拒否
+    - 防御EXITのみ許可（必要なら）
+    - Schedulerは回しても “実行しない” で状態可視化だけ残す
+-
+- 異常検知（例：連続エラー・API不整合）時は自動で L1へ降格できる設計（任意）
+
+# **Done条件**
+
+- 事故っても「止まる・縮む・説明できる」が成立
+
+# **T-45-8 公開API（薄い facade）とPS7検証**
+
+# **成果物**
+
+- automation_facade.py（仮）
+    - get_automation_policy()
+    - set_automation_policy(patch)（設定更新。検証込み）
+    - authorize_action(action, context)
+    - get_automation_snapshot()（Ops用）
+-
+- tools/automation_smoke.ps1（Here-String）
+
+# **Done条件**
+
+- 1コマンドで
+    - policy表示
+    - action判定（許可/拒否）
+    - deny_reason確認
+    ができる
+-
+
+# **受け入れ基準（T-45全体）**
+
+- 自動化レベル（L0〜L3）が明示され、Ops Viewで確認できる
+- 守り（BLOCKED/size_down/防御EXIT）は L1で確実に自動化できる
+- 攻め（size_up/利益伸ばし/PROMOTE）は条件付きで段階解放される
+- 拒否理由が必ず説明され、監査ログに残る
+- kill_switchで即座に安全状態にできる
+- GUI/services境界を壊していない
 
 ◆ Part 5：ランキング機能
 
