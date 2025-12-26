@@ -215,6 +215,21 @@ class OpsHistoryService:
                 - model_path: str|None（無ければ None）
         """
         try:
+            # step を保存する前に必ず sanitize（unknown を保存しない）
+            step_raw = rec.get("step") or rec.get("Step")
+            # 1) 空/None/unknown は "保存しない"
+            if step_raw is None or str(step_raw).strip() == "" or str(step_raw).strip().lower() == "unknown":
+                rec.pop("step", None)
+                rec.pop("Step", None)
+            else:
+                # 2) 非canonicalは既存の正規化ロジックで canonical に寄せる
+                step_norm, _ = _normalize_step_raw(step_raw)
+                if step_norm and step_norm != "unknown":
+                    rec["step"] = step_norm
+                else:
+                    rec.pop("step", None)
+                    rec.pop("Step", None)
+
             # トップレベルを正規化
             normalized = self._normalize_record(rec)
 
@@ -278,9 +293,12 @@ class OpsHistoryService:
             else:
                 normalized["ok"] = rec.get("ok", False)
 
-        # step: str
+        # step: str（unknown fallback しない）
         if "step" not in normalized:
-            normalized["step"] = str(rec.get("step") or rec.get("Step") or "unknown")
+            step_val = rec.get("step") or rec.get("Step")
+            if step_val:
+                normalized["step"] = str(step_val)
+            # else: stepキー自体を入れない（unknown fallback しない）
 
         # model_path: str|None
         if "model_path" not in normalized:

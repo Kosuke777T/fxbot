@@ -268,11 +268,14 @@ class OpsService:
                 "profiles": profile_list,
                 "started_at": self._started_at or datetime.now(timezone.utc).isoformat(),
                 "ok": result.get("ok", False),
-                "step": result.get("step") or result.get("status") or "unknown",
                 "model_path": result.get("model_path") or result.get("modelPath"),
                 "dry": dry,  # dryフラグを追加
                 "close_now": close_now,  # close_nowフラグを追加
             }
+            # step: unknown fallback しない（値があるときだけ入れる）
+            step = result.get("step") or result.get("status")
+            if step:
+                hist_rec["step"] = step
 
             # cmd_strがあれば追加
             if cmd_str:
