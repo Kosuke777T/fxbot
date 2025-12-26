@@ -28,6 +28,42 @@ def _load_saved_wfo_stability(run_id: str) -> dict | None:
 # TTLキャッシュ（モジュールレベル）
 _SUMMARY_CACHE = {"ts": 0.0, "value": None}
 
+# step正規化用：未知のstep_raw値を記録（ログ抑制用）
+_UNKNOWN_STEP_SEEN: set[str] = set()
+
+
+def _normalize_step_raw(raw: object) -> tuple[str, bool]:
+    """
+    step_raw を正規化する。
+
+    Args:
+        raw: 元のstep値（None/str/int等）
+
+    Returns:
+        (step_norm, is_unknown) のタプル
+        - step_norm: 正規化されたstep値（"none", "done", "failed", "promoted", "applied", "unknown"）
+        - is_unknown: 未知の値かどうか（Trueならログ抑制対象）
+    """
+    if raw is None:
+        return "none", False
+
+    raw_str = str(raw).strip().lower()
+    if not raw_str or raw_str in ("n/a", "na", "none", "null"):
+        return "none", False
+
+    # 正規化ルール
+    if raw_str in ("done", "ok", "success", "completed"):
+        return "done", False
+    if raw_str in ("fail", "failed", "error", "failure"):
+        return "failed", False
+    if raw_str in ("promote", "promoted"):
+        return "promoted", False
+    if raw_str in ("apply", "applied"):
+        return "applied", False
+
+    # 未知の値（ログ抑制対象）
+    return "unknown", True
+
 
 def _normalize_human_text(s: str) -> str:
     """
@@ -329,7 +365,17 @@ class OpsHistoryService:
         try:
             # レコードから必要な情報を取得
             step_raw = record.get("step")
-            step = str(step_raw or "").lower()  # step_rawがNoneの場合は空文字列に
+            # step_rawを正規化（unknown抑制付き）
+            step, is_unknown = _normalize_step_raw(step_raw)
+            if is_unknown:
+                # 未知のstep_raw値は1回だけWARNINGを出す
+                raw_str = str(step_raw).strip() if step_raw is not None else "None"
+                if raw_str not in _UNKNOWN_STEP_SEEN:
+                    _UNKNOWN_STEP_SEEN.add(raw_str)
+                    logger.warning(
+                        f"[next_action] unknown step_raw={repr(step_raw)} normalized to 'unknown' "
+                        f"(this warning appears only once per unique value)"
+                    )
             ok = record.get("ok", False)
             dry = record.get("dry", False)
             promoted_at = record.get("promoted_at")
@@ -496,11 +542,12 @@ class OpsHistoryService:
                 })
             elif not ok:
                 # 失敗 → 再実行可能
-                logger.debug(
-                    f"[next_action] branch=failed step_raw={repr(step_raw)} step={repr(step)} "
-                    f"promoted_at={repr(promoted_at)} applied_at={repr(record.get('applied_at'))} "
-                    f"apply_performed={repr(apply_performed)} ok={repr(ok)} dry={repr(dry)}"
-                )
+                if step != "unknown":
+                    logger.debug(
+                        f"[next_action] branch=failed step_raw={repr(step_raw)} step={repr(step)} "
+                        f"promoted_at={repr(promoted_at)} applied_at={repr(record.get('applied_at'))} "
+                        f"apply_performed={repr(apply_performed)} ok={repr(ok)} dry={repr(dry)}"
+                    )
                 return _normalize_next_action({
                     "kind": "RETRY",
                     "reason": "失敗。ログ確認して再実行",
@@ -508,11 +555,12 @@ class OpsHistoryService:
                 })
             else:
                 # それ以外 → アクションなし
-                logger.debug(
-                    f"[next_action] branch=else step_raw={repr(step_raw)} step={repr(step)} "
-                    f"promoted_at={repr(promoted_at)} applied_at={repr(record.get('applied_at'))} "
-                    f"apply_performed={repr(apply_performed)} ok={repr(ok)} dry={repr(dry)}"
-                )
+                if step != "unknown":
+                    logger.debug(
+                        f"[next_action] branch=else step_raw={repr(step_raw)} step={repr(step)} "
+                        f"promoted_at={repr(promoted_at)} applied_at={repr(record.get('applied_at'))} "
+                        f"apply_performed={repr(apply_performed)} ok={repr(ok)} dry={repr(dry)}"
+                    )
                 return _normalize_next_action({
                     "kind": "NONE",
                     "reason": "",
@@ -1530,4 +1578,5 @@ def replay_from_record(record: dict, *, run: bool = False, overrides: dict | Non
             "corr_id": error_corr_id,
             "source_record_id": error_source_record_id,
         }
+
 
