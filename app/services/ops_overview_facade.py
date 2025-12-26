@@ -56,7 +56,7 @@ def get_ops_overview() -> Dict[str, Any]:
 
     # 1) next_action（PROMOTE/HOLD/BLOCKED 等）
     try:
-        summary = summarize_ops_history(cache_sec=0)
+        summary = summarize_ops_history(cache_sec=2)
         last_view = summary.get("last_view") or {}
         next_action = last_view.get("next_action")
         if next_action:
@@ -106,4 +106,5 @@ def get_ops_overview() -> Dict[str, Any]:
         out["latest_retrain"] = None
 
     return out
+
 

@@ -28,6 +28,7 @@ from PyQt6.QtWidgets import (
 )
 
 from app.services.ai_service import get_model_metrics, get_active_model_meta
+from app.services.ops_overview_facade import get_ops_overview
 from app.services.recent_kpi import KPIService as RecentKPIService
 from app.services.scheduler_facade import (
     get_scheduler_snapshot,
@@ -247,6 +248,27 @@ class SchedulerTab(QWidget):
         root.addWidget(self.overview_group)
         # ---- /Overview Panel ----
 
+        # ---- Ops Overview Panel (T-42-3-14) ----
+        self.ops_overview_box = QGroupBox("Ops Overview", self)
+        ops_overview_form = QFormLayout(self.ops_overview_box)
+
+        self.lbl_next_action = QLabel("-", self)
+        self.lbl_wfo = QLabel("-", self)
+        self.lbl_retrain = QLabel("-", self)
+        self.lbl_generated = QLabel("-", self)
+
+        self.lbl_next_action.setWordWrap(True)
+        self.lbl_wfo.setWordWrap(True)
+        self.lbl_retrain.setWordWrap(True)
+
+        ops_overview_form.addRow("next_action", self.lbl_next_action)
+        ops_overview_form.addRow("wfo_stability", self.lbl_wfo)
+        ops_overview_form.addRow("latest_retrain", self.lbl_retrain)
+        ops_overview_form.addRow("generated_at", self.lbl_generated)
+
+        root.addWidget(self.ops_overview_box)
+        # ---- /Ops Overview Panel ----
+
         # ボタン行
         row = QHBoxLayout()
         self.btn_refresh = QPushButton("更新", self)
@@ -439,6 +461,9 @@ class SchedulerTab(QWidget):
 
         # Overviewパネルを更新
         self._refresh_overview(snap)
+
+        # Ops Overviewパネルを更新
+        self._refresh_ops_overview()
 
     def _populate_table(self, table: QTableWidget, jobs: List[Dict[str, Any]]) -> None:
         """テーブルにジョブを表示（共通処理）"""
@@ -827,6 +852,57 @@ class SchedulerTab(QWidget):
             self.lbl_ai_features.setText("features: (n/a)")
     # ---- /Overview Panel ----
 
+    # ---- Ops Overview Panel (T-42-3-14) ----
+    def _refresh_ops_overview(self) -> None:
+        """Ops Overviewパネルを更新（next_action/wfo_stability/latest_retrain）"""
+        try:
+            o = get_ops_overview()
+        except Exception as e:
+            self.lbl_next_action.setText(f"ERROR: {e}")
+            self.lbl_wfo.setText("-")
+            self.lbl_retrain.setText("-")
+            self.lbl_generated.setText("-")
+            return
+
+        na = o.get("next_action") or {}
+        ws = o.get("wfo_stability") or {}
+        lr = o.get("latest_retrain") or {}
+
+        # next_action
+        kind = na.get("kind", "-")
+        priority = na.get("priority", "-")
+        reason = na.get("reason", "")
+        self.lbl_next_action.setText(
+            f"{kind} (prio={priority})\n{reason}"
+        )
+
+        # wfo_stability
+        reasons = ws.get("reasons") or []
+        reasons_s = "; ".join([str(x) for x in reasons]) if reasons else "-"
+        stable = ws.get("stable", "-")
+        score = ws.get("score", "-")
+        run_id = ws.get("run_id", "-")
+        self.lbl_wfo.setText(
+            f"stable={stable} score={score} run_id={run_id}\n"
+            f"reasons: {reasons_s}"
+        )
+
+        # latest_retrain
+        # data_range / threshold は dict のまま来る可能性があるので JSON 文字列にして潰す
+        dr = lr.get("data_range")
+        th = lr.get("threshold")
+        dr_s = json.dumps(dr, ensure_ascii=False) if dr is not None else "-"
+        th_s = json.dumps(th, ensure_ascii=False) if th is not None else "-"
+        lr_run_id = lr.get("run_id", "-")
+        self.lbl_retrain.setText(
+            f"run_id={lr_run_id}\n"
+            f"data_range={dr_s}\n"
+            f"threshold={th_s}"
+        )
+
+        self.lbl_generated.setText(str(o.get("generated_at", "-")))
+    # ---- /Ops Overview Panel ----
+
     # ---- Daemon Control Handlers (T-42-3-12) ----
     def _refresh_daemon_status(self) -> None:
         """デーモンの状態を取得してUIに反映"""
@@ -879,6 +955,7 @@ class SchedulerTab(QWidget):
                 self._daemon_timer.start()
         # 表示直後に最新化
         self._refresh_daemon_status()
+        self._refresh_ops_overview()
 
     def hideEvent(self, event) -> None:
         """タブが非表示になったときにタイマーを停止"""
