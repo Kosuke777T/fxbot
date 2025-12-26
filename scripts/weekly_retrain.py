@@ -617,6 +617,61 @@ def save_wfo_report_and_equity(
 
     logger.info(f"[WFO] report saved: {report_path}")
 
+    # ---- WFO stability評価（report保存直後） ----
+    try:
+        from app.services.wfo_stability_service import evaluate_wfo_stability
+
+        # max_drawdown をエクイティカーブから計算
+        def calc_max_drawdown(equity_series: pd.Series) -> float:
+            """エクイティカーブから最大ドローダウンを計算"""
+            if len(equity_series) == 0:
+                return 0.0
+            cummax = equity_series.cummax()
+            drawdown = (equity_series - cummax) / cummax.clip(lower=1e-10)
+            return float(abs(drawdown.min()))
+
+        max_dd_train = calc_max_drawdown(eq_train_df["equity"])
+        max_dd_test = calc_max_drawdown(eq_test_df["equity"])
+
+        # equity_train_stats / equity_test_stats から metrics_wfo 形式を構築
+        # evaluate_wfo_stability が期待する形式:
+        # {
+        #   "train": {"trades": int, "total_return": float, "max_drawdown": float, "profit_factor": float, ...},
+        #   "test": {"trades": int, "total_return": float, "max_drawdown": float, "profit_factor": float, ...}
+        # }
+        metrics_wfo = {
+            "train": {
+                "trades": int(stats_train.get("n_trades", 0)),
+                "total_return": float(stats_train.get("total_pnl", 0.0)),
+                "max_drawdown": max_dd_train,
+                "profit_factor": float(stats_train.get("profit_factor", 0.0)),
+            },
+            "test": {
+                "trades": int(stats_test.get("n_trades", 0)),
+                "total_return": float(stats_test.get("total_pnl", 0.0)),
+                "max_drawdown": max_dd_test,
+                "profit_factor": float(stats_test.get("profit_factor", 0.0)),
+            },
+        }
+
+        # metrics_path は存在しない場合もあるため None を許容
+        metrics_path = None
+
+        # evaluate_wfo_stability を呼び出し（内部で save_stability_result が呼ばれる）
+        stability_result = evaluate_wfo_stability(
+            metrics_wfo,
+            report_path=str(report_path),
+            metrics_path=metrics_path,
+            run_id=run_id,
+        )
+        logger.info(
+            f"[WFO] stability evaluated: stable={stability_result.get('stable')} "
+            f"score={stability_result.get('score')} run_id={run_id}"
+        )
+    except Exception as e:
+        # retrain本体を落とさない。ログで追えるようにする。
+        logger.exception(f"[WFO] stability evaluation failed: {e}")
+
     return run_id
 
 

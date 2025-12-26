@@ -36,27 +36,67 @@ def _stability_path(run_id: str) -> Path:
     return Path("logs") / "retrain" / f"stability_{run_id}.json"
 
 
-def load_saved_stability(run_id: str) -> Optional[dict[str, Any]]:
+def load_saved_stability(run_id: str | int | None) -> Optional[dict[str, Any]]:
     """
     保存済みの安定性評価結果を読み込む。
 
     Parameters
     ----------
-    run_id : str
-        実行ID
+    run_id : str | int | None
+        実行ID（str/int/Noneを許容し、strに正規化）
 
     Returns
     -------
     dict[str, Any] | None
         保存済みの結果（存在しない場合はNone）
+
+    Notes
+    -----
+    探索優先順:
+    1. logs/retrain/stability_{run_id}.json（正史パス）
+    2. logs/retrain/stability_*.json のうち、中身の run_id が一致するもの（後方互換）
     """
-    p = _stability_path(run_id)
-    try:
-        if not p.exists():
-            return None
-        return json.loads(p.read_text(encoding="utf-8"))
-    except Exception:
+    # run_id を str に正規化
+    if run_id is None:
         return None
+    normalized_run_id = str(run_id).strip()
+    if not normalized_run_id:
+        return None
+
+    # 1) 正史パスを試す
+    p = _stability_path(normalized_run_id)
+    try:
+        if p.exists():
+            data = json.loads(p.read_text(encoding="utf-8"))
+            # 中身の run_id も確認（整合性チェック）
+            data_run_id = str(data.get("run_id", "")).strip()
+            if data_run_id == normalized_run_id or not data_run_id:
+                return data
+    except Exception:
+        pass
+
+    # 2) 後方互換: stability_*.json を探索して run_id が一致するものを探す
+    retrain_dir = Path("logs") / "retrain"
+    if retrain_dir.exists():
+        try:
+            for candidate in retrain_dir.glob("stability_*.json"):
+                try:
+                    data = json.loads(candidate.read_text(encoding="utf-8"))
+                    candidate_run_id = str(data.get("run_id", "")).strip()
+                    # run_id が一致するか、ファイル名から抽出した run_id が一致するか
+                    if candidate_run_id == normalized_run_id:
+                        return data
+                    # ファイル名から run_id を抽出して比較（stability_{run_id}.json 形式）
+                    if candidate.stem.startswith("stability_"):
+                        file_run_id = candidate.stem.replace("stability_", "").strip()
+                        if file_run_id == normalized_run_id:
+                            return data
+                except Exception:
+                    continue
+        except Exception:
+            pass
+
+    return None
 
 
 def save_stability_result(result: dict[str, Any]) -> Optional[Path]:

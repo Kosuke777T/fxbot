@@ -70,7 +70,8 @@ def get_ops_overview() -> Dict[str, Any]:
         if report:
             rid = report.get("run_id")
             if rid is not None:
-                run_id = str(rid)
+                # run_id を確実に str に正規化（int/str/None すべてに対応）
+                run_id = str(rid).strip() if rid else None
 
         if run_id:
             stability = load_saved_stability(run_id)
@@ -84,15 +85,32 @@ def get_ops_overview() -> Dict[str, Any]:
                 }
             else:
                 # ★stabilityが無い/読めないケースも可視化（運用で超大事）
+                # run_id を確実に含めて、どの run_id で失敗したか分かるようにする
                 out["wfo_stability"] = {
                     "stable": False,
                     "score": None,
-                    "reasons": ["stability_not_found"],
+                    "reasons": [f"stability_not_found(run_id={run_id})"],
                     "run_id": run_id,
                     "sources": None,
                 }
-    except Exception:
-        out["wfo_stability"] = None
+        else:
+            # report はあるが run_id が無いケース
+            out["wfo_stability"] = {
+                "stable": False,
+                "score": None,
+                "reasons": ["run_id_missing_in_report"],
+                "run_id": None,
+                "sources": None,
+            }
+    except Exception as e:
+        # 例外時も詳細を残す（運用で超大事）
+        out["wfo_stability"] = {
+            "stable": False,
+            "score": None,
+            "reasons": [f"exception: {type(e).__name__}: {e}"],
+            "run_id": None,
+            "sources": None,
+        }
 
     # 3) 直近 retrain（run_id/data_range/threshold）
     try:

@@ -16,21 +16,13 @@ from typing import Optional, Any
 
 from loguru import logger
 
-from app.services.wfo_stability_service import evaluate_wfo_stability
+from app.services.wfo_stability_service import evaluate_wfo_stability, load_saved_stability
 
 
 def _load_saved_wfo_stability(run_id: str) -> dict | None:
     """logs/retrain/stability_{run_id}.json を最優先で読む。壊れてたら None。"""
-    try:
-        p = Path("logs") / "retrain" / f"stability_{run_id}.json"
-        if not p.exists():
-            return None
-        data = json.loads(p.read_text(encoding="utf-8"))
-        if isinstance(data, dict):
-            return data
-        return None
-    except Exception:
-        return None
+    # wfo_stability_service.load_saved_stability に統一（後方互換探索も含む）
+    return load_saved_stability(run_id)
 
 
 # TTLキャッシュ（モジュールレベル）
