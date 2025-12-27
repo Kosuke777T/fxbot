@@ -93,6 +93,9 @@ def get_decisions_window_summary(
 
             ts = _parse_iso_dt(j.get("ts_jst")) or _parse_iso_dt(j.get("timestamp"))
             if ts is None:
+                fts = j.get("filters") if isinstance(j.get("filters"), dict) else None
+                ts = _parse_iso_dt((fts or {}).get("timestamp"))
+            if ts is None:
                 continue
 
             if dt_start and ts < dt_start:
@@ -192,6 +195,7 @@ def _min_stats(rows):
         "entry_count": int(entry_cnt),
         "entry_rate": float(entry_cnt) / float(denom),
     }
+
 
 
 
