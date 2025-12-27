@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 import MetaTrader5 as mt5
 
 
+from app.core.symbol_map import resolve_symbol
 OUTPUT_PATH = Path("configs") / "symbols_mt5.json"
 
 
@@ -104,3 +105,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

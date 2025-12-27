@@ -1,3 +1,4 @@
+from app.core.symbol_map import resolve_symbol
 # tools/mt5_smoke.py
 """
 MT5 接続・テスト発注のスモークテスト（CLI版）
@@ -214,7 +215,7 @@ def main() -> int:
                 import MetaTrader5 as MT5  # type: ignore[import]
 
                 # シンボル情報とティックを取得
-                tick = MT5.symbol_info_tick(symbol)
+                tick = MT5.symbol_info_tick(resolve_symbol(symbol))
                 if tick is None:
                     result["ok"] = False
                     result["error"] = {
@@ -409,4 +410,5 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
 

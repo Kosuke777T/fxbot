@@ -10,6 +10,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import MetaTrader5 as mt5
+from app.core.symbol_map import resolve_symbol
 from loguru import logger
 
 from core.ai.loader import load_lgb_clf  # 既存ローダを利用
@@ -27,7 +28,7 @@ OUT_META = Path("logs/val_export_meta.json")
 
 # ====== MT5初期化 ======
 def _ensure_symbol(symbol: str) -> str:
-    if mt5.symbol_select(symbol, True):
+    if mt5.symbol_select(resolve_symbol(\), True):
         return symbol
     upper = symbol.upper()
     cands = [s.name for s in mt5.symbols_get() if s.name.upper().startswith(upper)]
@@ -35,7 +36,7 @@ def _ensure_symbol(symbol: str) -> str:
         raise RuntimeError(f"no candidates for '{symbol}'")
     best = sorted(cands, key=len)[0]
     best = str(best)
-    if not mt5.symbol_select(best, True):
+    if not mt5.symbol_select(resolve_symbol(\), True):
         raise RuntimeError(f"symbol_select failed for '{best}'")
     return best
 
@@ -216,3 +217,4 @@ def main() -> None:
 #
 if __name__ == "__main__":
     main()
+

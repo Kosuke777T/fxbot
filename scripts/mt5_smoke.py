@@ -8,6 +8,7 @@
 import MetaTrader5 as mt5
 
 
+from app.core.symbol_map import resolve_symbol
 def main() -> None:
     print("[mt5_smoke] initialize() ...")
     if not mt5.initialize():
@@ -34,3 +35,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

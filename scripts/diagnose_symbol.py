@@ -2,6 +2,7 @@
 import MetaTrader5 as mt5
 
 
+from app.core.symbol_map import resolve_symbol
 def main() -> None:
     if not mt5.initialize():
         print("MT5 init failed:", mt5.last_error())
@@ -18,3 +19,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

@@ -6,6 +6,7 @@ if ROOT not in sys.path:
 # --------------------------------
 
 import MetaTrader5 as mt5
+from app.core.symbol_map import resolve_symbol
 import pandas as pd
 from datetime import datetime, timedelta
 from typing import NoReturn
@@ -36,15 +37,15 @@ def ensure_logged_in() -> None:
     print(f"Account: {ai.login} / {ai.server}")
 
 def ensure_symbol(symbol: str) -> None:
-    info = mt5.symbol_info(symbol)
+    info = mt5.symbol_info(resolve_symbol(\))
     if info is None:
         die(f"symbol_info({symbol}) is None. last_error={mt5.last_error()}")
     if not info.visible:
-        if not mt5.symbol_select(symbol, True):
+        if not mt5.symbol_select(resolve_symbol(\), True):
             die(f"symbol_select({symbol}) failed. last_error={mt5.last_error()}")
     # 試しに最新ティックも触っておく
-    _ = mt5.symbol_info_tick(symbol)
-    print(f"Symbol {symbol} ready (visible={mt5.symbol_info(symbol).visible})")
+    _ = mt5.symbol_info_tick(resolve_symbol(\))
+    print(f"Symbol {symbol} ready (visible={mt5.symbol_info(resolve_symbol(\)).visible})")
 
 def try_copy_small(symbol: str, timeframe: int, count: int = 1000) -> int:
     rates = mt5.copy_rates_from_pos(symbol, timeframe, 0, count)
@@ -105,3 +106,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
