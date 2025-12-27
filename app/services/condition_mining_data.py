@@ -29,7 +29,6 @@ def _iter_decision_paths() -> Iterable[Path]:
 
 def resolve_window(
     window: str | None,
-    *,
     now: datetime | None = None,
     recent_minutes: int = 30,
     past_minutes: int = 30,
@@ -57,7 +56,6 @@ def resolve_window(
 
 
 def get_decisions_window_summary(
-    *,
     symbol: str,
     window: str | None = None,
     profile: Optional[str] = None,
@@ -121,3 +119,85 @@ def get_decisions_window_summary(
         "scanned": scanned,
         "max_scan": max_scan,
     }
+
+def get_decisions_recent_past_summary(symbol: str) -> dict:
+    """Aggregate recent/past windows and attach minimal stats.
+
+    Returns:
+      {
+        "recent": <window_summary_dict>,
+        "past": <window_summary_dict>,
+      }
+    """
+    recent = get_decisions_window_summary(
+        symbol=symbol,
+        window="recent",
+    )
+    past = get_decisions_window_summary(
+        symbol=symbol,
+        window="past",
+    )
+
+    # decisions/rows のキー名は実装依存なので両対応
+    r_rows = (recent.get("decisions") or recent.get("rows") or [])
+    p_rows = (past.get("decisions") or past.get("rows") or [])
+
+    recent["min_stats"] = _min_stats(r_rows)
+    past["min_stats"] = _min_stats(p_rows)
+
+    return {"recent": recent, "past": past}
+
+# --- T-42-3-18 Step 3: minimal window stats (recent/past) -----------------
+
+def _min_stats(rows):
+    """Compute minimal aggregate stats for a list of decision-like dicts.
+
+    Returns:
+      {
+        total: int,
+        filter_pass_count: int,
+        filter_pass_rate: float,
+        entry_count: int,
+        entry_rate: float,
+      }
+    """
+    if not rows:
+        return {
+            "total": 0,
+            "filter_pass_count": 0,
+            "filter_pass_rate": 0.0,
+            "entry_count": 0,
+            "entry_rate": 0.0,
+        }
+
+    total = 0
+    pass_cnt = 0
+    entry_cnt = 0
+
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        total += 1
+        if bool(r.get("filter_pass", False)):
+            pass_cnt += 1
+        if str(r.get("action", "")).upper() == "ENTRY":
+            entry_cnt += 1
+
+    # Avoid ZeroDivision
+    denom = total if total > 0 else 1
+    return {
+        "total": int(total),
+        "filter_pass_count": int(pass_cnt),
+        "filter_pass_rate": float(pass_cnt) / float(denom),
+        "entry_count": int(entry_cnt),
+        "entry_rate": float(entry_cnt) / float(denom),
+    }
+
+
+
+
+
+
+
+
+
