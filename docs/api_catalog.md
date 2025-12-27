@@ -858,3 +858,6 @@
 - **def analyze_switches(symbol: str, limit: int=20) -> list[SwitchRecord]**  (L63)  — 
 - **def main() -> None**  (L89)  — 
 
+
+- **def get_decisions_recent_past_min_stats(symbol: str) -> Dict[str, Any]**  (app/services/condition_mining_facade.py:L8)  — recent/past の min_stats を Facade 経由で取得する。
+

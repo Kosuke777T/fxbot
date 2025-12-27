@@ -79,3 +79,9 @@
 ---
 - allowlist entries: 0
 - blocklist entries: 0
+
+
+## Condition Mining
+
+- get_decisions_recent_past_min_stats(symbol: str) -> dict  (app/services/condition_mining_facade.py:L8) — Facade 経由で recent/past の min_stats を取得する。
+
