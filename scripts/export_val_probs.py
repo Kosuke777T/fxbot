@@ -120,7 +120,7 @@ def main() -> None:
     # 余裕を持って過去から取得
     utc_from = _to_utc(START) - timedelta(days=7)
     utc_to   = _to_utc(END)
-    rates = mt5.copy_rates_range(symbol, TIMEFRAME, utc_from, utc_to)
+    rates = mt5.copy_rates_range(resolve_symbol(symbol), TIMEFRAME, utc_from, utc_to)
     if rates is None or len(rates) < BARS_MIN:
         raise SystemExit(f"not enough bars: {len(rates) if rates is not None else 0}")
 
@@ -217,4 +217,5 @@ def main() -> None:
 #
 if __name__ == "__main__":
     main()
+
 

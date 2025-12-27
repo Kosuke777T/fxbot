@@ -5,6 +5,7 @@ import argparse
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import pandas as pd
+from app.core.symbol_map import resolve_symbol
 
 def main():
     ap = argparse.ArgumentParser()
@@ -28,7 +29,7 @@ def main():
     utc_to = datetime.now(timezone.utc)
     utc_from = utc_to - timedelta(days=args.days)
 
-    rates = mt5.copy_rates_range(args.symbol, tf, utc_from, utc_to)
+    rates = mt5.copy_rates_range(resolve_symbol(args.symbol), tf, utc_from, utc_to)
     mt5.shutdown()
     if rates is None or len(rates) == 0:
         raise SystemExit("no rates from MT5")
@@ -46,3 +47,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

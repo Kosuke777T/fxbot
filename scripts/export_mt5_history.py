@@ -68,7 +68,7 @@ def export_range(symbol: str, timeframe: int, days: int = 365 * 5) -> str:
     cursor_to = to
     while cursor_to > frm:
         cursor_from = cursor_to - timedelta(days=chunk_days)
-        rates = mt5.copy_rates_range(symbol, timeframe, cursor_from, cursor_to)
+        rates = mt5.copy_rates_range(resolve_symbol(symbol), timeframe, cursor_from, cursor_to)
         if rates is None or len(rates) == 0:
             print(f"chunk {cursor_from.date()}~{cursor_to.date()} => no data (skip)")
         else:
@@ -106,5 +106,6 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
 
 

@@ -14,6 +14,7 @@ MT5 から USDJPY の M5/M15/H1 を 2020-11-01 以降で CSV 化し、
 """
 
 from __future__ import annotations
+from app.core.symbol_map import resolve_symbol
 
 import argparse
 import os
@@ -116,32 +117,6 @@ def ensure_mt5_initialized(terminal_path: str | None = None):
         log(f"connected login={info.login} server={info.server} balance={info.balance}")
 
 
-def resolve_symbol(base: str) -> str:
-    """
-    ブローカー接尾辞違いに対応してシンボル名を解決。
-    成功した実在シンボル名を返す。全て失敗なら元の base を返す。
-    """
-    candidates = [
-        base,
-        base + "-",
-        base + ".",
-        base + ".r",
-        base + ".m",
-        base + ".mini",
-        base + "_",
-    ]
-    tried = []
-    for sym in candidates:
-        tried.append(sym)
-        info = mt5.symbol_info(resolve_symbol(symbol))
-        if info is not None:
-            if not info.visible:
-                mt5.symbol_select(resolve_symbol(symbol), True)
-            return sym
-    log(f"[warn] symbol resolve failed. tried={tried}")
-    return base
-
-
 def jst_from_mt5_epoch(series):
     """
     MT5の 'time' (Unix秒, UTC) を JST の naive datetime64[ns] に変換。
@@ -209,7 +184,7 @@ def _range_attempts(
         ("utc_aware", _to_utc_aware(start_ts), _to_utc_aware(end_ts)),
     ]
     for tag, dfrom, dto in variants:
-        rates = mt5.copy_rates_range(symbol, tf, dfrom, dto)
+        rates = mt5.copy_rates_range(resolve_symbol(symbol), tf, dfrom, dto)
         if rates is None:
             code, details = mt5.last_error()
             log(f"[try:{tag}] copy_rates_range returned None: {code} {details}")
@@ -514,4 +489,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
