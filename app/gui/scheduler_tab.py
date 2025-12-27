@@ -29,6 +29,7 @@ from PyQt6.QtWidgets import (
 
 from app.services.ai_service import get_model_metrics, get_active_model_meta
 from app.services.ops_overview_facade import get_ops_overview
+from app.services.condition_mining_facade import get_decisions_recent_past_min_stats
 from app.services.recent_kpi import KPIService as RecentKPIService
 from app.services.scheduler_facade import (
     get_scheduler_snapshot,
@@ -250,6 +251,10 @@ class SchedulerTab(QWidget):
 
         # ---- Ops Overview Panel (T-42-3-14) ----
         self.ops_overview_box = QGroupBox("Ops Overview", self)
+        self.lbl_cm_recent = QLabel()
+        self.lbl_cm_recent.setText("-")  # condition_mining: recent min_stats
+        self.lbl_cm_past = QLabel()
+        self.lbl_cm_past.setText("-")    # condition_mining: past min_stats
         ops_overview_form = QFormLayout(self.ops_overview_box)
 
         self.lbl_next_action = QLabel("-", self)
@@ -266,6 +271,8 @@ class SchedulerTab(QWidget):
         ops_overview_form.addRow("latest_retrain", self.lbl_retrain)
         ops_overview_form.addRow("generated_at", self.lbl_generated)
 
+        ops_overview_form.addRow("cm_recent_min_stats", self.lbl_cm_recent)
+        ops_overview_form.addRow("cm_past_min_stats", self.lbl_cm_past)
         root.addWidget(self.ops_overview_box)
         # ---- /Ops Overview Panel ----
 
@@ -857,6 +864,27 @@ class SchedulerTab(QWidget):
         """Ops Overviewパネルを更新（next_action/wfo_stability/latest_retrain）"""
         try:
             o = get_ops_overview()
+            # --- T-42-3-18 Step 4-3: condition_mining min_stats ---
+            try:
+                symbol = "USDJPY-"  # 仕様: symbol は USDJPY-
+                out = get_decisions_recent_past_min_stats(symbol)
+                r = (out.get("recent") or {}).get("min_stats") or {}
+                p2 = (out.get("past") or {}).get("min_stats") or {}
+            
+                def _fmt(ms: dict) -> str:
+                    total = ms.get("total", 0)
+                    fpc = ms.get("filter_pass_count", 0)
+                    fpr = float(ms.get("filter_pass_rate", 0.0))
+                    ec  = ms.get("entry_count", 0)
+                    er  = float(ms.get("entry_rate", 0.0))
+                    return f"total={total}  filter_pass={fpc} ({fpr:.1%})  entry={ec} ({er:.1%})"
+            
+                self.lbl_cm_recent.setText(_fmt(r) if r else "-")
+                self.lbl_cm_past.setText(_fmt(p2) if p2 else "-")
+            except Exception:
+                self.lbl_cm_recent.setText("-")
+                self.lbl_cm_past.setText("-")
+            # --- /T-42-3-18 Step 4-3 ---
         except Exception as e:
             self.lbl_next_action.setText(f"ERROR: {e}")
             self.lbl_wfo.setText("-")
