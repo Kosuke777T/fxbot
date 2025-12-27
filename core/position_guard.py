@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from app.core.symbol_map import resolve_symbol
 from dataclasses import dataclass, field
 from typing import Dict, Optional
 
@@ -59,7 +60,7 @@ class PositionGuard:
         try:
             if mt5 is not None:
                 if symbol:
-                    poss = mt5.positions_get(symbol=symbol) or []
+                    poss = mt5.positions_get(symbol=resolve_symbol(symbol)) or []
                 else:
                     poss = mt5.positions_get() or []
                 count = len(poss)
@@ -115,3 +116,4 @@ def reset() -> None:
 
 def on_order_rejected_or_canceled(symbol: Optional[str] = None, ticket: Optional[int] = None) -> None:
     mark_inflight(symbol, False)
+

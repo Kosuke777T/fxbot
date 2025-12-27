@@ -48,7 +48,7 @@ def ensure_symbol(symbol: str) -> None:
     print(f"Symbol {symbol} ready (visible={mt5.symbol_info(resolve_symbol(symbol)).visible})")
 
 def try_copy_small(symbol: str, timeframe: int, count: int = 1000) -> int:
-    rates = mt5.copy_rates_from_pos(symbol, timeframe, 0, count)
+    rates = mt5.copy_rates_from_pos(resolve_symbol(symbol), timeframe, 0, count)
     if rates is None:
         return 0
     return len(rates)
@@ -106,4 +106,5 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
 
