@@ -228,7 +228,7 @@ def fetch_rates(
 
     while safety_loops < MAX_LOOPS:
         safety_loops += 1
-        rates = mt5.copy_rates_from(symbol, tf, dt_to, PAGE)
+        rates = mt5.copy_rates_from(resolve_symbol(symbol), tf, dt_to, PAGE)
         if rates is None:
             code, details = mt5.last_error()
             log(f"[fallback] copy_rates_from returned None: {code} {details}")

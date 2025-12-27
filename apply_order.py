@@ -6,6 +6,7 @@ import MetaTrader5 as MT5
 import pandas as pd
 from loguru import logger
 from typing import Optional, Dict, Any
+from app.core.symbol_map import resolve_symbol
 
 
 POSITION_COLUMNS = [
@@ -112,6 +113,9 @@ class MT5Client:
         if order_type not in ("BUY", "SELL"):
             raise ValueError(f"order_type must be BUY/SELL: got {order_type}")
 
+        # シンボル正規化（v5.2仕様準拠）
+        symbol = resolve_symbol(symbol)
+
         # --- 1) シンボル情報をチェック ---
         info = MT5.symbol_info(symbol)
         if info is None:
@@ -202,6 +206,9 @@ class MT5Client:
     def close_position(self, ticket: int, symbol: str, retries: int = 3) -> bool:
         \"\"\"指定チケットの成行クローズ\"\"\"
 
+        # シンボル正規化（v5.2仕様準拠）
+        symbol = resolve_symbol(symbol)
+
         pos = MT5.positions_get(ticket=ticket)
         if not pos:
             logger.error(f"ticket={ticket} のポジションが存在しません")
@@ -265,12 +272,17 @@ class MT5Client:
             return []
 
     def get_positions_by_symbol(self, symbol: str):
+        # シンボル正規化（v5.2仕様準拠）
+        symbol = resolve_symbol(symbol)
         rows = self.get_positions()
         out = [p for p in rows if getattr(p, "symbol", None) == symbol]
         self.logger.info(f"get_positions_by_symbol: {symbol} count={len(out)}")
         return out
 
     def get_positions_df(self, symbol: Optional[str] = None):
+        # シンボル正規化（v5.2仕様準拠）
+        if symbol:
+            symbol = resolve_symbol(symbol)
         rows = self.get_positions()
         if symbol:
             rows = [p for p in rows if getattr(p, "symbol", None) == symbol]
