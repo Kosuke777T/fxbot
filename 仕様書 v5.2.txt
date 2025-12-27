@@ -1,0 +1,627 @@
+-----------------------------------------
+ミチビキ FX 自動売買システム：仕様書 v5（統合正式版）
+-----------------------------------------
+0. 目的（KPI仕様を明確化）
+
+ミチビキは “月間 +3% 前後” を目標としたリスク管理型 FX 自動売買システム。
+
+月利3％は 義務ではなく KPI（目標値）
+
+最大ドローダウン（DD）は -15%〜-20% を安全圏 とする
+
+Walk-Forward（WFO）再学習により “市場変化に追従するAI” を重視する
+
+バックテスト・診断AI・ランキングなどの分析基盤を内蔵する
+
+ターゲット：
+Windowsユーザー / MT5ユーザー / 裁量 → 半自動 → 自動へ移行したい個人トレーダー。
+
+1. 全体アーキテクチャ（3層構造）
+GUI層（app.gui）
+ ├─ Dashboard / AIタブ / スケジューラ / ランキング / ログビューア
+
+サービス層（app.services）
+ ├─ AISvc（特徴量 / 予測 / SHAP / FI）
+ ├─ KPIサービス（KPI計算・月次3％ダッシュボード）
+ ├─ JobScheduler（内蔵スケジューラ）
+ ├─ RankingService
+ └─ 診断AIサービス（Pro/Expert）
+
+コア層（app.core）
+ ├─ MT5Client（MT5発注ラッパー）
+ ├─ 戦略ロジック
+ ├─ フィルタエンジン（Pro/Expert）
+ ├─ バックテストエンジン
+ └─ モデル管理・Walk-Forward
+
+2. エディション体系（v5版・CapabilitySet方式）
+
+エディション差は Capability（能力セット） として抽象化し、
+機能ロックは EditionGuard が一元制御する。
+
+2.1 CapabilitySet
+fi_level:
+ 0 = 表示なし
+ 1 = Top3
+ 2 = Top20
+ 3 = 全件
+
+shap_level: (同上)
+
+scheduler_level:
+ 0 = 表示のみ
+ 1 = 週1再学習（固定）
+ 2 = 1ジョブのみ（再学習 or 診断）
+ 3 = 複数ジョブ・連鎖（Expert）
+
+filter_level:
+ 0 = フィルタなし
+ 1 = Basic（時間帯）
+ 2 = Pro（ATRオンオフ＋時間帯）
+ 3 = Expert（ATR/ボラ/トレンド/連敗回避/自動プロファイル切替）
+
+ranking_level:
+ 0 = 閲覧のみ
+ 1 = Basicランキング送信
+ 2 = Proランキング送信
+ 3 = Expert複合スコア＋自動送信
+
+2.2 各エディションの Capability
+Edition	FI	SHAP	Scheduling	Filter	Ranking	備考
+Free	0	0	0	0	0	デモのみ
+Basic	0	0	1	1	1	単一プロファイル
+Pro	2	1	2	2	2	FI20, SHAP3
+Expert	3	3	3	3	3	Full診断AI
+Master	全て無制限	全機能	-
+3. データ構造（標準フォルダ）
+config/                 設定ファイル（edition, scheduler, profiles）
+models/                 学習モデル（LightGBM 他）
+logs/                   ログ
+logs/decisions_*.jsonl  AI判断ログ
+backtests/{profile}/    バックテスト結果（標準化）
+
+4. バックテスト仕様（完全標準化）
+4.1 monthly_returns.csv（公式フォーマット）
+
+全バックテストは 必ずこの形式の CSV を出力 する。
+
+column	type	説明
+year_month	str	"2025-11"
+return_pct	float	0.031 → +3.1%
+max_dd_pct	float	-0.12 → -12%
+total_trades	int	トレード数
+pf	float	ProfitFactor
+
+KPI / ランキング / AIタブ / フィルタ学習 すべてこの形式を前提とする。
+
+BacktestRun 入出力仕様（単体実行時）
+
+BacktestRun（tools/backtest_run.py）を単体実行したとき、指定した out_dir 配下に以下の4ファイルを出力する想定になっている：
+
+equity_curve.csv
+
+trades.csv
+
+metrics.json
+
+monthly_returns.csv（※BacktestRunローカル版。michibiki_std 直下のものとは別物）
+
+以下、それぞれのフォーマット仕様。
+
+1. equity_curve.csv
+パス
+
+out_dir / "equity_curve.csv"
+
+例：backtests/michibiki_std/2025-11_ALL/equity_curve.csv（※実際の階層は今後の設計次第）
+
+生成元
+close = df["close"]
+close.index = df["time"]
+
+eq_df = to_equity(close, capital)
+eq_df["signal"] = 0  # Buy&Holdなのでシグナル無し
+eq_csv = out_dir / "equity_curve.csv"
+eq_df.to_csv(eq_csv, index=False)
+
+
+to_equity:
+
+def to_equity(close: pd.Series, capital: float = 100000.0) -> pd.DataFrame:
+    close = close.astype(float)
+    ret = close.pct_change().fillna(0.0)
+    eq = (1.0 + ret).cumprod() * capital
+    return pd.DataFrame({"time": close.index, "equity": eq.values})
+
+カラム仕様
+
+CSV ヘッダ行あり、index=False で保存。
+
+time
+
+型：datetime（CSV上は ISO8601 文字列）
+
+内容：元データ df["time"]。バーのタイムスタンプ（M5など）。
+
+equity
+
+型：float
+
+内容：初期資金 capital を基準にした累積エクイティ。
+
+計算：ret = close.pct_change() → eq = (1 + ret).cumprod() * capital
+
+signal
+
+型：int
+
+内容：現状 Buy & Hold のため 常に 0。
+
+将来的に戦略別の信号（1：ロング、-1：ショート、0：ノーポジ）を埋める拡張余地あり。
+
+想定用途
+
+エクイティ曲線の可視化
+
+metrics_from_equity に渡してパフォーマンス指標を計算
+
+compute_monthly_returns の入力（「equity_curve.csv」→「monthly_returns.csv」）
+
+2. trades.csv
+パス
+
+out_dir / "trades.csv"
+
+生成元
+trades = trades_from_buyhold(df, capital)
+trades.to_csv(out_dir / "trades.csv", index=False)
+
+
+trades_from_buyhold:
+
+def trades_from_buyhold(df: pd.DataFrame, capital: float) -> pd.DataFrame:
+    # テンプレ：開始→終了の単一トレード（将来は戦略で複数トレードに差し替え）
+    if df.empty:
+        return pd.DataFrame(
+            columns=[
+                "entry_time",
+                "exit_time",
+                "pnl",
+                "holding_bars",
+                "holding_days",
+                "win",
+            ]
+        )
+    entry = df["time"].iloc[0]
+    exit_ = df["time"].iloc[-1]
+    close = df["close"].astype(float)
+    ret = (close.iloc[-1] / close.iloc[0]) - 1.0
+    pnl = capital * ret
+    holding_bars = len(df)
+    holding_days = (pd.Timestamp(exit_) - pd.Timestamp(entry)).days
+    win = int(pnl > 0)
+    return pd.DataFrame(
+        [
+            {
+                "entry_time": entry,
+                "exit_time": exit_,
+                "pnl": float(pnl),
+                "holding_bars": int(holding_bars),
+                "holding_days": int(holding_days),
+                "win": win,
+            }
+        ]
+    )
+
+カラム仕様
+
+entry_time
+
+型：datetime（CSVでは文字列）
+
+内容：トレードのエントリー時刻（現状は期間の最初のバー時間）
+
+exit_time
+
+型：datetime
+
+内容：トレードのエグジット時刻（現状は期間の最後のバー時間）
+
+pnl
+
+型：float
+
+内容：JPYベースの損益。
+
+計算：capital * ((close_last / close_first) - 1.0)
+
+holding_bars
+
+型：int
+
+内容：保有バー数（len(df)）
+
+holding_days
+
+型：int
+
+内容：保有日数（(exit_ - entry).days）
+
+win
+
+型：int（0 or 1）
+
+内容：勝ちトレードなら 1、負け or 引き分けなら 0
+
+※現状はテンプレとして「期間全体を 1 トレード扱い」にしているが、
+将来 trades_from_signal_series 等に差し替えることで、複数トレード対応に拡張可能。
+
+3. metrics.json
+パス
+
+out_dir / "metrics.json"
+
+生成元
+base = metrics_from_equity(eq_df["equity"])
+tmet = trade_metrics(trades)
+base.update(tmet)
+(out_dir / "metrics.json").write_text(
+    json.dumps(base, ensure_ascii=False, indent=2)
+)
+
+metrics_from_equity(eq: pd.Series)
+def metrics_from_equity(eq: pd.Series) -> dict:
+    ret = eq.pct_change().fillna(0.0)
+    total = eq.iloc[-1] / eq.iloc[0] - 1.0
+    dd = (eq / eq.cummax() - 1.0).min()
+    sharpe = (ret.mean() / (ret.std() + 1e-12)) * np.sqrt(252 * 24 * 12)
+    return {
+        "start_equity": float(eq.iloc[0]),
+        "end_equity": float(eq.iloc[-1]),
+        "total_return": float(total),
+        "max_drawdown": float(dd),
+        "sharpe_like": float(sharpe),
+        "bars": int(len(eq)),
+        "max_dd_days": _dd_duration_max(eq),
+    }
+
+trade_metrics(trades: pd.DataFrame)
+def trade_metrics(trades: pd.DataFrame) -> dict:
+    if trades.empty:
+        return {
+            "trades": 0,
+            "win_rate": 0.0,
+            "avg_pnl": 0.0,
+            "profit_factor": 0.0,
+            "avg_holding_bars": 0.0,
+            "avg_holding_days": 0.0,
+            "max_consec_win": 0,
+            "max_consec_loss": 0,
+        }
+    wins = trades["pnl"] > 0
+    sum_win = trades.loc[wins, "pnl"].sum()
+    sum_loss_abs = (-trades.loc[~wins, "pnl"]).clip(lower=0).sum()
+    pf = (
+        float(sum_win / sum_loss_abs)
+        if sum_loss_abs > 0
+        else float("inf") if sum_win > 0 else 0.0
+    )
+
+    seq = wins.astype(int)
+    consec_win = _max_consecutive(seq, 1)
+    consec_loss = _max_consecutive(1 - seq, 1)
+
+    return {
+        "trades": int(len(trades)),
+        "win_rate": float(wins.mean()) if len(trades) else 0.0,
+        "avg_pnl": float(trades["pnl"].mean()) if len(trades) else 0.0,
+        "profit_factor": pf,
+        "avg_holding_bars": (
+            float(trades["holding_bars"].mean()) if len(trades) else 0.0
+        ),
+        "avg_holding_days": (
+            float(trades["holding_days"].mean()) if len(trades) else 0.0
+        ),
+        "max_consec_win": int(consec_win),
+        "max_consec_loss": int(consec_loss),
+    }
+
+JSON のキー一覧
+
+metrics.json のルートはフラットな dict：
+
+エクイティ由来
+
+start_equity : float … 初期エクイティ
+
+end_equity : float … 最終エクイティ
+
+total_return : float … トータルリターン（比率, 0.10 = +10%）
+
+max_drawdown : float … 最大ドローダウン（比率, -0.25 なら -25%）
+
+sharpe_like : float … 疑似シャープレシオ（M5相当スケール）
+
+bars : int … エクイティ系列のバー数
+
+max_dd_days : int … 最大DD区間の長さ（日数ベース）
+
+トレード由来
+
+trades : int … トレード数
+
+win_rate : float … 勝率（0.55 = 55%）
+
+avg_pnl : float … 平均損益（JPY）
+
+profit_factor : float … Profit Factor
+
+損失が0で利益>0の場合は inf、利益=0なら 0.0
+
+avg_holding_bars : float … 平均保有バー数
+
+avg_holding_days : float … 平均保有日数
+
+max_consec_win : int … 最大連勝数
+
+max_consec_loss : int … 最大連敗数
+
+4. monthly_returns.csv（BacktestRun ローカル版）
+
+※ここは tools/backtest_run.py::compute_monthly_returns が出力する形式。
+いま backtests\michibiki_std\monthly_returns.csv にある
+year_month / return_pct / max_dd_pct / total_trades / pf は、
+別の集計ロジックで作られている「プロフィール全体の月次レポート」と思っておくと混乱しない。
+
+パス
+
+out_dir / "monthly_returns.csv"
+
+例：backtests/michibiki_std/2025-11_ALL/monthly_returns.csv
+
+生成元
+def compute_monthly_returns(equity_csv_path: str, out_path: str):
+    df = pd.read_csv(equity_csv_path)
+
+    if "timestamp" not in df.columns and "time" in df.columns:
+        df = df.rename(columns={"time": "timestamp"})
+
+    # 必須カラムチェック：timestamp, equity
+    if not {"timestamp", "equity"}.issubset(df.columns):
+        raise ValueError("equity_curve.csv に必要なカラムがありません (timestamp, equity)")
+
+    df["timestamp"] = pd.to_datetime(df["timestamp"])
+    df["year"] = df["timestamp"].dt.year
+    df["month"] = df["timestamp"].dt.month
+
+    first = df.groupby(["year", "month"])["equity"].first()
+    last = df.groupby(["year", "month"])["equity"].last()
+    monthly_return = (last - first) / first * 100
+
+    def calc_dd(sub):
+        peak = sub["equity"].cummax()
+        dd = (sub["equity"] - peak) / peak * 100
+        return dd.min()
+
+    dd_rows = []
+    for (y, m), sub in df.groupby(["year", "month"]):
+        dd_rows.append({
+            "year": y,
+            "month": m,
+            "dd_pct": calc_dd(sub)
+        })
+    dd_df = pd.DataFrame(dd_rows).set_index(["year", "month"])
+
+    out = pd.DataFrame({
+        "return_pct": monthly_return,
+    }).join(dd_df)
+
+    out = out.reset_index().sort_values(["year", "month"])
+    out.to_csv(out_path, index=False)
+
+カラム仕様（BacktestRunローカル）
+
+year
+
+型：int
+
+内容：西暦
+
+month
+
+型：int（1〜12）
+
+return_pct
+
+型：float
+
+内容：月次リターン（％）。
+
+計算：(月末 equity - 月初 equity) / 月初 equity * 100
+
+dd_pct
+
+型：float
+
+内容：その月内の最大ドローダウン（％, マイナス方向）
+
+備考
+
+仕様書 v5 で書いてある year_month / max_dd_pct / total_trades / pf は、
+将来的に「トレード情報も込みで月次をまとめる版」として拡張予定のフォーマットとみなすといい。
+
+現時点の BacktestRun 実装では、月次 PF やトレード数は monthly_returns には入っていない。
+必要なら metrics.json 群を集計する別ツールで profile 単位の monthly_returns.csv を生成する想定になる。
+
+
+5. KPIタブ（3％ダッシュボード）
+
+ミチビキ v5 の中心機能。
+仕様書 v3/v4/ToDo を統合した形で正式化。
+
+5.1 表示項目
+
+今月の利益率（%）
+
+今月の必要達成度：
+(現在利益 ÷ 3％) × 100%
+
+月次折れ線グラフ（12ヶ月）
+
+目標線：3% を水平線として表示
+
+最大DD（過去12ヶ月）
+
+勝率・PF・平均RR
+
+5.2 Expert/Master追加項目
+
+来週の簡易サマリ（診断AI）
+
+モデルバージョン・AUC/Logloss 可視化
+
+6. AIタブ（Feature Importance / SHAP / 診断AI）
+6.1 FI / SHAP 表示規則（CapabilitySetに従う）
+Free：なし
+Basic：なし
+Pro：FI20 + SHAP3
+Expert：FI全件 + SHAP20
+Master：全件制限なし
+
+6.2 診断AI（Detection Service）
+
+Pro：時間帯 × 相場タイプ分析（v0）
+
+Expert：
+
+DD直前区間の特徴検出
+
+勝率高い相場条件
+
+連勝区間の特性
+
+異常点の自動検出
+
+来週の条件シナリオ
+
+Master：全アルゴリズムのデバッグモード
+
+7. フィルタエンジン仕様（StrategyFilterEngine）
+7.1 取り扱う指標
+
+時間帯フィルタ（start_hour〜end_hour）
+
+ATRしきい値
+
+ボラティリティ帯（low/mid/high）
+
+トレンド強度（±値）
+
+連敗回避（N連敗で停止）
+
+プロファイル自動切替（勝率上位）
+
+7.2 エディション差（filter_level）
+0：なし
+1：時間帯のみ
+2：時間帯＋ATRオンオフ
+3：ATR＋ボラ＋トレンド＋連敗回避＋自動切替
+
+8. 内蔵スケジューラ（JobScheduler）
+8.1 2モード存在
+標準モード（Free〜Pro）：GUI起動中のみ実行
+常駐モード（Expert/Master）：GUIを閉じても常駐
+
+8.2 scheduler_level による制御
+0：表示のみ
+1：週1再学習（固定時刻）
+2：1ジョブのみ（種類は選択可）
+3：複数ジョブ・ジョブ連鎖
+
+8.3 ジョブ種別（Master基準・下位版は制限）
+
+Walk-Forward再学習
+
+バックテスト診断生成
+
+ログ圧縮
+
+モデルバックアップ
+
+任意Pythonコマンド（Master）
+
+9. ランキング機能
+9.1 データ送信フォーマット（正式定義）
+POST /ranking/submit
+{
+ "nickname": "xxx",
+ "edition": "expert",
+ "year_month": "2025-11",
+ "return_pct": 0.028,
+ "max_dd_pct": -0.05,
+ "pf": 1.42
+}
+
+9.2 エディション差（ranking_level）
+0：閲覧のみ
+1：Basicランキング送信
+2：Proランキング（リターン％のみ）
+3：Expert複合スコア＋自動送信
+
+10. 日本語UI仕様・ログ仕様
+
+全UIは日本語
+
+ログ：日本語＋簡易英語併記
+例：「MT5接続に失敗しました (login error)」
+
+UTF-8（BOMなし）
+
+11. モデル管理仕様
+
+モデルは models/ に保存
+
+active_model.json は以下を持つ：
+
+{
+  "model_path": "...",
+  "expected_features": [...],
+  "best_threshold": 0.45,
+  "trained_at": "2025-11-20 09:00"
+}
+
+12. Master版専用ツール（開発者用）
+
+モデル比較ツール
+
+SHAP全件可視化
+
+バックテスト一括実行
+
+ランキング送信先URL設定
+
+APIキー設定
+
+========================
+MT5シンボル差異の吸収（ブローカー互換）
+========================
+
+## 用語
+- pair: 論理通貨ペア名（例: USDJPY）。GUI/設定/集計の基準。
+- symbol: MT5の実シンボル名（例: USDJPY-, USDJPY.r 等）。発注時の実体。
+
+## 設計方針（重要）
+- ミチビキは業者ごとのシンボル差異を吸収するため、内部的には pair を正とし、
+  MT5へアクセスする直前に symbol を解決する。
+- symbol 解決は app/core/symbol_map.py の resolve_symbol(pair) を使用する。
+- symbols_mt5.json が無い / 対応が無い場合はフォールバックとして pair をそのまま symbol として扱う（後方互換）。
+
+## symbols_mt5.json の生成
+- scripts/discover_symbols.py により MT5(symbols_get) から取引可能シンボルを探索し、
+  configs/symbols_mt5.json を生成する。
+- preferred は pair -> symbol の対応表であり、発注時に参照する。
+- ブローカー/口座/サーバを変更した場合は symbols_mt5.json を再生成する（サーバ名はファイル内 broker_server に記録される）。
+
+## ログ（再発防止）
+- decision/ops 等のログは、可能なら pair と symbol の両方を記録する。
+  これにより USDJPY と USDJPY- 等の表記差異があっても分析・突合が安定する。

@@ -1,0 +1,646 @@
+
+===== DIR: app\services =====
+D:\fxbot\app\services\ai_service.py:872  "[AISvc.get_live_probs] tick取得に失敗: symbol={symbol} error={err}",
+D:\fxbot\app\services\ai_service.py:873  symbol=symbol,
+D:\fxbot\app\services\ai_service.py:880  "[AISvc.get_live_probs] tickが取得できないため AIスキップ: symbol={symbol}",
+D:\fxbot\app\services\ai_service.py:881  symbol=symbol,
+D:\fxbot\app\services\ai_service.py:962  def build_decision_from_probs(self, probs: dict, symbol: str) -> dict:
+D:\fxbot\app\services\condition_mining_data.py:7  from app.services import decision_log
+D:\fxbot\app\services\condition_mining_data.py:23  def _iter_decision_paths() -> Iterable[Path]:
+D:\fxbot\app\services\condition_mining_data.py:24  root = decision_log._get_decision_log_dir()
+D:\fxbot\app\services\condition_mining_data.py:27  return sorted(root.glob("decisions_*.jsonl"))
+D:\fxbot\app\services\condition_mining_data.py:58  def get_decisions_window_summary(
+D:\fxbot\app\services\condition_mining_data.py:79  for path in _iter_decision_paths():
+D:\fxbot\app\services\condition_mining_data.py:81  for j in decision_log._iter_jsonl(path):
+D:\fxbot\app\services\condition_mining_data.py:86  if j.get("symbol") != symbol:
+D:\fxbot\app\services\condition_mining_data.py:116  "symbol": symbol,
+D:\fxbot\app\services\condition_mining_data.py:126  def get_decisions_recent_past_summary(symbol: str) -> dict:
+D:\fxbot\app\services\condition_mining_data.py:128  recent = get_decisions_window_summary(
+D:\fxbot\app\services\condition_mining_data.py:129  symbol=symbol,
+D:\fxbot\app\services\condition_mining_data.py:132  past = get_decisions_window_summary(
+D:\fxbot\app\services\condition_mining_data.py:133  symbol=symbol,
+D:\fxbot\app\services\condition_mining_data.py:137  # decisions/rows のキー名は実装依存なので両対応
+D:\fxbot\app\services\condition_mining_data.py:138  r_rows = (recent.get("decisions") or recent.get("rows") or [])
+D:\fxbot\app\services\condition_mining_data.py:139  p_rows = (past.get("decisions") or past.get("rows") or [])
+D:\fxbot\app\services\condition_mining_data.py:166  """Compute minimal aggregate stats for a list of decision-like dicts.
+D:\fxbot\app\services\condition_mining_facade.py:3  from app.services.condition_mining_data import get_decisions_window_summary
+D:\fxbot\app\services\condition_mining_facade.py:8  from app.services.condition_mining_data import get_decisions_recent_past_summary
+D:\fxbot\app\services\condition_mining_facade.py:11  def get_decisions_recent_past_min_stats(symbol: str) -> Dict[str, Any]:
+D:\fxbot\app\services\condition_mining_facade.py:14  既存の get_decisions_recent_past_summary(symbol) を再利用し、抽出のみを行う。
+D:\fxbot\app\services\condition_mining_facade.py:17  out = get_decisions_recent_past_summary(symbol)
+D:\fxbot\app\services\condition_mining_facade.py:32  def _extract_decisions_list(win: Dict[str, Any]) -> List[Dict[str, Any]]:
+D:\fxbot\app\services\condition_mining_facade.py:33  """window summary から decisions の配列を取り出す（仕様差分に耐える）"""
+D:\fxbot\app\services\condition_mining_facade.py:36  for k in ("decisions", "items", "rows", "records"):
+D:\fxbot\app\services\condition_mining_facade.py:59  # よくある action/decision
+D:\fxbot\app\services\condition_mining_facade.py:60  for k in ("action", "decision", "kind"):
+D:\fxbot\app\services\condition_mining_facade.py:72  2) decision_detail.signal.reason（例: threshold_ok）
+D:\fxbot\app\services\condition_mining_facade.py:87  # 2) decision_detail.signal.reason
+D:\fxbot\app\services\condition_mining_facade.py:88  dd = rec.get("decision_detail")
+D:\fxbot\app\services\condition_mining_facade.py:131  out = get_decisions_recent_past_summary(symbol)
+D:\fxbot\app\services\condition_mining_facade.py:135  res: Dict[str, Any] = {"symbol": symbol, "generated_at": now, "recent": {}, "past": {}, "warnings": warnings}
+D:\fxbot\app\services\condition_mining_facade.py:139  decisions = _extract_decisions_list(win)
+D:\fxbot\app\services\condition_mining_facade.py:140  if not decisions:
+D:\fxbot\app\services\condition_mining_facade.py:142  wsum = get_decisions_window_summary(symbol, window=bucket) or {}
+D:\fxbot\app\services\condition_mining_facade.py:149  all_recs = list(_iter_decisions_jsonl(symbol, max_n=K*2) or [])
+D:\fxbot\app\services\condition_mining_facade.py:151  decisions = all_recs[-K:]
+D:\fxbot\app\services\condition_mining_facade.py:153  decisions = all_recs[-K*2:-K]
+D:\fxbot\app\services\condition_mining_facade.py:156  decisions = []
+D:\fxbot\app\services\condition_mining_facade.py:157  for rec in _iter_decisions_jsonl(symbol, max_n=200000) or []:
+D:\fxbot\app\services\condition_mining_facade.py:159  decisions.append(rec)
+D:\fxbot\app\services\condition_mining_facade.py:161  if not decisions:
+D:\fxbot\app\services\condition_mining_facade.py:162  warnings.append(f"{bucket}: no decisions (summary has none; jsonl missing/empty or no records in window)")
+D:\fxbot\app\services\condition_mining_facade.py:172  for rec in decisions:
+D:\fxbot\app\services\condition_mining_facade.py:210  "symbol": symbol,
+D:\fxbot\app\services\condition_mining_facade.py:220  # _DECISIONS_LOG = <resolved dynamically>
+D:\fxbot\app\services\condition_mining_facade.py:223  def _iter_decisions_jsonl(max_n: int = 5000):
+D:\fxbot\app\services\condition_mining_facade.py:224  """decisions.jsonl を後ろから最大 max_n 件読む（安全・既存前提）"""
+D:\fxbot\app\services\condition_mining_facade.py:225  p = _DECISIONS_LOG
+D:\fxbot\app\services\condition_mining_facade.py:250  def _resolve_decisions_log(symbol: str) -> Path | None:
+D:\fxbot\app\services\condition_mining_facade.py:252  decisions.jsonl の所在を symbol から推定して解決する。
+D:\fxbot\app\services\condition_mining_facade.py:255  1) logs/backtest/<symbol>/M5/decisions.jsonl
+D:\fxbot\app\services\condition_mining_facade.py:256  2) logs/decisions/decisions_<symbol_without_dash>.jsonl
+D:\fxbot\app\services\condition_mining_facade.py:257  3) logs/backtest/<symbol>/M5/backtest_* /decisions.jsonl のうち最新
+D:\fxbot\app\services\condition_mining_facade.py:264  p1 = Path('logs') / 'backtest' / sym / 'M5' / 'decisions.jsonl'
+D:\fxbot\app\services\condition_mining_facade.py:268  # 2) decisions フォルダ（USDJPY- なら USDJPY に寄せる）
+D:\fxbot\app\services\condition_mining_facade.py:270  p2 = Path('logs') / 'decisions' / f'decisions_{sym2}.jsonl'
+D:\fxbot\app\services\condition_mining_facade.py:277  cands = sorted(base.glob('backtest_*/decisions.jsonl'), key=lambda p: p.stat().st_mtime, reverse=True)
+D:\fxbot\app\services\condition_mining_facade.py:285  def _iter_decisions_jsonl(symbol: str, max_n: int = 200000):
+D:\fxbot\app\services\condition_mining_facade.py:286  """resolved decisions.jsonl を後ろから最大 max_n 件読む（安全）"""
+D:\fxbot\app\services\condition_mining_facade.py:287  p = _resolve_decisions_log(symbol)
+D:\fxbot\app\services\decision_log.py:1  # app/services/decision_log.py
+D:\fxbot\app\services\decision_log.py:15  _LOG_DIR = _PROJECT_ROOT / "logs" / "decisions"
+D:\fxbot\app\services\decision_log.py:19  class DecisionRecord:
+D:\fxbot\app\services\decision_log.py:21  decisions_*.jsonl の 1 行を、GUI や KPI 計算から使いやすい形に薄くラップしたもの。
+D:\fxbot\app\services\decision_log.py:68  def _extract_decision_record(j: dict[str, Any]) -> DecisionRecord:
+D:\fxbot\app\services\decision_log.py:70  JSON を DecisionRecord に薄く変換する（GUI/KPI でよく使う形式）。
+D:\fxbot\app\services\decision_log.py:73  symbol = str(j.get("symbol") or "")
+D:\fxbot\app\services\decision_log.py:75  decision_raw = j.get("decision")
+D:\fxbot\app\services\decision_log.py:76  if isinstance(decision_raw, dict):
+D:\fxbot\app\services\decision_log.py:77  decision = decision_raw
+D:\fxbot\app\services\decision_log.py:78  elif isinstance(decision_raw, str):
+D:\fxbot\app\services\decision_log.py:79  decision = {"action": decision_raw}
+D:\fxbot\app\services\decision_log.py:81  decision = {}
+D:\fxbot\app\services\decision_log.py:83  action = str(decision.get("action") or "")
+D:\fxbot\app\services\decision_log.py:85  inner_dec_raw = decision.get("dec")
+D:\fxbot\app\services\decision_log.py:91  side = inner_dec.get("side") or decision.get("side")
+D:\fxbot\app\services\decision_log.py:97  if isinstance(decision_raw, dict):
+D:\fxbot\app\services\decision_log.py:98  meta = decision_raw.get("meta")
+D:\fxbot\app\services\decision_log.py:99  elif isinstance(decision_raw, str):
+D:\fxbot\app\services\decision_log.py:100  meta = decision_raw
+D:\fxbot\app\services\decision_log.py:104  reason = decision.get("reason")
+D:\fxbot\app\services\decision_log.py:117  return DecisionRecord(
+D:\fxbot\app\services\decision_log.py:119  symbol=symbol,
+D:\fxbot\app\services\decision_log.py:159  decisions_* の生ログ DataFrame に「pnl 列」が無ければ、
+D:\fxbot\app\services\decision_log.py:160  exit_plan / decision_detail / ai / meta などの dict の中から
+D:\fxbot\app\services\decision_log.py:177  "decision_detail",
+D:\fxbot\app\services\decision_log.py:197  def _get_decision_log_dir() -> Path:
+D:\fxbot\app\services\decision_log.py:201  例: <project_root>/logs/decisions
+D:\fxbot\app\services\decision_log.py:204  return root / "logs" / "decisions"
+D:\fxbot\app\services\decision_log.py:207  def load_recent_decisions(limit: int | None = None) -> pd.DataFrame:
+D:\fxbot\app\services\decision_log.py:209  decisions_*.jsonl から最新の N レコードを pandas.DataFrame で読み込む。
+D:\fxbot\app\services\decision_log.py:211  log_dir = _get_decision_log_dir()
+D:\fxbot\app\services\decision_log.py:212  files = sorted(log_dir.glob("decisions_*.jsonl"))
+D:\fxbot\app\services\diagnosis_service.py:10  from app.services.decision_log import _iter_jsonl, _get_decision_log_dir
+D:\fxbot\app\services\diagnosis_service.py:28  - logs/decisions_*.jsonl
+D:\fxbot\app\services\diagnosis_service.py:57  records = self._load_decision_records(start=start_date, end=end_date)
+D:\fxbot\app\services\diagnosis_service.py:78  def _load_decision_records(
+D:\fxbot\app\services\diagnosis_service.py:84  decisions_*.jsonl を読み込んで、期間でフィルタリングしたレコードを返す。
+D:\fxbot\app\services\diagnosis_service.py:112  log_dir = _get_decision_log_dir()
+D:\fxbot\app\services\diagnosis_service.py:113  decision_files = sorted(log_dir.glob("decisions_*.jsonl"))
+D:\fxbot\app\services\diagnosis_service.py:115  if not decision_files:
+D:\fxbot\app\services\diagnosis_service.py:119  for file_path in decision_files:
+D:\fxbot\app\services\diagnosis_service.py:225  _load_decision_records() が返すレコードのリスト
+D:\fxbot\app\services\diagnosis_service.py:302  def _compute_dd_pre_signal(self, decisions: List[Dict[str, Any]]) -> Dict[str, Any]:
+D:\fxbot\app\services\diagnosis_service.py:304  decisions.jsonl（バックテスト or 実運用ログ）を元に
+D:\fxbot\app\services\diagnosis_service.py:309  decisions: List[Dict[str, Any]]
+D:\fxbot\app\services\diagnosis_service.py:310  _load_decision_records() が返すレコードのリスト
+D:\fxbot\app\services\diagnosis_service.py:323  if not decisions:
+D:\fxbot\app\services\diagnosis_service.py:338  for d in decisions:
+D:\fxbot\app\services\diagnosis_service.py:394  _load_decision_records() が返すレコードのリスト
+D:\fxbot\app\services\execution_service.py:11  # 注意: 将来 decision_logic が肥大化した場合、
+D:\fxbot\app\services\execution_service.py:12  # services/decision_service.py 的な薄いラッパを挟む余地あり
+D:\fxbot\app\services\execution_service.py:13  from app.core.trade.decision_logic import decide_signal
+D:\fxbot\app\services\execution_service.py:29  # 仕様書 v5.1 の「logs/decisions_*.jsonl」を拡張した実装として、
+D:\fxbot\app\services\execution_service.py:31  #   logs/decisions/decisions_{symbol}.jsonl
+D:\fxbot\app\services\execution_service.py:32  # 例: USDJPY- → logs/decisions/decisions_USDJPY-.jsonl
+D:\fxbot\app\services\execution_service.py:33  LOG_DIR = _PROJECT_ROOT / "logs" / "decisions"
+D:\fxbot\app\services\execution_service.py:93  def _build_decision_context(
+D:\fxbot\app\services\execution_service.py:99  decision_detail: Dict[str, Any],
+D:\fxbot\app\services\execution_service.py:103  decision_context を構築する（判断材料を分離）
+D:\fxbot\app\services\execution_service.py:117  decision_detail : Dict[str, Any]
+D:\fxbot\app\services\execution_service.py:125  decision_context 辞書
+D:\fxbot\app\services\execution_service.py:144  "decision": {
+D:\fxbot\app\services\execution_service.py:145  "action": decision_detail.get("action"),
+D:\fxbot\app\services\execution_service.py:146  "side": decision_detail.get("side"),
+D:\fxbot\app\services\execution_service.py:147  "reason": decision_detail.get("reason"),
+D:\fxbot\app\services\execution_service.py:148  "blocked_reason": decision_detail.get("blocked_reason"),
+D:\fxbot\app\services\execution_service.py:154  def _ensure_decision_detail_minimum(dd: dict, decision: str, signal=None, ai_margin: float = 0.03) -> dict:
+D:\fxbot\app\services\execution_service.py:156  decision_detail に必要な最小限のキーが含まれるように補完する。
+D:\fxbot\app\services\execution_service.py:161  decision_detail 辞書（既存の値は保持される）
+D:\fxbot\app\services\execution_service.py:162  decision : str
+D:\fxbot\app\services\execution_service.py:164  signal : SignalDecision, optional
+D:\fxbot\app\services\execution_service.py:165  SignalDecision オブジェクト（prob_buy/prob_sell/threshold の取得に使用）
+D:\fxbot\app\services\execution_service.py:172  補完された decision_detail 辞書
+D:\fxbot\app\services\execution_service.py:175  dd.setdefault("action", decision)
+D:\fxbot\app\services\execution_service.py:210  decisions ログレコード
+D:\fxbot\app\services\execution_service.py:233  class DecisionsLogger:
+D:\fxbot\app\services\execution_service.py:239  ExecutionService 用 AI判断ログ (decisions.jsonl) を 1 レコード追記する。
+D:\fxbot\app\services\execution_service.py:243  logs/decisions/decisions_{symbol}.jsonl
+D:\fxbot\app\services\execution_service.py:247  → logs/decisions/decisions_USDJPY-.jsonl
+D:\fxbot\app\services\execution_service.py:255  "type": "decision",
+D:\fxbot\app\services\execution_service.py:256  "symbol": "USDJPY-",
+D:\fxbot\app\services\execution_service.py:279  "decision": "SKIP",                # "ENTRY" or "SKIP"
+D:\fxbot\app\services\execution_service.py:281  "decision_detail": {
+D:\fxbot\app\services\execution_service.py:282  "action": "SKIP",              # decision と同じ
+D:\fxbot\app\services\execution_service.py:301  - BacktestEngine が出力する decisions.jsonl とキー構造を揃えることを目的とする。
+D:\fxbot\app\services\execution_service.py:305  # execution_stub の _write_decision_log を使用（validate_runtime を含む）
+D:\fxbot\app\services\execution_service.py:306  from app.services.execution_stub import _write_decision_log
+D:\fxbot\app\services\execution_service.py:307  symbol = record.get("symbol", "UNKNOWN")
+D:\fxbot\app\services\execution_service.py:313  # _write_decision_log を呼ぶ（validate_runtime が含まれる）
+D:\fxbot\app\services\execution_service.py:314  _write_decision_log(symbol, record)
+D:\fxbot\app\services\execution_service.py:320  - AI予測 → フィルタ評価 → decisions.jsonl 出力まで一貫処理
+D:\fxbot\app\services\execution_service.py:438  result = self.execute_entry(features, symbol=symbol, dry_run=dry_run)
+D:\fxbot\app\services\execution_service.py:471  "Profile auto-switch applied: %s -> %s (symbol=%s)",
+D:\fxbot\app\services\execution_service.py:486  売買判断 → フィルタ判定 → decisions.jsonl 出力まで一貫処理
+D:\fxbot\app\services\execution_service.py:514  symbol = runtime_cfg.get("symbol", "USDJPY-")
+D:\fxbot\app\services\execution_service.py:544  decision_detail_failed = {
+D:\fxbot\app\services\execution_service.py:557  decision_detail_failed = _ensure_decision_detail_minimum(
+D:\fxbot\app\services\execution_service.py:558  decision_detail_failed,
+D:\fxbot\app\services\execution_service.py:559  decision="SKIP",
+D:\fxbot\app\services\execution_service.py:564  # decision_context を構築
+D:\fxbot\app\services\execution_service.py:565  decision_context = _build_decision_context(
+D:\fxbot\app\services\execution_service.py:571  decision_detail=decision_detail_failed,
+D:\fxbot\app\services\execution_service.py:578  "type": "decision",
+D:\fxbot\app\services\execution_service.py:579  "symbol": symbol,
+D:\fxbot\app\services\execution_service.py:587  "decision": "SKIP",  # 後方互換のため残す
+D:\fxbot\app\services\execution_service.py:591  "decision_detail": decision_detail_failed,  # 後方互換のため残す
+D:\fxbot\app\services\execution_service.py:592  "decision_context": decision_context,  # 新規追加：判断材料を分離
+D:\fxbot\app\services\execution_service.py:594  # ---- runtime normalization (decision log) ----
+D:\fxbot\app\services\execution_service.py:609  DecisionsLogger.log(record)
+D:\fxbot\app\services\execution_service.py:652  # --- 3) decisions.jsonl へ統合出力（v5.1 仕様に準拠） ---
+D:\fxbot\app\services\execution_service.py:689  # v5.1 仕様に準拠した decisions.jsonl 出力（統一形式）
+D:\fxbot\app\services\execution_service.py:707  decision = "SKIP"
+D:\fxbot\app\services\execution_service.py:709  decision = "ENTRY"
+D:\fxbot\app\services\execution_service.py:711  # SignalDecision から decision_detail を生成（core層で確定）
+D:\fxbot\app\services\execution_service.py:712  # ai_margin は固定値 0.03（ai_service.py の build_decision_from_probs と一致）
+D:\fxbot\app\services\execution_service.py:715  decision_detail = signal.to_decision_detail(
+D:\fxbot\app\services\execution_service.py:716  action=decision,
+D:\fxbot\app\services\execution_service.py:730  decision_detail["signal"] = signal_detail
+D:\fxbot\app\services\execution_service.py:731  decision_detail["filter_pass"] = ok
+D:\fxbot\app\services\execution_service.py:732  decision_detail["filter_reasons"] = normalized_reasons
+D:\fxbot\app\services\execution_service.py:734  decision_detail["reason"] = blocked_reason or (normalized_reasons[0] if normalized_reasons else None)
+D:\fxbot\app\services\execution_service.py:736  # --- 3) decisions.jsonl へ統合出力（v5.1 仕様に準拠） ---
+D:\fxbot\app\services\execution_service.py:745  decision_detail = _ensure_decision_detail_minimum(
+D:\fxbot\app\services\execution_service.py:746  decision_detail if isinstance(decision_detail, dict) else {},
+D:\fxbot\app\services\execution_service.py:747  decision=decision,
+D:\fxbot\app\services\execution_service.py:751  # decision_context を構築
+D:\fxbot\app\services\execution_service.py:752  decision_context = _build_decision_context(
+D:\fxbot\app\services\execution_service.py:758  decision_detail=decision_detail,
+D:\fxbot\app\services\execution_service.py:766  "type": "decision",
+D:\fxbot\app\services\execution_service.py:767  "symbol": symbol,
+D:\fxbot\app\services\execution_service.py:779  "decision": decision,  # 後方互換のため残す
+D:\fxbot\app\services\execution_service.py:785  "decision_detail": decision_detail,  # 後方互換のため残す
+D:\fxbot\app\services\execution_service.py:786  "decision_context": decision_context,  # 新規追加：判断材料を分離
+D:\fxbot\app\services\execution_service.py:788  # ---- runtime normalization (decision log) ----
+D:\fxbot\app\services\execution_service.py:803  DecisionsLogger.log(record)
+D:\fxbot\app\services\execution_service.py:809  "symbol": runtime.get("symbol", symbol),
+D:\fxbot\app\services\execution_service.py:827  # decision_detail を更新
+D:\fxbot\app\services\execution_service.py:828  decision_detail["action"] = "ENTRY_SIMULATED"
+D:\fxbot\app\services\execution_service.py:829  decision = "ENTRY_SIMULATED"
+D:\fxbot\app\services\execution_service.py:833  "symbol": symbol,
+D:\fxbot\app\services\execution_service.py:845  "[dry_run] Simulated ENTRY: symbol=%s, side=%s, prob_buy=%.4f, prob_sell=%.4f",
+D:\fxbot\app\services\execution_service.py:852  # decisions.jsonl に出力（ENTRY_SIMULATED として）
+D:\fxbot\app\services\execution_service.py:853  decision_detail = _ensure_decision_detail_minimum(
+D:\fxbot\app\services\execution_service.py:854  decision_detail if isinstance(decision_detail, dict) else {},
+D:\fxbot\app\services\execution_service.py:855  decision=decision,
+D:\fxbot\app\services\execution_service.py:859  # decision_context を構築
+D:\fxbot\app\services\execution_service.py:860  decision_context = _build_decision_context(
+D:\fxbot\app\services\execution_service.py:866  decision_detail=decision_detail,
+D:\fxbot\app\services\execution_service.py:870  DecisionsLogger.log({
+D:\fxbot\app\services\execution_service.py:873  "type": "decision",
+D:\fxbot\app\services\execution_service.py:874  "symbol": symbol,
+D:\fxbot\app\services\execution_service.py:883  "decision": decision,  # 後方互換のため残す
+D:\fxbot\app\services\execution_service.py:887  "decision_detail": decision_detail,  # 後方互換のため残す
+D:\fxbot\app\services\execution_service.py:888  "decision_context": decision_context,  # 新規追加：判断材料を分離
+D:\fxbot\app\services\execution_service.py:902  # 通常モードの場合、decision_detail は "ENTRY" のまま
+D:\fxbot\app\services\execution_service.py:903  decision_detail = _ensure_decision_detail_minimum(
+D:\fxbot\app\services\execution_service.py:904  decision_detail if isinstance(decision_detail, dict) else {},
+D:\fxbot\app\services\execution_service.py:905  decision=decision,
+D:\fxbot\app\services\execution_service.py:913  "type": "decision",
+D:\fxbot\app\services\execution_service.py:914  "symbol": symbol,
+D:\fxbot\app\services\execution_service.py:926  "decision": decision,
+D:\fxbot\app\services\execution_service.py:932  "decision_detail": decision_detail,
+D:\fxbot\app\services\execution_service.py:934  # ---- runtime normalization (decision log) ----
+D:\fxbot\app\services\execution_service.py:949  DecisionsLogger.log(record)
+D:\fxbot\app\services\execution_service.py:955  "symbol": runtime.get("symbol", symbol),
+D:\fxbot\app\services\execution_service.py:1003  symbol = runtime_cfg.get("symbol", "USDJPY-")
+D:\fxbot\app\services\execution_service.py:1017  "[dry_run] Simulated EXIT: symbol=%s, side=%s",
+D:\fxbot\app\services\execution_service.py:1018  sim_pos.get("symbol"),
+D:\fxbot\app\services\execution_service.py:1022  # decisions.jsonl に出力（EXIT_SIMULATED として）
+D:\fxbot\app\services\execution_service.py:1023  decision_detail = {
+D:\fxbot\app\services\execution_service.py:1039  decision_detail = _ensure_decision_detail_minimum(
+D:\fxbot\app\services\execution_service.py:1040  decision_detail,
+D:\fxbot\app\services\execution_service.py:1041  decision="EXIT_SIMULATED",
+D:\fxbot\app\services\execution_service.py:1046  # decision_context を構築
+D:\fxbot\app\services\execution_service.py:1047  decision_context = _build_decision_context(
+D:\fxbot\app\services\execution_service.py:1053  decision_detail=decision_detail,
+D:\fxbot\app\services\execution_service.py:1060  "type": "decision",
+D:\fxbot\app\services\execution_service.py:1061  "symbol": symbol,
+D:\fxbot\app\services\execution_service.py:1069  "decision": "EXIT_SIMULATED",  # 後方互換のため残す
+D:\fxbot\app\services\execution_service.py:1073  "decision_detail": decision_detail,  # 後方互換のため残す
+D:\fxbot\app\services\execution_service.py:1074  "decision_context": decision_context,  # 新規追加：判断材料を分離
+D:\fxbot\app\services\execution_service.py:1076  # ---- runtime normalization (decision log) ----
+D:\fxbot\app\services\execution_service.py:1091  DecisionsLogger.log(record)
+D:\fxbot\app\services\execution_stub.py:41  LOG_DIR = _PROJECT_ROOT / "logs" / "decisions"
+D:\fxbot\app\services\execution_stub.py:201  "symbol": symbol,
+D:\fxbot\app\services\execution_stub.py:236  "symbol": symbol,
+D:\fxbot\app\services\execution_stub.py:316  "symbol": state.get("symbol", symbol),
+D:\fxbot\app\services\execution_stub.py:354  def _write_decision_log(symbol: str, record: Dict[str, Any]) -> None:
+D:\fxbot\app\services\execution_stub.py:356  decisions.jsonl にログを出力する（最終出口）。
+D:\fxbot\app\services\execution_stub.py:366  record["symbol"] = symbol
+D:\fxbot\app\services\execution_stub.py:386  # decision_context の検証（warn-only、strict=False）
+D:\fxbot\app\services\execution_stub.py:387  if "decision_context" in record and isinstance(record["decision_context"], dict):
+D:\fxbot\app\services\execution_stub.py:389  dc_warnings = validate_decision_context(record["decision_context"], strict=False)
+D:\fxbot\app\services\execution_stub.py:391  # 注意: validate_decision_context が返す警告メッセージには既に [decision_context_schema] プレフィックスが含まれている
+D:\fxbot\app\services\execution_stub.py:396  logger.warning(f"[decision_context_schema] validation failed (warn-only): {e}")
+D:\fxbot\app\services\execution_stub.py:398  fname = LOG_DIR / f"decisions_{_symbol_to_filename(symbol)}.jsonl"
+D:\fxbot\app\services\execution_stub.py:496  decisions.jsonl の runtime フィールドには _sim_* キーを含めないため、
+D:\fxbot\app\services\execution_stub.py:567  def validate_decision_context(decision_context: Dict[str, Any], strict: bool = False) -> list[str]:
+D:\fxbot\app\services\execution_stub.py:569  decision_context dict を検証し、必須キー・型チェックを行う（warn-only推奨）。
+D:\fxbot\app\services\execution_stub.py:573  decision_context : Dict[str, Any]
+D:\fxbot\app\services\execution_stub.py:574  検証対象の decision_context dict
+D:\fxbot\app\services\execution_stub.py:586  decision_context が dict でない場合、または strict=True で型不正の場合
+D:\fxbot\app\services\execution_stub.py:592  # decision_context が dict でない場合は例外
+D:\fxbot\app\services\execution_stub.py:593  if not isinstance(decision_context, dict):
+D:\fxbot\app\services\execution_stub.py:595  raise TypeError(f"decision_context must be dict, got {type(decision_context).__name__}")
+D:\fxbot\app\services\execution_stub.py:596  warnings.append(f"[decision_context_schema] decision_context must be dict, got {type(decision_context).__name__}")
+D:\fxbot\app\services\execution_stub.py:603  "decision": dict,
+D:\fxbot\app\services\execution_stub.py:608  if key not in decision_context:
+D:\fxbot\app\services\execution_stub.py:610  raise ValueError(f"decision_context must have '{key}' key")
+D:\fxbot\app\services\execution_stub.py:611  warnings.append(f"[decision_context_schema] decision_context missing '{key}' key")
+D:\fxbot\app\services\execution_stub.py:613  value = decision_context[key]
+D:\fxbot\app\services\execution_stub.py:617  raise TypeError(f"decision_context.{key} must be {expected_type.__name__} or None, got {type(value).__name__}")
+D:\fxbot\app\services\execution_stub.py:618  warnings.append(f"[decision_context_schema] decision_context.{key} is {type(value).__name__} (should be {expected_type.__name__} or None)")
+D:\fxbot\app\services\execution_stub.py:742  if "symbol" not in runtime:
+D:\fxbot\app\services\execution_stub.py:746  elif not isinstance(runtime["symbol"], str):
+D:\fxbot\app\services\execution_stub.py:791  forbidden_keys = ["ai", "filters", "decision", "decision_detail", "decision_context"]
+D:\fxbot\app\services\execution_stub.py:794  warnings.append(f"[runtime_schema] runtime should not contain decision keys: {key}")
+D:\fxbot\app\services\execution_stub.py:809  def _build_decision_trace(
+D:\fxbot\app\services\execution_stub.py:816  decision: Dict[str, Any],
+D:\fxbot\app\services\execution_stub.py:830  【runtime フィールド仕様（decisions.jsonl 出力）】
+D:\fxbot\app\services\execution_stub.py:843  注意: trace["runtime"] は trace["decision_detail"] とは別の位置に配置される。
+D:\fxbot\app\services\execution_stub.py:846  if isinstance(decision, dict):
+D:\fxbot\app\services\execution_stub.py:847  action = str(decision.get("action") or "").upper()
+D:\fxbot\app\services\execution_stub.py:849  decision_label = "ENTRY"
+D:\fxbot\app\services\execution_stub.py:851  decision_label = str(decision.get("action") or "")
+D:\fxbot\app\services\execution_stub.py:853  decision_label = str(decision)
+D:\fxbot\app\services\execution_stub.py:858  # filter_pass と filter_reasons を decision から取得
+D:\fxbot\app\services\execution_stub.py:862  if isinstance(decision, dict):
+D:\fxbot\app\services\execution_stub.py:863  if "filter_pass" in decision:
+D:\fxbot\app\services\execution_stub.py:864  filter_pass_val = decision.get("filter_pass")
+D:\fxbot\app\services\execution_stub.py:867  if "filter_reasons" in decision:
+D:\fxbot\app\services\execution_stub.py:868  filter_reasons_val = _normalize_filter_reasons(decision.get("filter_reasons"))
+D:\fxbot\app\services\execution_stub.py:901  if isinstance(decision, dict):
+D:\fxbot\app\services\execution_stub.py:902  action = decision.get("action")
+D:\fxbot\app\services\execution_stub.py:904  # filter_reasons の最初の理由、または decision.reason を使用
+D:\fxbot\app\services\execution_stub.py:908  blocked_reason = decision.get("reason")
+D:\fxbot\app\services\execution_stub.py:931  # decision_context を構築（判断材料を分離）
+D:\fxbot\app\services\execution_stub.py:932  decision_context = {
+D:\fxbot\app\services\execution_stub.py:950  "decision": {
+D:\fxbot\app\services\execution_stub.py:951  "action": decision.get("action") if isinstance(decision, dict) else None,
+D:\fxbot\app\services\execution_stub.py:952  "side": decision.get("side") if isinstance(decision, dict) else None,
+D:\fxbot\app\services\execution_stub.py:953  "reason": decision.get("reason") if isinstance(decision, dict) else None,
+D:\fxbot\app\services\execution_stub.py:961  "type": "decision",
+D:\fxbot\app\services\execution_stub.py:962  "symbol": symbol,
+D:\fxbot\app\services\execution_stub.py:972  "decision_context": decision_context,  # 新規追加：判断材料を分離
+D:\fxbot\app\services\execution_stub.py:974  if isinstance(decision, dict):
+D:\fxbot\app\services\execution_stub.py:975  trace["decision_detail"] = decision
+D:\fxbot\app\services\execution_stub.py:978  if "lot" in decision:
+D:\fxbot\app\services\execution_stub.py:979  trace["lot"] = decision.get("lot")
+D:\fxbot\app\services\execution_stub.py:980  if "lot_info" in decision:
+D:\fxbot\app\services\execution_stub.py:981  trace["lot_info"] = decision.get("lot_info")
+D:\fxbot\app\services\execution_stub.py:983  exit_plan = decision.get("signal", {}).get("exit_plan")
+D:\fxbot\app\services\execution_stub.py:1260  "symbol": symbol,  # 現在のシンボル
+D:\fxbot\app\services\execution_stub.py:1279  # decisions.jsonl に書き出す値（v5.1 仕様：正規化）
+D:\fxbot\app\services\execution_stub.py:1284  def _ensure_decision_detail_minimum(payload: dict, ai_out: Any, decision_info: Optional[Dict] = None) -> dict:
+D:\fxbot\app\services\execution_stub.py:1286  decision_payload に必要な最小限のキーを追加する。
+D:\fxbot\app\services\execution_stub.py:1290  payload.setdefault("side", payload.get("side") or (decision_info.get("side") if decision_info else None) or "(none)")
+D:\fxbot\app\services\execution_stub.py:1294  if decision_info and "prob_buy" in decision_info:
+D:\fxbot\app\services\execution_stub.py:1295  payload["prob_buy"] = float(decision_info["prob_buy"])
+D:\fxbot\app\services\execution_stub.py:1300  if decision_info and "prob_sell" in decision_info:
+D:\fxbot\app\services\execution_stub.py:1301  payload["prob_sell"] = float(decision_info["prob_sell"])
+D:\fxbot\app\services\execution_stub.py:1307  if decision_info and "threshold_buy" in decision_info:
+D:\fxbot\app\services\execution_stub.py:1308  payload["threshold"] = float(decision_info["threshold_buy"])
+D:\fxbot\app\services\execution_stub.py:1323  def _emit(decision: Any, filters_ctx: Dict[str, Any], level: str = "info") -> None:
+D:\fxbot\app\services\execution_stub.py:1324  # decision が str ("SKIP" など) の場合は dict として扱わずに抜ける
+D:\fxbot\app\services\execution_stub.py:1325  if not isinstance(decision, dict):
+D:\fxbot\app\services\execution_stub.py:1326  print("decision は dict ではありません:", decision)
+D:\fxbot\app\services\execution_stub.py:1329  # decision_payload に必須キーを補完
+D:\fxbot\app\services\execution_stub.py:1330  decision_info = decision.get("dec")  # decision_info が dec キーに含まれている場合
+D:\fxbot\app\services\execution_stub.py:1331  decision = _ensure_decision_detail_minimum(decision, ai_out, decision_info)
+D:\fxbot\app\services\execution_stub.py:1333  action = decision.get("action")
+D:\fxbot\app\services\execution_stub.py:1334  reason = decision.get("reason")
+D:\fxbot\app\services\execution_stub.py:1369  "symbol": runtime.get("symbol", symbol),
+D:\fxbot\app\services\execution_stub.py:1382  "last_decision": action,
+D:\fxbot\app\services\execution_stub.py:1400  trail_signal = decision.get("signal") if isinstance(decision, dict) else None
+D:\fxbot\app\services\execution_stub.py:1404  trail_side = trail_state.get("side") or trail_signal.get("side") or decision.get("side")
+D:\fxbot\app\services\execution_stub.py:1405  trail_symbol = trail_state.get("symbol") or trail_signal.get("symbol") or symbol
+D:\fxbot\app\services\execution_stub.py:1412  symbol=str(trail_symbol),
+D:\fxbot\app\services\execution_stub.py:1419  trace = _build_decision_trace(
+D:\fxbot\app\services\execution_stub.py:1421  symbol=symbol,
+D:\fxbot\app\services\execution_stub.py:1425  decision=decision,
+D:\fxbot\app\services\execution_stub.py:1458  _write_decision_log(symbol, trace)
+D:\fxbot\app\services\execution_stub.py:1465  "symbol": symbol,
+D:\fxbot\app\services\execution_stub.py:1466  "decision": decision.get("action"),
+D:\fxbot\app\services\execution_stub.py:1467  "reason": decision.get("reason"),
+D:\fxbot\app\services\execution_stub.py:1494  decision_payload = {
+D:\fxbot\app\services\execution_stub.py:1502  "symbol": trail_info["state"].get("symbol", symbol),
+D:\fxbot\app\services\execution_stub.py:1507  _emit(decision_payload, filters_ctx, level="info")
+D:\fxbot\app\services\execution_stub.py:1512  decision_payload = {
+D:\fxbot\app\services\execution_stub.py:1518  _emit(decision_payload, filters_ctx, level="info")
+D:\fxbot\app\services\execution_stub.py:1519  return {"ai": ai_out, "cb": cb_status, "ts": ts, "decision": decision_payload}
+D:\fxbot\app\services\execution_stub.py:1523  decision_payload = {
+D:\fxbot\app\services\execution_stub.py:1529  _emit(decision_payload, filters_ctx, level="warning")
+D:\fxbot\app\services\execution_stub.py:1530  return {"ai": ai_out, "cb": cb_status, "ts": ts, "decision": None}
+D:\fxbot\app\services\execution_stub.py:1540  decision_payload = {
+D:\fxbot\app\services\execution_stub.py:1546  _emit(decision_payload, filters_ctx, level="warning")
+D:\fxbot\app\services\execution_stub.py:1547  return {"ai": ai_out, "cb": cb_status, "ts": ts, "decision": None}
+D:\fxbot\app\services\execution_stub.py:1551  decision_payload = {
+D:\fxbot\app\services\execution_stub.py:1557  _emit(decision_payload, filters_ctx, level="warning")
+D:\fxbot\app\services\execution_stub.py:1558  return {"ai": ai_out, "cb": cb_status, "ts": ts, "decision": None}
+D:\fxbot\app\services\execution_stub.py:1563  decision_payload = {
+D:\fxbot\app\services\execution_stub.py:1569  _emit(decision_payload, filters_ctx, level="warning")
+D:\fxbot\app\services\execution_stub.py:1570  return {"ai": ai_out, "cb": cb_status, "ts": ts, "decision": None}
+D:\fxbot\app\services\execution_stub.py:1576  decision_payload = {
+D:\fxbot\app\services\execution_stub.py:1582  _emit(decision_payload, filters_ctx, level="warning")
+D:\fxbot\app\services\execution_stub.py:1583  return {"ai": ai_out, "cb": cb_status, "ts": ts, "decision": None}
+D:\fxbot\app\services\execution_stub.py:1644  decision_info: Dict[str, Any] = {
+D:\fxbot\app\services\execution_stub.py:1654  decision_info.update({"decision": "SKIP", "reason": "ai_threshold"})
+D:\fxbot\app\services\execution_stub.py:1657  decision_payload = {
+D:\fxbot\app\services\execution_stub.py:1661  "dec": decision_info,
+D:\fxbot\app\services\execution_stub.py:1665  _emit(decision_payload, filters_ctx, level="info")
+D:\fxbot\app\services\execution_stub.py:1666  return {"ai": ai_out, "cb": cb_status, "ts": ts, "decision": decision_payload}
+D:\fxbot\app\services\execution_stub.py:1669  decision_info.update({"decision": "SKIP", "reason": "ai_low_edge"})
+D:\fxbot\app\services\execution_stub.py:1672  decision_payload = {
+D:\fxbot\app\services\execution_stub.py:1676  "dec": decision_info,
+D:\fxbot\app\services\execution_stub.py:1680  _emit(decision_payload, filters_ctx, level="info")
+D:\fxbot\app\services\execution_stub.py:1681  return {"ai": ai_out, "cb": cb_status, "ts": ts, "decision": decision_payload}
+D:\fxbot\app\services\execution_stub.py:1683  decision_info.update(
+D:\fxbot\app\services\execution_stub.py:1685  "decision": "ENTRY",
+D:\fxbot\app\services\execution_stub.py:1718  # 【出力（decisions.jsonl）】
+D:\fxbot\app\services\execution_stub.py:1725  #   - decision_detail.pos_guard_bypassed: bool（バイパスされた場合）
+D:\fxbot\app\services\execution_stub.py:1778  decision_payload = {
+D:\fxbot\app\services\execution_stub.py:1782  "dec": decision_info,
+D:\fxbot\app\services\execution_stub.py:1802  decision_payload["pos_guard_state"] = pos_guard_state
+D:\fxbot\app\services\execution_stub.py:1805  _emit(decision_payload, filters_ctx, level="warning")
+D:\fxbot\app\services\execution_stub.py:1807  return {"ai": ai_out, "cb": cb_status, "ts": ts, "decision": decision_payload}
+D:\fxbot\app\services\execution_stub.py:1836  decision_exit_builder = globals().get("_build_decision_exit_plan")
+D:\fxbot\app\services\execution_stub.py:1838  if callable(decision_exit_builder):
+D:\fxbot\app\services\execution_stub.py:1839  exit_plan = decision_exit_builder(symbol, ohlc_tail)
+D:\fxbot\app\services\execution_stub.py:1911  decision_payload = {
+D:\fxbot\app\services\execution_stub.py:1913  "reason": decision_info.get("reason","entry_ok"),
+D:\fxbot\app\services\execution_stub.py:1916  "dec": decision_info,
+D:\fxbot\app\services\execution_stub.py:1923  decision_payload["pos_guard_bypassed"] = True
+D:\fxbot\app\services\execution_stub.py:1925  decision_payload["sim_pos_guard_bypassed"] = True
+D:\fxbot\app\services\execution_stub.py:1928  decision_payload["pos_hold_ticks"] = pos_hold_ticks
+D:\fxbot\app\services\execution_stub.py:1939  "dec": decision_info,
+D:\fxbot\app\services\execution_stub.py:1947  return {"ai": ai_out, "cb": cb_status, "ts": ts, "decision": blocked_payload}
+D:\fxbot\app\services\execution_stub.py:1949  _emit(decision_payload, filters_ctx, level="info")
+D:\fxbot\app\services\execution_stub.py:1950  return {"ai": ai_out, "cb": cb_status, "ts": ts, "decision": decision_payload}
+D:\fxbot\app\services\execution_stub.py:1954  """Dry-run evaluation that mirrors the live decision path."""
+D:\fxbot\app\services\execution_stub.py:1973  symbol = runtime_cfg.get("symbol", "USDJPY")
+D:\fxbot\app\services\execution_stub.py:2048  # ExecutionStub や _build_decision_trace から参照される属性だけ持っておけばOK
+D:\fxbot\app\services\execution_stub.py:2119  def debug_emit_single_decision() -> None:
+D:\fxbot\app\services\execution_stub.py:2121  フィルタ + decisions.jsonl ログを 1 回だけテスト出力するデバッグ関数。
+D:\fxbot\app\services\execution_stub.py:2133  self.meta = {"symbol": "USDJPY-", "profile": "std"}
+D:\fxbot\app\services\execution_stub.py:2164  # 3) フィルタ結果を decision に反映
+D:\fxbot\app\services\execution_stub.py:2165  decision = {
+D:\fxbot\app\services\execution_stub.py:2185  # 5) _build_decision_trace を使って trace を作成
+D:\fxbot\app\services\execution_stub.py:2186  trace = _build_decision_trace(
+D:\fxbot\app\services\execution_stub.py:2188  symbol="USDJPY-",
+D:\fxbot\app\services\execution_stub.py:2192  decision=decision,
+D:\fxbot\app\services\execution_stub.py:2212  # 6) decisions.jsonl に出力
+D:\fxbot\app\services\execution_stub.py:2213  _write_decision_log("USDJPY-", trace)
+D:\fxbot\app\services\execution_stub.py:2215  print(f"debug_emit_single_decision: ok = {ok}, reasons = {reasons}")
+D:\fxbot\app\services\execution_stub.py:2216  print(f"  -> decisions.jsonl に出力しました: {trace.get('ts_jst')}")
+D:\fxbot\app\services\kpi_service.py:279  将来、実運用ログ（decisionsや専用トレードログ）が
+D:\fxbot\app\services\metrics.py:33  last_decision, last_reason, atr_ref, atr_gate_state, post_fill_grace,
+D:\fxbot\app\services\mt5_selftest.py:383  "symbol": _json_safe_str(symbol),  # 念のため symbol も正規化
+D:\fxbot\app\services\mt5_selftest.py:397  ticket = client.order_send(symbol=symbol, order_type="BUY", lot=lot)
+D:\fxbot\app\services\mt5_selftest.py:398  result["details"]["order_send"] = {"ticket": ticket}
+D:\fxbot\app\services\mt5_selftest.py:400  result["step"] = "order_send"
+D:\fxbot\app\services\mt5_selftest.py:402  "code": "ORDER_SEND_FAILED",
+D:\fxbot\app\services\mt5_selftest.py:403  "message": _json_safe_str("order_send() が ticket を返しませんでした。"),
+D:\fxbot\app\services\mt5_selftest.py:407  result["step"] = "order_send"
+D:\fxbot\app\services\mt5_selftest.py:408  result["details"]["order_send"]["success"] = True
+D:\fxbot\app\services\mt5_selftest.py:409  result["details"]["order_send"]["symbol"] = _json_safe_str(symbol)
+D:\fxbot\app\services\mt5_selftest.py:410  result["details"]["order_send"]["lot"] = lot
+D:\fxbot\app\services\mt5_selftest.py:419  pos = MT5.positions_get(ticket=ticket)
+D:\fxbot\app\services\mt5_selftest.py:433  ok = client.close_position(ticket=ticket, symbol=symbol)
+D:\fxbot\app\services\mt5_selftest.py:446  result["step"] = "order_send"
+D:\fxbot\app\services\mt5_selftest.py:447  result["details"]["order_send"] = {"skipped": True, "reason": "dry_run"}
+D:\fxbot\app\services\mt5_service.py:98  pos = mt5.positions_get(ticket=ticket)
+D:\fxbot\app\services\mt5_service.py:100  raise RuntimeError(f"positions_get failed: {mt5.last_error()}")
+D:\fxbot\app\services\mt5_service.py:146  "symbol": symbol,
+D:\fxbot\app\services\mt5_service.py:157  res = mt5.order_send(request)
+D:\fxbot\app\services\mt5_service.py:159  last_err = f"order_send None: {mt5.last_error()}"
+D:\fxbot\app\services\ops_history_service.py:260  if "symbol" not in normalized:
+D:\fxbot\app\services\ops_history_service.py:261  normalized["symbol"] = rec.get("Symbol") or rec.get("symbol") or "USDJPY-"
+D:\fxbot\app\services\ops_history_service.py:645  symbol = normalized.get("symbol", "USDJPY-")
+D:\fxbot\app\services\ops_history_service.py:680  compare_fields = ["model_path", "close_now", "dry", "cmd", "symbol"]
+D:\fxbot\app\services\ops_history_service.py:764  if symbol and rec.get("symbol") != symbol:
+D:\fxbot\app\services\ops_history_service.py:859  symbol = str(rec.get("symbol", ""))
+D:\fxbot\app\services\ops_history_service.py:902  records = self.load_ops_history(symbol=symbol, limit=1000)  # 集計用に多めに取得
+D:\fxbot\app\services\ops_history_service.py:977  "symbol": normalized_rec.get("symbol", "USDJPY-"),
+D:\fxbot\app\services\ops_history_service.py:1169  return get_ops_history_service().summarize_ops_history(symbol=symbol, cache_sec=cache_sec)
+D:\fxbot\app\services\ops_history_service.py:1183  return get_ops_history_service().load_ops_history(symbol=symbol, limit=limit)
+D:\fxbot\app\services\ops_history_service.py:1382  summary = history_service.summarize_ops_history(symbol=record.get("symbol"))
+D:\fxbot\app\services\ops_history_service.py:1450  symbol=record.get("symbol", ""),
+D:\fxbot\app\services\ops_history_service.py:1466  "symbol": record.get("symbol", ""),
+D:\fxbot\app\services\ops_service.py:267  "symbol": symbol,
+D:\fxbot\app\services\orderbook_stub.py:36  id=self._next_id, symbol=symbol, side=side, lot=lot, entry=entry, sl=sl, tp=tp
+D:\fxbot\app\services\orderbook_stub.py:41  "mode":"dryrun", "action":"open", "id": pos.id, "symbol": symbol, "side": side,
+D:\fxbot\app\services\orderbook_stub.py:58  "mode":"dryrun", "action":"close", "id": p.id, "symbol": p.symbol, "side": p.side,
+D:\fxbot\app\services\profile_stats_service.py:163  "symbol": symbol,
+D:\fxbot\app\services\profile_stats_service.py:174  stats["symbol"] = symbol
+D:\fxbot\app\services\profiles_store.py:93  "symbol": symbol,
+D:\fxbot\app\services\recent_kpi.py:8  from app.services.decision_log import load_recent_decisions
+D:\fxbot\app\services\recent_kpi.py:319  def compute_recent_kpi_from_decisions(
+D:\fxbot\app\services\recent_kpi.py:326  Read logs/decisions/decisions_*.jsonl, filter trades with numeric pnl, and compute recent KPI.
+D:\fxbot\app\services\recent_kpi.py:342  df = load_recent_decisions(limit=None)
+D:\fxbot\app\services\trade_service.py:55  """Facade that coordinates guards, circuit breaker, and decision helpers."""
+D:\fxbot\app\services\trade_service.py:264  self.pos_guard.reconcile_with_broker(symbol=symbol, desync_fix=self._desync_fix)
+D:\fxbot\app\services\trade_service.py:267  # Decisions & guards
+D:\fxbot\app\services\trade_service.py:286  return {"decision": "SKIP", "meta": "SKIP", "side": None, "reason": "ai_skip", "threshold": th}
+D:\fxbot\app\services\trade_service.py:290  "decision": "SKIP",
+D:\fxbot\app\services\trade_service.py:304  return {"decision": "ENTRY", "meta": side, "side": side, "threshold": th, "edge": edge}
+D:\fxbot\app\services\trade_service.py:308  return result["side"] if result.get("decision") == "ENTRY" else None
+D:\fxbot\app\services\trade_service.py:356  # ここではまだ decisions.jsonl には書かず、ログだけ軽く出しておく
+D:\fxbot\app\services\trade_service.py:390  self._mt5.order_send(
+D:\fxbot\app\services\trade_service.py:391  symbol=symbol,
+D:\fxbot\app\services\trade_service.py:405  self.pos_guard.reconcile_with_broker(symbol=symbol, desync_fix=True)
+D:\fxbot\app\services\trade_service.py:408  self.pos_guard.reconcile_with_broker(symbol=symbol, desync_fix=True)
+D:\fxbot\app\services\trade_service.py:413  EVENT_STORE.add(kind="ENTRY", symbol=symbol, side=side, price=price, sl=None, notes=f"ticket={ticket}")
+D:\fxbot\app\services\trade_service.py:436  symbol=resolved_symbol,
+D:\fxbot\app\services\trade_service.py:448  "[Execution] loss streak updated: profile=%s symbol=%s pl=%.2f consecutive_losses=%d",
+D:\fxbot\app\services\trade_service.py:454  "[Execution] failed to update loss streak (profile=%s, symbol=%s)",
+D:\fxbot\app\services\trade_service.py:466  def execute_decision(
+D:\fxbot\app\services\trade_service.py:467  decision: Dict[str, Any],
+D:\fxbot\app\services\trade_service.py:474  decision dict から TradeService.open_position(...) を呼び出す。
+D:\fxbot\app\services\trade_service.py:476  期待する decision 形式の例::
+D:\fxbot\app\services\trade_service.py:493  if not isinstance(decision, dict):
+D:\fxbot\app\services\trade_service.py:497  action = decision.get("action")
+D:\fxbot\app\services\trade_service.py:502  signal = decision.get("signal") or {}
+D:\fxbot\app\services\trade_service.py:522  sym = runtime_cfg.get("symbol")
+D:\fxbot\app\services\trade_service.py:535  features = signal.get("features") or decision.get("features")
+D:\fxbot\app\services\trade_service.py:538  symbol=str(sym),
+D:\fxbot\app\services\trade_service.py:550  sym = symbol or load_config().get("runtime", {}).get("symbol")
+D:\fxbot\app\services\trade_service.py:652  SERVICE.on_order_result(order_id=order_id, ok=ok, symbol=symbol)
+D:\fxbot\app\services\trade_service.py:660  SERVICE.on_order_success(ticket=ticket, side=side, symbol=symbol, price=price)
+D:\fxbot\app\services\trade_service.py:670  SERVICE.record_trade_result(symbol=symbol, side=side, profit_jpy=profit_jpy, info=info)
+D:\fxbot\app\services\trade_state.py:200  runtime["symbol"] = symbol
+D:\fxbot\app\services\trailing_hook.py:37  EVENT_STORE.add(kind="TRAIL", symbol=symbol, side=side, sl=float(new_sl), reason=reason, notes="DRYRUN")
+D:\fxbot\app\services\trailing_hook.py:38  logger.info(f"[TRAIL][DRYRUN] side={side} symbol={symbol} new_sl={new_sl} reason={reason}")
+D:\fxbot\app\services\trailing_hook.py:42  EVENT_STORE.add(kind="TRAIL", symbol=symbol, side=side, sl=float(new_sl), reason=reason, notes="SKIP")
+D:\fxbot\app\services\trailing_hook.py:44  f"[TRAIL][LIVE][SKIP] ticket={ticket} svc={_mt5svc} side={side} symbol={symbol} new_sl={new_sl}"
+D:\fxbot\app\services\trailing_hook.py:51  symbol=symbol,
+D:\fxbot\app\services\trailing_hook.py:60  symbol=symbol,
+D:\fxbot\app\services\trailing_hook.py:75  EVENT_STORE.add(kind="TRAIL", symbol=symbol, side=side, sl=float(new_sl), reason=reason, notes="NG")
+
+===== DIR: app\core =====
+D:\fxbot\app\core\backtest\backtest_engine.py:12  from app.core.trade.decision_logic import decide_signal
+D:\fxbot\app\core\backtest\backtest_engine.py:59  # decisions.jsonl の記録用
+D:\fxbot\app\core\backtest\backtest_engine.py:60  self.decisions: List[Dict[str, Any]] = []
+D:\fxbot\app\core\backtest\backtest_engine.py:114  バックテスト結果（equity_curve, trades, decisions のパスなど）
+D:\fxbot\app\core\backtest\backtest_engine.py:168  decision = self._build_decision(
+D:\fxbot\app\core\backtest\backtest_engine.py:176  signal_side = decision.get("signal", {}).get("side")
+D:\fxbot\app\core\backtest\backtest_engine.py:195  # decisions.jsonl に記録
+D:\fxbot\app\core\backtest\backtest_engine.py:196  decision_trace = self._build_decision_trace(
+D:\fxbot\app\core\backtest\backtest_engine.py:198  symbol=symbol,
+D:\fxbot\app\core\backtest\backtest_engine.py:200  decision=decision,
+D:\fxbot\app\core\backtest\backtest_engine.py:203  self.decisions.append(decision_trace)
+D:\fxbot\app\core\backtest\backtest_engine.py:259  # decision.action が "ENTRY" でない、または side が None の場合はブロック
+D:\fxbot\app\core\backtest\backtest_engine.py:260  action = decision.get("action")
+D:\fxbot\app\core\backtest\backtest_engine.py:261  side = decision.get("side")
+D:\fxbot\app\core\backtest\backtest_engine.py:267  signal_side = decision.get("signal", {}).get("side")
+D:\fxbot\app\core\backtest\backtest_engine.py:280  lot = decision.get("lot", 0.1)
+D:\fxbot\app\core\backtest\backtest_engine.py:282  sl = decision.get("signal", {}).get("sl")
+D:\fxbot\app\core\backtest\backtest_engine.py:283  tp = decision.get("signal", {}).get("tp")
+D:\fxbot\app\core\backtest\backtest_engine.py:357  def _build_decision(
+D:\fxbot\app\core\backtest\backtest_engine.py:415  def _build_decision_trace(
+D:\fxbot\app\core\backtest\backtest_engine.py:420  decision: Dict[str, Any],
+D:\fxbot\app\core\backtest\backtest_engine.py:424  decisions.jsonl 用のトレースを構築する
+D:\fxbot\app\core\backtest\backtest_engine.py:434  decision : Dict[str, Any]
+D:\fxbot\app\core\backtest\backtest_engine.py:442  decisions.jsonl 用のレコード
+D:\fxbot\app\core\backtest\backtest_engine.py:456  "filter_reasons": decision.get("filter_reasons", []),
+D:\fxbot\app\core\backtest\backtest_engine.py:461  signal_info = decision.get("signal", {})
+D:\fxbot\app\core\backtest\backtest_engine.py:463  # decision_context を構築（判断材料を分離）
+D:\fxbot\app\core\backtest\backtest_engine.py:464  decision_context = {
+D:\fxbot\app\core\backtest\backtest_engine.py:472  "filter_pass": decision.get("filter_pass"),
+D:\fxbot\app\core\backtest\backtest_engine.py:481  "decision": {
+D:\fxbot\app\core\backtest\backtest_engine.py:482  "action": decision.get("action", "SKIP"),
+D:\fxbot\app\core\backtest\backtest_engine.py:483  "side": decision.get("side"),
+D:\fxbot\app\core\backtest\backtest_engine.py:484  "reason": decision.get("reason"),
+D:\fxbot\app\core\backtest\backtest_engine.py:505  "type": "decision",
+D:\fxbot\app\core\backtest\backtest_engine.py:506  "symbol": symbol,
+D:\fxbot\app\core\backtest\backtest_engine.py:510  "filter_pass": decision.get("filter_pass"),  # 後方互換のため残す
+D:\fxbot\app\core\backtest\backtest_engine.py:514  "decision": decision.get("action", "SKIP"),  # 後方互換のため残す
+D:\fxbot\app\core\backtest\backtest_engine.py:515  "decision_detail": {  # 後方互換のため残す
+D:\fxbot\app\core\backtest\backtest_engine.py:516  "action": decision.get("action", "SKIP"),
+D:\fxbot\app\core\backtest\backtest_engine.py:517  "side": decision.get("side"),
+D:\fxbot\app\core\backtest\backtest_engine.py:519  "filter_pass": decision.get("filter_pass"),
+D:\fxbot\app\core\backtest\backtest_engine.py:522  "decision_context": decision_context,  # 新規追加：判断材料を分離
+D:\fxbot\app\core\backtest\backtest_engine.py:592  required_files = ["equity_curve", "trades", "monthly_returns", "decisions"]
+D:\fxbot\app\core\backtest\backtest_engine.py:635  # decisions.jsonl が最低1行dictとして読めるか
+D:\fxbot\app\core\backtest\backtest_engine.py:636  decisions_path = outputs.get("decisions")
+D:\fxbot\app\core\backtest\backtest_engine.py:637  if decisions_path:
+D:\fxbot\app\core\backtest\backtest_engine.py:638  dj = Path(decisions_path) if not isinstance(decisions_path, Path) else decisions_path
+D:\fxbot\app\core\backtest\backtest_engine.py:657  errors.append("decisions.jsonl has no readable JSON dict line")
+D:\fxbot\app\core\backtest\backtest_engine.py:659  errors.append(f"failed to read decisions.jsonl: {e!r}")
+D:\fxbot\app\core\backtest\backtest_engine.py:723  # decisions.jsonl を出力
+D:\fxbot\app\core\backtest\backtest_engine.py:724  decisions_jsonl = out_dir / "decisions.jsonl"
+D:\fxbot\app\core\backtest\backtest_engine.py:726  if self.decisions:
+D:\fxbot\app\core\backtest\backtest_engine.py:727  print(f"[BacktestEngine] decisions[0] type={type(self.decisions[0])} keys={list(self.decisions[0].keys())[:5] if isinstance(self.decisions[0], dict) else 'N/A'}")
+D:\fxbot\app\core\backtest\backtest_engine.py:728  # decisions.jsonl の最終整形：symbol は run() 引数を絶対優先（運用ログと整合させる）
+D:\fxbot\app\core\backtest\backtest_engine.py:730  for rec in self.decisions:
+D:\fxbot\app\core\backtest\backtest_engine.py:732  rec["symbol"] = symbol
+D:\fxbot\app\core\backtest\backtest_engine.py:733  if self.decisions and isinstance(self.decisions[0], dict):
+D:\fxbot\app\core\backtest\backtest_engine.py:734  print(f"[BacktestEngine] decisions[0].symbol(after)={self.decisions[0].get('symbol')!r}")
+D:\fxbot\app\core\backtest\backtest_engine.py:735  with open(decisions_jsonl, "w", encoding="utf-8") as f:
+D:\fxbot\app\core\backtest\backtest_engine.py:736  for decision in self.decisions:
+D:\fxbot\app\core\backtest\backtest_engine.py:737  normalized = self._normalize_for_json_recursive(decision)
+D:\fxbot\app\core\backtest\backtest_engine.py:739  print(f"[BacktestEngine] Wrote {decisions_jsonl}", flush=True)
+D:\fxbot\app\core\backtest\backtest_engine.py:741  # --- 集約 decisions.jsonl を更新（M5直下） ---
+D:\fxbot\app\core\backtest\backtest_engine.py:742  # 期間dir配下の decisions.jsonl が正なので、それを M5直下へ上書きして整合性を保つ
+D:\fxbot\app\core\backtest\backtest_engine.py:743  agg_decisions_jsonl = out_dir.parent / "decisions.jsonl"
+D:\fxbot\app\core\backtest\backtest_engine.py:745  with open(agg_decisions_jsonl, "w", encoding="utf-8") as f:
+D:\fxbot\app\core\backtest\backtest_engine.py:746  for decision in self.decisions:
+D:\fxbot\app\core\backtest\backtest_engine.py:747  normalized = self._normalize_for_json_recursive(decision)
+D:\fxbot\app\core\backtest\backtest_engine.py:749  print(f"[BacktestEngine] Wrote {agg_decisions_jsonl}", flush=True)
+D:\fxbot\app\core\backtest\backtest_engine.py:751  print(f"[BacktestEngine][warn] could not update aggregate decisions.jsonl: {e!r}", flush=True)
+D:\fxbot\app\core\backtest\backtest_engine.py:757  "decisions": decisions_jsonl,
+D:\fxbot\app\core\filter\strategy_filter_engine.py:63  注: decisions.jsonl に複数の理由を記録するため、
+D:\fxbot\app\core\trade\__init__.py:2  from app.core.trade.decision_logic import decide_signal, SignalDecision, Side
+D:\fxbot\app\core\trade\__init__.py:4  __all__ = ["decide_signal", "SignalDecision", "Side"]
+D:\fxbot\app\core\trade\decision_logic.py:1  # app/core/trade/decision_logic.py
+D:\fxbot\app\core\trade\decision_logic.py:12  class SignalDecision:
+D:\fxbot\app\core\trade\decision_logic.py:21  def to_decision_detail(
+D:\fxbot\app\core\trade\decision_logic.py:29  decision_detail 辞書を生成する。
+D:\fxbot\app\core\trade\decision_logic.py:45  decision_detail 辞書
+D:\fxbot\app\core\trade\decision_logic.py:63  ) -> SignalDecision:
+D:\fxbot\app\core\trade\decision_logic.py:72  return SignalDecision(
+D:\fxbot\app\core\trade\decision_logic.py:93  return SignalDecision(
+D:\fxbot\app\core\trade\decision_logic.py:111  return SignalDecision(
+D:\fxbot\app\core\mt5_client.py:17  "symbol",
+D:\fxbot\app\core\mt5_client.py:90  def order_send(
+D:\fxbot\app\core\mt5_client.py:123  logger.error(f"[order_send] symbol_info({symbol}) が None。シンボルが存在しない可能性")
+D:\fxbot\app\core\mt5_client.py:127  logger.info(f"[order_send] {symbol} が非表示なので symbol_select() します")
+D:\fxbot\app\core\mt5_client.py:129  logger.error(f"[order_send] symbol_select({symbol}, True) に失敗")
+D:\fxbot\app\core\mt5_client.py:135  logger.error(f"[order_send] symbol_info_tick({symbol}) が None。ティックが取得できない")
+D:\fxbot\app\core\mt5_client.py:149  "symbol": symbol,
+D:\fxbot\app\core\mt5_client.py:163  # --- 5) リトライ付き order_send ---
+D:\fxbot\app\core\mt5_client.py:166  f"[order_send] Try {attempt}/{retries}: {order_type} {lot} lot @ {price} {symbol}"
+D:\fxbot\app\core\mt5_client.py:169  result = MT5.order_send(request)
+D:\fxbot\app\core\mt5_client.py:173  logger.error(f"[order_send] result is None, last_error={last_error}")
+D:\fxbot\app\core\mt5_client.py:177  "[order_send] retcode=%s, order=%s, deal=%s, comment=%s",
+D:\fxbot\app\core\mt5_client.py:188  logger.info(f"[order_send] 成功: ticket={ticket}")
+D:\fxbot\app\core\mt5_client.py:191  logger.warning(f"[order_send] DONE だが ticket が取得できない: {result}")
+D:\fxbot\app\core\mt5_client.py:195  f"[order_send] 失敗 retcode={result.retcode}。再試行する場合があります"
+D:\fxbot\app\core\mt5_client.py:201  logger.error(f"[order_send] 全 {retries} 回リトライしても失敗。last_error={last_error}")
+D:\fxbot\app\core\mt5_client.py:210  pos = MT5.positions_get(ticket=ticket)
+D:\fxbot\app\core\mt5_client.py:231  "symbol": symbol,
+D:\fxbot\app\core\mt5_client.py:244  result = MT5.order_send(request)
+D:\fxbot\app\core\mt5_client.py:263  pos = MT5.positions_get()
+D:\fxbot\app\core\mt5_client.py:265  self.logger.warning("positions_get() returned None")
+D:\fxbot\app\core\mt5_client.py:269  self.logger.exception(f"positions_get() failed: {exc}")
+D:\fxbot\app\core\mt5_client.py:274  out = [p for p in rows if getattr(p, "symbol", None) == symbol]
+D:\fxbot\app\core\mt5_client.py:281  rows = [p for p in rows if getattr(p, "symbol", None) == symbol]
+D:\fxbot\app\core\mt5_client.py:295  "symbol": p.symbol,
+D:\fxbot\app\core\mt5_client.py:438  return client.get_positions_df(symbol=symbol)
+D:\fxbot\app\core\strategy_profile.py:129  symbol="USDJPY",
+D:\fxbot\app\core\symbol_map.py:29  def resolve_symbol(pair: str) -> str:
+
+===== DIR: app\gui =====
+D:\fxbot\app\gui\ai_tab.py:23  from app.services.recent_kpi import compute_recent_kpi_from_decisions
+D:\fxbot\app\gui\ai_tab.py:179  recent_kpi.compute_recent_kpi_from_decisions を呼び出し、
+D:\fxbot\app\gui\ai_tab.py:185  result = compute_recent_kpi_from_decisions(
+D:\fxbot\app\gui\backtest_tab.py:914  form.addWidget(QtWidgets.QLabel("Symbol"), r, 0); form.addWidget(self.symbol_edit, r, 1)
+D:\fxbot\app\gui\backtest_tab.py:1340  for k in ("symbol", "timeframe", "train_period", "test_period", "pf_train", "pf_test", "win_rate_train", "win_rate_test"):
+D:\fxbot\app\gui\backtest_tab.py:1742  # decisions.jsonl の読み込み処理（あれば AIタブへ連動）
+D:\fxbot\app\gui\backtest_tab.py:1743  decisions_jsonl = out_dir / "decisions.jsonl"
+D:\fxbot\app\gui\backtest_tab.py:1744  if decisions_jsonl.exists():
+D:\fxbot\app\gui\backtest_tab.py:1748  self._append_progress(f"[gui] decisions.jsonl を検出しました: {decisions_jsonl}")
+D:\fxbot\app\gui\backtest_tab.py:1751  self._append_progress(f"[gui] decisions.jsonl 処理に失敗しました: {e!r}")
+D:\fxbot\app\gui\backtest_tab.py:1790  "symbol": sym, "timeframe": tf,
+D:\fxbot\app\gui\control_tab.py:145  symbol = cfg.get("runtime", {}).get("symbol", "USDJPY-")
+D:\fxbot\app\gui\dashboard_tab_qt.py:24  ("Last decision", "last_decision"),
+D:\fxbot\app\gui\dashboard_tab_qt.py:75  self._set("last_decision", str(kv.get("last_decision", "-")))
+D:\fxbot\app\gui\dashboard_tab.py:39  ("Last decision", "last_decision"),
+D:\fxbot\app\gui\dashboard_tab.py:84  self._vars["last_decision"].set(str(kv.get("last_decision", "-")))
+D:\fxbot\app\gui\history_tab.py:14  _COLUMNS = ["ts", "kind", "symbol", "side", "price", "sl", "tp", "profit_jpy", "reason", "notes"]
+D:\fxbot\app\gui\kpi_tab.py:122  summary = history_service.summarize_ops_history(symbol=symbol)
+D:\fxbot\app\gui\ops_tab.py:86  self.list_history.setHeaderLabels(["時刻", "Symbol", "Status", "Step"])
+D:\fxbot\app\gui\ops_tab.py:206  symbol=symbol,
+D:\fxbot\app\gui\ops_tab.py:339  symbol = rec.get("symbol", "")
+D:\fxbot\app\gui\scheduler_tab.py:32  from app.services.condition_mining_facade import get_decisions_recent_past_min_stats, get_condition_candidates
+D:\fxbot\app\gui\scheduler_tab.py:900  out = get_decisions_recent_past_min_stats(symbol)

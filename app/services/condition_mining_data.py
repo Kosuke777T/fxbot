@@ -124,14 +124,7 @@ def get_decisions_window_summary(
     }
 
 def get_decisions_recent_past_summary(symbol: str) -> dict:
-    """Aggregate recent/past windows and attach minimal stats.
-
-    Returns:
-      {
-        "recent": <window_summary_dict>,
-        "past": <window_summary_dict>,
-      }
-    """
+    """Aggregate recent/past windows and attach minimal stats."""
     recent = get_decisions_window_summary(
         symbol=symbol,
         window="recent",
@@ -148,6 +141,23 @@ def get_decisions_recent_past_summary(symbol: str) -> dict:
     recent["min_stats"] = _min_stats(r_rows)
     past["min_stats"] = _min_stats(p_rows)
 
+    # ★★★ ここが今回の本丸 ★★★
+    if (
+        not recent.get("start_ts")
+        or not recent.get("end_ts")
+        or not past.get("start_ts")
+        or not past.get("end_ts")
+    ):
+        sR, eR, sP, eP = _resolve_recent_past_window()
+        if recent.get("start_ts") is None:
+            recent["start_ts"] = sR.isoformat()
+        if recent.get("end_ts") is None:
+            recent["end_ts"] = eR.isoformat()
+
+        if past.get("start_ts") is None:
+            past["start_ts"] = sP.isoformat()
+        if past.get("end_ts") is None:
+            past["end_ts"] = eP.isoformat()
     return {"recent": recent, "past": past}
 
 # --- T-42-3-18 Step 3: minimal window stats (recent/past) -----------------
@@ -195,6 +205,25 @@ def _min_stats(rows):
         "entry_count": int(entry_cnt),
         "entry_rate": float(entry_cnt) / float(denom),
     }
+
+
+def _resolve_recent_past_window(
+    now_utc: datetime | None = None,
+    recent_minutes: int = 30,
+    past_days: int = 1,
+):
+    """recent/past の window をUTCで返すフォールバック"""
+    if now_utc is None:
+        now_utc = datetime.now(timezone.utc)
+
+    end_recent = now_utc
+    start_recent = now_utc - timedelta(minutes=recent_minutes)
+
+    start_past = start_recent - timedelta(days=past_days)
+    end_past = end_recent - timedelta(days=past_days)
+
+    return start_recent, end_recent, start_past, end_past
+
 
 
 

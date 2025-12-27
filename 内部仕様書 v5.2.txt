@@ -301,3 +301,27 @@ SHAP全件プロッター
 ランキングAPI切替（mock→prod）
 
 Scheduler 強制起動ツール
+
+========================
+MT5シンボル差異の吸収（ブローカー互換）
+========================
+
+## 用語
+- pair: 論理通貨ペア名（例: USDJPY）。GUI/設定/集計の基準。
+- symbol: MT5の実シンボル名（例: USDJPY-, USDJPY.r 等）。発注時の実体。
+
+## 設計方針（重要）
+- ミチビキは業者ごとのシンボル差異を吸収するため、内部的には pair を正とし、
+  MT5へアクセスする直前に symbol を解決する。
+- symbol 解決は app/core/symbol_map.py の resolve_symbol(pair) を使用する。
+- symbols_mt5.json が無い / 対応が無い場合はフォールバックとして pair をそのまま symbol として扱う（後方互換）。
+
+## symbols_mt5.json の生成
+- scripts/discover_symbols.py により MT5(symbols_get) から取引可能シンボルを探索し、
+  configs/symbols_mt5.json を生成する。
+- preferred は pair -> symbol の対応表であり、発注時に参照する。
+- ブローカー/口座/サーバを変更した場合は symbols_mt5.json を再生成する（サーバ名はファイル内 broker_server に記録される）。
+
+## ログ（再発防止）
+- decision/ops 等のログは、可能なら pair と symbol の両方を記録する。
+  これにより USDJPY と USDJPY- 等の表記差異があっても分析・突合が安定する。

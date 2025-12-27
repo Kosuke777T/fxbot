@@ -1,0 +1,109 @@
+
+=== HIT: resolve_symbol( ===
+D:\fxbot\app\core\symbol_map.py:29  def resolve_symbol(pair: str) -> str:
+D:\fxbot\scripts\make_csv_from_mt5.py:119  def resolve_symbol(base: str) -> str:
+D:\fxbot\scripts\make_csv_from_mt5.py:484  resolved_symbol = resolve_symbol(symbol)
+
+=== HIT: symbols_mt5.json ===
+D:\fxbot\app\core\symbol_map.py:9  _SYMBOL_MAP_PATH = Path("configs") / "symbols_mt5.json"
+D:\fxbot\scripts\discover_symbols.py:13  OUTPUT_PATH = Path("configs") / "symbols_mt5.json"
+
+=== HIT: discover_symbols ===
+D:\fxbot\scripts\discover_symbols.py:1  # scripts/discover_symbols.py
+
+=== HIT: decision_log ===
+D:\fxbot\app\core\backtest\backtest_engine.py:12  from app.core.trade.decision_logic import decide_signal
+D:\fxbot\app\core\trade\__init__.py:2  from app.core.trade.decision_logic import decide_signal, SignalDecision, Side
+D:\fxbot\app\core\trade\decision_logic.py:1  # app/core/trade/decision_logic.py
+D:\fxbot\app\services\condition_mining_data.py:7  from app.services import decision_log
+D:\fxbot\app\services\condition_mining_data.py:24  root = decision_log._get_decision_log_dir()
+D:\fxbot\app\services\condition_mining_data.py:81  for j in decision_log._iter_jsonl(path):
+D:\fxbot\app\services\decision_log.py:1  # app/services/decision_log.py
+D:\fxbot\app\services\decision_log.py:197  def _get_decision_log_dir() -> Path:
+D:\fxbot\app\services\decision_log.py:211  log_dir = _get_decision_log_dir()
+D:\fxbot\app\services\diagnosis_service.py:10  from app.services.decision_log import _iter_jsonl, _get_decision_log_dir
+D:\fxbot\app\services\diagnosis_service.py:112  log_dir = _get_decision_log_dir()
+D:\fxbot\app\services\execution_service.py:11  # 注意: 将来 decision_logic が肥大化した場合、
+D:\fxbot\app\services\execution_service.py:13  from app.core.trade.decision_logic import decide_signal
+D:\fxbot\app\services\execution_service.py:305  # execution_stub の _write_decision_log を使用（validate_runtime を含む）
+D:\fxbot\app\services\execution_service.py:306  from app.services.execution_stub import _write_decision_log
+D:\fxbot\app\services\execution_service.py:313  # _write_decision_log を呼ぶ（validate_runtime が含まれる）
+D:\fxbot\app\services\execution_service.py:314  _write_decision_log(symbol, record)
+D:\fxbot\app\services\execution_stub.py:354  def _write_decision_log(symbol: str, record: Dict[str, Any]) -> None:
+D:\fxbot\app\services\execution_stub.py:1458  _write_decision_log(symbol, trace)
+D:\fxbot\app\services\execution_stub.py:2213  _write_decision_log("USDJPY-", trace)
+D:\fxbot\app\services\recent_kpi.py:8  from app.services.decision_log import load_recent_decisions
+D:\fxbot\tools\decision_compare.py:36  def load_decision_logs(glob_pattern: str) -> List[Dict[str, Any]]:
+D:\fxbot\tools\decision_compare.py:1101  live_records = load_decision_logs(args.decisions_glob)
+D:\fxbot\tools\decision_compare.py:1102  backtest_records = load_decision_logs(args.backtest_glob)
+D:\fxbot\tools\live_runtime_smoke.py:7  DecisionsLogger.log() → _write_decision_log() → validate_runtime() が
+D:\fxbot\tools\live_runtime_smoke.py:126  # 警告は _write_decision_log() 内で logger.warning() として出力される
+
+=== HIT: USDJPY- ===
+D:\fxbot\app\core\backtest\backtest_engine.py:97  symbol: str = "USDJPY-",
+D:\fxbot\app\core\backtest\backtest_engine.py:729  # （生成側が USDJPY を入れても成果物は USDJPY- に統一される）
+D:\fxbot\app\core\strategy_profile.py:42  symbol: str  # 例: "USDJPY" / "USDJPY-"
+D:\fxbot\app\gui\backtest_tab.py:884  self.symbol_edit = QtWidgets.QLineEdit("USDJPY-")
+D:\fxbot\app\gui\backtest_tab.py:1363  # "USDJPY" → "USDJPY-" に変換（symbol は 'USDJPY-' が正）
+D:\fxbot\app\gui\backtest_tab.py:1365  sym = "USDJPY-"
+D:\fxbot\app\gui\backtest_tab.py:1412  # "USDJPY" → "USDJPY-" に変換（symbol は 'USDJPY-' が正）
+D:\fxbot\app\gui\backtest_tab.py:1414  sym = "USDJPY-"
+D:\fxbot\app\gui\backtest_tab.py:1783  # "USDJPY" → "USDJPY-" に変換（symbol は 'USDJPY-' が正）
+D:\fxbot\app\gui\backtest_tab.py:1785  sym = "USDJPY-"
+D:\fxbot\app\gui\control_tab.py:145  symbol = cfg.get("runtime", {}).get("symbol", "USDJPY-")
+D:\fxbot\app\gui\ops_tab.py:50  self.ed_symbol.setPlaceholderText("USDJPY-")
+D:\fxbot\app\gui\ops_tab.py:167  self.ed_symbol.setText("USDJPY-")
+D:\fxbot\app\gui\ops_tab.py:180  symbol = self.ed_symbol.text().strip() or "USDJPY-"
+D:\fxbot\app\gui\scheduler_tab.py:899  symbol = "USDJPY-"  # 仕様: symbol は USDJPY-
+D:\fxbot\app\services\condition_mining_facade.py:268  # 2) decisions フォルダ（USDJPY- なら USDJPY に寄せる）
+D:\fxbot\app\services\data_guard.py:25  # MT5用シンボル（USDJPY-）をCSV用シンボル（USDJPY）に正規化
+D:\fxbot\app\services\execution_service.py:32  # 例: USDJPY- → logs/decisions/decisions_USDJPY-.jsonl
+D:\fxbot\app\services\execution_service.py:246  symbol = "USDJPY-"
+D:\fxbot\app\services\execution_service.py:247  → logs/decisions/decisions_USDJPY-.jsonl
+D:\fxbot\app\services\execution_service.py:256  "symbol": "USDJPY-",
+D:\fxbot\app\services\execution_service.py:514  symbol = runtime_cfg.get("symbol", "USDJPY-")
+D:\fxbot\app\services\execution_service.py:516  symbol = "USDJPY-"
+D:\fxbot\app\services\execution_service.py:1003  symbol = runtime_cfg.get("symbol", "USDJPY-")
+D:\fxbot\app\services\execution_service.py:1005  symbol = "USDJPY-"
+D:\fxbot\app\services\execution_stub.py:2133  self.meta = {"symbol": "USDJPY-", "profile": "std"}
+D:\fxbot\app\services\execution_stub.py:2188  symbol="USDJPY-",
+D:\fxbot\app\services\execution_stub.py:2213  _write_decision_log("USDJPY-", trace)
+D:\fxbot\app\services\mt5_selftest.py:253  symbol: str = "USDJPY-",
+D:\fxbot\app\services\mt5_selftest.py:264  テスト対象のシンボル（デフォルト: "USDJPY-"）
+D:\fxbot\app\services\ops_history_service.py:261  normalized["symbol"] = rec.get("Symbol") or rec.get("symbol") or "USDJPY-"
+D:\fxbot\app\services\ops_history_service.py:645  symbol = normalized.get("symbol", "USDJPY-")
+D:\fxbot\app\services\ops_history_service.py:977  "symbol": normalized_rec.get("symbol", "USDJPY-"),
+D:\fxbot\app\services\ops_service.py:31  symbol: str = "USDJPY-",
+D:\fxbot\app\services\ops_service.py:41  symbol: シンボル（例: "USDJPY-"）
+D:\fxbot\app\services\profile_stats_service.py:153  """symbol: 'USDJPY-' を前提"""
+D:\fxbot\app\services\profiles_store.py:33  def load_profiles(symbol: str = "USDJPY-") -> List[str]:
+D:\fxbot\app\services\profiles_store.py:38  symbol: シンボル（現時点では "USDJPY-" 固定）
+D:\fxbot\app\services\profiles_store.py:68  def save_profiles(profiles: List[str], symbol: str = "USDJPY-") -> None:
+D:\fxbot\app\services\profiles_store.py:74  symbol: シンボル（現時点では "USDJPY-" 固定）
+D:\fxbot\app\services\recent_kpi.py:222  base = self.root / "logs" / "backtest" / "USDJPY-"  # TODO: symbol固定 → 後で改善
+D:\fxbot\scripts\demo_run_stub.py:18  (注: symbol "USDJPY-" は _symbol_to_filename() により "USDJPY" に変換される)
+D:\fxbot\scripts\demo_run_stub.py:162  # シンボルを 'USDJPY-' に統一
+D:\fxbot\scripts\demo_run_stub.py:163  symbol = "USDJPY-"
+D:\fxbot\scripts\export_mt5_history.py:13  SYMBOL = os.environ.get("FXBOT_SYMBOL", "USDJPY-")
+D:\fxbot\scripts\live_runner.py:34  default="USDJPY-",
+D:\fxbot\scripts\live_runner.py:35  help="スモークテストのシンボル（デフォルト: USDJPY-）",
+D:\fxbot\scripts\make_csv_from_mt5.py:9  - シンボル接尾辞（例: USDJPY-）は自動解決
+D:\fxbot\scripts\make_csv_from_mt5.py:483  # シンボル解決（USDJPY / USDJPY- など）
+D:\fxbot\scripts\selftest_order_flow.py:56  symbol = os.getenv("FXBOT_TEST_SYMBOL", "USDJPY-")
+D:\fxbot\scripts\walkforward_retrain.py:213  # 記号付きシンボル（USDJPY- 等）から英字だけのバージョンも作る
+D:\fxbot\scripts\walkforward_retrain.py:555  default="USDJPY-",
+D:\fxbot\scripts\walkforward_retrain.py:556  help="例: USDJPY- （未指定時は安全なデフォルト）",
+D:\fxbot\scripts\weekly_retrain.py:779  # config の symbol が "USDJPY-" でも、
+D:\fxbot\tools\backtest_run.py:635  symbol: str = "USDJPY-",
+D:\fxbot\tools\backtest_run.py:1050  ap.add_argument("--symbol", default="USDJPY-")
+D:\fxbot\tools\live_runtime_smoke.py:77  symbol = "USDJPY-"
+D:\fxbot\tools\mt5_smoke.py:9  # デフォルト設定で実行（USDJPY-, 0.01 lot, 即クローズ）
+D:\fxbot\tools\mt5_smoke.py:64  default="USDJPY-",
+D:\fxbot\tools\mt5_smoke.py:65  help="テスト対象のシンボル（デフォルト: USDJPY-）",
+D:\fxbot\tools\ops_start.py:18  python -m tools.ops_start --symbol USDJPY- --dry 0 --close-now 1
+D:\fxbot\tools\ops_start.py:21  python -m tools.ops_start --symbol USDJPY- --dry 1
+D:\fxbot\tools\ops_start.py:47  default="USDJPY-",
+D:\fxbot\tools\ops_start.py:48  help="テスト対象のシンボル（デフォルト: USDJPY-）",
+D:\fxbot\tools\profile_switch_analyzer.py:95  default="USDJPY-",
+D:\fxbot\tools\profile_switch_analyzer.py:96  help="symbol name (default: USDJPY-)",
+D:\fxbot\fxbot_path.py:76  例: "USDJPY-" -> "USDJPY" , "USDJPY.m" -> "USDJPY"
