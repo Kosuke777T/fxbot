@@ -37,15 +37,15 @@ def ensure_logged_in() -> None:
     print(f"Account: {ai.login} / {ai.server}")
 
 def ensure_symbol(symbol: str) -> None:
-    info = mt5.symbol_info(resolve_symbol(\))
+    info = mt5.symbol_info(resolve_symbol(symbol))
     if info is None:
         die(f"symbol_info({symbol}) is None. last_error={mt5.last_error()}")
     if not info.visible:
-        if not mt5.symbol_select(resolve_symbol(\), True):
+        if not mt5.symbol_select(resolve_symbol(symbol), True):
             die(f"symbol_select({symbol}) failed. last_error={mt5.last_error()}")
     # 試しに最新ティックも触っておく
-    _ = mt5.symbol_info_tick(resolve_symbol(\))
-    print(f"Symbol {symbol} ready (visible={mt5.symbol_info(resolve_symbol(\)).visible})")
+    _ = mt5.symbol_info_tick(resolve_symbol(symbol))
+    print(f"Symbol {symbol} ready (visible={mt5.symbol_info(resolve_symbol(symbol)).visible})")
 
 def try_copy_small(symbol: str, timeframe: int, count: int = 1000) -> int:
     rates = mt5.copy_rates_from_pos(symbol, timeframe, 0, count)

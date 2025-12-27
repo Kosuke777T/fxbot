@@ -133,10 +133,10 @@ def resolve_symbol(base: str) -> str:
     tried = []
     for sym in candidates:
         tried.append(sym)
-        info = mt5.symbol_info(resolve_symbol(\))
+        info = mt5.symbol_info(resolve_symbol(symbol))
         if info is not None:
             if not info.visible:
-                mt5.symbol_select(resolve_symbol(\), True)
+                mt5.symbol_select(resolve_symbol(symbol), True)
             return sym
     log(f"[warn] symbol resolve failed. tried={tried}")
     return base
@@ -485,7 +485,7 @@ def main():
     if resolved_symbol != symbol:
         log(f"symbol resolved: {symbol} -> {resolved_symbol}")
     symbol = resolved_symbol
-    mt5.symbol_select(resolve_symbol(\), True)
+    mt5.symbol_select(resolve_symbol(symbol), True)
 
     # CSV 用の “接尾辞なしタグ” を作成（英字のみ抽出）
     global FILE_TAG

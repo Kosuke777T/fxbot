@@ -28,7 +28,7 @@ OUT_META = Path("logs/val_export_meta.json")
 
 # ====== MT5初期化 ======
 def _ensure_symbol(symbol: str) -> str:
-    if mt5.symbol_select(resolve_symbol(\), True):
+    if mt5.symbol_select(resolve_symbol(symbol), True):
         return symbol
     upper = symbol.upper()
     cands = [s.name for s in mt5.symbols_get() if s.name.upper().startswith(upper)]
@@ -36,7 +36,7 @@ def _ensure_symbol(symbol: str) -> str:
         raise RuntimeError(f"no candidates for '{symbol}'")
     best = sorted(cands, key=len)[0]
     best = str(best)
-    if not mt5.symbol_select(resolve_symbol(\), True):
+    if not mt5.symbol_select(resolve_symbol(symbol), True):
         raise RuntimeError(f"symbol_select failed for '{best}'")
     return best
 

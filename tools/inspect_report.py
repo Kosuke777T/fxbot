@@ -1,4 +1,4 @@
-﻿import json, glob
+import json, glob
 
 rp = sorted(glob.glob("logs/retrain/report_*.json"))[-1]
 with open(rp, encoding="utf-8") as f:
