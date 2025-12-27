@@ -29,7 +29,7 @@ from PyQt6.QtWidgets import (
 
 from app.services.ai_service import get_model_metrics, get_active_model_meta
 from app.services.ops_overview_facade import get_ops_overview
-from app.services.condition_mining_facade import get_decisions_recent_past_min_stats
+from app.services.condition_mining_facade import get_decisions_recent_past_min_stats, get_condition_candidates
 from app.services.recent_kpi import KPIService as RecentKPIService
 from app.services.scheduler_facade import (
     get_scheduler_snapshot,
@@ -251,10 +251,11 @@ class SchedulerTab(QWidget):
 
         # ---- Ops Overview Panel (T-42-3-14) ----
         self.ops_overview_box = QGroupBox("Ops Overview", self)
-        self.lbl_cm_recent = QLabel()
-        self.lbl_cm_recent.setText("-")  # condition_mining: recent min_stats
-        self.lbl_cm_past = QLabel()
-        self.lbl_cm_past.setText("-")    # condition_mining: past min_stats
+        self.lbl_cm_recent = QLabel("-", self)
+        self.lbl_cm_recent_cand = QLabel("-", self)
+        self.lbl_cm_past = QLabel("-", self)
+        self.lbl_cm_past_cand = QLabel("-", self)
+# condition_mining: past min_stats
         ops_overview_form = QFormLayout(self.ops_overview_box)
 
         self.lbl_next_action = QLabel("-", self)
@@ -272,7 +273,9 @@ class SchedulerTab(QWidget):
         ops_overview_form.addRow("generated_at", self.lbl_generated)
 
         ops_overview_form.addRow("cm_recent_min_stats", self.lbl_cm_recent)
+        ops_overview_form.addRow("cm_recent_candidates", self.lbl_cm_recent_cand)
         ops_overview_form.addRow("cm_past_min_stats", self.lbl_cm_past)
+        ops_overview_form.addRow("cm_past_candidates", self.lbl_cm_past_cand)
         root.addWidget(self.ops_overview_box)
         # ---- /Ops Overview Panel ----
 
@@ -416,6 +419,33 @@ class SchedulerTab(QWidget):
 
         # 初回描画
         self.refresh()
+
+    def _fmt_candidates(self, items):
+
+        try:
+
+            arr = items or []
+
+            top = arr[:3]
+
+            if not top:
+
+                return "-"
+
+            parts = []
+
+            for x in top:
+
+                if isinstance(x, dict):
+
+                    parts.append(str(x.get("reason")) + "(" + str(x.get("count")) + ")")
+
+            return " / ".join(parts) if parts else "-"
+
+        except Exception:
+
+            return "-"
+
 
     def refresh(self, checked: bool = False, snap: dict | None = None) -> None:
         # clicked(bool) から来た checked が snap に入らないよう防御（保険）
@@ -881,6 +911,15 @@ class SchedulerTab(QWidget):
             
                 self.lbl_cm_recent.setText(_fmt(r) if r else "-")
                 self.lbl_cm_past.setText(_fmt(p2) if p2 else "-")
+                # --- T-42-3-22: condition_mining candidates ---
+                try:
+                    cc = get_condition_candidates(symbol, top_n=10) or {}
+                    self.lbl_cm_recent_cand.setText(self._fmt_candidates((cc.get("recent") or {}).get("candidates") or []))
+                    self.lbl_cm_past_cand.setText(self._fmt_candidates((cc.get("past") or {}).get("candidates") or []))
+                except Exception:
+                    self.lbl_cm_recent_cand.setText("-")
+                    self.lbl_cm_past_cand.setText("-")
+                # --- /T-42-3-22 ---
             except Exception:
                 self.lbl_cm_recent.setText("-")
                 self.lbl_cm_past.setText("-")
