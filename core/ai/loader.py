@@ -260,3 +260,4 @@ def load_lgb_clf(model_path: str | None = None, *, meta_path: str | None = None)
 def build_feature_vector(features: dict, order: list[str]) -> pd.DataFrame:
     row = [features.get(k, 0.0) for k in order]
     return pd.DataFrame([row], columns=order)
+

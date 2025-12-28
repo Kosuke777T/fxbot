@@ -55,59 +55,70 @@ def _to_utc(jst_str: str) -> datetime:
 
 # ====== 特徴量（dryrunと同じ定義） ======
 def make_features_df(df: pd.DataFrame) -> pd.DataFrame:
-    close, high, low, open_ = df["close"], df["high"], df["low"], df["open"]
+    # LGBMClassifier (base_model) が要求する 20特徴に合わせる
+    # ['open','high','low','close','tick_volume','spread','real_volume',
+    #  'ret1','ret5','ret20','sma_10','sma_50','ema_20','rsi_14',
+    #  'bb_high_20_2','bb_low_20_2','stoch_k_14_3','stoch_d_14_3',
+    #  'atr_14','vol_pct_20']
 
-    ema_5  = close.ewm(span=5, adjust=False).mean()
-    ema_20 = close.ewm(span=20, adjust=False).mean()
+    out = pd.DataFrame(index=df.index)
 
+    # 0) raw columns（無ければ0埋め）
+    for c in ["open","high","low","close","tick_volume","spread","real_volume"]:
+        if c in df.columns:
+            out[c] = df[c].astype(float)
+        else:
+            out[c] = 0.0
+
+    close = out["close"]
+    high  = out["high"]
+    low   = out["low"]
+    tv    = out["tick_volume"]
+
+    # 1) returns
+    out["ret1"]  = (close / close.shift(1)  - 1.0)
+    out["ret5"]  = (close / close.shift(5)  - 1.0)
+    out["ret20"] = (close / close.shift(20) - 1.0)
+
+    # 2) MA/EMA
+    out["sma_10"] = close.rolling(10, min_periods=1).mean()
+    out["sma_50"] = close.rolling(50, min_periods=1).mean()
+    out["ema_20"] = close.ewm(span=20, adjust=False).mean()
+
+    # 3) RSI(14)（Wilderに近い平滑）
     delta = close.diff()
     up = delta.clip(lower=0.0)
     down = -delta.clip(upper=0.0)
     roll_up = up.ewm(alpha=1/14, adjust=False).mean()
     roll_down = down.ewm(alpha=1/14, adjust=False).mean()
     rs = roll_up / roll_down.replace(0, np.nan)
-    rsi_14 = (100.0 - (100.0 / (1.0 + rs))).fillna(50.0)
+    out["rsi_14"] = (100.0 - (100.0 / (1.0 + rs))).fillna(50.0)
 
+    # 4) Bollinger (20, 2)
+    mid = close.rolling(20, min_periods=1).mean()
+    sd  = close.rolling(20, min_periods=1).std(ddof=0).fillna(0.0)
+    out["bb_high_20_2"] = mid + 2.0 * sd
+    out["bb_low_20_2"]  = mid - 2.0 * sd
+
+    # 5) Stoch (14,3) %K and %D
+    ll14 = low.rolling(14, min_periods=1).min()
+    hh14 = high.rolling(14, min_periods=1).max()
+    denom = (hh14 - ll14).replace(0, np.nan)
+    k = ((close - ll14) / denom * 100.0).fillna(50.0)
+    out["stoch_k_14_3"] = k.rolling(3, min_periods=1).mean()
+    out["stoch_d_14_3"] = out["stoch_k_14_3"].rolling(3, min_periods=1).mean()
+
+    # 6) ATR(14)
     tr1 = (high - low).abs()
     tr2 = (high - close.shift()).abs()
     tr3 = (low - close.shift()).abs()
     tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
-    atr_14_abs = tr.ewm(alpha=1/14, adjust=False).mean()
-    atr_14 = (atr_14_abs / close.replace(0, np.nan)).fillna(0.0)
+    out["atr_14"] = tr.ewm(alpha=1/14, adjust=False).mean()
 
-    plus_dm  = (high.diff()).clip(lower=0.0)
-    minus_dm = (-low.diff()).clip(lower=0.0)
-    plus_dm[plus_dm < minus_dm] = 0.0
-    minus_dm[minus_dm <= plus_dm] = 0.0
-    tr_smooth = tr.ewm(alpha=1/14, adjust=False).mean()
-    plus_di = 100 * (plus_dm.ewm(alpha=1/14, adjust=False).mean() / tr_smooth.replace(0, np.nan))
-    minus_di = 100 * (minus_dm.ewm(alpha=1/14, adjust=False).mean() / tr_smooth.replace(0, np.nan))
-    dx = 100 * ((plus_di - minus_di).abs() / (plus_di + minus_di).replace(0, np.nan))
-    adx_14 = dx.ewm(alpha=1/14, adjust=False).mean().fillna(20.0)
+    # 7) vol_pct_20（tick_volume の 20期間変化率：現在/20本前 - 1）
+    out["vol_pct_20"] = (tv / tv.shift(20) - 1.0)
 
-    bb_ma = close.rolling(20).mean()
-    bb_std = close.rolling(20).std(ddof=0)
-    bb_upper = bb_ma + 2 * bb_std
-    bb_lower = bb_ma - 2 * bb_std
-    bbp = ((close - bb_lower) / (bb_upper - bb_lower)).replace([np.inf, -np.inf], np.nan).clip(0.0, 1.0).fillna(0.5)
-
-    # volume由来の特徴は省略（学習時に使っていれば追加）
-    body_high = np.maximum(open_, close)
-    body_low  = np.minimum(open_, close)
-    upper_wick = (high - body_high).clip(lower=0.0)
-    lower_wick = (body_low - low).clip(lower=0.0)
-    rng = (high - low).replace(0, np.nan)
-    wick_ratio = ((upper_wick + lower_wick) / rng).clip(0.0, 1.0).fillna(0.0)
-
-    out = pd.DataFrame({
-        "ema_5": ema_5 - ema_20,
-        "ema_20": (ema_20 - close) / close.replace(0, np.nan),
-        "rsi_14": rsi_14,
-        "atr_14": atr_14,
-        "adx_14": adx_14,
-        "bbp": bbp,
-        "wick_ratio": wick_ratio,
-    })
+    # clean
     return out.replace([np.inf, -np.inf], 0.0).fillna(0.0)
 
 def main() -> None:
@@ -160,7 +171,8 @@ def main() -> None:
 
     # 特徴量順（存在しなければ現在列で進む）
     try:
-        order = _read_feature_order("models/LightGBM_clf.features.json")
+        # feature order: model が持つ feature_name_ を最優先（運用でのモデル切替に強い）        base = getattr(model, "base_model", None) or getattr(model, "_base_model", None)
+        order = list(getattr(base, "feature_name_", []) or [])
     except Exception:
         order = None
     if not order:
@@ -217,5 +229,10 @@ def main() -> None:
 #
 if __name__ == "__main__":
     main()
+
+
+
+
+
 
 
