@@ -1,11 +1,19 @@
 # tools/train_scaler.py
-from pathlib import Path
 import json
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
+
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+PROJECT_ROOT = ROOT
+
 from app.strategies.ai_strategy import build_features_recipe
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DATA_PATH = PROJECT_ROOT / "data" / "USDJPY" / "ohlcv" / "USDJPY_M15.csv"
 INFO_PATH = PROJECT_ROOT / "models" / "LightGBM_info.json"
 OUT_DIR = PROJECT_ROOT / "models" / "scalers"
