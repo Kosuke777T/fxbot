@@ -95,3 +95,18 @@ get_active_model_meta() は dict を返す（keys: ['file','n_features','head','
 
 “GUIがまず落ちない” を優先して、meta は後で正式ルートに寄せられる構造にした
 
+T-43-3 Step2-4
+GUI は get_condition_mining_ops_snapshot() 一択（表示側は snapshot 固定形に依存してよい）
+
+decisions が 0 件でも 例外で落とさず、warnings と ops_cards_first で「縮退理由」を返す
+
+“証拠” は evidence_kind / evidence_src で辿れる（今回は ops_card / logs/decisions_*.jsonl）
+
+PowerShell + python -c は quoting 地獄なので、最終的に安定したのは
+
+Set-Location D:\fxbot を固定
+
+PYTHONPATH=D:\fxbot を明示
+
+python -c @" ... "@ のワンショットで完結
+という運用ルール（このパターンが再利用可能）
