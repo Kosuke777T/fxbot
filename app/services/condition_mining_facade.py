@@ -29,6 +29,34 @@ def get_decisions_recent_past_min_stats(symbol: str) -> Dict[str, Any]:
         }
 
 
+def get_decisions_recent_past_window_info(symbol: str, profile: Optional[str] = None, **kwargs) -> Dict[str, Any]:
+    """
+    Facade: recent/past の件数・期間（start/end）を即取得できる薄いラッパー。
+    ついでに min_stats も同梱（GUIやOpsで同時に使うため・後方互換）。
+    """
+    try:
+        summary = get_decisions_recent_past_summary(symbol, profile=profile, **kwargs)
+        recent = (summary.get("recent") or {})
+        past = (summary.get("past") or {})
+        return {
+            "recent": {
+                "n": int(recent.get("n", 0) or 0),
+                "range": recent.get("range", {"start": None, "end": None}),
+                "min_stats": (recent.get("min_stats") or {}),
+            },
+            "past": {
+                "n": int(past.get("n", 0) or 0),
+                "range": past.get("range", {"start": None, "end": None}),
+                "min_stats": (past.get("min_stats") or {}),
+            },
+        }
+    except Exception:
+        return {
+            "recent": {"n": 0, "range": {"start": None, "end": None}, "min_stats": {}},
+            "past": {"n": 0, "range": {"start": None, "end": None}, "min_stats": {}},
+        }
+
+
 def _extract_decisions_list(win: Dict[str, Any]) -> List[Dict[str, Any]]:
     """window summary から decisions の配列を取り出す（仕様差分に耐える）"""
     if not isinstance(win, dict):
@@ -213,39 +241,6 @@ def get_condition_diagnostics(symbol: str) -> Dict[str, Any]:
         "past_min_stats": ((c.get("past") or {}).get("stats") or {}),
         "warnings": (c.get("warnings") or []),
     }
-
-from pathlib import Path
-import json
-
-# _DECISIONS_LOG = <resolved dynamically>
-
-
-def _iter_decisions_jsonl(max_n: int = 5000):
-    """decisions.jsonl を後ろから最大 max_n 件読む（安全・既存前提）"""
-    p = _DECISIONS_LOG
-    if not p.exists():
-        return
-    lines = p.read_text(encoding='utf-8', errors='replace').splitlines()
-    for line in lines[-max_n:]:
-        try:
-            rec = json.loads(line)
-            if isinstance(rec, dict):
-                yield rec
-        except Exception:
-            continue
-
-
-def _in_window(rec: dict, start_ts: str | None, end_ts: str | None) -> bool:
-    """ISO文字列の範囲判定（None は無制限）"""
-    ts = rec.get('ts_jst') or rec.get('ts') or rec.get('timestamp') or rec.get('time')
-    if not isinstance(ts, str):
-        return False
-    if start_ts and ts < start_ts:
-        return False
-    if end_ts and ts > end_ts:
-        return False
-    return True
-
 
 def _resolve_decisions_log(symbol: str) -> Path | None:
     """

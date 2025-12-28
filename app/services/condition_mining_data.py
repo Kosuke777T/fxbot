@@ -8,17 +8,30 @@ from app.services import decision_log
 
 
 def _parse_iso_dt(s: Any) -> Optional[datetime]:
+    """Parse ISO-ish datetime and normalize to timezone-aware UTC.
+
+    - If tzinfo is missing (naive), assume UTC.
+    - If tzinfo exists, convert to UTC.
+    """
     if not s:
         return None
     if isinstance(s, datetime):
-        return s
-    if not isinstance(s, str):
-        return None
-    try:
-        return datetime.fromisoformat(s)
-    except Exception:
+        dt = s
+    elif isinstance(s, str):
+        try:
+            dt = datetime.fromisoformat(s)
+        except Exception:
+            return None
+    else:
         return None
 
+    # normalize to UTC-aware
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    try:
+        return dt.astimezone(timezone.utc)
+    except Exception:
+        return dt
 
 def _iter_decision_paths() -> Iterable[Path]:
     root = decision_log._get_decision_log_dir()
@@ -123,15 +136,19 @@ def get_decisions_window_summary(
         "max_scan": max_scan,
     }
 
-def get_decisions_recent_past_summary(symbol: str) -> dict:
+def get_decisions_recent_past_summary(symbol: str, profile: Optional[str] = None, **kwargs) -> dict:
     """Aggregate recent/past windows and attach minimal stats."""
     recent = get_decisions_window_summary(
         symbol=symbol,
         window="recent",
+        profile=profile,
+        **kwargs,
     )
     past = get_decisions_window_summary(
         symbol=symbol,
         window="past",
+        profile=profile,
+        **kwargs,
     )
 
     # decisions/rows のキー名は実装依存なので両対応
@@ -158,6 +175,17 @@ def get_decisions_recent_past_summary(symbol: str) -> dict:
             past["start_ts"] = sP.isoformat()
         if past.get("end_ts") is None:
             past["end_ts"] = eP.isoformat()
+    
+    # range を追加（v5.2仕様準拠）
+    recent["range"] = {
+        "start": recent.get("start_ts"),
+        "end": recent.get("end_ts"),
+    }
+    past["range"] = {
+        "start": past.get("start_ts"),
+        "end": past.get("end_ts"),
+    }
+    
     return {"recent": recent, "past": past}
 
 # --- T-42-3-18 Step 3: minimal window stats (recent/past) -----------------
