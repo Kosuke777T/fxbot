@@ -29,7 +29,7 @@ from PyQt6.QtWidgets import (
 
 from app.services.ai_service import get_model_metrics, get_active_model_meta
 from app.services.ops_overview_facade import get_ops_overview
-from app.services.condition_mining_facade import get_decisions_recent_past_min_stats, get_condition_candidates
+from app.services.condition_mining_facade import get_condition_mining_ops_snapshot
 from app.services.recent_kpi import KPIService as RecentKPIService
 from app.services.scheduler_facade import (
     get_scheduler_snapshot,
@@ -897,7 +897,7 @@ class SchedulerTab(QWidget):
             # --- T-42-3-18 Step 4-3: condition_mining min_stats ---
             try:
                 symbol = "USDJPY-"  # 仕様: symbol は USDJPY-
-                out = get_decisions_recent_past_min_stats(symbol)
+                out = get_condition_mining_ops_snapshot(symbol=symbol)
                 r = (out.get("recent") or {}).get("min_stats") or {}
                 p2 = (out.get("past") or {}).get("min_stats") or {}
             
@@ -1030,5 +1030,7 @@ class SchedulerTab(QWidget):
         if hasattr(self, "_daemon_timer") and self._daemon_timer is not None:
             if self._daemon_timer.isActive():
                 self._daemon_timer.stop()
+
+
 
 

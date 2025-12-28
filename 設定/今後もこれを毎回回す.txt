@@ -1,0 +1,10 @@
+pwsh -NoProfile -ExecutionPolicy Bypass -Command @'
+$ErrorActionPreference="Stop"
+python -X utf8 -c @"
+from app.services.condition_mining_facade import get_condition_mining_ops_snapshot
+out = get_condition_mining_ops_snapshot(symbol='USDJPY-')
+need = ['warnings','ops_cards_first','evidence','evidence_kind','evidence_src','symbol']
+print('missing=', [k for k in need if k not in out])
+print('symbol=', out.get('symbol'))
+"@
+'@

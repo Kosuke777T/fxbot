@@ -53,3 +53,45 @@ evidence：metrics.json 優先で win_rate/avg_pnl が安定して取れてる
 
 evidence_src：具体パスまで出てる（運用で追跡できる）
 
+T-43-3 Step2-2 完了
+warnings が固定形（list）
+
+ops_cards_first[0] が kind/title/summary/bullets/caveats/evidence を必ず持つ（カード整形統一）
+
+evidence がカード根拠を同梱（空じゃない）
+
+decisions=0 の縮退が 断定せず、観測可能な log_inspection を同梱（安定化）
+
+files=0 / latest_mtime=null で「ログが無い」を事実として提示できてる（推定と分離できてる）
+
+T-43-3 Step2-3
+決め事 1：GUI/ops の情報取得は snapshot に一本化
+
+GUI は get_condition_mining_ops_snapshot(symbol='USDJPY-') だけを呼ぶ
+
+GUI 側は 固定キーだけを見る（warnings / ops_cards_first / evidence / evidence_kind / evidence_src / symbol）
+
+これにより「旧Facade経由の別ロジック」が混入しても、監査で即検出できる
+
+決め事 2：旧Facade（二重構造）は “互換専用” に降格
+
+get_decisions_recent_past_* は GUI では使わない
+
+残す理由は 外部/古いコード互換のみ
+
+今後の機能追加や仕様変更は snapshot を正として進める（旧Facadeは追随しない方針でOK）
+
+決め事 3：snapshot の「固定形」が契約（破ったら壊れる）
+
+missing=[] がテストで担保できるので、将来変更するなら 必ず固定キー互換を維持する
+
+0件でも落ちない縮退表示（warnings / ops_cards_first）を正規ルートにした
+
+決め事 4：GUI import を壊す依存（ai_service）を止血
+
+core.ai.loader に meta loader が無い状況でも GUI import が通るように縮退
+
+get_active_model_meta() は dict を返す（keys: ['file','n_features','head','feature_order','note'] が確認できた）
+
+“GUIがまず落ちない” を優先して、meta は後で正式ルートに寄せられる構造にした
+

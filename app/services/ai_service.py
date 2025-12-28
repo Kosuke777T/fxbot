@@ -9,8 +9,52 @@ import pandas as pd
 from loguru import logger
 import joblib
 
-from core.ai.loader import _load_active_meta
+# --- T-43-3 Step2-3 hotfix: avoid ImportError on missing meta loader ---
+# core.ai.loader には meta loader が存在しないため、ここで縮退実装する。
+try:
+    from core.ai.loader import _load_active_meta  # type: ignore
+except Exception:
+    _load_active_meta = None  # type: ignore
 
+def _fallback_load_active_meta() -> dict:
+    """
+    active meta を可能な範囲で探索して返す（無ければ {}）。
+    依存を増やさず、GUI import を通すための最小フォールバック。
+    """
+    try:
+        import json
+        from pathlib import Path
+
+        root = Path(__file__).resolve().parents[2]  # .../app/services -> project root
+        candidates = [
+            root / "models" / "active_model_meta.json",
+            root / "models" / "active_meta.json",
+            root / "models" / "active_model.json",
+            root / "models" / "meta.json",
+        ]
+        for p in candidates:
+            if p.exists():
+                try:
+                    return json.loads(p.read_text(encoding="utf-8"))
+                except Exception:
+                    # 読めないファイルは無視して次へ
+                    pass
+    except Exception:
+        pass
+    return {}
+
+def load_active_model_meta() -> dict:
+    """
+    ai_service 内部用: active meta を返す（存在しなければ {}）。
+    """
+    try:
+        if callable(_load_active_meta):
+            m = _load_active_meta()  # type: ignore
+            if isinstance(m, dict):
+                return m
+    except Exception:
+        pass
+    return _fallback_load_active_meta()
 from app.services.feature_importance import compute_feature_importance
 from app.services.shap_service import (
     ShapFeatureImpact,
@@ -142,7 +186,7 @@ def get_active_model_meta() -> dict:
     Keep GUI/services boundary: GUI should not call private functions.
     """
     try:
-        meta = _load_active_meta()  # existing internal loader
+        meta = load_active_model_meta()  # existing internal loader
         return meta or {}
     except Exception:
         return {}
@@ -242,7 +286,7 @@ class AISvc:
 
         # 3) fallback: active_model.json → meta_file → feature_order or features
         try:
-            meta = _load_active_meta()
+            meta = load_active_model_meta()
         except Exception as exc:
             logger.warning(f"[AISvc] failed to load active meta for expected_features: {exc}")
             return
@@ -276,7 +320,7 @@ class AISvc:
             return
 
         try:
-            meta = _load_active_meta()
+            meta = load_active_model_meta()
         except Exception as exc:
             logger.error("[AISvc] active model meta の読み込みに失敗: {err}", err=exc)
             return
@@ -1026,3 +1070,6 @@ def get_ai_service() -> AISvc:
     if _ai_service is None:
         _ai_service = AISvc()
     return _ai_service
+
+
+
