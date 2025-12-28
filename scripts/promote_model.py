@@ -1,6 +1,6 @@
 # scripts/promote_model.py
 import os, shutil, json, sys
-from core.config import cfg
+from app.core.config import cfg
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
