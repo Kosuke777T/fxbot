@@ -189,3 +189,141 @@ def get_condition_candidates(symbol: str = "USDJPY-", top_n: int = 10) -> dict:
         max_conds=80,
         min_support=20,
     )
+
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+from datetime import datetime, timezone
+
+
+def _ops_card(
+    title: str,
+    summary: str,
+    bullets: Optional[List[str]] = None,
+    caveats: Optional[List[str]] = None,
+    evidence: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Ops View 用のカードを“必ず同じ形”で作る統一ヘルパ。
+    services は公式語彙で返し、GUI は表示言い換えのみ（判断ロジック禁止）。
+    """
+    return {
+        "kind": "ops_card",
+        "title": title,
+        "summary": summary,
+        "bullets": list(bullets or []),
+        "caveats": list(caveats or []),
+        "evidence": dict(evidence or {}),
+    }
+
+
+def _inspect_decisions_log_dir(symbol: str) -> Dict[str, Any]:
+    """decisions_*.jsonl の存在と最終更新を軽く検査（断定しない材料用）。
+    既存のログ配置を壊さない。見つからなければ files=0 扱い。
+    """
+    log_dir = Path("logs")
+    files: List[str] = []
+    latest_mtime: Optional[float] = None
+    latest_file: Optional[str] = None
+
+    if log_dir.exists() and log_dir.is_dir():
+        for p in log_dir.glob("decisions_*.jsonl"):
+            try:
+                st = p.stat()
+                files.append(str(p).replace("\\", "/"))
+                m = st.st_mtime
+                if (latest_mtime is None) or (m > latest_mtime):
+                    latest_mtime = m
+                    latest_file = str(p).replace("\\", "/")
+            except Exception:
+                pass
+
+    latest_mtime_iso: Optional[str] = None
+    if latest_mtime is not None:
+        latest_mtime_iso = datetime.fromtimestamp(latest_mtime, tz=timezone.utc).isoformat()
+
+    return {
+        "log_dir_exists": bool(log_dir.exists()),
+        "files": int(len(files)),
+        "latest_mtime": latest_mtime_iso,
+        "latest_file": latest_file,
+    }
+
+
+def _normalize_facade_envelope(
+    symbol: str,
+    warnings: Optional[List[str]] = None,
+    ops_cards_first: Optional[List[Dict[str, Any]]] = None,
+    evidence: Optional[Dict[str, Any]] = None,
+    evidence_kind: Optional[str] = None,
+    evidence_src: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Facade の返り値を固定形に正規化（GUI側の分岐を減らす）。"""
+    return {
+        "warnings": list(warnings or []),
+        "ops_cards_first": list(ops_cards_first or []),
+        "evidence": dict(evidence or {}),
+        "evidence_kind": evidence_kind or "none",
+        "evidence_src": evidence_src,
+        "symbol": symbol,
+    }
+
+
+# === Step2-2: “同梱 + 縮退安定化 + カード整形統一” の公開関数 ===
+def get_condition_mining_ops_snapshot(symbol: str, profile: Optional[str] = None, **kwargs) -> Dict[str, Any]:
+    """Ops View / GUI が直接叩く薄い Facade（同梱返却）。
+
+    返すもの（固定）:
+      - warnings: list[str]
+      - ops_cards_first: list[ops_card]
+      - evidence/evidence_kind/evidence_src: 根拠スナップショット（空でもキーは必ず存在）
+    """
+    # 既存関数（同一モジュール内に存在する前提）
+    try:
+        win = get_decisions_recent_past_window_info(symbol, profile=profile)  # type: ignore[name-defined]
+        recent = win.get("recent") or {}
+        past = win.get("past") or {}
+    except Exception:
+        recent = {}
+        past = {}
+
+    recent_n = int((recent or {}).get("n") or 0)
+    past_n = int((past or {}).get("n") or 0)
+
+    if recent_n == 0 and past_n == 0:
+        warn = ["no_decisions_in_recent_and_past"]
+        log_inspection = _inspect_decisions_log_dir(symbol)
+        card = _ops_card(
+            title="decisions が 0 件です（原因の推定）",
+            summary=f"symbol={symbol} で recent/past ともに decisions=0 のため、探索AIは縮退動作中です。",
+            bullets=[
+                "decisions_*.jsonl が存在しません（稼働停止/出力設定/権限/パスの可能性）",
+            ],
+            caveats=[
+                "decisions=0 の場合、フィルタ過多・稼働停止・データ欠損のどれもあり得ます（断定はしない）",
+                "まずは decisionsログの最終更新時刻と、実行系（常駐/GUI起動中）の状態を確認してください",
+            ],
+            evidence={
+                "symbol": symbol,
+                "recent_n": recent_n,
+                "past_n": past_n,
+                "log_inspection": log_inspection,
+            },
+        )
+        return _normalize_facade_envelope(
+            symbol=symbol,
+            warnings=warn,
+            ops_cards_first=[card],
+            evidence=card.get("evidence") or {},
+            evidence_kind="ops_card",
+            evidence_src="logs/decisions_*.jsonl",
+        )
+
+    base_evidence = {"symbol": symbol, "recent_n": recent_n, "past_n": past_n}
+    return _normalize_facade_envelope(
+        symbol=symbol,
+        warnings=[],
+        ops_cards_first=[],
+        evidence=base_evidence,
+        evidence_kind="counts",
+        evidence_src="condition_mining_facade.get_decisions_recent_past_window_info",
+    )
+
