@@ -262,3 +262,82 @@ def _resolve_recent_past_window(
 
 
 
+
+
+
+# =========================
+# T-43-3 Ops根拠カード（decisions=0 の理由推定）
+# =========================
+
+def _inspect_decision_logs(log_dir: str = "logs") -> dict:
+    """
+    decisionsログの存在・更新状況を軽く点検して「0件の理由」を推定するための材料を返す。
+    - 依存を増やさず、filesystem 情報だけを見る（安全・縮退しやすい）
+    """
+    try:
+        base = Path(log_dir)
+        if not base.exists():
+            return {"log_dir_exists": False, "files": 0, "latest_mtime": None, "latest_file": None}
+
+        # decisions_*.jsonl を対象（運用に合わせる。過去仕様とも相性が良い）
+        files = sorted(base.glob("decisions_*.jsonl"))
+        if not files:
+            return {"log_dir_exists": True, "files": 0, "latest_mtime": None, "latest_file": None}
+
+        latest = max(files, key=lambda p: p.stat().st_mtime)
+        st = latest.stat()
+        return {
+            "log_dir_exists": True,
+            "files": int(len(files)),
+            "latest_mtime": float(st.st_mtime),
+            "latest_file": str(latest).replace("\\", "/"),
+            "latest_size": int(st.st_size),
+        }
+    except Exception as e:
+        return {"error": f"log_inspect_failed: {e}"}
+
+
+def build_ops_cards_for_zero_decisions(symbol: str, recent: dict, past: dict) -> list[dict]:
+    """
+    decisions が 0 件のときに、Ops が原因を推定できるカードを返す。
+    返却は GUI が描画しやすい固定形：title/summary/bullets/caveats
+    """
+    cards: list[dict] = []
+
+    insp = _inspect_decision_logs("logs")
+
+    # 主要推定（優先度順）
+    bullets = []
+    caveats = []
+
+    if insp.get("error"):
+        bullets.append("logs 点検が失敗しました（filesystem 由来の推定ができません）")
+        caveats.append(insp.get("error"))
+    else:
+        if not insp.get("log_dir_exists", True):
+            bullets.append("logs/ ディレクトリが見つかりません（ログ出力先の設定/起動フォルダを確認）")
+        elif insp.get("files", 0) == 0:
+            bullets.append("decisions_*.jsonl が存在しません（稼働停止/出力設定/権限/パスの可能性）")
+        else:
+            bullets.append(f"decisionsログは存在します（最新: {insp.get('latest_file')} size={insp.get('latest_size')}）")
+            bullets.append("ただし recent/past ウィンドウに該当する行が 0 件です（期間・時刻・timezone の可能性）")
+
+    # filter過多は “0件の原因” になり得るが、decisions自体が0なら断定できない → 注意書きで扱う
+    caveats.append("decisions=0 の場合、フィルタ過多・稼働停止・データ欠損のどれもあり得ます（断定はしない）")
+    caveats.append("まずは decisionsログの最終更新時刻と、実行系（常駐/GUI起動中）の状態を確認してください")
+
+    cards.append({
+        "kind": "ops_card",
+        "title": "decisions が 0 件です（原因の推定）",
+        "summary": f"symbol={symbol} で recent/past ともに decisions=0 のため、探索AIは縮退動作中です。",
+        "bullets": bullets,
+        "caveats": caveats,
+        "evidence": {
+            "symbol": symbol,
+            "recent_n": int((recent or {}).get("n") or 0),
+            "past_n": int((past or {}).get("n") or 0),
+            "log_inspection": insp,
+        }
+    })
+
+    return cards

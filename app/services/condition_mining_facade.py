@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from app.services.condition_mining_data import get_decisions_window_summary
+from app.services.condition_mining_data import get_decisions_window_summary, build_ops_cards_for_zero_decisions
 from datetime import datetime, timezone
 
 from typing import Any, Dict, List, Optional
@@ -31,41 +31,64 @@ def get_decisions_recent_past_min_stats(symbol: str) -> Dict[str, Any]:
 
 def get_decisions_recent_past_window_info(symbol: str, profile: Optional[str] = None, **kwargs) -> Dict[str, Any]:
     """
-    Facade: recent/past の件数・期間（start/end）を即取得できる薄いラッパー。
-    ついでに min_stats も同梱（GUIやOpsで同時に使うため・後方互換）。
+    Facade: recent/past の件数・期間（start/end）を 即取得できる薄いラッパー。
+    ついでに min_stats も同梱（GUIやOpsで同時に使う ため・後方互換）。
+
+    T-43-3:
+    - decisions=0 でも Ops 向けに「なぜ0件か」の推定カードを返す（ops_cards）
+    - warnings を必ず返す（縮退時もキー欠落させない）
     """
     try:
         summary = get_decisions_recent_past_summary(symbol, profile=profile, **kwargs)
         recent = (summary.get("recent") or {})
         past = (summary.get("past") or {})
+
+        rn = int(recent.get("n", 0) or 0)
+        pn = int(past.get("n", 0) or 0)
+
+        warnings: List[str] = []
+        ops_cards: List[Dict[str, Any]] = []
+
+        if rn == 0 and pn == 0:
+            warnings = ["no_decisions_in_recent_and_past"]
+            try:
+                ops_cards = build_ops_cards_for_zero_decisions(symbol, {"n": rn, **(recent or {})}, {"n": pn, **(past or {})})
+            except Exception:
+                ops_cards = []
+
         return {
             "recent": {
-                "n": int(recent.get("n", 0) or 0),
+                "n": rn,
                 "range": recent.get("range", {"start": None, "end": None}),
                 "min_stats": (recent.get("min_stats") or {}),
             },
             "past": {
-                "n": int(past.get("n", 0) or 0),
+                "n": pn,
                 "range": past.get("range", {"start": None, "end": None}),
                 "min_stats": (past.get("min_stats") or {}),
             },
+            "warnings": warnings,
+            "ops_cards": ops_cards,
         }
     except Exception:
+        # 縮退：キー欠落を絶対に起こさない
+        warnings: List[str] = ["window_info_failed"]
+        ops_cards: List[Dict[str, Any]] = []
+        try:
+            ops_cards = build_ops_cards_for_zero_decisions(
+                symbol,
+                {"n": 0, "range": {"start": None, "end": None}, "min_stats": {}},
+                {"n": 0, "range": {"start": None, "end": None}, "min_stats": {}},
+            )
+        except Exception:
+            ops_cards = []
+
         return {
             "recent": {"n": 0, "range": {"start": None, "end": None}, "min_stats": {}},
             "past": {"n": 0, "range": {"start": None, "end": None}, "min_stats": {}},
+            "warnings": warnings,
+            "ops_cards": ops_cards,
         }
-
-
-def _extract_decisions_list(win: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """window summary から decisions の配列を取り出す（仕様差分に耐える）"""
-    if not isinstance(win, dict):
-        return []
-    for k in ("decisions", "items", "rows", "records"):
-        v = win.get(k)
-        if isinstance(v, list):
-            return [x for x in v if isinstance(x, dict)]
-    return []
 
 
 def _boolish(v: Any) -> bool:
