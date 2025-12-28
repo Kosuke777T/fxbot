@@ -13,7 +13,7 @@ from app.services.circuit_breaker import CircuitBreaker
 from app.services.event_store import EVENT_STORE
 from app.services.filter_service import evaluate_entry
 from app.services.loss_streak_service import update_on_trade_result, get_consecutive_losses
-from core.config import cfg
+from app.core.config import cfg
 from core.indicators import atr as _atr
 from core.position_guard import PositionGuard
 from core.utils.clock import now_jst

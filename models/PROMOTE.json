@@ -1,39 +1,39 @@
 {
-  "promote": true,
-  "ok_auc": true,
+  "promote": false,
+  "ok_auc": false,
   "ok_f1": true,
-  "reason": "meets all thresholds",
-  "report_path": "logs\\retrain\\report_17625000562076344.json",
+  "reason": "auc(0.5192)<min(0.54)",
+  "report_path": "logs\\retrain\\report_1762505757473982.json",
   "candidate_model_path": "models\\_staging\\LightGBM_clf.pkl",
-  "bundle_path": "models\\LightGBM_clf.pkl",
+  "bundle_path": null,
   "metrics": {
     "train": {
-      "auc": 0.8318601287015832
+      "auc": 0.8335395156978243
     },
     "valid": {
-      "auc": 0.5186851151111223,
-      "f1@best": 0.6881266053525561,
-      "best_threshold": 0.2,
-      "auc@cal": 0.5250402616417774,
-      "f1@best@cal": 0.688842000744694,
+      "auc": 0.5042649980209518,
+      "f1@best": 0.6838423773732458,
+      "best_threshold": 0.23,
+      "auc@cal": 0.5146998366105594,
+      "f1@best@cal": 0.6842993809791784,
       "best_threshold@cal": 0.2,
-      "logloss@raw": 0.7015017022597152,
-      "logloss@cal": 0.6898902186955436
+      "logloss@raw": 0.703932072505223,
+      "logloss@cal": 0.6908702833389505
     },
     "test": {
-      "auc": 0.5168814780662231,
-      "f1@0.5": 0.6575381140598532,
-      "f1@best": 0.6844628741739017,
+      "auc": 0.5191899550293686,
+      "f1@0.5": 0.6712288875946418,
+      "f1@best": 0.684297067689778,
       "best_threshold": 0.2
     }
   },
   "thresholds": {
-    "auc_test_min": 0.5,
-    "f1_test_min": 0.4
+    "auc_test_min": 0.54,
+    "f1_test_min": 0.5
   },
   "best_threshold": 0.2,
-  "selected_lookahead": 15,
-  "selection_score": 0.6844628741739017,
-  "selection_aux": 0.5168814780662231,
-  "generated_at": "2025-11-07T16:20:56+09:00"
+  "selected_lookahead": 10,
+  "selection_score": 0.684297067689778,
+  "selection_aux": 0.5191899550293686,
+  "generated_at": "2025-11-07T17:55:57+09:00"
 }

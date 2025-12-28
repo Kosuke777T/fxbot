@@ -1,6 +1,5 @@
 from __future__ import annotations
-
-from core.config import cfg
+from app.core.config import cfg
 from core.utils.runtime import is_live
 
 print("is_live:", is_live())

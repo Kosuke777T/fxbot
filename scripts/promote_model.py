@@ -1,9 +1,15 @@
+from pathlib import Path
+import sys
+
+# --- project root bootstrap (scripts/ 直叩きでも app.* を import 可能にする) ---
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+# ---------------------------------------------------------------------------
+
 # scripts/promote_model.py
 import os, shutil, json, sys
 from app.core.config import cfg
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if ROOT not in sys.path:
-    sys.path.insert(0, ROOT)
 
 
 def main() -> None:
@@ -22,10 +28,22 @@ def main() -> None:
     bk = os.path.join(prod, f"_backup_{ts}")
     os.makedirs(bk, exist_ok=True)
     for fn in os.listdir(prod):
-        if fn.startswith("_backup_"): continue
-        shutil.copy2(os.path.join(prod, fn), os.path.join(bk, fn))
+        if fn.startswith("_backup_"):
+            continue
+        src = os.path.join(prod, fn)
+        dst = os.path.join(bk, fn)
+        if os.path.isdir(src):
+            shutil.copytree(src, dst, dirs_exist_ok=True)
+        else:
+            shutil.copy2(src, dst)
+
     for fn in os.listdir(staging):
-        shutil.copy2(os.path.join(staging, fn), os.path.join(prod, fn))
+        src = os.path.join(staging, fn)
+        dst = os.path.join(prod, fn)
+        if os.path.isdir(src):
+            shutil.copytree(src, dst, dirs_exist_ok=True)
+        else:
+            shutil.copy2(src, dst)
     print("PROMOTED. backup:", bk)
 
 
