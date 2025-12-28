@@ -45,3 +45,11 @@ ops_cards[0] に **Ops向けの「0件理由推定」**が載る
 
 今回の実データ上の推定：decisions_*.jsonl が存在しない（稼働停止/出力設定/権限/パス）
 
+T-43-3 Step2data側の evidence + warnings/ops_cards 復活）は完成してます。
+
+warnings/ops_cards：縮退シグナルが安定（None禁止、カード整形OK）
+
+evidence：metrics.json 優先で win_rate/avg_pnl が安定して取れてる
+
+evidence_src：具体パスまで出てる（運用で追跡できる）
+

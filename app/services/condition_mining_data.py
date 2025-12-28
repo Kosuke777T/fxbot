@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
+import json
+import csv
 from typing import Any, Dict, Iterable, Optional
 
 from app.services import decision_log
@@ -136,6 +138,100 @@ def get_decisions_window_summary(
         "max_scan": max_scan,
     }
 
+def _try_extract_winrate_avgpnl_from_backtests(*, symbol: str) -> dict:
+    """
+    win_rate / avg_pnl を既存 backtest 成果物から“取れる範囲で”抽出する。
+    優先: metrics.json -> trades*.csv
+    - symbol は 'USDJPY-' 等（パスに含まれている場合のみ強く優先）
+    - 取れなければ {} を返す（呼び出し側で縮退）
+    """
+    root = Path(".")
+
+    def _norm(p: Path) -> str:
+        return str(p).replace("\\", "/")
+
+    def _is_relevant_path(s: str) -> bool:
+        sym_a = symbol
+        sym_b = symbol.replace("-", "")
+        return (sym_a in s) or (sym_b in s)
+
+    # 1) metrics.json（新しい順 / symbolを含むパス優先）
+    try:
+        metrics = sorted(root.rglob("metrics.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+        metrics = sorted(metrics, key=lambda p: (not _is_relevant_path(_norm(p))), reverse=False)
+        for p in metrics:
+            s = _norm(p)
+            if ("backtests/" not in s) and ("logs/backtest/" not in s) and ("backtest" not in s):
+                continue
+            try:
+                obj = json.loads(p.read_text(encoding="utf-8", errors="replace"))
+            except Exception:
+                continue
+            if not isinstance(obj, dict):
+                continue
+
+            win_rate = obj.get("win_rate", None)
+            avg_pnl  = obj.get("avg_pnl", None)
+
+            if win_rate is None and "winrate" in obj:
+                win_rate = obj.get("winrate")
+            if avg_pnl is None and "mean_pnl" in obj:
+                avg_pnl = obj.get("mean_pnl")
+
+            out = {}
+            if win_rate is not None:
+                try:
+                    out["win_rate"] = float(win_rate)
+                except Exception:
+                    pass
+            if avg_pnl is not None:
+                try:
+                    out["avg_pnl"] = float(avg_pnl)
+                except Exception:
+                    pass
+
+            if out:
+                out["_src"] = s
+                out["_kind"] = "metrics.json"
+                return out
+    except Exception:
+        pass
+
+    # 2) trades*.csv（新しい順 / symbolを含むパス優先）から計算
+    try:
+        trades = sorted(root.rglob("trades*.csv"), key=lambda p: p.stat().st_mtime, reverse=True)
+        trades = sorted(trades, key=lambda p: (not _is_relevant_path(_norm(p))), reverse=False)
+        for p in trades:
+            s = _norm(p)
+            if ("backtests/" not in s) and ("logs/backtest/" not in s) and ("backtest" not in s):
+                continue
+
+            pnls = []
+            with p.open("r", encoding="utf-8", errors="replace", newline="") as f:
+                r = csv.DictReader(f)
+                for row in r:
+                    if not row:
+                        continue
+                    v = row.get("pnl")
+                    if v is None:
+                        continue
+                    try:
+                        pnls.append(float(v))
+                    except Exception:
+                        continue
+
+            if pnls:
+                wins = sum(1 for x in pnls if x > 0)
+                return {
+                    "win_rate": float(wins / len(pnls)),
+                    "avg_pnl": float(sum(pnls) / len(pnls)),
+                    "_src": s,
+                    "_kind": "trades.csv",
+                }
+    except Exception:
+        pass
+
+    return {}
 def get_decisions_recent_past_summary(symbol: str, profile: Optional[str] = None, **kwargs) -> dict:
     """Aggregate recent/past windows and attach minimal stats."""
     recent = get_decisions_window_summary(
@@ -185,9 +281,35 @@ def get_decisions_recent_past_summary(symbol: str, profile: Optional[str] = None
         "start": past.get("start_ts"),
         "end": past.get("end_ts"),
     }
-    
-    return {"recent": recent, "past": past}
+    out = {"recent": recent, "past": past}
 
+    # --- warnings / ops_cards の型固定（None禁止） ---
+    warnings = []
+    ops_cards = []
+
+    rn = int((recent or {}).get("n") or 0)
+    pn = int((past or {}).get("n") or 0)
+
+    if rn == 0 and pn == 0:
+        warnings.append("no_decisions_in_recent_and_past")
+        ops_cards.append({
+            "title": "decisions が 0 件です（原因の推定）",
+            "summary": f"symbol={symbol} で recent/past ともに decisions=0 のため、探索AIは縮退動作中です。",
+            "bullets": [
+                "decisions_*.jsonl が存在しません（稼働停止/出力設定/権限/パスの可能性）"
+            ],
+        })
+
+    out["warnings"] = warnings
+    out["ops_cards"] = ops_cards
+    # --- Step2 evidence（decisionsが無い場合は backtest 成果物から取る） ---
+    ev = _try_extract_winrate_avgpnl_from_backtests(symbol=symbol)
+    if ev:
+        out["evidence"] = {k: v for k, v in ev.items() if not k.startswith("_")}
+        out["evidence_src"] = ev.get("_src")
+        out["evidence_kind"] = ev.get("_kind")
+
+    return out
 # --- T-42-3-18 Step 3: minimal window stats (recent/past) -----------------
 
 def _min_stats(rows):
@@ -341,3 +463,7 @@ def build_ops_cards_for_zero_decisions(symbol: str, recent: dict, past: dict) ->
     })
 
     return cards
+
+
+
+
