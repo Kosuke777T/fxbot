@@ -1,29 +1,39 @@
 {
-  "model_name": "LightGBM_clf",
-  "file": "LightGBM_clf_20251228_004619.pkl",
-  "meta_file": "LightGBM_clf_20251228_004619.pkl.meta.json",
-  "version": 1766882779.463147,
-  "best_threshold": 0.45,
-  "feature_order": [
-    "ret_1",
-    "ret_5",
-    "ema_5",
-    "ema_20",
-    "ema_ratio",
-    "rsi_14",
-    "atr_14",
-    "range",
-    "vol_chg"
+  "file": "LightGBM_clf.pkl",
+  "n_features": 20,
+  "head": [
+    "open",
+    "high",
+    "low",
+    "close",
+    "tick_volume",
+    "spread",
+    "real_volume",
+    "ret1",
+    "ret5",
+    "ret20"
   ],
-  "features": [
-    "ret_1",
-    "ret_5",
-    "ema_5",
+  "feature_order": [
+    "open",
+    "high",
+    "low",
+    "close",
+    "tick_volume",
+    "spread",
+    "real_volume",
+    "ret1",
+    "ret5",
+    "ret20",
+    "sma_10",
+    "sma_50",
     "ema_20",
-    "ema_ratio",
     "rsi_14",
+    "bb_high_20_2",
+    "bb_low_20_2",
+    "stoch_k_14_3",
+    "stoch_d_14_3",
     "atr_14",
-    "range",
-    "vol_chg"
-  ]
+    "vol_pct_20"
+  ],
+  "note": "active fixed to 20-feature LGBMClassifier (A plan)"
 }

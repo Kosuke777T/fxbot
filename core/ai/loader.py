@@ -56,11 +56,11 @@ class ModelWrapper:
         return obj
 
     def predict_proba(self, X: ArrayLike) -> np.ndarray:
-        X_arr = np.asarray(X)
+        X_arr = X if isinstance(X, pd.DataFrame) else np.asarray(X)
         return self.base_model.predict_proba(X_arr)
 
     def predict(self, X: ArrayLike) -> np.ndarray:
-        X_arr = np.asarray(X)
+        X_arr = X if isinstance(X, pd.DataFrame) else np.asarray(X)
         if hasattr(self.base_model, "predict"):
             return self.base_model.predict(X_arr)
         if hasattr(self.base_model, "decision_function"):
@@ -152,112 +152,33 @@ class _CalibratedWrapper:
             return p1
 
         raise AttributeError("base_model has neither predict_proba nor predict")
-
     def predict_proba(self, X: Any) -> FloatArray:
-        X_arr = np.asarray(X, dtype=float)
+        # DataFrameなら列名を保持したまま下流へ渡す（sklearn warning抑制）
+        X_pass = X if isinstance(X, pd.DataFrame) else np.asarray(X, dtype=float)
 
-        # モデルから生の p1 を取得
-        p1 = self._raw_p1_from_model(X_arr)
+        p1 = self._raw_p1_from_model(X_pass)
 
-        # 校正器があれば適用（vector → (n,1) → (n,1) → vector）
-        p1_2d = p1.reshape(-1, 1)
-        p1_cal = _apply_calibration(self.calibrator, p1_2d).reshape(-1)
+        # calibrator があれば適用
+        if self.calibrator is not None:
+            return _apply_calibrator_p1(p1, self.calibrator)
 
-        # 数値安全のためクリップ
-        p1_cal = np.clip(p1_cal, 1e-6, 1.0 - 1e-6)
-        p0 = 1.0 - p1_cal
+        return p1
 
-        # shape: (n, 2) [クラス0, クラス1]
-        return np.stack([p0, p1_cal], axis=1)
+# --- backward compatible API ---
 
-def _read_json(path: str) -> Dict[str, Any]:
-    with open(path, "r", encoding="utf-8") as fh:
-        data = json.load(fh)
-    if isinstance(data, dict):
-        return cast(Dict[str, Any], data)
-    raise ValueError(f"JSON at {path} is not an object")
+def load_lgb_clf(*args, **kwargs):
+    """Back-compat: active_model.json を唯一の真実としてロードし、推論器を返す（A案: 20特徴）。"""
+    import json, joblib
+    from pathlib import Path
 
-# ------------------------------------------------------------
-# active_model.json / 校正ファイルの解決
-# ------------------------------------------------------------
-def _load_active_meta() -> Dict[str, Any]:
-    meta_path = Path("models") / "active_model.json"
-    if meta_path.exists():
-        try:
-            return _read_json(str(meta_path))
-        except Exception as exc:
-            print(f"[core.ai.loader][warn] active_model.json read failed: {exc}")
-    return {}
+    meta = json.loads(Path("models/active_model.json").read_text(encoding="utf-8"))
+    pkl = Path("models") / meta["file"]
+    obj = joblib.load(pkl)
 
-def _resolve_calib_path(calib_path: str | None) -> Optional[str]:
-    return calib_path if calib_path else None
+    # ここで返すのは sklearn estimator / wrapper のどちらでも良いが、
+    # scripts/export_val_probs.py は predict_proba を呼ぶので、それを満たす形に寄せる
+    if hasattr(obj, "predict_proba") or hasattr(obj, "predict") or hasattr(obj, "decision_function"):
+        return _CalibratedWrapper(obj, None)
 
-def _maybe_load_calibrator_from_meta(meta: Dict[str, Any]) -> Any:
-    cpath = _resolve_calib_path(meta.get("calibrator_path"))
-    if cpath:
-        try:
-            return _load_pickle_or_joblib(cpath)
-        except Exception as exc:
-            print(f"[core.ai.loader][warn] calibrator load failed: {exc}")
-    return None
-
-# ------------------------------------------------------------
-# パブリックAPI：モデルローダ
-# ------------------------------------------------------------
-
-def load_lgb_clf(model_path: str | None = None, *, meta_path: str | None = None) -> Any:
-    model_file = model_path or "models/LightGBM_clf.pkl"
-    base_model = _load_pickle_or_joblib(model_file)
-
-    # ★ここを追加：保存物が dict/ラッパでも推定器本体を取り出す
-    try:
-        # ModelWrapper を一時的に使って「中身の推定器」を取り出す
-        _tmp = ModelWrapper(base_model)
-        base_model = _tmp.base_model  # predict_proba / predict を持つ本体
-    except Exception:
-        # 失敗してもそのまま進める（あとで _CalibratedWrapper でまた拾う）
-        pass
-
-    meta: Dict[str, Any] = {}
-    if meta_path and Path(meta_path).is_file():
-        try:
-            meta = _read_json(meta_path)
-        except Exception as exc:
-            print(f"[core.ai.loader][warn] meta read failed: {exc}")
-    else:
-        try:
-            meta = _load_active_meta()
-        except Exception as exc:
-            print(f"[core.ai.loader][warn] active meta read failed: {exc}")
-            meta = {}
-
-    # ★追加：active_model.json の feature_order / features を不足分としてマージ
-    try:
-        active_meta = _load_active_meta()
-    except Exception as exc:
-        print(f"[core.ai.loader][warn] active meta merge failed: {exc}")
-        active_meta = {}
-
-    for key in ("feature_order", "features"):
-        if not meta.get(key) and active_meta.get(key):
-            meta[key] = active_meta[key]
-
-    # 旧仕様 {"calibration": {...}} → 新仕様 calibrator_path へ
-    if "calibration" in meta and "calibrator_path" not in meta:
-        calib_meta = meta.get("calibration") or {}
-        meta["calibrator_path"] = calib_meta.get("path")
-
-    calibrator = _maybe_load_calibrator_from_meta(meta or {})
-    wrapper = _CalibratedWrapper(base_model, calibrator, model_name=Path(model_file).name)
-
-    expected = meta.get("feature_order") or meta.get("features")
-    if expected:
-        wrapper.expected_features = list(expected)
-
-    return wrapper
-
-
-def build_feature_vector(features: dict, order: list[str]) -> pd.DataFrame:
-    row = [features.get(k, 0.0) for k in order]
-    return pd.DataFrame([row], columns=order)
-
+    # dict等の多段ネストでも _CalibratedWrapper が unwrap できる前提
+    return _CalibratedWrapper(obj, None)
