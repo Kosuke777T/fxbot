@@ -1,97 +1,11 @@
 {
   "summary": {
-    "total_records": 408014,
-    "live_records": 4589,
-    "backtest_records": 403425,
-    "groups": 6
+    "total_records": 463393,
+    "live_records": 31,
+    "backtest_records": 463362,
+    "groups": 2
   },
   "groups": {
-    "unknown|unknown|unknown|unknown|unknown": {
-      "mode": "unknown",
-      "source": "unknown",
-      "profile": "unknown",
-      "timeframe": "unknown",
-      "symbol": "unknown",
-      "metrics": {
-        "n": 406817,
-        "filter_pass_rate": 0.0,
-        "entry_rate": 0.0038,
-        "skip_rate": 0.9961,
-        "blocked_rate": 0.0001,
-        "side_buy_rate": 0.0,
-        "top_blocked_reasons": [
-          {
-            "reason": "atr",
-            "count": 403108,
-            "rate": 42.0
-          },
-          {
-            "reason": "volatility",
-            "count": 403107,
-            "rate": 42.0
-          },
-          {
-            "reason": "time_window",
-            "count": 152035,
-            "rate": 15.8
-          }
-        ],
-        "min_ts": "2024-07-08 13:25:00",
-        "max_ts": "2025-12-13 08:50:00"
-      }
-    },
-    "unknown|unknown|unknown|unknown|USDJPY-": {
-      "mode": "unknown",
-      "source": "unknown",
-      "profile": "unknown",
-      "timeframe": "unknown",
-      "symbol": "USDJPY-",
-      "metrics": {
-        "n": 480,
-        "filter_pass_rate": 0.0,
-        "entry_rate": 0.0,
-        "skip_rate": 0.0,
-        "blocked_rate": 1.0,
-        "side_buy_rate": "unknown",
-        "top_blocked_reasons": [
-          {
-            "reason": "adx_low",
-            "count": 480,
-            "rate": 33.3
-          },
-          {
-            "reason": "time_window",
-            "count": 480,
-            "rate": 33.3
-          },
-          {
-            "reason": "volatility",
-            "count": 480,
-            "rate": 33.3
-          }
-        ],
-        "min_ts": "2025-12-20T20:20:21+09:00",
-        "max_ts": "2025-12-20T21:25:20+09:00"
-      }
-    },
-    "unknown|unknown|michibiki_aggr|unknown|USDJPY-": {
-      "mode": "unknown",
-      "source": "unknown",
-      "profile": "michibiki_aggr",
-      "timeframe": "unknown",
-      "symbol": "USDJPY-",
-      "metrics": {
-        "n": 37,
-        "filter_pass_rate": 0.0,
-        "entry_rate": 0.0,
-        "skip_rate": 1.0,
-        "blocked_rate": 0.0,
-        "side_buy_rate": 1.0,
-        "top_blocked_reasons": [],
-        "min_ts": "2025-12-20T20:40:19+09:00",
-        "max_ts": "2025-12-20T21:25:29+09:00"
-      }
-    },
     "demo|stub|unknown|unknown|USDJPY-": {
       "mode": "demo",
       "source": "stub",
@@ -99,7 +13,7 @@
       "timeframe": "unknown",
       "symbol": "USDJPY-",
       "metrics": {
-        "n": 330,
+        "n": 30,
         "filter_pass_rate": 0.0,
         "entry_rate": 0.0,
         "skip_rate": 0.0,
@@ -108,58 +22,40 @@
         "top_blocked_reasons": [
           {
             "reason": "adx_low",
-            "count": 330,
+            "count": 30,
             "rate": 33.3
           },
           {
             "reason": "time_window",
-            "count": 330,
+            "count": 30,
             "rate": 33.3
           },
           {
             "reason": "volatility",
-            "count": 330,
+            "count": 30,
             "rate": 33.3
           }
         ],
-        "min_ts": "2025-12-20T21:30:28+09:00",
-        "max_ts": "2025-12-20T23:03:06+09:00"
+        "min_ts": "2025-12-29T08:01:58+09:00",
+        "max_ts": "2025-12-29T08:02:07+09:00"
       }
     },
-    "live|mt5|michibiki_aggr|unknown|USDJPY-": {
-      "mode": "live",
-      "source": "mt5",
-      "profile": "michibiki_aggr",
+    "unknown|unknown|unknown|unknown|unknown": {
+      "mode": "unknown",
+      "source": "unknown",
+      "profile": "unknown",
       "timeframe": "unknown",
-      "symbol": "USDJPY-",
+      "symbol": "unknown",
       "metrics": {
-        "n": 30,
-        "filter_pass_rate": 0.0,
-        "entry_rate": 0.0,
-        "skip_rate": 1.0,
+        "n": 463363,
+        "filter_pass_rate": 0.0205,
+        "entry_rate": 0.0205,
+        "skip_rate": 0.9795,
         "blocked_rate": 0.0,
-        "side_buy_rate": 1.0,
+        "side_buy_rate": 0.0205,
         "top_blocked_reasons": [],
-        "min_ts": "2025-12-20T21:30:40+09:00",
-        "max_ts": "2025-12-20T23:03:17+09:00"
-      }
-    },
-    "backtest|backtest|michibiki_std|unknown|USDJPY-": {
-      "mode": "backtest",
-      "source": "backtest",
-      "profile": "michibiki_std",
-      "timeframe": "unknown",
-      "symbol": "USDJPY-",
-      "metrics": {
-        "n": 320,
-        "filter_pass_rate": 1.0,
-        "entry_rate": 1.0,
-        "skip_rate": 0.0,
-        "blocked_rate": 0.0,
-        "side_buy_rate": 1.0,
-        "top_blocked_reasons": [],
-        "min_ts": "2025-12-01 10:45:00",
-        "max_ts": "2025-12-02 00:00:00"
+        "min_ts": "2024-07-08 13:25:00",
+        "max_ts": "2025-12-29T13:07:11+09:00"
       }
     }
   }

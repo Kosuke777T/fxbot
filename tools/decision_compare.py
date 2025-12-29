@@ -8,7 +8,7 @@ Live vs Backtest Decision Log Comparison Tool
 
 【使用方法】
     python -X utf8 tools/decision_compare.py \
-        --decisions-glob "logs/decisions/decisions_*.jsonl" \
+        --decisions-glob "logs/decisions_*.jsonl" \
         --backtest-glob "logs/backtest/**/decisions.jsonl" \
         --out-json reports/decision_compare.json \
         --out-md reports/decision_compare.md
@@ -40,7 +40,7 @@ def load_decision_logs(glob_pattern: str) -> List[Dict[str, Any]]:
     Parameters
     ----------
     glob_pattern : str
-        glob パターン（例: "logs/decisions/decisions_*.jsonl"）
+        glob パターン（例: "logs/decisions_*.jsonl"）
 
     Returns
     -------
@@ -1037,7 +1037,7 @@ def main() -> int:
     parser.add_argument(
         "--decisions-glob",
         type=str,
-        default="logs/decisions/decisions_*.jsonl",
+        default="logs/decisions_*.jsonl",
         help="Live/dryrun decision ログの glob パターン",
     )
     parser.add_argument(

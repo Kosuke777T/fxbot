@@ -6,12 +6,12 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from app.services.execution_stub import LOG_DIR
+from app.services.decision_log import _get_decision_log_dir
 
-
+LOG_DIR = _get_decision_log_dir()
 def load_lot_records() -> pd.DataFrame:
     """
-    LOG_DIR/decisions_*.jsonl から lot_info を集めて DataFrame にする。
+    logs/decisions_*.jsonl（_get_decision_log_dir() 配下） から lot_info を集めて DataFrame にする。
     - lot_info が無い行（SKIP など）はスキップ
     - decision.lot_info と top-level lot_info の両方に対応
     """
@@ -25,8 +25,6 @@ def load_lot_records() -> pd.DataFrame:
     rows: list[dict] = []
 
     for path in files:
-        # ファイル名からシンボル候補（例: decisions_USDJPY.jsonl -> USDJPY）
-        default_symbol = path.stem.replace("decisions_", "")
         print(f"[info] reading {path.name}")
 
         with path.open(encoding="utf-8") as f:
@@ -73,7 +71,7 @@ def load_lot_records() -> pd.DataFrame:
                 symbol = (
                     rec.get("symbol")
                     or lot_info.get("symbol")
-                    or default_symbol
+                    or "USDJPY-"
                 )
 
                 side = (

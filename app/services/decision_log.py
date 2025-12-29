@@ -196,7 +196,7 @@ def _get_decision_log_dir() -> Path:
     """
     決定ログのルートディレクトリを返す。
 
-    例: <project_root>/logs/decisions
+    例: <project_root>/logs
     """
     root = fxbot_path.get_project_root()
     return root / "logs"

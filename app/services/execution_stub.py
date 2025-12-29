@@ -396,7 +396,7 @@ def _write_decision_log(symbol: str, record: Dict[str, Any]) -> None:
                 logger.warning(f"[decision_context_schema] validation failed (warn-only): {e}")
 
     try:
-        # v5.2: フラットに logs/decisions_YYYY-MM-DD.jsonl
+        # v5.2: フラットに logs_YYYY-MM-DD.jsonl
         logs_dir = Path("logs")
         logs_dir.mkdir(exist_ok=True)
 

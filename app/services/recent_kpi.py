@@ -323,7 +323,7 @@ def compute_recent_kpi_from_decisions(
     starting_equity: Optional[float] = None,
 ) -> RecentKpiResult:
     """
-    Read logs/decisions/decisions_*.jsonl, filter trades with numeric pnl, and compute recent KPI.
+    Read logs/decisions_*.jsonl, filter trades with numeric pnl, and compute recent KPI.
 
     Parameters
     ----------

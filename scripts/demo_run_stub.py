@@ -2,7 +2,7 @@
 """
 ExecutionStub を使ったデモモードランナー
 
-decisions.jsonl を数件だけ生成して挙動を確認するためのスクリプト。
+decisions_YYYY-MM-DD.jsonl を数件だけ生成して挙動を確認するためのスクリプト。
 MT5 のリアル発注は絶対に行いません。
 
 【使用方法】
@@ -14,21 +14,21 @@ MT5 のリアル発注は絶対に行いません。
     python scripts/demo_run_stub.py
 
 【出力先】
-    logs/decisions/decisions_USDJPY.jsonl にログが出力されます。
+    logs_YYYY-MM-DD.jsonl にログが出力されます。
     (注: symbol "USDJPY-" は _symbol_to_filename() により "USDJPY" に変換される)
 
 【動作確認コマンド】
     # 出力されたログを確認（最後の5件）
-    # Get-Content logs\\decisions\\decisions_USDJPY.jsonl | Select-Object -Last 5
+    # Get-Content logs_YYYY-MM-DD.jsonl | Select-Object -Last 5
 
     # filter_reasons が含まれているか確認
-    # Get-Content logs\\decisions\\decisions_USDJPY.jsonl | Select-String '"filter_reasons"'
+    # Get-Content logs_YYYY-MM-DD.jsonl | Select-String '"filter_reasons"'
 
     # filter_pass と filter_reasons の両方が含まれているか確認
-    # Get-Content logs\\decisions\\decisions_USDJPY.jsonl | Select-String '"filter_pass"|"filter_reasons"'
+    # Get-Content logs_YYYY-MM-DD.jsonl | Select-String '"filter_pass"|"filter_reasons"'
 
     # 最新の1件を整形して表示
-    # Get-Content logs\\decisions\\decisions_USDJPY.jsonl | Select-Object -Last 1 | ConvertFrom-Json | ConvertTo-Json -Depth 10
+    # Get-Content logs_YYYY-MM-DD.jsonl | Select-Object -Last 1 | ConvertFrom-Json | ConvertTo-Json -Depth 10
 """
 
 from __future__ import annotations
@@ -151,7 +151,7 @@ def main() -> None:
     app_logger.setup()
 
     print("=== Demo Run Stub Started ===")
-    print("MT5 リアル発注は行われません。decisions.jsonl のみ出力されます。")
+    print("MT5 リアル発注は行われません。decisions_YYYY-MM-DD.jsonl のみ出力されます。")
     print()
 
     # 設定読み込み
@@ -361,7 +361,7 @@ def main() -> None:
 
     print()
     print("=== Demo Run Completed ===")
-    print(f"decisions.jsonl の出力先: logs/decisions/decisions_USDJPY.jsonl")
+    print(f"decisions.jsonl の出力先: logs_YYYY-MM-DD.jsonl")
     print(f"  (注: symbol '{symbol}' は _symbol_to_filename() により 'USDJPY' に変換される)")
 
 

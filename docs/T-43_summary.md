@@ -147,3 +147,23 @@ condition_mining の 0 件問題の主因：読み取りが旧 logs/decisions/ �
 縮退カードの改善：get_condition_mining_ops_snapshot() は「無い」と断定せず、検出件数/最新情報に基づいて表示する（嘘をつかない）
 
 通常パスの成立条件：recent 窓に 1 件でも decision があれば warnings=[] になる（今回 recent_n=1 で確認済み）
+
+
+T-43-3 Step2-6
+この作業で「何が正常になったか」（記録用）
+
+✅ decision ログの保存先は logs/decisions_YYYY-MM-DD.jsonl に単一化（実装・説明とも一致）
+
+✅ execution_service.py に残っていた 旧パスのコメント／未使用 LOG_DIR 作成を削除
+
+✅ “誰かが将来、コメントを信じて旧ディレクトリを復活させる” 事故ルートを遮断
+
+decision保存先：logs/decisions_YYYY-MM-DD.jsonl に完全単一化
+
+旧パス残存：0（NG_files=0）
+
+実書き確認：OK（USDJPY- 反映）
+
+compileall：OK
+
+condition_mining_smoke：正常（縮退警告のみ）

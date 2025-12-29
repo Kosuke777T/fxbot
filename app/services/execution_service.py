@@ -28,8 +28,8 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 # AI判断ログ（ExecutionService 専用）
 # 仕様書 v5.1 の「logs/decisions_*.jsonl」を拡張した実装として、
 # シンボルごとに JSONL を出力する:
-#   logs/decisions/decisions_{symbol}.jsonl
-# 例: USDJPY- → logs/decisions/decisions_USDJPY-.jsonl
+#   logs/decisions_{symbol}.jsonl
+# 例: USDJPY- → logs/decisions_USDJPY-.jsonl
 LOG_DIR = _PROJECT_ROOT / "logs" / "decisions"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -240,12 +240,10 @@ class DecisionsLogger:
 
         ファイルパス
         ------------
-        logs/decisions/decisions_{symbol}.jsonl
-
+        logs/decisions_YYYY-MM-DD.jsonl
         例:
             symbol = "USDJPY-"
-            → logs/decisions/decisions_USDJPY-.jsonl
-
+            → logs/decisions_2025-12-29.jsonl  # 例（JST日付）
         レコード形式 (v5.1 ExecutionService 版・標準形)
         ----------------------------------------------
         ExecutionService から書き込まれるレコードは、基本的に次の構造を持つ::
