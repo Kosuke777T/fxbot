@@ -735,6 +735,16 @@ def get_condition_mining_ops_snapshot(symbol: str, profile=None, **kwargs):
         # デバッグ用：先頭だけ（重くしない）
         out["evidence"]["recent"]["sample"] = recent_decisions[:3]
         out["evidence"]["past"]["sample"]   = past_decisions[:3]
+        # --- Step2-10: window metadata for GUI (truth-only, no display text) ---
+        out["evidence"]["window"] = {
+            "mode": "recent_past",
+            "recent_minutes": 30,
+            "past_minutes": 30,
+            "past_offset_minutes": 24 * 60,
+            "recent_range": {"start": recent_range.get("start"), "end": recent_range.get("end")},
+            "past_range": {"start": past_range.get("start"), "end": past_range.get("end")},
+        }
+
 
 
         # recent/past が 0 件の場合：ウィンドウ不一致の可能性が高いので、全期間（上限つき）で evidence を埋める
@@ -744,6 +754,12 @@ def get_condition_mining_ops_snapshot(symbol: str, profile=None, **kwargs):
             if all_decisions:
                 all_sum = _summarize_decisions_list(all_decisions)
                 out["warnings"].append("no_decisions_in_recent_past_used_all")
+                # Step2-10: tell UI this is an all-fallback situation (range mismatch signal)
+                out["warnings"].append("window_range_mismatch")
+                out["evidence"].setdefault("window", {})
+                out["evidence"]["window"]["mode"] = "all_fallback"
+                out["evidence"]["window"]["fallback_reason"] = "recent/past empty -> used all(window=None)"
+
                 out["evidence"]["all"] = {
                     "n": int(len(all_decisions)),
                     "ts_min": all_sum.get("ts_min"),

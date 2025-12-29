@@ -236,3 +236,50 @@ evidence.all_symbol_dist
 
 timestamp 抽出は ts_jst 等の揺れにも耐えるよう候補キーを追加
 
+
+T-43-3 Step2-10
+達成したこと
+
+services
+
+recent/past 0件時に all fallback を事実として返却
+
+evidence.window に mode / range / fallback_reason を刻印
+
+window_range_mismatch を warnings として明示
+
+GUI
+
+[ALL] / [WARN] による 嘘をつかない状態表示
+
+表示ロジックのみ追加（判断ロジックは services 側）
+
+window 拡張
+
+GUI → Facade → data に **kwargs 素通し
+
+6h window で [ALL][WARN] が自然に消えることを実証
+
+守れた制約
+
+既存API優先 / 新規関数なし
+
+責務境界（gui / services / core）厳守
+
+PowerShell 7 + Here-String + python -c
+
+symbol = USDJPY-
+
+smoke test による回帰確認
+
+🧠 設計的に重要な決め事（将来の自分を助ける）
+
+GUIは事実を表示するだけ
+
+fallback / mismatch は「状態」であって「エラー」ではない
+
+window は 設定で性格が変わるパラメータ（ロジックではない）
+
+Condition Mining は「静かに嘘をつかない UI」が最優先
+
+これは後で必ず効いてきます。

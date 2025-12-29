@@ -897,7 +897,17 @@ class SchedulerTab(QWidget):
             # --- T-42-3-18 Step 4-3: condition_mining min_stats ---
             try:
                 symbol = "USDJPY-"  # 仕様: symbol は USDJPY-
-                out = get_condition_mining_ops_snapshot(symbol=symbol)
+                out = get_condition_mining_ops_snapshot(
+                    symbol=symbol,
+                    recent_minutes=360,        # 直近6時間
+                    past_minutes=360,
+                    past_offset_minutes=24*60, # 24時間前
+                )
+                # --- T-43-3 Step2-10: show all-fallback & window mismatch in UI (labels) ---
+                evw = ((out.get("evidence") or {}).get("window") or {})
+                cm_mode = evw.get("mode")  # "recent_past" / "all_fallback"
+                cm_warn_mismatch = "window_range_mismatch" in (out.get("warnings") or [])
+
                 r = (out.get("recent") or {}).get("min_stats") or {}
                 p2 = (out.get("past") or {}).get("min_stats") or {}
             
@@ -909,8 +919,24 @@ class SchedulerTab(QWidget):
                     er  = float(ms.get("entry_rate", 0.0))
                     return f"total={total}  filter_pass={fpc} ({fpr:.1%})  entry={ec} ({er:.1%})"
             
-                self.lbl_cm_recent.setText(_fmt(r) if r else "-")
-                self.lbl_cm_past.setText(_fmt(p2) if p2 else "-")
+                txt_r = _fmt(r) if r else "-"
+                tags = []
+                if cm_mode == "all_fallback":
+                    tags.append("[ALL]")
+                if cm_warn_mismatch:
+                    tags.append("[WARN]")
+                if tags:
+                    txt_r = txt_r + " " + " ".join(tags)
+                self.lbl_cm_recent.setText(txt_r)
+                txt_p = _fmt(p2) if p2 else "-"
+                tags = []
+                if cm_mode == "all_fallback":
+                    tags.append("[ALL]")
+                if cm_warn_mismatch:
+                    tags.append("[WARN]")
+                if tags:
+                    txt_p = txt_p + " " + " ".join(tags)
+                self.lbl_cm_past.setText(txt_p)
                 # --- T-42-3-22: condition_mining candidates ---
                 try:
                     cc = get_condition_candidates(symbol, top_n=10) or {}
