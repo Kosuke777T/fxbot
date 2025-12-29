@@ -12,9 +12,7 @@ import fxbot_path
 
 # プロジェクトルート = app/services/ から 2 つ上
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
-_LOG_DIR = _PROJECT_ROOT / "logs" / "decisions"
-
-
+_LOG_DIR = _PROJECT_ROOT / "logs"
 @dataclass
 class DecisionRecord:
     """
@@ -201,9 +199,7 @@ def _get_decision_log_dir() -> Path:
     例: <project_root>/logs/decisions
     """
     root = fxbot_path.get_project_root()
-    return root / "logs" / "decisions"
-
-
+    return root / "logs"
 def load_recent_decisions(limit: int | None = None) -> pd.DataFrame:
     """
     decisions_*.jsonl から最新の N レコードを pandas.DataFrame で読み込む。
@@ -236,3 +232,4 @@ def load_recent_decisions(limit: int | None = None) -> pd.DataFrame:
     df = _ensure_pnl_column(df)
 
     return df.reset_index(drop=True)
+

@@ -269,61 +269,50 @@ def _normalize_facade_envelope(
 
 # === Step2-2: “同梱 + 縮退安定化 + カード整形統一” の公開関数 ===
 def get_condition_mining_ops_snapshot(symbol: str, profile: Optional[str] = None, **kwargs) -> Dict[str, Any]:
-    """Ops View / GUI が直接叩く薄い Facade（同梱返却）。
-
-    返すもの（固定）:
-      - warnings: list[str]
-      - ops_cards_first: list[ops_card]
-      - evidence/evidence_kind/evidence_src: 根拠スナップショット（空でもキーは必ず存在）
     """
-    # 既存関数（同一モジュール内に存在する前提）
-    try:
-        win = get_decisions_recent_past_window_info(symbol, profile=profile)  # type: ignore[name-defined]
-        recent = win.get("recent") or {}
-        past = win.get("past") or {}
-    except Exception:
-        recent = {}
-        past = {}
+    Ops向け: condition mining の状態スナップショット（縮退時でも「嘘を言わない」）。
+    固定キー: warnings / ops_cards_first / evidence / evidence_kind / evidence_src / symbol
+    """
+    out = get_decisions_recent_past_summary(symbol=symbol, profile=profile, **kwargs)
+    recent = out.get("recent") or {}
+    past = out.get("past") or {}
 
-    recent_n = int((recent or {}).get("n") or 0)
-    past_n = int((past or {}).get("n") or 0)
+    rn = int(recent.get("n") or 0)
+    pn = int(past.get("n") or 0)
 
-    if recent_n == 0 and past_n == 0:
-        warn = ["no_decisions_in_recent_and_past"]
-        log_inspection = _inspect_decisions_log_dir(symbol)
-        card = _ops_card(
-            title="decisions が 0 件です（原因の推定）",
-            summary=f"symbol={symbol} で recent/past ともに decisions=0 のため、探索AIは縮退動作中です。",
-            bullets=[
-                "decisions_*.jsonl が存在しません（稼働停止/出力設定/権限/パスの可能性）",
-            ],
-            caveats=[
-                "decisions=0 の場合、フィルタ過多・稼働停止・データ欠損のどれもあり得ます（断定はしない）",
-                "まずは decisionsログの最終更新時刻と、実行系（常駐/GUI起動中）の状態を確認してください",
-            ],
-            evidence={
-                "symbol": symbol,
-                "recent_n": recent_n,
-                "past_n": past_n,
-                "log_inspection": log_inspection,
-            },
-        )
-        return _normalize_facade_envelope(
-            symbol=symbol,
-            warnings=warn,
-            ops_cards_first=[card],
-            evidence=card.get("evidence") or {},
-            evidence_kind="ops_card",
-            evidence_src="logs/decisions_*.jsonl",
-        )
+    warnings: list[str] = []
+    ops_cards_first: list[dict] = []
 
-    base_evidence = {"symbol": symbol, "recent_n": recent_n, "past_n": past_n}
-    return _normalize_facade_envelope(
-        symbol=symbol,
-        warnings=[],
-        ops_cards_first=[],
-        evidence=base_evidence,
-        evidence_kind="counts",
-        evidence_src="condition_mining_facade.get_decisions_recent_past_window_info",
-    )
+    if rn == 0 and pn == 0:
+        warnings.append("no_decisions_in_recent_and_past")
+
+        insp = _inspect_decisions_log_dir(symbol)
+        files_n = int((insp or {}).get("files") or 0)
+        latest_file = (insp or {}).get("latest_file")
+        latest_mtime = (insp or {}).get("latest_mtime")
+        latest_size = (insp or {}).get("latest_size")
+
+        bullets: list[str] = []
+        if files_n <= 0:
+            bullets.append("decisions_*.jsonl が存在しません（稼働停止/出力設定/権限/パスの可能性）")
+        else:
+            bullets.append(f"decisions_*.jsonl は {files_n} 件見つかりました（最新: {latest_file} size={latest_size} mtime={latest_mtime}）")
+            bullets.append("ただし recent/past の時間窓内に 0 件です（稼働停止・時刻窓・タイムゾーン・ログ遅延などの可能性）")
+
+        ops_cards_first.append({
+            "title": "decisions が 0 件です（原因の推定）",
+            "summary": f"symbol={symbol} で recent/past ともに decisions=0 のため、探索AIは縮退動作中です。",
+            "bullets": bullets,
+        })
+
+    snap: Dict[str, Any] = {
+        "symbol": symbol,
+        "warnings": warnings,
+        "ops_cards_first": ops_cards_first,
+        "evidence": out.get("evidence"),
+        "evidence_kind": out.get("evidence_kind"),
+        "evidence_src": out.get("evidence_src"),
+    }
+    return snap
+
 

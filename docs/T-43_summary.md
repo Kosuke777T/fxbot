@@ -1,5 +1,5 @@
 T-43-1（窓情報 + min_stats の取得）クリアです。
-TypeError: naive/aware も潰れて、total=None → 0 に正規化できました。 
+TypeError: naive/aware も潰れて、total=None → 0 に正規化できました。
 
 condition_mining_data
 
@@ -110,3 +110,28 @@ PYTHONPATH=D:\fxbot を明示
 
 python -c @" ... "@ のワンショットで完結
 という運用ルール（このパターンが再利用可能）
+
+T-43-3 Step2-5 達成内容（記録用まとめ）
+✅ 原因
+
+decisions の生成はできていたが、読み取り側の参照ディレクトリが旧仕様 logs/decisions/ のままで、v5.2 の logs/decisions_YYYY-MM-DD.jsonl を読めず 0件 になっていた。
+
+✅ 復旧
+
+app/services/execution_stub.py：logs/decisions_YYYY-MM-DD.jsonl を生成できるようにした（v5.2）
+
+app/services/decision_log.py：参照先を logs/ 直下に統一（v5.2）
+
+get_decisions_window_summary() で n>0 を確認
+
+condition_mining_facade.get_condition_mining_ops_snapshot() を修復し、縮退時でも嘘を言わない bullets に改善
+
+seed 1 行で recent に decision が入る状態を作り、smoke で warnings=[] を確認（通常パス OK）
+
+✅ 確認結果（あなたのログ）
+
+warnings=[]
+
+ops_cards_first_n=0
+
+snapshot JSON 出力 OK

@@ -395,9 +395,19 @@ def _write_decision_log(symbol: str, record: Dict[str, Any]) -> None:
                 # 検証で例外が出た場合も warn-only なので警告のみ（運用で落とさない）
                 logger.warning(f"[decision_context_schema] validation failed (warn-only): {e}")
 
-    fname = LOG_DIR / f"decisions_{_symbol_to_filename(symbol)}.jsonl"
-    with open(fname, "a", encoding="utf-8") as fp:
-        fp.write(json.dumps(record, ensure_ascii=False) + "\n")
+    try:
+        # v5.2: フラットに logs/decisions_YYYY-MM-DD.jsonl
+        logs_dir = Path("logs")
+        logs_dir.mkdir(exist_ok=True)
+
+        d = datetime.now(timezone.utc).date().isoformat()
+        path = logs_dir / f"decisions_{d}.jsonl"
+
+        with path.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+    except Exception:
+        # ログ失敗で売買・探索を止めない
+        return
 
 
 def _ai_to_dict(ai_out: Any) -> Dict[str, Any]:
