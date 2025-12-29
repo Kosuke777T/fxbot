@@ -412,3 +412,38 @@ SchedulerTab
 Condition Mining の時間窓が、
 ハードコード → 設定 → profile別 → GUI反映 → override可能
 という “運用できる設計” に進化した。
+
+T-43-3 Step2-12
+UI構造
+
+SchedulerTab を Overview / Condition Mining / Logs のサブタブ構成に分離
+
+**Logs タブを“運用の主戦場”**として再定義
+
+左：Scheduled / Always（タブ）
+
+上：ジョブ操作ツールバー（更新 / 追加 / 編集 / 削除）
+
+右：実行ログ（detail_text）
+
+「実行 → その場でログ確認」が 画面遷移ゼロで完結
+
+Condition Mining
+
+profile（demo / real）切替
+
+recent / past / past_offset を GUI から編集
+
+保存 → set_condition_mining_window_settings
+
+即 get_condition_mining_ops_snapshot 再取得・反映（再起動不要）
+
+evidence.window が UI と完全同期
+
+設計面
+
+新規ロジック最小、既存ハンドラ・サービスを再配置のみ
+
+責務境界（gui / services / core）維持
+
+Scheduler の **「概要を見る場所」と「触る場所」**が明確に分離

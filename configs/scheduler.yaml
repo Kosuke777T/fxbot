@@ -78,3 +78,14 @@ jobs:
   hour: null
   minute: null
   run_always: true
+- id: te2
+  enabled: true
+  command: te2
+  weekday: null
+  hour: 0
+  minute: 0
+  schedule:
+    weekday: null
+    hour: 0
+    minute: 0
+  scheduler_level: 3

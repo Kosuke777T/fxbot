@@ -24,6 +24,7 @@ from PyQt6.QtWidgets import (
     QDialogButtonBox,
     QPlainTextEdit,
     QSplitter,
+    QTabWidget,
     QGroupBox,
 )
 
@@ -32,6 +33,7 @@ from app.services.ops_overview_facade import get_ops_overview
 from app.services.condition_mining_facade import (
     get_condition_mining_ops_snapshot,
     get_condition_mining_window_settings,
+    set_condition_mining_window_settings,
 )
 from app.services.recent_kpi import KPIService as RecentKPIService
 from app.services.scheduler_facade import (
@@ -199,6 +201,72 @@ class SchedulerTab(QWidget):
         self.header.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         root.addWidget(self.header)
 
+        # ---- Sub Tabs (T-43-3 Step2-12) ----
+        self.tabs = QTabWidget(self)
+        self.tab_overview = QWidget(self)
+        self.tab_condition_mining = QWidget(self)
+        self.tab_logs = QWidget(self)
+
+        self.tabs.addTab(self.tab_overview, "Overview")
+        self.tabs.addTab(self.tab_condition_mining, "Condition Mining")
+        # ---- Condition Mining Settings UI (T-43-3 Step2-12) ----
+        cm_root = QVBoxLayout(self.tab_condition_mining)
+        cm_root.setContentsMargins(0, 0, 0, 0)
+        cm_root.setSpacing(8)
+
+        cm_form = QFormLayout()
+        cm_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+
+        self.cm_profile = QComboBox(self.tab_condition_mining)
+        self.cm_profile.addItems(["demo", "real"])
+
+        self.cm_recent = QSpinBox(self.tab_condition_mining)
+        self.cm_recent.setRange(0, 10080)
+        self.cm_recent.setSuffix(" min")
+
+        self.cm_past = QSpinBox(self.tab_condition_mining)
+        self.cm_past.setRange(0, 10080)
+        self.cm_past.setSuffix(" min")
+
+        self.cm_past_offset = QSpinBox(self.tab_condition_mining)
+        self.cm_past_offset.setRange(0, 10080)
+        self.cm_past_offset.setSuffix(" min")
+
+        cm_form.addRow("profile", self.cm_profile)
+        cm_form.addRow("recent_minutes", self.cm_recent)
+        cm_form.addRow("past_minutes", self.cm_past)
+        cm_form.addRow("past_offset_minutes", self.cm_past_offset)
+        cm_root.addLayout(cm_form)
+
+        self.cm_save_btn = QPushButton("保存してsnapshot即反映", self.tab_condition_mining)
+        cm_root.addWidget(self.cm_save_btn)
+
+        self.cm_snapshot = QPlainTextEdit(self.tab_condition_mining)
+        self.cm_snapshot.setReadOnly(True)
+        self.cm_snapshot.setMaximumBlockCount(2000)
+        self.cm_snapshot.setMinimumHeight(220)
+        cm_root.addWidget(self.cm_snapshot, 1)
+
+        self.cm_profile.currentTextChanged.connect(self._cm_load_settings)
+        self.cm_save_btn.clicked.connect(self._cm_save_settings)
+
+        # 初期ロード
+        self._cm_load_settings(self.cm_profile.currentText())
+        # ---- /Condition Mining Settings UI ----
+
+        self.tabs.addTab(self.tab_logs, "Logs")
+
+        ov_root = QVBoxLayout(self.tab_overview)
+        ov_root.setContentsMargins(0, 0, 0, 0)
+        ov_root.setSpacing(6)
+
+        lg_root = QVBoxLayout(self.tab_logs)
+        lg_root.setContentsMargins(0, 0, 0, 0)
+        lg_root.setSpacing(6)
+
+        root.addWidget(self.tabs, 1)
+        # ---- /Sub Tabs ----
+
         # ---- Overview Panel (T-42-3-13) ----
         self.overview_group = QGroupBox("Overview", self)
         overview_layout = QHBoxLayout()
@@ -249,7 +317,7 @@ class SchedulerTab(QWidget):
         overview_layout.addStretch(1)
 
         self.overview_group.setLayout(overview_layout)
-        root.addWidget(self.overview_group)
+        ov_root.addWidget(self.overview_group)
         # ---- /Overview Panel ----
 
         # ---- Ops Overview Panel (T-42-3-14) ----
@@ -278,7 +346,7 @@ class SchedulerTab(QWidget):
         ops_overview_form.addRow("cm_recent_candidates", self.lbl_cm_recent_cand)
         ops_overview_form.addRow("cm_past_min_stats", self.lbl_cm_past)
         ops_overview_form.addRow("cm_past_candidates", self.lbl_cm_past_cand)
-        root.addWidget(self.ops_overview_box)
+        ov_root.addWidget(self.ops_overview_box)
         # ---- /Ops Overview Panel ----
 
         # ボタン行
@@ -299,8 +367,7 @@ class SchedulerTab(QWidget):
         self.btn_remove.clicked.connect(self._on_remove)
         row.addWidget(self.btn_remove)
         row.addStretch(1)
-        root.addLayout(row)
-
+        # moved: ov_root.addLayout(row)
         # ---- Daemon Control UI (T-42-3-12) ----
         self.daemon_group = QGroupBox("常駐デーモン", self)
         dg = QHBoxLayout()
@@ -323,22 +390,39 @@ class SchedulerTab(QWidget):
         dg.addStretch(1)
 
         self.daemon_group.setLayout(dg)
-        root.addWidget(self.daemon_group)
+        ov_root.addWidget(self.daemon_group)
         # ---- /Daemon Control UI ----
 
         # メインスプリッター（水平分割：左=ジョブテーブル、右=詳細ビュー）
         main_splitter = QSplitter(Qt.Orientation.Horizontal, self)
-        root.addWidget(main_splitter, 1)  # stretch=1 を明示
+        lg_root.addWidget(main_splitter, 1)  # stretch=1 を明示
+        # 左側：ジョブテーブル（タブ分割：スケジュール / 常時実行）
+        jobs_tabs = QTabWidget(self)
+        jobs_left = QWidget(self)
+        jobs_left_layout = QVBoxLayout(jobs_left)
+        jobs_left_layout.setContentsMargins(0, 0, 0, 0)
+        jobs_left_layout.setSpacing(6)
 
-        # 左側：ジョブテーブル（垂直分割：上=スケジュール、下=常時実行）
-        jobs_splitter = QSplitter(Qt.Orientation.Vertical, self)
-        main_splitter.addWidget(jobs_splitter)
+        row = QHBoxLayout()
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(8)
+        row.addWidget(self.btn_refresh)
+        row.addWidget(self.btn_add)
+        row.addWidget(self.btn_edit)
+        row.addWidget(self.btn_remove)
+        row.addStretch(1)
+        jobs_left_layout.addLayout(row)
 
-        # スケジュールジョブテーブル
-        scheduled_group = QWidget(self)
-        scheduled_layout = QVBoxLayout(scheduled_group)
+        jobs_left_layout.addWidget(jobs_tabs, 1)
+
+        main_splitter.addWidget(jobs_left)
+        # --- Tab: スケジュールジョブ ---
+        tab_scheduled = QWidget(self)
+        scheduled_layout = QVBoxLayout(tab_scheduled)
+        scheduled_layout.setContentsMargins(0, 0, 0, 0)
         scheduled_label = QLabel("スケジュールジョブ", self)
         scheduled_layout.addWidget(scheduled_label)
+
         self.table_scheduled = QTableWidget(self)
         self.table_scheduled.setColumnCount(8)
         self.table_scheduled.setHorizontalHeaderLabels([
@@ -356,14 +440,17 @@ class SchedulerTab(QWidget):
         self.table_scheduled.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         self.table_scheduled.cellDoubleClicked.connect(self._on_double_click)
         self.table_scheduled.itemSelectionChanged.connect(self._on_job_selected)
-        scheduled_layout.addWidget(self.table_scheduled)
-        jobs_splitter.addWidget(scheduled_group)
+        scheduled_layout.addWidget(self.table_scheduled, 1)
 
-        # 常時実行ジョブテーブル
-        always_group = QWidget(self)
-        always_layout = QVBoxLayout(always_group)
+        jobs_tabs.addTab(tab_scheduled, "Scheduled")
+
+        # --- Tab: 常時実行ジョブ ---
+        tab_always = QWidget(self)
+        always_layout = QVBoxLayout(tab_always)
+        always_layout.setContentsMargins(0, 0, 0, 0)
         always_label = QLabel("常時実行ジョブ", self)
         always_layout.addWidget(always_label)
+
         self.table_always = QTableWidget(self)
         self.table_always.setColumnCount(8)
         self.table_always.setHorizontalHeaderLabels([
@@ -381,8 +468,9 @@ class SchedulerTab(QWidget):
         self.table_always.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         self.table_always.cellDoubleClicked.connect(self._on_double_click)
         self.table_always.itemSelectionChanged.connect(self._on_job_selected)
-        always_layout.addWidget(self.table_always)
-        jobs_splitter.addWidget(always_group)
+        always_layout.addWidget(self.table_always, 1)
+
+        jobs_tabs.addTab(tab_always, "Always")
 
         # デーモン操作のシグナル接続
         self.btn_daemon_start.clicked.connect(self._on_daemon_start)
@@ -408,9 +496,7 @@ class SchedulerTab(QWidget):
         self.detail_text.setMaximumBlockCount(1000)  # メモリ保護
         detail_layout.addWidget(self.detail_text)
         main_splitter.addWidget(detail_group)
-
         # スプリッターのサイズ比率
-        jobs_splitter.setSizes([200, 100])  # スケジュール:常時実行 = 2:1
         main_splitter.setSizes([300, 200])  # ジョブテーブル:詳細 = 3:2
 
         # 最後のsnapshotを保持（詳細表示用）
@@ -435,6 +521,60 @@ class SchedulerTab(QWidget):
             return " / ".join(parts) if parts else "-"
         except Exception:
             return "-"
+
+    # ----------------------------
+    # Condition Mining tab helpers
+    # ----------------------------
+    def _cm_load_settings(self, profile: str) -> None:
+        """profile別 window 設定を読み込み、SpinBoxへ反映し、snapshotも更新する。"""
+        try:
+            win = get_condition_mining_window_settings(profile=profile) or {}
+        except Exception:
+            win = {}
+
+        rv = win.get("recent_minutes")
+        pv = win.get("past_minutes")
+        ov = win.get("past_offset_minutes")
+
+        if rv is not None:
+            self.cm_recent.setValue(int(rv))
+        if pv is not None:
+            self.cm_past.setValue(int(pv))
+        if ov is not None:
+            self.cm_past_offset.setValue(int(ov))
+
+        self._cm_refresh_snapshot()
+
+    def _cm_save_settings(self) -> None:
+        """保存→snapshot再取得→即反映（GUI再起動なし）。"""
+        profile = (self.cm_profile.currentText() or "").strip() or None
+        patch = {
+            "recent_minutes": int(self.cm_recent.value()),
+            "past_minutes": int(self.cm_past.value()),
+            "past_offset_minutes": int(self.cm_past_offset.value()),
+        }
+        try:
+            set_condition_mining_window_settings(patch=patch, profile=profile)
+        except Exception as e:
+            self.cm_snapshot.setPlainText(f"[save_failed] {e}")
+            return
+
+        self._cm_refresh_snapshot()
+
+    def _cm_refresh_snapshot(self) -> None:
+        """現在の設定で snapshot を取得し、JSONとして表示。"""
+        profile = (self.cm_profile.currentText() or "").strip() or None
+        try:
+            snap = get_condition_mining_ops_snapshot(symbol="USDJPY-", profile=profile) or {}
+        except Exception as e:
+            self.cm_snapshot.setPlainText(f"[snapshot_failed] {e}")
+            return
+
+        try:
+            txt = json.dumps(snap, ensure_ascii=False, indent=2, sort_keys=True)
+        except Exception:
+            txt = str(snap)
+        self.cm_snapshot.setPlainText(txt)
 
     def refresh(self, checked: bool = False, snap: dict | None = None) -> None:
         # clicked(bool) から来た checked が snap に入らないよう防御（保険）
@@ -672,6 +812,7 @@ class SchedulerTab(QWidget):
                     lines.append(stderr.rstrip())
                 self.detail_text.appendPlainText("\n".join(lines))
 
+                self.tabs.setCurrentWidget(self.tab_logs)
                 # 実行後スナップショットで再描画
                 snap = res.get("snapshot")
                 if snap:
@@ -1037,4 +1178,3 @@ class SchedulerTab(QWidget):
         if hasattr(self, "_daemon_timer") and self._daemon_timer is not None:
             if self._daemon_timer.isActive():
                 self._daemon_timer.stop()
-
