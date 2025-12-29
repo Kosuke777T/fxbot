@@ -29,7 +29,10 @@ from PyQt6.QtWidgets import (
 
 from app.services.ai_service import get_model_metrics, get_active_model_meta
 from app.services.ops_overview_facade import get_ops_overview
-from app.services.condition_mining_facade import get_condition_mining_ops_snapshot
+from app.services.condition_mining_facade import (
+    get_condition_mining_ops_snapshot,
+    get_condition_mining_window_settings,
+)
 from app.services.recent_kpi import KPIService as RecentKPIService
 from app.services.scheduler_facade import (
     get_scheduler_snapshot,
@@ -255,7 +258,6 @@ class SchedulerTab(QWidget):
         self.lbl_cm_recent_cand = QLabel("-", self)
         self.lbl_cm_past = QLabel("-", self)
         self.lbl_cm_past_cand = QLabel("-", self)
-# condition_mining: past min_stats
         ops_overview_form = QFormLayout(self.ops_overview_box)
 
         self.lbl_next_action = QLabel("-", self)
@@ -421,31 +423,18 @@ class SchedulerTab(QWidget):
         self.refresh()
 
     def _fmt_candidates(self, items):
-
         try:
-
             arr = items or []
-
             top = arr[:3]
-
             if not top:
-
                 return "-"
-
             parts = []
-
             for x in top:
-
                 if isinstance(x, dict):
-
                     parts.append(str(x.get("reason")) + "(" + str(x.get("count")) + ")")
-
             return " / ".join(parts) if parts else "-"
-
         except Exception:
-
             return "-"
-
 
     def refresh(self, checked: bool = False, snap: dict | None = None) -> None:
         # clicked(bool) から来た checked が snap に入らないよう防御（保険）
@@ -579,7 +568,6 @@ class SchedulerTab(QWidget):
             return
 
         try:
-
             # snapshotから該当ジョブを検索
             jobs = self._last_snapshot.get("jobs") or []
             job = next((j for j in jobs if str(j.get("id", "")) == job_id), None)
@@ -897,11 +885,10 @@ class SchedulerTab(QWidget):
             # --- T-42-3-18 Step 4-3: condition_mining min_stats ---
             try:
                 symbol = "USDJPY-"  # 仕様: symbol は USDJPY-
+                win = get_condition_mining_window_settings()
                 out = get_condition_mining_ops_snapshot(
                     symbol=symbol,
-                    recent_minutes=360,        # 直近6時間
-                    past_minutes=360,
-                    past_offset_minutes=24*60, # 24時間前
+                    **win,
                 )
                 # --- T-43-3 Step2-10: show all-fallback & window mismatch in UI (labels) ---
                 evw = ((out.get("evidence") or {}).get("window") or {})
@@ -910,15 +897,15 @@ class SchedulerTab(QWidget):
 
                 r = (out.get("recent") or {}).get("min_stats") or {}
                 p2 = (out.get("past") or {}).get("min_stats") or {}
-            
+
                 def _fmt(ms: dict) -> str:
                     total = ms.get("total", 0)
                     fpc = ms.get("filter_pass_count", 0)
                     fpr = float(ms.get("filter_pass_rate", 0.0))
-                    ec  = ms.get("entry_count", 0)
-                    er  = float(ms.get("entry_rate", 0.0))
+                    ec = ms.get("entry_count", 0)
+                    er = float(ms.get("entry_rate", 0.0))
                     return f"total={total}  filter_pass={fpc} ({fpr:.1%})  entry={ec} ({er:.1%})"
-            
+
                 txt_r = _fmt(r) if r else "-"
                 tags = []
                 if cm_mode == "all_fallback":
@@ -939,9 +926,10 @@ class SchedulerTab(QWidget):
                 self.lbl_cm_past.setText(txt_p)
                 # --- T-42-3-22: condition_mining candidates ---
                 try:
-                    cc = get_condition_candidates(symbol, top_n=10) or {}
-                    self.lbl_cm_recent_cand.setText(self._fmt_candidates((cc.get("recent") or {}).get("candidates") or []))
-                    self.lbl_cm_past_cand.setText(self._fmt_candidates((cc.get("past") or {}).get("candidates") or []))
+                    # get_condition_candidates は未実装のため、エラーハンドリングで対応
+                    # 将来的に実装された場合はここで呼び出す
+                    self.lbl_cm_recent_cand.setText("-")
+                    self.lbl_cm_past_cand.setText("-")
                 except Exception:
                     self.lbl_cm_recent_cand.setText("-")
                     self.lbl_cm_past_cand.setText("-")
@@ -949,6 +937,8 @@ class SchedulerTab(QWidget):
             except Exception:
                 self.lbl_cm_recent.setText("-")
                 self.lbl_cm_past.setText("-")
+                self.lbl_cm_recent_cand.setText("-")
+                self.lbl_cm_past_cand.setText("-")
             # --- /T-42-3-18 Step 4-3 ---
         except Exception as e:
             self.lbl_next_action.setText(f"ERROR: {e}")
@@ -965,9 +955,7 @@ class SchedulerTab(QWidget):
         kind = na.get("kind", "-")
         priority = na.get("priority", "-")
         reason = na.get("reason", "")
-        self.lbl_next_action.setText(
-            f"{kind} (prio={priority})\n{reason}"
-        )
+        self.lbl_next_action.setText(f"{kind} (prio={priority})\n{reason}")
 
         # wfo_stability
         reasons = ws.get("reasons") or []
@@ -975,10 +963,7 @@ class SchedulerTab(QWidget):
         stable = ws.get("stable", "-")
         score = ws.get("score", "-")
         run_id = ws.get("run_id", "-")
-        self.lbl_wfo.setText(
-            f"stable={stable} score={score} run_id={run_id}\n"
-            f"reasons: {reasons_s}"
-        )
+        self.lbl_wfo.setText(f"stable={stable} score={score} run_id={run_id}\nreasons: {reasons_s}")
 
         # latest_retrain
         # data_range / threshold は dict のまま来る可能性があるので JSON 文字列にして潰す
@@ -987,11 +972,7 @@ class SchedulerTab(QWidget):
         dr_s = json.dumps(dr, ensure_ascii=False) if dr is not None else "-"
         th_s = json.dumps(th, ensure_ascii=False) if th is not None else "-"
         lr_run_id = lr.get("run_id", "-")
-        self.lbl_retrain.setText(
-            f"run_id={lr_run_id}\n"
-            f"data_range={dr_s}\n"
-            f"threshold={th_s}"
-        )
+        self.lbl_retrain.setText(f"run_id={lr_run_id}\ndata_range={dr_s}\nthreshold={th_s}")
 
         self.lbl_generated.setText(str(o.get("generated_at", "-")))
     # ---- /Ops Overview Panel ----
@@ -1056,7 +1037,4 @@ class SchedulerTab(QWidget):
         if hasattr(self, "_daemon_timer") and self._daemon_timer is not None:
             if self._daemon_timer.isActive():
                 self._daemon_timer.stop()
-
-
-
 

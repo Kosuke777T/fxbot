@@ -70,11 +70,7 @@ def resolve_window(
     return (None, None)
 
 
-def get_decisions_window_summary(
-    symbol: str,
-    window: str | None = None,
-    profile: Optional[str] = None,
-    start: Optional[str] = None,
+def get_decisions_window_summary(symbol: str, window: str | None = None, profile: Optional[str] = None, recent_minutes: int = 30, past_minutes: int = 30, past_offset_minutes: int = 24 * 60, start: Optional[str] = None,
     end: Optional[str] = None,
     max_scan: int = 200_000,
     include_decisions: bool = False,
@@ -84,8 +80,15 @@ def get_decisions_window_summary(
     dt_end = _parse_iso_dt(end) if end else None
 
     if dt_start is None and dt_end is None and window:
-        ws, we = resolve_window(window)
-        dt_start, dt_end = ws, we
+        now_dt = datetime.now(timezone.utc)
+        start_dt, end_dt = resolve_window(
+            window=window,
+            now=now_dt,
+            recent_minutes=recent_minutes,
+            past_minutes=past_minutes,
+            past_offset_minutes=past_offset_minutes,
+        )
+        dt_start, dt_end = start_dt, end_dt
 
     n = 0
     min_dt: Optional[datetime] = None
@@ -275,13 +278,26 @@ def _try_extract_winrate_avgpnl_from_backtests(*, symbol: str) -> dict:
     return {}
 def get_decisions_recent_past_summary(symbol: str, profile: Optional[str] = None, **kwargs) -> dict:
     """Aggregate recent/past windows and attach minimal stats."""
+    # --- Step2-11: minutes are accepted via kwargs; pop to avoid unexpected-kw in downstream ---
+    recent_minutes = int(kwargs.pop('recent_minutes', 30) or 30)
+    past_minutes = int(kwargs.pop('past_minutes', 30) or 30)
+    past_offset_minutes = int(kwargs.pop('past_offset_minutes', 24 * 60) or (24 * 60))
+
     recent = get_decisions_window_summary(
+        recent_minutes=recent_minutes,
+        past_minutes=past_minutes,
+        past_offset_minutes=past_offset_minutes,
+
         symbol=symbol,
         window="recent",
         profile=profile,
         **kwargs,
     )
     past = get_decisions_window_summary(
+        recent_minutes=recent_minutes,
+        past_minutes=past_minutes,
+        past_offset_minutes=past_offset_minutes,
+
         symbol=symbol,
         window="past",
         profile=profile,
@@ -312,7 +328,7 @@ def get_decisions_recent_past_summary(symbol: str, profile: Optional[str] = None
             past["start_ts"] = sP.isoformat()
         if past.get("end_ts") is None:
             past["end_ts"] = eP.isoformat()
-    
+
     # range を追加（v5.2仕様準拠）
     recent["range"] = {
         "start": recent.get("start_ts"),
@@ -322,7 +338,18 @@ def get_decisions_recent_past_summary(symbol: str, profile: Optional[str] = None
         "start": past.get("start_ts"),
         "end": past.get("end_ts"),
     }
+    # --- Step2-11: window metadata for GUI (truth-only; derived from resolved minutes) ---
     out = {"recent": recent, "past": past}
+
+    out.setdefault("evidence", {})
+    out["evidence"]["window"] = {
+        "mode": "recent_past",
+        "recent_minutes": int(recent_minutes),
+        "past_minutes": int(past_minutes),
+        "past_offset_minutes": int(past_offset_minutes),
+        "recent_range": {"start": recent["range"]["start"], "end": recent["range"]["end"]},
+        "past_range": {"start": past["range"]["start"], "end": past["range"]["end"]},
+    }
 
     # --- warnings / ops_cards の型固定（None禁止） ---
     warnings = []
@@ -346,7 +373,8 @@ def get_decisions_recent_past_summary(symbol: str, profile: Optional[str] = None
     # --- Step2 evidence（decisionsが無い場合は backtest 成果物から取る） ---
     ev = _try_extract_winrate_avgpnl_from_backtests(symbol=symbol)
     if ev:
-        out["evidence"] = {k: v for k, v in ev.items() if not k.startswith("_")}
+        out.setdefault("evidence", {})
+        out["evidence"].update({k: v for k, v in ev.items() if not k.startswith("_")})
         out["evidence_src"] = ev.get("_src")
         out["evidence_kind"] = ev.get("_kind")
 
@@ -692,7 +720,7 @@ def get_condition_mining_ops_snapshot(symbol: str, profile=None, **kwargs):
         "past_symbol_dist": past_sum.get("symbol_dist", {}),
     }
 
-    
+
     # --- Step2-9: enrich evidence with window decisions (real data) ---
     try:
         recent_ws = get_decisions_window_summary(symbol=symbol, window="recent", profile=profile, include_decisions=True, **kwargs)
@@ -738,9 +766,9 @@ def get_condition_mining_ops_snapshot(symbol: str, profile=None, **kwargs):
         # --- Step2-10: window metadata for GUI (truth-only, no display text) ---
         out["evidence"]["window"] = {
             "mode": "recent_past",
-            "recent_minutes": 30,
-            "past_minutes": 30,
-            "past_offset_minutes": 24 * 60,
+            "recent_minutes": int(recent_minutes),
+            "past_minutes": int(past_minutes),
+            "past_offset_minutes": int(past_offset_minutes),
             "recent_range": {"start": recent_range.get("start"), "end": recent_range.get("end")},
             "past_range": {"start": past_range.get("start"), "end": past_range.get("end")},
         }

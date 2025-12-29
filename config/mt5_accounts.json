@@ -4,12 +4,22 @@
     "demo": {
       "login": 22004581,
       "password": "eXSIDTUCV4&",
-      "server": "GaitameFinest-Demo"
+      "server": "GaitameFinest-Demo",
+      "condition_mining_window": {
+        "recent_minutes": 7,
+        "past_minutes": 9,
+        "past_offset_minutes": 111
+      }
     },
     "real": {
       "login": 3002973,
       "password": "QpNa@w7s",
-      "server": "GaitameFinest-LIVE"
+      "server": "GaitameFinest-LIVE",
+      "condition_mining_window": {
+        "recent_minutes": 30,
+        "past_minutes": 30,
+        "past_offset_minutes": 1440
+      }
     }
   }
 }

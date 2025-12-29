@@ -109,3 +109,72 @@ def get_active_profile_name() -> str:
     cfg = load_config()
     active = cfg.get("active_profile")
     return str(active or "")
+
+
+# ==============================
+# Condition Mining window (profile-scoped)
+# ==============================
+def get_condition_mining_window(profile: Optional[str] = None) -> Dict[str, Any]:
+    """
+    profile 別 Condition Mining window 設定を取得する。
+    無ければデフォルトを返す（保存はしない）。
+    """
+    DEFAULT = {
+        "recent_minutes": 30,
+        "past_minutes": 30,
+        "past_offset_minutes": 24 * 60,
+    }
+
+    cfg = load_config()
+    profiles = cfg.get("profiles", {}) or {}
+
+    name = profile or cfg.get("active_profile") or ""
+    p = profiles.get(name) if isinstance(profiles, dict) else None
+    if not isinstance(p, dict):
+        return dict(DEFAULT)
+
+    win = p.get("condition_mining_window")
+    if not isinstance(win, dict):
+        return dict(DEFAULT)
+
+    out = dict(DEFAULT)
+    for k in DEFAULT:
+        if k in win:
+            try:
+                out[k] = int(win[k])
+            except Exception:
+                pass
+    return out
+
+
+def set_condition_mining_window(patch: Dict[str, Any], profile: Optional[str] = None) -> Dict[str, Any]:
+    """
+    profile 別 Condition Mining window 設定を更新する。
+    patch は部分更新可。
+    """
+    cfg = load_config()
+    profiles = cfg.setdefault("profiles", {})
+
+    name = profile or cfg.get("active_profile") or ""
+    if not name:
+        raise ValueError("no active profile for condition_mining_window")
+
+    p = profiles.setdefault(name, {})
+    if not isinstance(p, dict):
+        p = {}
+        profiles[name] = p
+
+    win = p.setdefault("condition_mining_window", {})
+    if not isinstance(win, dict):
+        win = {}
+        p["condition_mining_window"] = win
+
+    for k in ["recent_minutes", "past_minutes", "past_offset_minutes"]:
+        if k in patch:
+            try:
+                win[k] = int(patch[k])
+            except Exception:
+                pass
+
+    save_config(cfg)
+    return get_condition_mining_window(profile=name)

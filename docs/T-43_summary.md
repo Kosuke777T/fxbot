@@ -283,3 +283,132 @@ window は 設定で性格が変わるパラメータ（ロジックではない
 Condition Mining は「静かに嘘をつかない UI」が最優先
 
 これは後で必ず効いてきます。
+
+
+T-43-3 Step2-11
+1. 時間窓が「ハードコード」から「設定」になった
+
+以前：
+
+recent_minutes=30 などが
+
+SchedulerTab
+
+facade
+
+data
+に 散在して直書き
+
+結果：
+
+どこを見ているのか分かりにくい
+
+GUI表示と実際の探索条件がズレる危険あり
+
+Step2-11後：
+
+時間窓は profile別設定として一元管理
+
+mt5_account_store.get_condition_mining_window(profile)
+
+
+demo と real で別の探索窓を持てる
+
+👉 「探索条件は設定に属する」という設計原則に戻した
+
+2. caller override が可能（設定より引数が優先）
+
+設計上かなり重要なポイント。
+
+通常：
+
+get_condition_mining_ops_snapshot(symbol)
+
+
+→ profile設定の window が自動適用される
+
+明示指定した場合：
+
+get_condition_mining_ops_snapshot(
+    symbol,
+    recent_minutes=1,
+    past_minutes=2,
+    past_offset_minutes=3,
+)
+
+
+→ 設定を上書き（override）
+
+👉
+
+GUI
+
+スクリプト
+
+デバッグ
+すべてで「一時的に窓を変えて試す」ことができる
+
+3. evidence.window が「真実」を語るようになった
+
+ここが Step2-11 の核心。
+
+以前：
+
+evidence.window は
+
+30 / 30 / 1440 が固定で表示されることがあった
+
+実際に使われた window と 乖離する可能性
+
+Step2-11後：
+
+実際に解決された minutes を使って
+
+out["evidence"]["window"] = {
+    "recent_minutes": 7,
+    "past_minutes": 9,
+    "past_offset_minutes": 111,
+    "recent_range": {...},
+    "past_range": {...},
+}
+
+
+後続処理（勝率抽出など）でも 消されずに保持
+
+👉
+GUIが「推測」ではなく「事実」を表示するようになった
+
+4. services / facade / gui の責務が整理された
+
+暗黙にやっていたことを、はっきり分離。
+
+mt5_account_store
+
+profile別 window の保存・取得
+
+condition_mining_facade
+
+設定を解決して kwargs に注入
+
+ops向けの「嘘をつかない」スナップショットを返す
+
+condition_mining_data
+
+実データ処理
+
+window metadata を evidence に正しく反映
+
+SchedulerTab
+
+値を決めない
+
+表示と操作だけ
+
+👉
+「GUIがロジックを持たない」状態に一段近づいた
+
+成果を一行でまとめると
+
+Condition Mining の時間窓が、
+ハードコード → 設定 → profile別 → GUI反映 → override可能
+という “運用できる設計” に進化した。

@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from app.services.condition_mining_data import get_decisions_recent_past_summary
+from app.services import mt5_account_store
 
 
 def get_decisions_recent_past_min_stats(symbol: str) -> Dict[str, Any]:
@@ -268,12 +269,38 @@ def _normalize_facade_envelope(
 
 
 # === Step2-2: “同梱 + 縮退安定化 + カード整形統一” の公開関数 ===
-def get_condition_mining_ops_snapshot(symbol: str, profile: Optional[str] = None, **kwargs) -> Dict[str, Any]:
+def get_condition_mining_ops_snapshot(
+    symbol: str,
+    profile: Optional[str] = None,
+    **kwargs,
+) -> Dict[str, Any]:
     """
-    Ops向け: condition mining の状態スナップショット（縮退時でも「嘘を言わない」）。
-    固定キー: warnings / ops_cards_first / evidence / evidence_kind / evidence_src / symbol
+    Ops向け: condition mining の状態スナップショット。
+    window 設定は profile → kwargs → fallback の順で解決する。
     """
-    out = get_decisions_recent_past_summary(symbol=symbol, profile=profile, **kwargs)
+
+    # --- Step2-11: resolve window BEFORE data access ---
+    if (
+        "recent_minutes" not in kwargs
+        and "past_minutes" not in kwargs
+        and "past_offset_minutes" not in kwargs
+    ):
+        win = mt5_account_store.get_condition_mining_window(profile=profile)
+        if isinstance(win, dict):
+            if win.get("recent_minutes") is not None:
+                kwargs["recent_minutes"] = win.get("recent_minutes")
+            if win.get("past_minutes") is not None:
+                kwargs["past_minutes"] = win.get("past_minutes")
+            if win.get("past_offset_minutes") is not None:
+                kwargs["past_offset_minutes"] = win.get("past_offset_minutes")
+
+    # --- main data ---
+    out = get_decisions_recent_past_summary(
+        symbol=symbol,
+        profile=profile,
+        **kwargs,
+    )
+
     recent = out.get("recent") or {}
     past = out.get("past") or {}
 
@@ -294,18 +321,26 @@ def get_condition_mining_ops_snapshot(symbol: str, profile: Optional[str] = None
 
         bullets: list[str] = []
         if files_n <= 0:
-            bullets.append("decisions_*.jsonl が存在しません（稼働停止/出力設定/権限/パスの可能性）")
+            bullets.append(
+                "decisions_*.jsonl が存在しません（稼働停止/出力設定/権限/パスの可能性）"
+            )
         else:
-            bullets.append(f"decisions_*.jsonl は {files_n} 件見つかりました（最新: {latest_file} size={latest_size} mtime={latest_mtime}）")
-            bullets.append("ただし recent/past の時間窓内に 0 件です（稼働停止・時刻窓・タイムゾーン・ログ遅延などの可能性）")
+            bullets.append(
+                f"decisions_*.jsonl は {files_n} 件 見つかりました（最新: {latest_file} size={latest_size} mtime={latest_mtime}）"
+            )
+            bullets.append(
+                "ただし recent/past の時間窓内に 0 件です（稼働停止・時刻窓・タイムゾーン・ログ遅延などの可能性）"
+            )
 
-        ops_cards_first.append({
-            "title": "decisions が 0 件です（原因の推定）",
-            "summary": f"symbol={symbol} で recent/past ともに decisions=0 のため、探索AIは縮退動作中です。",
-            "bullets": bullets,
-        })
+        ops_cards_first.append(
+            {
+                "title": "decisions が 0 件です（原因の推定）",
+                "summary": f"symbol={symbol} で recent/past ともに decisions=0 のため、探索AIは縮退動作中です。",
+                "bullets": bullets,
+            }
+        )
 
-    snap: Dict[str, Any] = {
+    return {
         "symbol": symbol,
         "warnings": warnings,
         "ops_cards_first": ops_cards_first,
@@ -313,10 +348,20 @@ def get_condition_mining_ops_snapshot(symbol: str, profile: Optional[str] = None
         "evidence_kind": out.get("evidence_kind"),
         "evidence_src": out.get("evidence_src"),
     }
-    return snap
 
-# [T-43-3 Step2-8] ops_snapshot delegate to condition_mining_data
-def get_condition_mining_ops_snapshot(symbol: str, profile=None, **kwargs):
-    """Facade: ops_snapshot は data 実装へ委譲（decisions_summary を優先）。"""
-    from app.services.condition_mining_data import get_condition_mining_ops_snapshot as _impl
-    return _impl(symbol, profile=profile, **kwargs)
+# ==============================
+# Condition Mining window settings (profile-scoped)
+# ==============================
+def get_condition_mining_window_settings(profile=None):
+    """
+    Facade: Condition Mining の recent/past window 設定を取得（profile別）。
+    """
+    return mt5_account_store.get_condition_mining_window(profile=profile)
+
+
+def set_condition_mining_window_settings(patch, profile=None):
+    """
+    Facade: Condition Mining の recent/past window 設定を更新（profile別）。
+    patch は部分更新可。
+    """
+    return mt5_account_store.set_condition_mining_window(patch=patch, profile=profile)
