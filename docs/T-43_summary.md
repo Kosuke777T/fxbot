@@ -135,3 +135,15 @@ warnings=[]
 ops_cards_first_n=0
 
 snapshot JSON 出力 OK
+
+完了時点の確定事項（再発防止の記録）
+
+v5.2 の decisions 正規保存先：logs/decisions_YYYY-MM-DD.jsonl（logs直下）
+
+読み取り側の参照先：decision_log._get_decision_log_dir() は logs/ を返す
+
+condition_mining の 0 件問題の主因：読み取りが旧 logs/decisions/ を見ていた（参照先不一致）
+
+縮退カードの改善：get_condition_mining_ops_snapshot() は「無い」と断定せず、検出件数/最新情報に基づいて表示する（嘘をつかない）
+
+通常パスの成立条件：recent 窓に 1 件でも decision があれば warnings=[] になる（今回 recent_n=1 で確認済み）
