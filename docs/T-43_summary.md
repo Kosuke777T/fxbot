@@ -199,3 +199,26 @@ warnings=[] / ops_cards_first_n=0 を出力（縮退解除）
 
 確認：tools/condition_mining_smoke.ps1 -Symbol "USDJPY-" で warnings=[]
 
+T-43-3 Step2-8
+責務境界：tools→services(facade/data) のみで完結（gui/coreに侵入なし）
+
+既存API優先：smoke は facade を呼ぶまま、facade を data に委譲するだけ
+
+新規関数最小：不足していた facade 関数を補完＋data側の helper
+
+品質チェック：decisions が summary に無い場合は誤検知しない
+
+evidence 改善：recent/past range/n/min_stats と分布枠が snapshot に載る
+
+tools/condition_mining_smoke.ps1 は app.services.condition_mining_facade.get_condition_mining_ops_snapshot を呼ぶ
+
+facade の get_condition_mining_ops_snapshot を data 実装へ委譲して、smoke の evidence_kind を decisions_summary に統一
+
+condition_mining_data.get_condition_mining_ops_snapshot を新設・拡張し、
+
+decisions が summary に含まれないケースでは 誤検知 warnings を出さない
+
+evidence に recent/past の {n, range, min_stats} と keys/dist の枠を提供
+
+condition_mining_facade.py に混入していた ゴミ文字列 \n 行を除去してコンパイル安定化
+

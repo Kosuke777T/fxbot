@@ -465,5 +465,180 @@ def build_ops_cards_for_zero_decisions(symbol: str, recent: dict, past: dict) ->
     return cards
 
 
+def _summarize_decisions_list(decisions):
+    """decisions(list[dict]) の軽量サマリ。例外は飲み込んで空サマリを返す。"""
+    try:
+        if not decisions:
+            return {
+                "n": 0,
+                "ts_min": None,
+                "ts_max": None,
+                "keys_top": [],
+                "symbol_dist": {},
+            }
 
+        # timestamp 抽出（ISO文字列 or datetime を想定）
+        ts = []
+        for d in decisions:
+            if not isinstance(d, dict):
+                continue
+            v = d.get("timestamp") or d.get("time") or d.get("ts")
+            if v is not None:
+                ts.append(str(v))
+
+        # keys 頻度（上位のみ）
+        from collections import Counter
+        kc = Counter()
+        sym = Counter()
+        for d in decisions:
+            if isinstance(d, dict):
+                kc.update(list(d.keys()))
+                s = d.get("symbol") or d.get("pair") or d.get("instrument")
+                if s is not None:
+                    sym.update([str(s)])
+
+        keys_top = [{"key": k, "count": int(c)} for k, c in kc.most_common(20)]
+        return {
+            "n": int(len(decisions)),
+            "ts_min": min(ts) if ts else None,
+            "ts_max": max(ts) if ts else None,
+            "keys_top": keys_top,
+            "symbol_dist": dict(sym),
+        }
+    except Exception:
+        return {
+            "n": int(len(decisions)) if isinstance(decisions, list) else 0,
+            "ts_min": None,
+            "ts_max": None,
+            "keys_top": [],
+            "symbol_dist": {},
+        }
+
+
+def _check_window_consistency(win, label):
+    """recent/past window(dict) の整合チェック。warnings(list[str]) を返す。"""
+    w = []
+    try:
+        n = win.get("n")
+        r = win.get("range") or {}
+        start = r.get("start")
+        end = r.get("end")
+        decisions = win.get("decisions")
+
+        if decisions is None:
+            return w
+        if n is not None and isinstance(decisions, list) and n != len(decisions):
+            w.append(f"{label}:n_mismatch n={n} len={len(decisions)}")
+
+        has_range = (start is not None) or (end is not None)
+        if has_range and not decisions and (n not in (0, None)):
+            w.append(f"{label}:range_exists_but_empty")
+
+        if (not has_range) and decisions:
+            w.append(f"{label}:decisions_exist_but_range_missing")
+
+        s = _summarize_decisions_list(decisions)
+        ts_min, ts_max = s.get("ts_min"), s.get("ts_max")
+
+        # ISO文字列なら比較が効く（厳密datetime化は既存実装があればそちら優先）
+        if start is not None and ts_min is not None and str(ts_min) < str(start):
+            w.append(f"{label}:ts_min_before_start")
+        if end is not None and ts_max is not None and str(end) < str(ts_max):
+            w.append(f"{label}:ts_max_after_end")
+
+    except Exception:
+        w.append(f"{label}:consistency_check_failed")
+    return w
+
+
+def get_decisions_recent_past_window_info(symbol: str, profile=None, **kwargs):
+    """
+    Facade（不足している場合のみ追加）:
+    recent/past の件数・期間（start/end）を summary から即取得。
+    """
+    out = get_decisions_recent_past_summary(symbol, profile=profile, **kwargs)
+    return {
+        "recent": {
+            "n": out.get("recent", {}).get("n"),
+            "range": out.get("recent", {}).get("range"),
+        },
+        "past": {
+            "n": out.get("past", {}).get("n"),
+            "range": out.get("past", {}).get("range"),
+        },
+    }
+
+
+def get_decisions_recent_past_min_stats(symbol: str, profile=None, **kwargs):
+    """
+    Facade（不足している場合のみ追加）:
+    min_stats が summary に入っている前提で取り出す（なければ None）。
+    """
+    out = get_decisions_recent_past_summary(symbol, profile=profile, **kwargs)
+    return {
+        "recent": {"min_stats": out.get("recent", {}).get("min_stats")},
+        "past": {"min_stats": out.get("past", {}).get("min_stats")},
+    }
+
+
+def get_condition_mining_ops_snapshot(symbol: str, profile=None, **kwargs):
+    """
+    Facade（不足している場合のみ追加）:
+    Condition Mining 用の ops_snapshot を返す。
+    既存 summary を土台に evidence を増量し、整合チェックの warnings を加える。
+    """
+    out = {
+        "symbol": symbol,
+        "warnings": [],
+        "ops_cards_first": [],
+        "evidence_kind": "decisions_summary",
+        "evidence_src": "logs/decisions_*.jsonl",
+        "evidence": {},
+    }
+
+    summary = get_decisions_recent_past_summary(symbol, profile=profile, **kwargs)
+
+    # decisions リスト本体が summary に含まれない場合があるので、まずは range/n/min_stats をベースに evidence を組む
+    recent = summary.get("recent", {}) or {}
+    past = summary.get("past", {}) or {}
+
+    # もし summary が decisions を持っていたら、keys/symbol_dist なども出せる
+    recent_decisions = recent.get("decisions") if "decisions" in recent else None
+    past_decisions = past.get("decisions") if "decisions" in past else None
+    recent_sum = _summarize_decisions_list(recent_decisions) if recent_decisions else {"n": recent.get("n", 0)}
+    past_sum = _summarize_decisions_list(past_decisions) if past_decisions else {"n": past.get("n", 0)}
+
+    out["warnings"].extend(_check_window_consistency(
+        {"n": recent.get("n"), "range": recent.get("range"), "decisions": recent_decisions},
+        "recent"
+    ))
+    out["warnings"].extend(_check_window_consistency(
+        {"n": past.get("n"), "range": past.get("range"), "decisions": past_decisions},
+        "past"
+    ))
+
+    # evidence 情報量改善
+    out["evidence"] = {
+        "symbol": symbol,
+        "recent": {
+            "n": recent.get("n"),
+            "range": recent.get("range"),
+            "min_stats": recent.get("min_stats"),
+            "ts_min": recent_sum.get("ts_min"),
+            "ts_max": recent_sum.get("ts_max"),
+        },
+        "past": {
+            "n": past.get("n"),
+            "range": past.get("range"),
+            "min_stats": past.get("min_stats"),
+            "ts_min": past_sum.get("ts_min"),
+            "ts_max": past_sum.get("ts_max"),
+        },
+        "recent_keys_top": recent_sum.get("keys_top", []),
+        "past_keys_top": past_sum.get("keys_top", []),
+        "recent_symbol_dist": recent_sum.get("symbol_dist", {}),
+        "past_symbol_dist": past_sum.get("symbol_dist", {}),
+    }
+
+    return out
 

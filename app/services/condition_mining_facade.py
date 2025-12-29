@@ -315,4 +315,8 @@ def get_condition_mining_ops_snapshot(symbol: str, profile: Optional[str] = None
     }
     return snap
 
-
+# [T-43-3 Step2-8] ops_snapshot delegate to condition_mining_data
+def get_condition_mining_ops_snapshot(symbol: str, profile=None, **kwargs):
+    """Facade: ops_snapshot は data 実装へ委譲（decisions_summary を優先）。"""
+    from app.services.condition_mining_data import get_condition_mining_ops_snapshot as _impl
+    return _impl(symbol, profile=profile, **kwargs)
