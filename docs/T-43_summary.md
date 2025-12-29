@@ -167,3 +167,35 @@ decision保存先：logs/decisions_YYYY-MM-DD.jsonl に完全単一化
 compileall：OK
 
 condition_mining_smoke：正常（縮退警告のみ）
+
+T-43-3 Step2-7
+事象
+
+condition_mining_smoke が warnings=['no_decisions_in_recent_and_past'] で縮退
+
+logs/decisions_YYYY-MM-DD.jsonl は実書きOKだが、行に timestamp が無い（ts_jst / ts_utc 形式）
+
+原因（確定）
+
+app/services/condition_mining_data.py が 時刻キーを timestamp 前提で参照しており、
+ts_jst/ts_utc を持つ decision 行を “窓判定” で落としていた
+
+対応（最小差分・責務境界順守）
+
+condition_mining_data.py の時刻解釈を ts_utc → ts_jst → timestamp のフォールバックに修正
+
+新規関数追加なし、既存 _parse_iso_dt を利用
+
+確認結果（完了条件）
+
+tools/condition_mining_smoke.ps1 -Symbol "USDJPY-" が
+warnings=[] / ops_cards_first_n=0 を出力（縮退解除）
+
+症状：no_decisions_in_recent_and_past 縮退
+
+原因：decision 行が timestamp を持たず ts_jst/ts_utc 形式、ConditionMining が timestamp 前提で窓判定して 0 件扱い
+
+対応：ts_utc → ts_jst → timestamp のフォールバックに修正（新規関数なし、既存 _parse_iso_dt 使用）
+
+確認：tools/condition_mining_smoke.ps1 -Symbol "USDJPY-" で warnings=[]
+

@@ -106,10 +106,10 @@ def get_decisions_window_summary(
                 if p is not None and p != profile:
                     continue
 
-            ts = _parse_iso_dt(j.get("ts_jst")) or _parse_iso_dt(j.get("timestamp"))
+            ts = (_parse_iso_dt(j.get("ts_utc")) or _parse_iso_dt(j.get("ts_jst")) or _parse_iso_dt(j.get("timestamp")))
             if ts is None:
                 fts = j.get("filters") if isinstance(j.get("filters"), dict) else None
-                ts = _parse_iso_dt((fts or {}).get("timestamp"))
+                ts = (_parse_iso_dt((fts or {}).get("ts_utc")) or _parse_iso_dt((fts or {}).get("ts_jst")) or _parse_iso_dt((fts or {}).get("timestamp")))
             if ts is None:
                 continue
 
