@@ -77,6 +77,8 @@ def get_decisions_window_summary(
     start: Optional[str] = None,
     end: Optional[str] = None,
     max_scan: int = 200_000,
+    include_decisions: bool = False,
+    max_decisions: int = 5000,
 ) -> Dict[str, Any]:
     dt_start = _parse_iso_dt(start) if start else None
     dt_end = _parse_iso_dt(end) if end else None
@@ -90,6 +92,7 @@ def get_decisions_window_summary(
     max_dt: Optional[datetime] = None
     scanned = 0
     sources: list[str] = []
+    decisions: list[dict] = []  # optional (include_decisions)
 
     for path in _iter_decision_paths():
         sources.append(str(path))
@@ -105,13 +108,36 @@ def get_decisions_window_summary(
                 p = j.get("profile")
                 if p is not None and p != profile:
                     continue
-
-            ts = (_parse_iso_dt(j.get("ts_utc")) or _parse_iso_dt(j.get("ts_jst")) or _parse_iso_dt(j.get("timestamp")))
+            # ts 抽出（ログの揺れに強くする：既存APIの範囲で候補キーを増やす）
+            ts = (
+                _parse_iso_dt(j.get("ts_utc"))
+                or _parse_iso_dt(j.get("ts_jst"))
+                or _parse_iso_dt(j.get("timestamp"))
+                or _parse_iso_dt(j.get("ts"))
+                or _parse_iso_dt(j.get("time"))
+                or _parse_iso_dt(j.get("time_utc"))
+                or _parse_iso_dt(j.get("time_jst"))
+                or _parse_iso_dt(j.get("datetime"))
+                or _parse_iso_dt(j.get("dt"))
+                or _parse_iso_dt(j.get("created_at"))
+            )
             if ts is None:
                 fts = j.get("filters") if isinstance(j.get("filters"), dict) else None
-                ts = (_parse_iso_dt((fts or {}).get("ts_utc")) or _parse_iso_dt((fts or {}).get("ts_jst")) or _parse_iso_dt((fts or {}).get("timestamp")))
+                ts = (
+                    _parse_iso_dt((fts or {}).get("ts_utc"))
+                    or _parse_iso_dt((fts or {}).get("ts_jst"))
+                    or _parse_iso_dt((fts or {}).get("timestamp"))
+                    or _parse_iso_dt((fts or {}).get("ts"))
+                    or _parse_iso_dt((fts or {}).get("time"))
+                    or _parse_iso_dt((fts or {}).get("time_utc"))
+                    or _parse_iso_dt((fts or {}).get("time_jst"))
+                    or _parse_iso_dt((fts or {}).get("datetime"))
+                    or _parse_iso_dt((fts or {}).get("dt"))
+                    or _parse_iso_dt((fts or {}).get("created_at"))
+                )
             if ts is None:
                 continue
+
 
             if dt_start and ts < dt_start:
                 continue
@@ -119,6 +145,16 @@ def get_decisions_window_summary(
                 continue
 
             n += 1
+            if include_decisions and len(decisions) < int(max_decisions):
+                row = dict(j)
+                # summarize側が拾いやすいよう timestamp を補完（ISO UTC）
+                if not (row.get("timestamp") or row.get("ts") or row.get("time")):
+                    row["timestamp"] = ts.isoformat()
+                decisions.append(row)
+
+
+
+
             if min_dt is None or ts < min_dt:
                 min_dt = ts
             if max_dt is None or ts > max_dt:
@@ -136,6 +172,11 @@ def get_decisions_window_summary(
         "sources": sources,
         "scanned": scanned,
         "max_scan": max_scan,
+        "query_range": {
+            "start": dt_start.isoformat() if dt_start else None,
+            "end": dt_end.isoformat() if dt_end else None,
+        },
+        **({"decisions": decisions} if include_decisions else {}),
     }
 
 def _try_extract_winrate_avgpnl_from_backtests(*, symbol: str) -> dict:
@@ -598,6 +639,17 @@ def get_condition_mining_ops_snapshot(symbol: str, profile=None, **kwargs):
 
     summary = get_decisions_recent_past_summary(symbol, profile=profile, **kwargs)
 
+    # summary 側の縮退情報（warnings/ops_cards）を ops_snapshot に引き継ぐ
+    if isinstance(summary, dict):
+        sw = summary.get("warnings") or []
+        if isinstance(sw, list):
+            out["warnings"].extend([str(x) for x in sw])
+        sc = summary.get("ops_cards") or []
+        if isinstance(sc, list) and sc:
+            # GUI は ops_cards_first を優先表示する想定
+            out["ops_cards_first"] = sc
+
+
     # decisions リスト本体が summary に含まれない場合があるので、まずは range/n/min_stats をベースに evidence を組む
     recent = summary.get("recent", {}) or {}
     past = summary.get("past", {}) or {}
@@ -639,6 +691,70 @@ def get_condition_mining_ops_snapshot(symbol: str, profile=None, **kwargs):
         "recent_symbol_dist": recent_sum.get("symbol_dist", {}),
         "past_symbol_dist": past_sum.get("symbol_dist", {}),
     }
+
+    
+    # --- Step2-9: enrich evidence with window decisions (real data) ---
+    try:
+        recent_ws = get_decisions_window_summary(symbol=symbol, window="recent", profile=profile, include_decisions=True, **kwargs)
+        past_ws   = get_decisions_window_summary(symbol=symbol, window="past",   profile=profile, include_decisions=True, **kwargs)
+
+        recent_decisions = recent_ws.get("decisions") or []
+        past_decisions   = past_ws.get("decisions") or []
+
+        # 実window(start/end) を range に使って整合チェックを強化
+        recent_range = (recent_ws.get("query_range") or {})
+        past_range   = (past_ws.get("query_range") or {})
+
+        recent_sum = _summarize_decisions_list(recent_decisions)
+        past_sum   = _summarize_decisions_list(past_decisions)
+
+        out["warnings"].extend(_check_window_consistency(
+            {"n": len(recent_decisions), "range": {"start": recent_range.get("start"), "end": recent_range.get("end")}, "decisions": recent_decisions},
+            "recent"
+        ))
+        out["warnings"].extend(_check_window_consistency(
+            {"n": len(past_decisions), "range": {"start": past_range.get("start"), "end": past_range.get("end")}, "decisions": past_decisions},
+            "past"
+        ))
+
+        # evidence を “実体” で上書き（ts_min/ts_max/keys_top/symbol_dist）
+        out["evidence"]["recent"].update({
+            "ts_min": recent_sum.get("ts_min"),
+            "ts_max": recent_sum.get("ts_max"),
+        })
+        out["evidence"]["past"].update({
+            "ts_min": past_sum.get("ts_min"),
+            "ts_max": past_sum.get("ts_max"),
+        })
+
+        out["evidence"]["recent_keys_top"] = recent_sum.get("keys_top", [])
+        out["evidence"]["past_keys_top"]   = past_sum.get("keys_top", [])
+        out["evidence"]["recent_symbol_dist"] = recent_sum.get("symbol_dist", {})
+        out["evidence"]["past_symbol_dist"]   = past_sum.get("symbol_dist", {})
+
+        # デバッグ用：先頭だけ（重くしない）
+        out["evidence"]["recent"]["sample"] = recent_decisions[:3]
+        out["evidence"]["past"]["sample"]   = past_decisions[:3]
+
+
+        # recent/past が 0 件の場合：ウィンドウ不一致の可能性が高いので、全期間（上限つき）で evidence を埋める
+        if len(recent_decisions) == 0 and len(past_decisions) == 0:
+            all_ws = get_decisions_window_summary(symbol=symbol, window=None, profile=profile, include_decisions=True, **kwargs)
+            all_decisions = all_ws.get("decisions") or []
+            if all_decisions:
+                all_sum = _summarize_decisions_list(all_decisions)
+                out["warnings"].append("no_decisions_in_recent_past_used_all")
+                out["evidence"]["all"] = {
+                    "n": int(len(all_decisions)),
+                    "ts_min": all_sum.get("ts_min"),
+                    "ts_max": all_sum.get("ts_max"),
+                    "sample": all_decisions[:3],
+                }
+                out["evidence"]["all_keys_top"] = all_sum.get("keys_top", [])
+                out["evidence"]["all_symbol_dist"] = all_sum.get("symbol_dist", {})
+
+    except Exception as e:
+        out["warnings"].append(f"evidence_enrich_failed:{type(e).__name__}")
 
     return out
 

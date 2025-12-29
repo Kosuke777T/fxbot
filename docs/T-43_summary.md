@@ -222,3 +222,17 @@ evidence に recent/past の {n, range, min_stats} と keys/dist の枠を提供
 
 condition_mining_facade.py に混入していた ゴミ文字列 \n 行を除去してコンパイル安定化
 
+T-43-3 Step2-9
+get_condition_mining_ops_snapshot が summary.warnings / summary.ops_cards を引き継ぐ
+
+Step2-9 の enrich で recent/past が 0 の場合、window=None の get_decisions_window_summary(include_decisions=True) を使って
+
+evidence.all.ts_min/ts_max
+
+evidence.all_keys_top
+
+evidence.all_symbol_dist
+を実データで埋める（重くならないよう sample は先頭3件）
+
+timestamp 抽出は ts_jst 等の揺れにも耐えるよう候補キーを追加
+
