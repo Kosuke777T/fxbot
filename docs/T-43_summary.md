@@ -447,3 +447,14 @@ evidence.window が UI と完全同期
 責務境界（gui / services / core）維持
 
 Scheduler の **「概要を見る場所」と「触る場所」**が明確に分離
+
+T-43-3 Step2-13
+1秒理解：next_action（色付きバッジ）＋warnings（OK/警告）が常時視界の中心。
+
+実質的な折りたたみ：
+
+Overview 上段（Ops / Scheduler / AI）は本当に畳まれる（空白なし）。
+
+Ops Overview は要点のみ常時表示、詳細は行ごと非表示で空白が消える。
+
+安全性：ロジック追加ゼロ。既存 ops_snapshot / _refresh_ops_overview() を最大活用。

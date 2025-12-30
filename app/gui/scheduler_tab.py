@@ -269,6 +269,30 @@ class SchedulerTab(QWidget):
 
         # ---- Overview Panel (T-42-3-13) ----
         self.overview_group = QGroupBox("Overview", self)
+        # ---- T-43-3 Step2-13 UI: collapse Overview summary (display only) ----
+        self.overview_group.setCheckable(True)
+        self.overview_group.setChecked(False)
+
+        def _on_overview_summary_toggled(on: bool):
+            # UI only: really collapse by changing max height
+            if on:
+                # show contents
+                for w in self.overview_group.findChildren(QWidget):
+                    w.setVisible(True)
+                self.overview_group.setMaximumHeight(16777215)
+                self.overview_group.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
+            else:
+                # hide contents
+                for w in self.overview_group.findChildren(QWidget):
+                    w.setVisible(False)
+                # keep only header height
+                header_h = self.overview_group.fontMetrics().height() + 18
+                self.overview_group.setMaximumHeight(header_h)
+                self.overview_group.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+
+        self.overview_group.toggled.connect(_on_overview_summary_toggled)
+        _on_overview_summary_toggled(False)
+        # ---- /collapse Overview summary ----
         overview_layout = QHBoxLayout()
 
         # Opsセクション
@@ -322,30 +346,111 @@ class SchedulerTab(QWidget):
 
         # ---- Ops Overview Panel (T-42-3-14) ----
         self.ops_overview_box = QGroupBox("Ops Overview", self)
+        # ---- T-43-3 Step2-13 UI: collapse Ops Overview details (display only) ----
+        self.ops_overview_box.setCheckable(True)
+        # 初期は「詳細を閉じる」：next_action / warnings だけ見せる
+        self.ops_overview_box.setChecked(False)
+
+        def _set_form_row_visible(form, row: int, visible: bool):
+            # UI only: hide both label+field widgets so the row truly collapses
+            try:
+                lbl_item = form.itemAt(row, QFormLayout.ItemRole.LabelRole)
+                fld_item = form.itemAt(row, QFormLayout.ItemRole.FieldRole)
+                if lbl_item and lbl_item.widget():
+                    lbl_item.widget().setVisible(visible)
+                if fld_item and fld_item.widget():
+                    fld_item.widget().setVisible(visible)
+            except Exception:
+                pass
+
+        # 折りたたむ対象キー（フォームの左ラベル文字列で判定）
+        _detail_keys = {
+            "wfo_stability",
+            "latest_retrain",
+            "generated_at",
+            "cm_recent_min_stats",
+            "cm_recent_candidates",
+            "cm_past_min_stats",
+            "cm_past_candidates",
+        }
+
+        def _on_ops_overview_toggled(on: bool):
+            # True=詳細を表示, False=詳細を隠す（UIのみ）
+            form = getattr(self, "ops_overview_form", None)
+            if form is None:
+                return
+            for r in range(form.rowCount()):
+                it = form.itemAt(r, QFormLayout.ItemRole.LabelRole)
+                w = it.widget() if it else None
+                key = w.text() if w else ""
+                if key in _detail_keys:
+                    _set_form_row_visible(form, r, on)
+
+            # box 自体も本当に畳む（空白を消す）
+            if on:
+                self.ops_overview_box.setMaximumHeight(16777215)
+                self.ops_overview_box.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
+            else:
+                header_h = self.ops_overview_box.fontMetrics().height() + 18
+                self.ops_overview_box.setMaximumHeight(header_h + 120)  # next_action/warnings分だけ残す
+                self.ops_overview_box.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+
+        self.ops_overview_box.toggled.connect(_on_ops_overview_toggled)
+        _on_ops_overview_toggled(False)
+        # ---- /collapse Ops Overview details ----
+
+        # ---- T-43-3 Step2-13 UI only: ensure ops labels exist ----
+        self.lbl_wfo = QLabel('-', self)
+        self.lbl_retrain = QLabel('-', self)
+        self.lbl_generated = QLabel('-', self)
+        # ---- /ensure ops labels ----
+
         self.lbl_cm_recent = QLabel("-", self)
         self.lbl_cm_recent_cand = QLabel("-", self)
         self.lbl_cm_past = QLabel("-", self)
         self.lbl_cm_past_cand = QLabel("-", self)
-        ops_overview_form = QFormLayout(self.ops_overview_box)
+        self.ops_overview_form = QFormLayout(self.ops_overview_box)
 
         self.lbl_next_action = QLabel("-", self)
-        self.lbl_wfo = QLabel("-", self)
-        self.lbl_retrain = QLabel("-", self)
-        self.lbl_generated = QLabel("-", self)
+
+
+        # ---- T-43-3 Step2-13 UI: warnings badge (display only) ----
+
+        self.lbl_warnings = QLabel(self)
+
+        self.lbl_warnings.setObjectName("WarnBadge")
+
+        self.lbl_warnings.setWordWrap(True)
+
+        self.lbl_warnings.setText("warnings: 0 (OK)")
+
+
+        # /* OpsStatusStyles */  (T-43-3 Step2-13 UI only)
+
+        self.lbl_next_action.setObjectName("NextActionBadge")
 
         self.lbl_next_action.setWordWrap(True)
-        self.lbl_wfo.setWordWrap(True)
-        self.lbl_retrain.setWordWrap(True)
 
-        ops_overview_form.addRow("next_action", self.lbl_next_action)
-        ops_overview_form.addRow("wfo_stability", self.lbl_wfo)
-        ops_overview_form.addRow("latest_retrain", self.lbl_retrain)
-        ops_overview_form.addRow("generated_at", self.lbl_generated)
+        self.lbl_next_action.setStyleSheet("border-radius:10px; padding:6px 10px; font-weight:700; background:#333; color:#eee;")
 
-        ops_overview_form.addRow("cm_recent_min_stats", self.lbl_cm_recent)
-        ops_overview_form.addRow("cm_recent_candidates", self.lbl_cm_recent_cand)
-        ops_overview_form.addRow("cm_past_min_stats", self.lbl_cm_past)
-        ops_overview_form.addRow("cm_past_candidates", self.lbl_cm_past_cand)
+
+        # T-43-3 Step2-13 UI: default warnings badge style
+
+        self.lbl_warnings.setStyleSheet("border-radius:10px; padding:6px 10px; font-weight:700; background:#233; color:#e8f6ff;")
+        self.ops_overview_form.addRow("next_action", self.lbl_next_action)
+
+        # T-43-3 Step2-13 UI: warnings badge
+
+        self.ops_overview_form.addRow("warnings", self.lbl_warnings)
+
+        self.ops_overview_form.addRow("wfo_stability", self.lbl_wfo)
+        self.ops_overview_form.addRow("latest_retrain", self.lbl_retrain)
+        self.ops_overview_form.addRow("generated_at", self.lbl_generated)
+
+        self.ops_overview_form.addRow("cm_recent_min_stats", self.lbl_cm_recent)
+        self.ops_overview_form.addRow("cm_recent_candidates", self.lbl_cm_recent_cand)
+        self.ops_overview_form.addRow("cm_past_min_stats", self.lbl_cm_past)
+        self.ops_overview_form.addRow("cm_past_candidates", self.lbl_cm_past_cand)
         ov_root.addWidget(self.ops_overview_box)
         # ---- /Ops Overview Panel ----
 
@@ -1086,6 +1191,8 @@ class SchedulerTab(QWidget):
             self.lbl_wfo.setText("-")
             self.lbl_retrain.setText("-")
             self.lbl_generated.setText("-")
+            self.lbl_warnings.setText("warnings: (ERROR)")
+            self.lbl_warnings.setStyleSheet("border-radius:10px; padding:6px 10px; font-weight:700; background:#633; color:#ffe;")
             return
 
         na = o.get("next_action") or {}
@@ -1094,6 +1201,34 @@ class SchedulerTab(QWidget):
 
         # next_action
         kind = na.get("kind", "-")
+
+        # ---- T-43-3 Step2-13 UI: warnings highlight (display only) ----
+        warnings = o.get("warnings") or []
+        n_warn = len(warnings)
+        if n_warn == 0:
+            self.lbl_warnings.setText("warnings: 0 (OK)")
+            self.lbl_warnings.setStyleSheet("border-radius:10px; padding:6px 10px; font-weight:700; background:#233; color:#e8f6ff;")
+        else:
+            head = str(warnings[0])
+            self.lbl_warnings.setText(f"warnings: {n_warn}\n- {head}")
+            self.lbl_warnings.setStyleSheet("border-radius:10px; padding:6px 10px; font-weight:700; background:#633; color:#ffe;")
+
+
+        # ---- T-43-3 Step2-13 UI: next_action badge color (display only) ----
+        try:
+            _k = str(kind)
+            if _k == "PROMOTE":
+                self.lbl_next_action.setStyleSheet("border-radius:10px; padding:6px 10px; font-weight:700; background:#163; color:#efe;")
+            elif _k == "HOLD":
+                self.lbl_next_action.setStyleSheet("border-radius:10px; padding:6px 10px; font-weight:700; background:#542; color:#ffe;")
+            elif _k == "BLOCKED":
+                self.lbl_next_action.setStyleSheet("border-radius:10px; padding:6px 10px; font-weight:700; background:#611; color:#fee;")
+            else:
+                self.lbl_next_action.setStyleSheet("border-radius:10px; padding:6px 10px; font-weight:700; background:#333; color:#eee;")
+        except Exception:
+            pass
+
+
         priority = na.get("priority", "-")
         reason = na.get("reason", "")
         self.lbl_next_action.setText(f"{kind} (prio={priority})\n{reason}")
