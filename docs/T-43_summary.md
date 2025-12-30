@@ -458,3 +458,5 @@ Overview 上段（Ops / Scheduler / AI）は本当に畳まれる（空白なし
 Ops Overview は要点のみ常時表示、詳細は行ごと非表示で空白が消える。
 
 安全性：ロジック追加ゼロ。既存 ops_snapshot / _refresh_ops_overview() を最大活用。
+
+T-43-3 Step2-14

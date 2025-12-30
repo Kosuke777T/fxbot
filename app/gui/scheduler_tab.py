@@ -186,6 +186,19 @@ class AddJobDialog(QDialog):
 
 
 class SchedulerTab(QWidget):
+
+    def _make_ops_card(self, title: str):
+        # UI helper: Ops Overview の見出しカード（表示のみ）
+        from PyQt6.QtWidgets import QGroupBox, QVBoxLayout
+        box = QGroupBox(title, self)
+        box.setStyleSheet(
+            'QGroupBox { font-weight: 700; }'
+            'QGroupBox::title { subcontrol-origin: margin; left: 8px; padding: 0 4px; }'
+        )
+        v = QVBoxLayout(box)
+        v.setContentsMargins(8, 6, 8, 8)
+        v.setSpacing(6)
+        return box, v
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
 
@@ -375,28 +388,56 @@ class SchedulerTab(QWidget):
         }
 
         def _on_ops_overview_toggled(on: bool):
-            # True=詳細を表示, False=詳細を隠す（UIのみ）
-            form = getattr(self, "ops_overview_form", None)
-            if form is None:
-                return
-            for r in range(form.rowCount()):
-                it = form.itemAt(r, QFormLayout.ItemRole.LabelRole)
-                w = it.widget() if it else None
-                key = w.text() if w else ""
-                if key in _detail_keys:
-                    _set_form_row_visible(form, r, on)
+            # True=詳細を表示, False=詳細を隠す（表示のみ）
+            # 1) checkable QGroupBox のデフォ挙動（子を disable）を打ち消す → 文字が薄くならない
+            try:
+                self.ops_overview_box.setEnabled(True)
+                for w in self.ops_overview_box.findChildren(QWidget):
+                    w.setEnabled(True)
+            except Exception:
+                pass
 
-            # box 自体も本当に畳む（空白を消す）
+            # 2) 旧FormLayout版（残っていれば）: 行を hide/show
+            form = getattr(self, "ops_overview_form", None)
+            if form is not None:
+                for r in range(form.rowCount()):
+                    it = form.itemAt(r, QFormLayout.ItemRole.LabelRole)
+                    w = it.widget() if it else None
+                    key = w.text() if w else ""
+                    if key in _detail_keys:
+                        _set_form_row_visible(form, r, on)
+
+            # 3) カード版: Status以外を畳む（Statusは常に表示）
+            status = getattr(self, "ops_card_status", None)
+            wfo = getattr(self, "ops_card_wfo", None)
+            cm = getattr(self, "ops_card_cm", None)
+
+            if status is not None:
+                status.setVisible(True)
+            if wfo is not None:
+                wfo.setVisible(bool(on))
+            if cm is not None:
+                cm.setVisible(bool(on))
+
+            # 4) box 自体の高さも調整（空白を減らす）
             if on:
                 self.ops_overview_box.setMaximumHeight(16777215)
-                self.ops_overview_box.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
+                self.ops_overview_box.setSizePolicy(
+                    QSizePolicy.Policy.Preferred,
+                    QSizePolicy.Policy.Preferred,
+                )
             else:
                 header_h = self.ops_overview_box.fontMetrics().height() + 18
-                self.ops_overview_box.setMaximumHeight(header_h + 120)  # next_action/warnings分だけ残す
-                self.ops_overview_box.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+                # Statusカード分だけ残す（ざっくり）
+                self.ops_overview_box.setMaximumHeight(header_h + 180)
+                self.ops_overview_box.setSizePolicy(
+                    QSizePolicy.Policy.Preferred,
+                    QSizePolicy.Policy.Fixed,
+                )
 
         self.ops_overview_box.toggled.connect(_on_ops_overview_toggled)
         _on_ops_overview_toggled(False)
+
         # ---- /collapse Ops Overview details ----
 
         # ---- T-43-3 Step2-13 UI only: ensure ops labels exist ----
@@ -405,53 +446,62 @@ class SchedulerTab(QWidget):
         self.lbl_generated = QLabel('-', self)
         # ---- /ensure ops labels ----
 
+        # ---- T-43-3 Step2-14: ensure next_action / warnings labels exist (display only) ----
+        self.lbl_next_action = QLabel("-", self)
+        self.lbl_next_action.setWordWrap(True)
+        self.lbl_warnings = QLabel("warnings: -", self)
+        self.lbl_warnings.setWordWrap(True)
+        # ---- /ensure next_action / warnings ----
+
         self.lbl_cm_recent = QLabel("-", self)
         self.lbl_cm_recent_cand = QLabel("-", self)
         self.lbl_cm_past = QLabel("-", self)
         self.lbl_cm_past_cand = QLabel("-", self)
-        self.ops_overview_form = QFormLayout(self.ops_overview_box)
 
-        self.lbl_next_action = QLabel("-", self)
+        # ---- T-43-3 Step2-14 UI: Ops Overview Card Layout (display only) ----
+        cards_root = QVBoxLayout(self.ops_overview_box)
+        cards_root.setSpacing(8)
 
+        # Status card: next_action + warnings + 次の一手（表示のみ）
+        self.ops_card_status, v_status = self._make_ops_card("Status")
+        v_status.addWidget(self.lbl_next_action)
+        v_status.addWidget(self.lbl_warnings)
+        na_row = QHBoxLayout()
+        na_row.setSpacing(8)
 
-        # ---- T-43-3 Step2-13 UI: warnings badge (display only) ----
+        self.btn_ops_open_logs = QPushButton("ログを開く", self)
+        self.btn_ops_open_logs.setEnabled(False)
+        self.btn_ops_open_logs.setToolTip("表示のみ（将来：Logsタブやlogs/を開く導線に接続）")
 
-        self.lbl_warnings = QLabel(self)
+        self.btn_ops_open_settings = QPushButton("設定へ", self)
+        self.btn_ops_open_settings.setEnabled(False)
+        self.btn_ops_open_settings.setToolTip("表示のみ（将来：Condition Mining / 設定タブ導線に接続）")
 
-        self.lbl_warnings.setObjectName("WarnBadge")
+        na_row.addWidget(self.btn_ops_open_logs)
+        na_row.addWidget(self.btn_ops_open_settings)
+        na_row.addStretch(1)
+        v_status.addLayout(na_row)
 
-        self.lbl_warnings.setWordWrap(True)
+        # Model card
+        self.ops_card_wfo, v_wfo = self._make_ops_card("Model Stability")
+        v_wfo.addWidget(self.lbl_wfo)
+        v_wfo.addWidget(self.lbl_retrain)
+        v_wfo.addWidget(self.lbl_generated)
 
-        self.lbl_warnings.setText("warnings: 0 (OK)")
+        # Condition Mining card
+        self.ops_card_cm, v_cm = self._make_ops_card("Condition Mining")
+        v_cm.addWidget(self.lbl_cm_recent)
+        v_cm.addWidget(self.lbl_cm_recent_cand)
+        v_cm.addWidget(self.lbl_cm_past)
+        v_cm.addWidget(self.lbl_cm_past_cand)
+        cards_root.addWidget(self.ops_card_status)
+        cards_root.addWidget(self.ops_card_wfo)
+        cards_root.addWidget(self.ops_card_cm)
+        cards_root.addStretch(1)
 
-
-        # /* OpsStatusStyles */  (T-43-3 Step2-13 UI only)
-
-        self.lbl_next_action.setObjectName("NextActionBadge")
-
-        self.lbl_next_action.setWordWrap(True)
-
-        self.lbl_next_action.setStyleSheet("border-radius:10px; padding:6px 10px; font-weight:700; background:#333; color:#eee;")
-
-
-        # T-43-3 Step2-13 UI: default warnings badge style
-
-        self.lbl_warnings.setStyleSheet("border-radius:10px; padding:6px 10px; font-weight:700; background:#233; color:#e8f6ff;")
-        self.ops_overview_form.addRow("next_action", self.lbl_next_action)
-
-        # T-43-3 Step2-13 UI: warnings badge
-
-        self.ops_overview_form.addRow("warnings", self.lbl_warnings)
-
-        self.ops_overview_form.addRow("wfo_stability", self.lbl_wfo)
-        self.ops_overview_form.addRow("latest_retrain", self.lbl_retrain)
-        self.ops_overview_form.addRow("generated_at", self.lbl_generated)
-
-        self.ops_overview_form.addRow("cm_recent_min_stats", self.lbl_cm_recent)
-        self.ops_overview_form.addRow("cm_recent_candidates", self.lbl_cm_recent_cand)
-        self.ops_overview_form.addRow("cm_past_min_stats", self.lbl_cm_past)
-        self.ops_overview_form.addRow("cm_past_candidates", self.lbl_cm_past_cand)
         ov_root.addWidget(self.ops_overview_box)
+        # ---- /Ops Overview Card Layout ----
+
         # ---- /Ops Overview Panel ----
 
         # ボタン行
