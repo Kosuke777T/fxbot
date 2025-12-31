@@ -199,6 +199,8 @@ def _status_icon_sp_from_next_action(next_action):
         return 'SP_MessageBoxInformation'
     if na == 'BLOCKED':
         return 'SP_MessageBoxCritical'
+    if na == 'RETRY':
+        return 'SP_MessageBoxWarning'
     return 'SP_MessageBoxQuestion'
 
 
