@@ -185,6 +185,23 @@ class AddJobDialog(QDialog):
         return job
 
 
+def _status_icon_sp_from_next_action(next_action):
+    # GUI表示専用: next_action(dict/str) から Statusカード用の標準アイコンを選ぶ（表示のみ）
+    na = next_action
+    if isinstance(na, dict):
+        na = na.get('kind') or na.get('action') or na.get('next_action')
+    if na is None:
+        na = ''
+    na = str(na).upper().strip()
+    if na == 'PROMOTE':
+        return 'SP_DialogApplyButton'
+    if na == 'HOLD':
+        return 'SP_MessageBoxInformation'
+    if na == 'BLOCKED':
+        return 'SP_MessageBoxCritical'
+    return 'SP_MessageBoxQuestion'
+
+
 class SchedulerTab(QWidget):
 
     def _make_ops_card(self, title: str, icon_sp: str = "SP_MessageBoxInformation"):
@@ -468,12 +485,27 @@ class SchedulerTab(QWidget):
         cards_root.setSpacing(8)
 
         # Status card: next_action + warnings + 次の一手（表示のみ）
-        self.ops_card_status, v_status = self._make_ops_card("Status", "SP_MessageBoxInformation")
+        try:
+            ops_snapshot = get_ops_overview() or {}
+        except Exception:
+            ops_snapshot = {}
+        status_icon_sp = _status_icon_sp_from_next_action(ops_snapshot.get('next_action'))
+        self.ops_card_status, v_status = self._make_ops_card("Status",
+            icon_sp=status_icon_sp)
         v_status.addWidget(self.lbl_next_action)
         v_status.addWidget(self.lbl_warnings)
 
         na_row = QHBoxLayout()
         na_row.setSpacing(8)
+
+        self.btn_next_action = QPushButton("次の一手", self)
+        self.btn_next_action.setObjectName("btn_next_action")
+        self.btn_next_action.setFlat(True)
+        self.btn_next_action.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_next_action.setEnabled(False)
+        self.btn_next_action.setToolTip("表示のみ（将来：next_action 詳細へ誘導）")
+        self.btn_next_action.setStyleSheet("QPushButton#btn_next_action { border: none; background: transparent; text-decoration: underline; padding: 0; }")
+        na_row.addWidget(self.btn_next_action)
 
         self.btn_ops_open_logs = QPushButton("ログを開く", self)
         self.btn_ops_open_logs.setEnabled(False)

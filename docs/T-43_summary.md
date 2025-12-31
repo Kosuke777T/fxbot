@@ -572,3 +572,5 @@ Ops Overview は カード型ダッシュボードになった
 
 Condition Mining を切り離したことで
 Ops の役割が「運用判断」に特化した
+
+T-43-3 Step2-15
