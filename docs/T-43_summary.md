@@ -460,3 +460,115 @@ Ops Overview は要点のみ常時表示、詳細は行ごと非表示で空白�
 安全性：ロジック追加ゼロ。既存 ops_snapshot / _refresh_ops_overview() を最大活用。
 
 T-43-3 Step2-14
+テーマ：カード化 / アイコン化 / 次の一手導線（表示のみ）
+
+1. 目的と前提
+
+Ops Overview を「情報の羅列」から 意思決定を助けるUI に変える
+
+ロジックは一切触らない（表示のみ）
+
+既存の ops_snapshot を最大活用する
+
+Condition Mining は Ops Overview から切り離す
+
+2. Ops Overview の構造変更（重要）
+Before
+
+QFormLayout による縦並び
+
+チェックON/OFFで 文字が薄くなるだけ（視認性が悪い）
+
+Status / Model / Condition Mining が混在
+
+After
+
+カードUI（QGroupBox + VBox）に再設計
+
+Ops Overview は 2カード構成に固定
+
+Status
+
+Model Stability
+
+Condition Mining は 専用タブに完全分離
+
+3. カード化の設計ルール
+
+_make_ops_card() ヘルパーを追加
+
+太字タイトル
+
+左側に アイコン付き見出し
+
+中身は既存ラベルをそのまま流用
+
+データ構造・更新ロジックは 一切変更なし
+
+4. Ops Overview の折りたたみ挙動の修正
+問題
+
+checkable QGroupBox のデフォルト挙動により
+
+OFF時に子Widgetが disable
+
+結果として「文字が薄くなるだけ」
+
+対応
+
+toggled 時に 常に enabled を維持
+
+表示制御は以下に限定
+
+OFF：Statusカードのみ表示
+
+ON：Status + Model Stability 表示
+
+高さ制御で余白を抑制（Fixed / Preferred 切替）
+
+👉 「視線誘導」だけを行い、意味論は変えていない
+5. 「次の一手」導線（表示のみ）
+
+Statusカード下に以下を配置
+
+「ログを開く」
+
+「設定へ」
+
+disabled 状態で表示のみ
+
+ToolTip で将来の接続先を明示
+（Logsタブ / Condition Mining / 設定）
+
+6. Condition Mining 分離の判断理由
+
+Ops Overview は “今どうするか”を見る場所
+
+Condition Mining は “調べる”場所
+
+同一カード内にあると認知負荷が高い
+
+分離により：
+
+Ops Overview：即断用
+
+Condition Mining：分析用
+という役割が明確になった
+
+7. 技術的に重要な注意点（再発防止）
+
+正規表現パッチは 開始行・終了行のアンカー厳守
+
+QGroupBox の checkable は 表示制御と意味がズレやすい
+
+「折りたたみ = disable」ではなく
+visible / height / sizePolicy で制御する
+
+8. 到達点（結論）
+
+Ops Overview は カード型ダッシュボードになった
+
+状態 → 判断 → 次の行動、が一画面で読める
+
+Condition Mining を切り離したことで
+Ops の役割が「運用判断」に特化した

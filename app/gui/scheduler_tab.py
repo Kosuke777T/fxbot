@@ -187,18 +187,53 @@ class AddJobDialog(QDialog):
 
 class SchedulerTab(QWidget):
 
-    def _make_ops_card(self, title: str):
+    def _make_ops_card(self, title: str, icon_sp: str = "SP_MessageBoxInformation"):
         # UI helper: Ops Overview の見出しカード（表示のみ）
-        from PyQt6.QtWidgets import QGroupBox, QVBoxLayout
-        box = QGroupBox(title, self)
+        from PyQt6.QtWidgets import QGroupBox, QVBoxLayout, QHBoxLayout, QLabel
+        from PyQt6.QtGui import QPixmap
+        from PyQt6.QtCore import Qt
+
+        box = QGroupBox("", self)
         box.setStyleSheet(
-            'QGroupBox { font-weight: 700; }'
-            'QGroupBox::title { subcontrol-origin: margin; left: 8px; padding: 0 4px; }'
+            "QGroupBox { border: 1px solid #cfcfcf; border-radius: 6px; }"
         )
-        v = QVBoxLayout(box)
-        v.setContentsMargins(8, 6, 8, 8)
+
+        root = QVBoxLayout(box)
+        root.setContentsMargins(10, 10, 10, 10)
+        root.setSpacing(8)
+
+        # header row (icon + title)
+        h = QHBoxLayout()
+        h.setSpacing(8)
+
+        try:
+            sp = getattr(self.style().StandardPixmap, icon_sp)
+            ico = self.style().standardIcon(sp).pixmap(16, 16)
+        except Exception:
+            ico = QPixmap()
+
+        lbl_icon = QLabel(self)
+        lbl_icon.setPixmap(ico)
+        lbl_icon.setFixedSize(16, 16)
+
+        lbl_title = QLabel(title, self)
+        f = lbl_title.font()
+        f.setBold(True)
+        lbl_title.setFont(f)
+
+        h.addWidget(lbl_icon, 0, Qt.AlignmentFlag.AlignVCenter)
+        h.addWidget(lbl_title, 0, Qt.AlignmentFlag.AlignVCenter)
+        h.addStretch(1)
+
+        root.addLayout(h)
+
+        # content layout returned to caller
+        v = QVBoxLayout()
         v.setSpacing(6)
+        root.addLayout(v)
+
         return box, v
+
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
 
@@ -388,56 +423,25 @@ class SchedulerTab(QWidget):
         }
 
         def _on_ops_overview_toggled(on: bool):
-            # True=詳細を表示, False=詳細を隠す（表示のみ）
-            # 1) checkable QGroupBox のデフォ挙動（子を disable）を打ち消す → 文字が薄くならない
+            # 表示のみ：OFF時は Status だけ、ON時は Status + Model Stability
             try:
+                # checkable QGroupBox の「子をdisable」挙動を打ち消す（薄くなるのを防ぐ）
                 self.ops_overview_box.setEnabled(True)
                 for w in self.ops_overview_box.findChildren(QWidget):
                     w.setEnabled(True)
             except Exception:
                 pass
 
-            # 2) 旧FormLayout版（残っていれば）: 行を hide/show
-            form = getattr(self, "ops_overview_form", None)
-            if form is not None:
-                for r in range(form.rowCount()):
-                    it = form.itemAt(r, QFormLayout.ItemRole.LabelRole)
-                    w = it.widget() if it else None
-                    key = w.text() if w else ""
-                    if key in _detail_keys:
-                        _set_form_row_visible(form, r, on)
-
-            # 3) カード版: Status以外を畳む（Statusは常に表示）
             status = getattr(self, "ops_card_status", None)
             wfo = getattr(self, "ops_card_wfo", None)
-            cm = getattr(self, "ops_card_cm", None)
 
             if status is not None:
                 status.setVisible(True)
             if wfo is not None:
                 wfo.setVisible(bool(on))
-            if cm is not None:
-                cm.setVisible(bool(on))
-
-            # 4) box 自体の高さも調整（空白を減らす）
-            if on:
-                self.ops_overview_box.setMaximumHeight(16777215)
-                self.ops_overview_box.setSizePolicy(
-                    QSizePolicy.Policy.Preferred,
-                    QSizePolicy.Policy.Preferred,
-                )
-            else:
-                header_h = self.ops_overview_box.fontMetrics().height() + 18
-                # Statusカード分だけ残す（ざっくり）
-                self.ops_overview_box.setMaximumHeight(header_h + 180)
-                self.ops_overview_box.setSizePolicy(
-                    QSizePolicy.Policy.Preferred,
-                    QSizePolicy.Policy.Fixed,
-                )
 
         self.ops_overview_box.toggled.connect(_on_ops_overview_toggled)
         _on_ops_overview_toggled(False)
-
         # ---- /collapse Ops Overview details ----
 
         # ---- T-43-3 Step2-13 UI only: ensure ops labels exist ----
@@ -458,14 +462,16 @@ class SchedulerTab(QWidget):
         self.lbl_cm_past = QLabel("-", self)
         self.lbl_cm_past_cand = QLabel("-", self)
 
-        # ---- T-43-3 Step2-14 UI: Ops Overview Card Layout (display only) ----
+
+        # ---- T-43-3 Step2-14 UI: Ops Overview Card Layout (display only / CM separated) ----
         cards_root = QVBoxLayout(self.ops_overview_box)
         cards_root.setSpacing(8)
 
         # Status card: next_action + warnings + 次の一手（表示のみ）
-        self.ops_card_status, v_status = self._make_ops_card("Status")
+        self.ops_card_status, v_status = self._make_ops_card("Status", "SP_MessageBoxInformation")
         v_status.addWidget(self.lbl_next_action)
         v_status.addWidget(self.lbl_warnings)
+
         na_row = QHBoxLayout()
         na_row.setSpacing(8)
 
@@ -475,7 +481,7 @@ class SchedulerTab(QWidget):
 
         self.btn_ops_open_settings = QPushButton("設定へ", self)
         self.btn_ops_open_settings.setEnabled(False)
-        self.btn_ops_open_settings.setToolTip("表示のみ（将来：Condition Mining / 設定タブ導線に接続）")
+        self.btn_ops_open_settings.setToolTip("表示のみ（将来：設定タブ導線に接続）")
 
         na_row.addWidget(self.btn_ops_open_logs)
         na_row.addWidget(self.btn_ops_open_settings)
@@ -483,25 +489,17 @@ class SchedulerTab(QWidget):
         v_status.addLayout(na_row)
 
         # Model card
-        self.ops_card_wfo, v_wfo = self._make_ops_card("Model Stability")
+        self.ops_card_wfo, v_wfo = self._make_ops_card("Model Stability", "SP_DriveHDIcon")
         v_wfo.addWidget(self.lbl_wfo)
         v_wfo.addWidget(self.lbl_retrain)
         v_wfo.addWidget(self.lbl_generated)
 
-        # Condition Mining card
-        self.ops_card_cm, v_cm = self._make_ops_card("Condition Mining")
-        v_cm.addWidget(self.lbl_cm_recent)
-        v_cm.addWidget(self.lbl_cm_recent_cand)
-        v_cm.addWidget(self.lbl_cm_past)
-        v_cm.addWidget(self.lbl_cm_past_cand)
         cards_root.addWidget(self.ops_card_status)
         cards_root.addWidget(self.ops_card_wfo)
-        cards_root.addWidget(self.ops_card_cm)
         cards_root.addStretch(1)
 
         ov_root.addWidget(self.ops_overview_box)
         # ---- /Ops Overview Card Layout ----
-
         # ---- /Ops Overview Panel ----
 
         # ボタン行
