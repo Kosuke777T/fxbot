@@ -1270,6 +1270,9 @@ class SchedulerTab(QWidget):
             # --- /T-42-3-18 Step 4-3 ---
         except Exception as e:
             self.lbl_next_action.setText(f"ERROR: {e}")
+
+            self.lbl_next_action.setToolTip(str(((ops_snapshot.get('next_action') or {}).get('reason') or '')).strip())
+
             self.lbl_wfo.setText("-")
             self.lbl_retrain.setText("-")
             self.lbl_generated.setText("-")
