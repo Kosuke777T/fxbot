@@ -1,7 +1,6 @@
 # app/gui/widgets/kpi_dashboard.py
 # 正式KPIダッシュボード（T-10 STEP2）
 from __future__ import annotations
-
 from typing import Optional
 from PyQt6 import QtWidgets
 from PyQt6.QtCore import Qt
@@ -19,6 +18,8 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 
 from app.services.kpi_service import KPIService
+
+
 
 
 class KPIDashboardWidget(QWidget):
@@ -263,4 +264,3 @@ class KPIDashboardWidget(QWidget):
             ax.set_ylim(y_min - 1.0, y_max + 2.0)
 
         self.canvas.draw_idle()
-

@@ -792,3 +792,48 @@ warnings = []
 bands = [{start, end, kind, reason}]
 
 Step2-18 の設計意図どおりに動作していることを確認
+
+T-43-3 Step2-19
+目的
+
+GUIを「描画専用」に徹し、判断ロジック（decisions）依存を完全排除
+
+KPIService が返す payload['bands'] のみで背景帯を描画
+
+完了内容
+
+GUI 全体から decisions / decisions.jsonl 参照を完全削除（最終スキャン 0 件）
+
+backtest_tab.py
+
+plot_equity_with_markers_to_figure(..., bands=None) に対応
+
+bands から 背景帯（axvspan）を描画
+
+kind 色分け：HOLD=青、BLOCKED=赤（alpha 付き）
+
+tooltip 実装：reason がある帯のみ表示（空は非表示）
+
+tooltip のヒット判定を安定化
+
+span に _band_x0/_band_x1（date2num）を保存
+
+get_xy() 依存を排除
+
+x軸引き伸ばし対策
+
+equity 描画後の xlim を保存 → bands 描画後に復元
+
+_load_plot は bands を引数で受け取るのみに変更
+
+GUI から KPIService の直接呼び出しを削除（責務境界を遵守）
+
+スモークテスト実施
+
+equity 範囲内 bands で帯表示・色分け・tooltip を確認
+
+x軸が潰れないことを確認
+
+状態
+
+Step2-19 の要件（描画専用 / bands のみ / 色分け / tooltip / 軸安定化）は すべて達成

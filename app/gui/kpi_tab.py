@@ -173,4 +173,3 @@ class KPITab(QWidget):
             self.lbl_month_stats.setText("-")
             self.lbl_consecutive_failures.setText("-")
             self.lbl_last_model_update.setText("-")
-
