@@ -5,6 +5,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+import csv
 
 import pandas as pd
 
@@ -113,6 +114,11 @@ class BacktestEngine:
         dict
             バックテスト結果（equity_curve, trades, decisions のパスなど）
         """
+        # --- Step2-18: background band timeline (HOLD/BLOCKED) ---
+        timeline_rows = []  # list[dict]: {time, kind, reason}
+        _tl_last_kind = None
+        _tl_last_reason = None
+
         # データの準備
         df = df.copy()
         df["time"] = pd.to_datetime(df["time"])
@@ -164,6 +170,23 @@ class BacktestEngine:
             entry_context["filter_level"] = self.filter_level
             filter_pass, filter_reasons = self.filter_engine.evaluate(entry_context, filter_level=self.filter_level)
 
+            # --- Step2-18: add timeline point when kind changes ---
+            try:
+                _pass = bool(filter_pass) if 'filter_pass' in locals() else True
+            except Exception:
+                _pass = True
+            kind = 'HOLD' if _pass else 'BLOCKED'
+            try:
+                _reason = ''
+                if 'filter_reasons' in locals():
+                    rv = filter_reasons
+                    _reason = ';'.join(rv) if isinstance(rv, (list, tuple)) else str(rv)
+            except Exception:
+                _reason = ''
+            if kind != _tl_last_kind or _reason != _tl_last_reason:
+                timeline_rows.append({'time': str(timestamp), 'kind': kind, 'reason': _reason})
+                _tl_last_kind = kind
+                _tl_last_reason = _reason
             # 決定を構築
             decision = self._build_decision(
                 ai_out=ai_out,
@@ -305,6 +328,8 @@ class BacktestEngine:
 
         # 出力ファイルを生成
         print(f"[BacktestEngine] Generating output files...", flush=True)
+        # Step2-18: timeline を outputs へ渡す（CSV出力は _generate_outputs 側で行う）
+        self._timeline_rows = timeline_rows
         result = self._generate_outputs(df_features, out_dir, symbol)
 
         # トレード数をカウント
@@ -705,6 +730,19 @@ class BacktestEngine:
         equity_csv = out_dir / "equity_curve.csv"
         equity_df.to_csv(equity_csv, index=False)
         print(f"[BacktestEngine] Wrote {equity_csv}", flush=True)
+
+        # --- Step2-18: write next_action_timeline.csv (run folder) ---
+        tl_path = out_dir / 'next_action_timeline.csv'
+        try:
+            rows = getattr(self, '_timeline_rows', None) or []
+            with tl_path.open('w', encoding='utf-8', newline='') as f:
+                w = csv.writer(f)
+                w.writerow(['time', 'kind', 'reason'])
+                for row in rows:
+                    w.writerow([row.get('time',''), row.get('kind',''), row.get('reason','')])
+            print(f"[BacktestEngine] Wrote {tl_path}", flush=True)
+        except Exception as e:
+            print(f"[BacktestEngine][warn] could not write next_action_timeline.csv: {e!r}", flush=True)
 
         trades_csv = out_dir / "trades.csv"
         if not trades_df.empty:

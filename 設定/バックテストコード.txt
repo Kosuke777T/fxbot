@@ -1,0 +1,13 @@
+pwsh -NoProfile -ExecutionPolicy Bypass -Command @'
+$ErrorActionPreference="Stop"
+
+python -X utf8 tools/backtest_run.py `
+  --csv "D:\fxbot\data\USDJPY\ohlcv\USDJPY_M5.csv" `
+  --profile michibiki_std `
+  --symbol USDJPY- `
+  --timeframe M5 `
+  --mode bt `
+  --start-date 2025-12-01 `
+  --end-date   2025-12-15
+
+'@

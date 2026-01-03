@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
+import csv
 
 # BacktestRun が出力する標準パス
 # backtests/{profile}/monthly_returns.csv を読む
@@ -14,8 +15,96 @@ BACKTEST_ROOT = Path("backtests")
 # KPI 仕様の「月3%」目標値
 TARGET_MONTHLY_RETURN = 0.03
 
+def _bands_from_timeline(timeline_rows, equity_times):
+    """
+    Step2-18:
+    next_action_timeline.csv の「変化点(time, kind, reason)」から
+    GUI向けの bands（start/end, kind, reason）を構築する。
 
-@dataclass
+    timeline_rows: list[dict] with keys time, kind, reason
+    equity_times : pandas.Series or list-like of datetime/str
+    """
+    try:
+        import pandas as pd
+    except Exception:
+        pd = None  # type: ignore
+
+    if not timeline_rows:
+        return []
+
+    # equity_times の min/max を終端として使う（最後の帯を閉じるため）
+    try:
+        if pd is not None:
+            ts = pd.to_datetime(equity_times, errors='coerce')
+            ts = ts.dropna()
+            if len(ts) == 0:
+                end_ts = None
+            else:
+                end_ts = ts.max()
+        else:
+            end_ts = None
+    except Exception:
+        end_ts = None
+
+    # timeline を時刻でソート
+    def _to_dt(x):
+        if pd is None:
+            return str(x)
+        return pd.to_datetime(x, errors='coerce')
+
+    rows = []
+    for r in timeline_rows:
+        t = r.get('time', '')
+        k = r.get('kind', '')
+        reason = r.get('reason', '') or ''
+        rows.append({'time': t, 'kind': k, 'reason': reason})
+
+    if pd is not None:
+        rows.sort(key=lambda r: (_to_dt(r['time']) if _to_dt(r['time']) is not None else pd.Timestamp.min))
+    else:
+        rows.sort(key=lambda r: r['time'])
+
+    bands = []
+    for i, r in enumerate(rows):
+        start = r['time']
+        kind = r['kind']
+        reason = r.get('reason', '') or ''
+
+        if i + 1 < len(rows):
+            end = rows[i+1]['time']
+        else:
+            # 最終帯：equity の最終時刻まで伸ばす（取れなければ start のまま）
+            end = str(end_ts) if end_ts is not None else start
+
+        bands.append({
+            'start': start,
+            'end': end,
+            'kind': kind,
+            'reason': reason,
+        })
+
+    return bands
+def _try_load_next_action_timeline(run_dir: Path):
+    """
+    Step2-18: core/backtest が出力する run/next_action_timeline.csv を最優先で読む。
+    無ければ None を返し、従来フォールバックに回す。
+    """
+    p = run_dir / 'next_action_timeline.csv'
+    if not p.exists():
+        return None
+    rows = []
+    try:
+        with p.open('r', encoding='utf-8', newline='') as f:
+            r = csv.DictReader(f)
+            for row in r:
+                rows.append({
+                    'time': row.get('time',''),
+                    'kind': row.get('kind',''),
+                    'reason': row.get('reason',''),
+                })
+        return rows
+    except Exception:
+        return None
 class KpiMonthlyRecord:
     year_month: str
     return_pct: float
@@ -111,6 +200,7 @@ class KPIService:
 
             # GUI から扱いやすいように dict 化
             return {
+
                 "profile": dashboard.profile,
                 "has_backtest": dashboard.has_backtest,
                 "current_month": dashboard.current_month,
@@ -474,56 +564,71 @@ class KPIService:
         df_eq["timestamp"] = pd.to_datetime(df_eq["timestamp"], errors="coerce")
         df_eq = df_eq.dropna(subset=["timestamp"]).sort_values("timestamp")
 
-        # 2) decisions*.jsonl を探索（同ディレクトリ → 無ければ logs/decisions_*.jsonl にフォールバック）
-        ddir = equity_csv.parent
-        dec_paths = sorted(ddir.glob("decisions*.jsonl"), key=lambda x: x.stat().st_mtime, reverse=True)
-        dec_path = dec_paths[0] if dec_paths else None
-
-        # fallback: 実行系が出すグローバル decisions ログを参照（ただし equity の期間に近いものを選ぶ）
-        if dec_path is None:
-            glb = Path("logs")
-            glb_paths = list(glb.glob("decisions_*.jsonl"))
-            if glb_paths:
-                # equity の end 日付に最も近い（基本は end 以前） decisions を採用
-                eq_end = df_eq["timestamp"].max()
-                def _date_from_name(path: Path):
-                    m = re.search(r"decisions_(\d{4}-\d{2}-\d{2})\.jsonl$", path.name)
-                    return m.group(1) if m else None
-                scored = []
-                for fp in glb_paths:
-                    ds = _date_from_name(fp)
-                    if not ds:
-                        continue
-                    try:
-                        d = pd.to_datetime(ds, errors="coerce")
-                        if pd.isna(d):
-                            continue
-                        # score: end 以前の decisions だけ採用（期間外=未来ログはバックテスト帯に使わない）
-                        delta = (eq_end.normalize() - d).days
-                        if delta >= 0:
-                            score = abs(delta)
-                            scored.append((score, fp))
-                    except Exception:
-                        continue
-                if scored:
-                    scored.sort(key=lambda x: x[0])
-                    dec_path = scored[0][1]
-                else:
-                    # end 以前の decisions が無い（または日付抽出不可）場合は採用しない
-                    dec_path = None
-
+        # --- Step2-18: try loading next_action_timeline.csv first ---
+        timeline_data = _try_load_next_action_timeline(equity_csv.parent)
         bands = []
-        if dec_path is not None:
-            rows = []
-            with dec_path.open("r", encoding="utf-8", errors="replace") as f:
-                for line in f:
-                    line = line.strip()
-                    if not line:
-                        continue
-                    try:
-                        rows.append(json.loads(line))
-                    except Exception:
-                        continue
+        dec_path = None
+
+        # Step2-18: timeline -> bands (authoritative)
+        if timeline_data:
+            try:
+                bands = _bands_from_timeline(timeline_data, df_eq['timestamp'])
+            except Exception:
+                bands = []
+
+        # timeline が無い場合は従来の decisions フォールバックを使用
+        if not timeline_data:
+            # 2) decisions*.jsonl を探索（同ディレクトリ → 無ければ logs/decisions_*.jsonl にフォールバック）
+            ddir = equity_csv.parent
+            dec_paths = sorted(ddir.glob("decisions*.jsonl"), key=lambda x: x.stat().st_mtime, reverse=True)
+            dec_path = dec_paths[0] if dec_paths else None
+
+            # fallback: 実行系が出すグローバル decisions ログを参照（ただし equity の期間に近いものを選ぶ）
+            if dec_path is None:
+                glb = Path("logs")
+                glb_paths = list(glb.glob("decisions_*.jsonl"))
+                if glb_paths:
+                    # equity の end 日付に最も近い（基本は end 以前） decisions を採用
+                    eq_end = df_eq["timestamp"].max()
+                    def _date_from_name(path: Path):
+                        m = re.search(r"decisions_(\d{4}-\d{2}-\d{2})\.jsonl$", path.name)
+                        return m.group(1) if m else None
+                    scored = []
+                    for fp in glb_paths:
+                        ds = _date_from_name(fp)
+                        if not ds:
+                            continue
+                        try:
+                            d = pd.to_datetime(ds, errors="coerce")
+                            if pd.isna(d):
+                                continue
+                            # score: end 以前の decisions だけ採用（期間外=未来ログはバックテスト帯に使わない）
+                            delta = (eq_end.normalize() - d).days
+                            if delta >= 0:
+                                score = abs(delta)
+                                scored.append((score, fp))
+                        except Exception:
+                            continue
+                    if scored:
+                        scored.sort(key=lambda x: x[0])
+                        dec_path = scored[0][1]
+                    else:
+                        # end 以前の decisions が無い（または日付抽出不可）場合は採用しない
+                        dec_path = None
+
+            bands = []
+            rows = []  # Step2-18: ensure defined for fallback
+            if dec_path is not None:
+                rows = []
+                with dec_path.open("r", encoding="utf-8", errors="replace") as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            rows.append(json.loads(line))
+                        except Exception:
+                            continue
             if rows:
 
                 df_dec = pd.DataFrame(rows)
@@ -629,10 +734,26 @@ class KPIService:
             if k in counts:
                 counts[k] += 1
 
+        # Step2-18: timeline がある場合、decisions の欠損警告は出さない
+        warnings = ([] if dec_path is not None else ["decisions_jsonl_not_found"])
+        try:
+            if 'timeline_data' in locals() and timeline_data and isinstance(warnings, list):
+                warnings = [w for w in warnings if w != 'decisions_jsonl_not_found']
+        except Exception:
+            pass
+
+        # Step2-18: recompute counts from bands
+        try:
+            _c_hold = sum(1 for b in bands if b.get('kind') == 'HOLD') if isinstance(bands, list) else 0
+            _c_blk  = sum(1 for b in bands if b.get('kind') == 'BLOCKED') if isinstance(bands, list) else 0
+            counts = {'HOLD': int(_c_hold), 'BLOCKED': int(_c_blk), 'total': int(_c_hold + _c_blk)}
+        except Exception:
+            pass
+
         return {
             "equity": equity,
             "bands": bands,
             "source": {"equity_curve_csv": str(equity_csv), "decisions_jsonl": (str(dec_path) if dec_path else None)},
             "counts": counts,
-            "warnings": ([] if dec_path is not None else ["decisions_jsonl_not_found"]),
+            "warnings": warnings,
         }

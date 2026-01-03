@@ -734,3 +734,61 @@ services / gui / core の責務境界を完全に遵守
 
 グローバル logs/decisions_*.jsonl を使う設計は バックテスト帯表示には不適切
 
+T-43-3 Step2-18
+目的
+
+core/backtest が唯一の正として timeline を生成
+
+KPIService はそれを最優先で読む
+
+GUI は背景帯を描画するだけ（ロジックを持たない）
+
+実装で達成したこと
+
+core/backtest 側
+
+next_action_timeline.csv を run フォルダに出力
+
+フォーマット：time, kind(HOLD/BLOCKED), reason
+
+timeline は「変化点のみ」を記録
+
+出力責務は _generate_outputs() に集約
+
+_validate_outputs() から誤挿入コードを完全除去
+
+timeline_rows は self._timeline_rows として安全に保持
+
+KPIService 側
+
+next_action_timeline.csv を 最優先で読み込む実装を確立
+
+timeline が存在する場合：
+
+decisions.jsonl を参照しない
+
+decisions_jsonl_not_found 警告を出さない
+
+timeline → GUI 用 bands（start/end/kind/reason） に変換
+
+_bands_from_timeline() ヘルパーを追加
+
+最終帯は equity の最終時刻まで自動で延長
+
+counts（HOLD/BLOCKED/total）を bands から再計算
+
+rows 未定義による UnboundLocalError を解消
+
+動作確認結果
+
+next_action_timeline.csv の生成を確認
+
+KPIService の出力：
+
+bands_n >= 1
+
+warnings = []
+
+bands = [{start, end, kind, reason}]
+
+Step2-18 の設計意図どおりに動作していることを確認
