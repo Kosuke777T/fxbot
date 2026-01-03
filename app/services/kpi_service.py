@@ -433,3 +433,206 @@ class KPIService:
         # （例：self._kpi_summary[profile] = self._build_kpi_summary(df) など）
 
         return df
+
+
+    def load_equity_curve_with_action_bands(self, profile: str, symbol: str = "USDJPY-") -> dict:
+        """バックテスト資産曲線(equity_curve)と、HOLD/BLOCKED帯（背景用）を返す。
+        - GUIは描画のみ（生成ロジックを持たない）
+        - ログ直読みは禁止のため、servicesがファイル読取→最小整形して返す
+        戻り:
+          {
+            "equity": [{"time": "...", "equity": 100000.0}, ...],
+            "bands": [{"start": "...", "end": "...", "kind": "HOLD|BLOCKED", "reason": "..."}, ...],
+            "source": {"equity_curve_csv": "...", "decisions_jsonl": "...|None"},
+            "counts": {"HOLD": n, "BLOCKED": n, "total": n},
+          }
+        """
+        from pathlib import Path
+        import json
+        import re
+
+        # 1) 最新の equity_curve.csv を探索（logs/backtest 配下を優先）
+        root = Path("logs/backtest") / symbol
+        if not root.exists():
+            return {"equity": [], "bands": [], "source": {"equity_curve_csv": None, "decisions_jsonl": None},
+                    "counts": {"HOLD": 0, "BLOCKED": 0, "total": 0}, "warnings": ["backtest_root_not_found"]}
+
+        equity_paths = sorted(root.glob("**/equity_curve.csv"), key=lambda x: x.stat().st_mtime, reverse=True)
+        if not equity_paths:
+            return {"equity": [], "bands": [], "source": {"equity_curve_csv": None, "decisions_jsonl": None},
+                    "counts": {"HOLD": 0, "BLOCKED": 0, "total": 0}, "warnings": ["equity_curve_not_found"]}
+
+        equity_csv = equity_paths[0]
+        df_eq = pd.read_csv(equity_csv)
+        # time/timestamp 揺れ吸収（仕様書: time）
+        if "timestamp" not in df_eq.columns and "time" in df_eq.columns:
+            df_eq = df_eq.rename(columns={"time": "timestamp"})
+        if "timestamp" not in df_eq.columns or "equity" not in df_eq.columns:
+            return {"equity": [], "bands": [], "source": {"equity_curve_csv": str(equity_csv), "decisions_jsonl": None},
+                    "counts": {"HOLD": 0, "BLOCKED": 0, "total": 0}, "warnings": ["equity_curve_columns_invalid"]}
+
+        df_eq["timestamp"] = pd.to_datetime(df_eq["timestamp"], errors="coerce")
+        df_eq = df_eq.dropna(subset=["timestamp"]).sort_values("timestamp")
+
+        # 2) decisions*.jsonl を探索（同ディレクトリ → 無ければ logs/decisions_*.jsonl にフォールバック）
+        ddir = equity_csv.parent
+        dec_paths = sorted(ddir.glob("decisions*.jsonl"), key=lambda x: x.stat().st_mtime, reverse=True)
+        dec_path = dec_paths[0] if dec_paths else None
+
+        # fallback: 実行系が出すグローバル decisions ログを参照（ただし equity の期間に近いものを選ぶ）
+        if dec_path is None:
+            glb = Path("logs")
+            glb_paths = list(glb.glob("decisions_*.jsonl"))
+            if glb_paths:
+                # equity の end 日付に最も近い（基本は end 以前） decisions を採用
+                eq_end = df_eq["timestamp"].max()
+                def _date_from_name(path: Path):
+                    m = re.search(r"decisions_(\d{4}-\d{2}-\d{2})\.jsonl$", path.name)
+                    return m.group(1) if m else None
+                scored = []
+                for fp in glb_paths:
+                    ds = _date_from_name(fp)
+                    if not ds:
+                        continue
+                    try:
+                        d = pd.to_datetime(ds, errors="coerce")
+                        if pd.isna(d):
+                            continue
+                        # score: end 以前の decisions だけ採用（期間外=未来ログはバックテスト帯に使わない）
+                        delta = (eq_end.normalize() - d).days
+                        if delta >= 0:
+                            score = abs(delta)
+                            scored.append((score, fp))
+                    except Exception:
+                        continue
+                if scored:
+                    scored.sort(key=lambda x: x[0])
+                    dec_path = scored[0][1]
+                else:
+                    # end 以前の decisions が無い（または日付抽出不可）場合は採用しない
+                    dec_path = None
+
+        bands = []
+        if dec_path is not None:
+            rows = []
+            with dec_path.open("r", encoding="utf-8", errors="replace") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        rows.append(json.loads(line))
+                    except Exception:
+                        continue
+            if rows:
+
+                df_dec = pd.DataFrame(rows)
+
+                # --- schema normalize (decisions jsonl) ---
+                # v5.2 decisions は timestamp/reason ではなく ts_jst / filter_reasons の場合がある
+                if "timestamp" not in df_dec.columns and "ts_jst" in df_dec.columns:
+                    df_dec = df_dec.rename(columns={"ts_jst": "timestamp"})
+                # timestamp カラムのタイムゾーンを削除（equity と型を合わせる）
+                if "timestamp" in df_dec.columns:
+                    df_dec["timestamp"] = pd.to_datetime(df_dec["timestamp"], errors="coerce")
+                    # タイムゾーン付きの場合は削除
+                    if df_dec["timestamp"].dtype.tz is not None:
+                        df_dec["timestamp"] = df_dec["timestamp"].dt.tz_localize(None)
+                if "reason" not in df_dec.columns and "filter_reasons" in df_dec.columns:
+                    def _one_line_reason(x):
+                        if x is None:
+                            return None
+                        # list / dict / str を想定して tooltip 向けに潰す
+                        try:
+                            if isinstance(x, list):
+                                txt = "; ".join([str(i) for i in x if i is not None])
+                            elif isinstance(x, dict):
+                                txt = "; ".join([f"{k}={v}" for k,v in x.items()])
+                            else:
+                                txt = str(x)
+                        except Exception:
+                            txt = str(x)
+                        txt = txt.replace("\n", " ").strip()
+                        # 長すぎるのは1行に収める
+                        return txt[:200] if len(txt) > 200 else txt
+                    df_dec["reason"] = df_dec["filter_reasons"].apply(_one_line_reason)
+                # --- end normalize ---
+
+                # timestampキーの揺れ吸収
+                if "timestamp" not in df_dec.columns and "time" in df_dec.columns:
+                    df_dec = df_dec.rename(columns={"time": "timestamp"})
+                if "timestamp" in df_dec.columns:
+                    df_dec["timestamp"] = pd.to_datetime(df_dec["timestamp"], errors="coerce")
+                    df_dec = df_dec.dropna(subset=["timestamp"]).sort_values("timestamp")
+
+                    # equityの各timestampに直近のdecisionをasof結合
+                    df_m = pd.merge_asof(
+                        df_eq[["timestamp"]].copy(),
+                        df_dec[["timestamp", "filter_pass", "reason"]].copy(),
+                        on="timestamp",
+                        direction="backward",
+                    )
+
+                    def _classify(fp, reason):
+                        # 暫定ルール（T-43-3 Step2-16の前提に合わせる）
+                        if fp is False:
+                            return "BLOCKED"
+                        r = (reason or "")
+                        r = str(r)
+                        # "入らない"系は HOLD とみなす（暫定）
+                        if ("threshold" in r and "pass" not in r) or ("below" in r) or (r in ("no_signal","hold","wait")):
+                            return "HOLD"
+                        return None
+
+                    states = []
+                    for _, row in df_m.iterrows():
+                        states.append((_classify(row.get("filter_pass"), row.get("reason")), row.get("reason")))
+
+                    # 連続区間に圧縮（kindが同じ間をまとめる）
+                    cur_kind = None
+                    cur_reason = None
+                    cur_start = None
+                    prev_ts = None
+
+                    ts_list = df_eq["timestamp"].tolist()
+                    for i, ts in enumerate(ts_list):
+                        kind, reason = states[i]
+                        if kind != cur_kind:
+                            # close previous
+                            if cur_kind in ("HOLD","BLOCKED") and cur_start is not None and prev_ts is not None:
+                                bands.append({
+                                    "start": cur_start.isoformat(),
+                                    "end": prev_ts.isoformat(),
+                                    "kind": cur_kind,
+                                    "reason": (str(cur_reason) if cur_reason is not None else None),
+                                })
+                            # open new
+                            cur_kind = kind
+                            cur_reason = reason
+                            cur_start = ts if kind in ("HOLD","BLOCKED") else None
+                        prev_ts = ts
+
+                    # close tail
+                    if cur_kind in ("HOLD","BLOCKED") and cur_start is not None and prev_ts is not None:
+                        bands.append({
+                            "start": cur_start.isoformat(),
+                            "end": prev_ts.isoformat(),
+                            "kind": cur_kind,
+                            "reason": (str(cur_reason) if cur_reason is not None else None),
+                        })
+
+        equity = [{"time": t.isoformat(), "equity": float(v)} for t, v in zip(df_eq["timestamp"], df_eq["equity"])]
+
+        counts = {"HOLD": 0, "BLOCKED": 0, "total": len(bands)}
+        for b in bands:
+            k = b.get("kind")
+            if k in counts:
+                counts[k] += 1
+
+        return {
+            "equity": equity,
+            "bands": bands,
+            "source": {"equity_curve_csv": str(equity_csv), "decisions_jsonl": (str(dec_path) if dec_path else None)},
+            "counts": counts,
+            "warnings": ([] if dec_path is not None else ["decisions_jsonl_not_found"]),
+        }

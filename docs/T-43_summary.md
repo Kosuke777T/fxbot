@@ -674,3 +674,63 @@ reason は「判断の背景テキスト」として扱う方針が確定
 同じ意味論（HOLD / BLOCKED）を
 
 資産曲線の帯表示などの可視化へ拡張できる状態
+
+T-43-3 Step2-17
+🎯 目的（Step2-17 前半）
+
+バックテスト資産曲線に HOLD / BLOCKED を帯表示するための
+services 側の返却形と安全な前提条件を確立する
+
+✅ 達成したこと
+
+帯表示の最小データ構造を確定
+
+bands = [{start, end, kind(HOLD|BLOCKED), reason}]
+
+GUI は描画のみ、判断ロジックを持たない設計を維持
+
+KPIService に facade API を追加
+
+load_equity_curve_with_action_bands()
+
+equity / bands / source / counts / warnings を返す統一形
+
+decisions.jsonl の安全な取り扱いを確立
+
+スキーマ揺れ吸収（ts_jst → timestamp, filter_reasons → reason）
+
+タイムゾーン不一致の解消
+
+merge_asof での結合条件を検証
+
+重大な設計判断を確定
+
+❌ バックテスト期間外（未来）の decisions は 絶対に使わない
+
+期間内 decisions が無い場合：
+
+decisions_jsonl = None
+
+warnings = ['decisions_jsonl_not_found']
+
+bands = []
+
+👉 嘘の帯を描かないことを最優先
+
+現状の正しい挙動を確認
+
+bands_n = 0
+
+warnings が明示される
+
+services / gui / core の責務境界を完全に遵守
+
+🧠 重要な理解ポイント
+
+今 bands が出ないのは バグではなく仕様どおり
+
+原因は
+👉「バックテスト run フォルダに、その run 専用の actions / decisions 時系列が存在しない」ため
+
+グローバル logs/decisions_*.jsonl を使う設計は バックテスト帯表示には不適切
+
