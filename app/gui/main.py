@@ -20,8 +20,7 @@ from app.gui.dashboard_tab_qt import DashboardTab
 from app.gui.history_tab import HistoryTab
 from app.services.execution_stub import evaluate_and_log_once
 from app.gui.ai_tab import AITab
-# TEMP: disabled (BacktestTab missing)
-# from app.gui.backtest_tab import BacktestTab
+from app.gui.backtest_tab import BacktestTab
 from app.gui.kpi_tab import KPITab
 from app.gui.settings_tab import SettingsTab
 from app.gui.ops_tab import OpsTab
@@ -81,15 +80,14 @@ QTabBar::tab:hover {
         self.kpi_service = KPIService(base_dir=Path("."))
 
         # 残りのタブを追加
-        # TEMP: disabled backtest tab
-        # self.tabs.addTab(
-        #     BacktestTab(
-        #         parent=self,
-        #         kpi_service=self.kpi_service,
-        #         profile_name="michibiki_std",
-        #     ),
-        #     "Backtest"
-        # )
+        self.tabs.addTab(
+            BacktestTab(
+                parent=self,
+                kpi_service=self.kpi_service,
+                profile_name="michibiki_std",
+            ),
+            "Backtest"
+        )
         self.tabs.addTab(
             KPITab(
                 parent=self,
