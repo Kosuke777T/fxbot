@@ -7,6 +7,46 @@ import os
 import shutil
 import sys
 import time
+
+
+def _enrich_active_model_meta(meta: dict, model_obj=None) -> dict:
+    """
+    Ensure active_model.json has:
+      - expected_features: list[str] (must be non-empty)
+      - feature_hash: sha256("\n".join(expected_features))
+    Best-effort from model_obj; fallback to meta["feature_order"]/meta["features"].
+    """
+    import hashlib
+
+    exp = meta.get("expected_features") or []
+    # best-effort from model
+    if (not exp) and model_obj is not None:
+        try:
+            if hasattr(model_obj, "feature_name_"):
+                exp = list(getattr(model_obj, "feature_name_"))
+            elif hasattr(model_obj, "feature_names_in_"):
+                exp = list(getattr(model_obj, "feature_names_in_"))
+            elif hasattr(model_obj, "booster_") and hasattr(model_obj.booster_, "feature_name"):
+                exp = list(model_obj.booster_.feature_name())
+            elif hasattr(model_obj, "booster") and callable(getattr(model_obj, "booster", None)):
+                b = model_obj.booster()
+                if hasattr(b, "feature_name"):
+                    exp = list(b.feature_name())
+        except Exception:
+            pass
+
+    # fallback to meta itself
+    if not exp:
+        exp = meta.get("feature_order") or meta.get("features") or []
+
+    # normalize
+    if not isinstance(exp, list) or not exp or not all(isinstance(x, str) and x for x in exp):
+        raise RuntimeError("[active_model] expected_features is empty -> cannot promote/swap model safely")
+
+    meta["expected_features"] = list(exp)
+    meta["feature_hash"] = hashlib.sha256("\n".join(meta["expected_features"]).encode("utf-8")).hexdigest()
+    return meta
+
 from pathlib import Path
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

@@ -1,0 +1,19 @@
+pwsh -NoProfile -ExecutionPolicy Bypass -Command @'
+$ErrorActionPreference="Stop"
+
+$csv = "D:\fxbot\data\USDJPY\ohlcv\USDJPY_M5.csv"
+Write-Host "[INFO] using OHLCV csv:" $csv
+
+# 1) 壊した feature_order（完了条件1）
+pwsh -NoProfile -ExecutionPolicy Bypass -File tools/feature_order_failfast_smoke.ps1 -Symbol "USDJPY-"
+
+# 2) 正常ケース（完了条件2）: 期間短縮 2025-12-03 .. 2026-01-03
+python -X utf8 tools/backtest_run.py `
+  --csv "$csv" `
+  --symbol USDJPY- `
+  --timeframe M5 `
+  --start-date 2025-12-28 `
+  --end-date 2026-01-03
+
+Write-Host "[INFO] exitcode=" $LASTEXITCODE
+'@

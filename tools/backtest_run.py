@@ -20,6 +20,7 @@ from app.strategies.ai_strategy import (
     predict_signals,
     trades_from_signals,
 )
+from app.services.ai_service import get_active_model_meta, validate_feature_order_fail_fast
 
 LOG_DIR = PROJECT_ROOT / "logs" / "backtest"
 
@@ -663,7 +664,33 @@ def run_backtest(
     # _print_progress(0)  # iter_with_progress で5%刻みになるので削除
     out_dir.mkdir(parents=True, exist_ok=True)
     print(f"[bt] read_csv {data_csv}", flush=True)
+    # Fail-fast: csv path must be an existing file (not a directory)
+    from pathlib import Path as _Path
+    _csvp = _Path(str(data_csv))
+    if (not _csvp.exists()) or (not _csvp.is_file()):
+        raise RuntimeError(
+            "[bt] --csv must point to an existing CSV file -> FAIL-FAST\n"
+            f"  csv={data_csv}\n"
+            "  hint=Set $csv explicitly (e.g., D:/fxbot/data/USDJPY/ohlcv/USDJPY_M5.csv)\n"
+        )
+    if _csvp.suffix.lower() != ".csv":
+        raise RuntimeError(
+            "[bt] --csv must be a .csv file -> FAIL-FAST\n"
+            f"  csv={data_csv}\n"
+        )
+
     df = pd.read_csv(data_csv, parse_dates=["time"])
+
+    # Fail-fast: OHLCV前提の入力検証（equity_curve.csv等を誤入力した場合に即停止）
+    required_cols = {"time", "close"}
+    missing_cols = [c for c in sorted(required_cols) if c not in df.columns]
+    if missing_cols:
+        raise RuntimeError(
+            "[bt] input CSV is not OHLCV -> FAIL-FAST\n"
+            f"  csv={data_csv}\n"
+            f"  missing={missing_cols}\n"
+            "  hint=--csv must be an OHLCV CSV containing time,close (equity_curve.csv is NOT valid)\n"
+        )
     # _print_progress(10)  # iter_with_progress で5%刻みになるので削除
 
     tag_start = start or "ALL"
@@ -683,6 +710,28 @@ def run_backtest(
         guard = EditionGuard()
         current_filter_level = guard.filter_level()
 
+        # Fail-fast: feature_order must match active_model expected_features (single source of truth)
+        feat_df = build_features(df, params={})
+        meta = get_active_model_meta() or {}
+        expected = meta.get("expected_features") or meta.get("feature_order") or meta.get("head") or []
+        if not isinstance(expected, list) or not expected:
+            raise RuntimeError("[feature_check] expected_features is empty in active_model.json -> FAIL-FAST")
+        drop_cols = {"time"}
+        have = [c for c in feat_df.columns.tolist() if isinstance(c, str) and c not in drop_cols]
+        have_set = set(have)
+        expected_set = set(expected)
+        missing = [c for c in expected if c not in have_set]
+        extra = [c for c in have if c not in expected_set]
+        if missing or extra:
+            raise RuntimeError(
+                "[feature_check] feature columns mismatch -> FAIL-FAST\n"
+                f"  context=backtest\n"
+                f"  missing={missing}\n"
+                f"  extra={extra}\n"
+            )
+        # IMPORTANT: order is defined by expected_features (model input order)
+        feature_order = list(expected)
+        validate_feature_order_fail_fast(feature_order, context="backtest")
         print(f"[bt] Initializing BacktestEngine (profile={profile}, filter_level={current_filter_level})", flush=True)
         engine = BacktestEngine(
             profile=profile,
@@ -806,6 +855,11 @@ def run_backtest(
         return eq_csv
 
     except Exception as e:
+        # feature_check is fatal: stop immediately (no fallback)
+        msg = str(e)
+        if isinstance(e, RuntimeError) and msg.startswith("[feature_check]"):
+            print("[bt] feature_check fatal -> stop without fallback", flush=True)
+            raise
         print(f"[bt] BacktestEngine failed: {e}, falling back to Buy&Hold", flush=True)
         import traceback
         traceback.print_exc()

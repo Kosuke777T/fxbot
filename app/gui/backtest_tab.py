@@ -510,12 +510,32 @@ class BacktestTab(QtWidgets.QWidget):
                 c = list(bt_dir.rglob('metrics.json'))
                 mp = c[0] if c else mp
 
-            bands = None
-            if eq.exists():
-                bands = self._try_load_bands_for_equity(eq)
-                self._load_plot(eq, bands=bands)
+            # 代表ファイルを探す（WFOなら test優先）
+            eq_test = bt_dir / "equity_test.csv"
+            eq_train = bt_dir / "equity_train.csv"
+            eq_curve = bt_dir / "equity_curve.csv"
+
+            eq = None
+            if eq_test.exists():
+                eq = eq_test
+            elif eq_curve.exists():
+                eq = eq_curve
+            elif eq_train.exists():
+                eq = eq_train
             else:
-                self._append_progress(f'[gui] equity_curve.csv not found under {bt_dir}')
+                c = (
+                    list(bt_dir.rglob("equity_test.csv"))
+                    or list(bt_dir.rglob("equity_curve.csv"))
+                    or list(bt_dir.rglob("equity_train.csv"))
+                )
+                eq = c[0] if c else None
+
+            bands = None
+            if eq is not None and Path(eq).exists():
+                bands = self._try_load_bands_for_equity(Path(eq))
+                self._load_plot(Path(eq), bands=bands)
+            else:
+                self._append_progress(f"[gui] equity csv not found under {bt_dir}")
 
             if mp.exists():
                 self._load_metrics(mp)
@@ -615,9 +635,42 @@ class BacktestTab(QtWidgets.QWidget):
                 "--mode", bt_mode,
             ]
             self._append_progress(f"[gui] Backtest run cmd: {exe} " + " ".join(args))
-            # Expected output dir (prefer loading this over "latest" to avoid showing old results on failure)
-            target_bt_dir = Path("logs") / "backtest" / symbol / tf / f"backtest_{sd}_to_{ed}"
-            self._append_progress(f"[gui] expected bt_dir: {target_bt_dir}")
+            # Expected output dir: don't assume naming (bt/wfo may differ).
+            base_tf_dir = Path("logs") / "backtest" / symbol / tf
+            if bt_mode == "wfo":
+                candidates = [
+                    base_tf_dir / f"wfo_{sd}_to_{ed}",
+                    base_tf_dir / f"backtest_wfo_{sd}_to_{ed}",
+                    base_tf_dir / f"walkforward_{sd}_to_{ed}",
+                    base_tf_dir / f"backtest_{sd}_to_{ed}",
+                ]
+            else:
+                candidates = [
+                    base_tf_dir / f"backtest_{sd}_to_{ed}",
+                    base_tf_dir / f"wfo_{sd}_to_{ed}",
+                    base_tf_dir / f"backtest_wfo_{sd}_to_{ed}",
+                    base_tf_dir / f"walkforward_{sd}_to_{ed}",
+                ]
+
+            # If nothing matches, we'll search by glob as a final fallback.
+            target_bt_dir = None
+            for d in candidates:
+                if d.exists():
+                    target_bt_dir = d
+                    break
+
+            if target_bt_dir is None and base_tf_dir.exists():
+                pats = [
+                    f"*{sd}*{ed}*",
+                    f"*{sd}_to_{ed}*",
+                ]
+                for pat in pats:
+                    hits = sorted(base_tf_dir.glob(pat), key=lambda x: x.stat().st_mtime, reverse=True)
+                    if hits:
+                        target_bt_dir = hits[0]
+                        break
+
+            self._append_progress(f"[gui] expected bt_dir: {target_bt_dir or '(auto)'}")
 
             proc = QProcess(self)
             self._bt_proc = proc
@@ -627,12 +680,35 @@ class BacktestTab(QtWidgets.QWidget):
             except Exception:
                 pass
 
+            # Ensure child process emits UTF-8 (avoid mojibake in GUI log)
+            try:
+                env = QtCore.QProcessEnvironment.systemEnvironment()
+                env.insert("PYTHONUTF8", "1")
+                env.insert("PYTHONIOENCODING", "utf-8")
+                proc.setProcessEnvironment(env)
+            except Exception:
+                pass
+
             # 出力取り込み
             proc.setProcessChannelMode(QProcess.ProcessChannelMode.MergedChannels)
 
+            def _decode_process_bytes(b: bytes) -> str:
+                # try utf-8 first; fallback to cp932 if many replacement chars
+                try:
+                    s = b.decode("utf-8")
+                    if s.count("�") >= 2:
+                        raise UnicodeDecodeError("utf-8", b, 0, 1, "too many replacement chars")
+                    return s
+                except Exception:
+                    try:
+                        return b.decode("cp932", errors="replace")
+                    except Exception:
+                        return b.decode("utf-8", errors="replace")
+
             def _on_ready():
                 try:
-                    out = bytes(proc.readAllStandardOutput()).decode("utf-8", errors="replace")
+                    raw = bytes(proc.readAllStandardOutput())
+                    out = _decode_process_bytes(raw)
                     if out.strip():
                         for line in out.splitlines():
                             self._append_progress(line)
@@ -659,23 +735,14 @@ class BacktestTab(QtWidgets.QWidget):
                     return
 
                 # Prefer loading the expected directory for the selected period.
-                try:
-                    bt_dir = target_bt_dir
-                except Exception:
-                    bt_dir = None
+                bt_dir = target_bt_dir
 
                 try:
                     if bt_dir is not None and Path(bt_dir).exists():
-                        try:
-                            self._load_from_bt_dir(Path(bt_dir), keep_dates=True)
-                        except TypeError:
-                            self._load_from_bt_dir(Path(bt_dir))
+                        self._load_from_bt_dir(Path(bt_dir), keep_dates=True)
                     else:
                         # Fallback: load latest result only on success
-                        try:
-                            self._load_latest_backtest_result(keep_dates=True)
-                        except TypeError:
-                            self._load_latest_backtest_result()
+                        self._load_latest_backtest_result(keep_dates=True)
                 except Exception as e:
                     self._append_progress(f"[gui] post-load warn: {e}")
                 finally:
@@ -726,8 +793,20 @@ class BacktestTab(QtWidgets.QWidget):
 
         p = Path(path_or_csv)
         csv_path = str(p)
-        ##
-        if "equity_curve.csv" in csv_path:
+
+        # 先に列だけ確認して描画タイプを決める（ファイル名に依存しない）
+        try:
+            head = pd.read_csv(csv_path, nrows=1)
+            cols = set(head.columns.astype(str))
+        except Exception as e:
+            self.label_meta.setText(f"描画失敗: {e}")
+            self._append_progress(f"[gui] plot error: {e}")
+            return
+
+        is_equity = "equity" in cols
+        is_price = "close" in cols
+
+        if is_equity:
             try:
                 # DataFrameを読み込んで保持
                 df = pd.read_csv(csv_path)
@@ -789,13 +868,13 @@ class BacktestTab(QtWidgets.QWidget):
                 self._append_progress(f"[gui] plot error: {e}")
             return
 
-        ##
-        try:
-            df = pd.read_csv(p)
-            self.fig.clear()
-            ax = self.fig.add_subplot(111)
+        # equity じゃなければ price を試す
+        if is_price:
+            try:
+                df = pd.read_csv(p)
+                self.fig.clear()
+                ax = self.fig.add_subplot(111)
 
-            if "close" in df.columns:
                 # DataFrameを保持
                 self._current_price_df = df
                 self._current_equity_df = None
@@ -831,31 +910,34 @@ class BacktestTab(QtWidgets.QWidget):
                 if self._pop is not None:
                     self._pop._last_kind = "price"
                     self._pop._last_csv = str(p)
-            else:
-                raise ValueError(f"CSVに 'close' 列が含まれていません。columns={list(df.columns)}")
 
-            if "time" not in df.columns:
-                ax.set_xlabel("Date")
-            ax.legend()
+                if "time" not in df.columns:
+                    ax.set_xlabel("Date")
+                ax.legend()
 
-            # レイアウト調整
-            try:
-                self.fig.tight_layout()
+                # レイアウト調整
+                try:
+                    self.fig.tight_layout()
+                except Exception as e:
+                    self._append_progress(f"[gui] tight_layout error: {e}")
+
+                # axes数の確認（デバッグ用）
+                axes_count = len(self.fig.axes)
+                if axes_count != 1:
+                    self._append_progress(f"[gui] WARNING: axes count = {axes_count} (expected 1)")
+
+                # 描画を確実に実行
+                self.canvas.draw_idle()
+                self.canvas.flush_events()
+
             except Exception as e:
-                self._append_progress(f"[gui] tight_layout error: {e}")
+                self.label_meta.setText(f"描画失敗: {e}")
+                self._append_progress(f"[gui] plot error: {e}")
+            return
 
-            # axes数の確認（デバッグ用）
-            axes_count = len(self.fig.axes)
-            if axes_count != 1:
-                self._append_progress(f"[gui] WARNING: axes count = {axes_count} (expected 1)")
-
-            # 描画を確実に実行
-            self.canvas.draw_idle()
-            self.canvas.flush_events()
-
-        except Exception as e:
-            self.label_meta.setText(f"描画失敗: {e}")
-            self._append_progress(f"[gui] plot error: {e}")
+        # equity でも price でもない
+        self.label_meta.setText(f"描画失敗: CSVに 'equity' も 'close' もありません。columns={sorted(cols)}")
+        self._append_progress(f"[gui] plot error: CSV missing equity/close columns. columns={sorted(cols)}")
 
     def _load_metrics(self, metrics_path: Path):
         self.table.setRowCount(0)

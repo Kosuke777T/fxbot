@@ -305,11 +305,24 @@ def _predict_proba_generic(model, X) -> np.ndarray:
     # 2) Sklearn系：predict_proba（feature names を尊重）
     # ----------------------------
     if hasattr(model, "predict_proba"):
-        # ここが本丸：feature_names_in_ があるなら DataFrame で列名を一致させる
+        # Ensure feature names are preserved for sklearn-wrapped LightGBM (avoid warnings)
+        # Some pickled LGBMClassifier may not keep feature_names_in_ but may keep feature_name_ / booster_.feature_name()
+        cols = None
         if hasattr(model, "feature_names_in_"):
             cols = list(getattr(model, "feature_names_in_"))
+        elif hasattr(model, "feature_name_"):
+            try:
+                cols = list(getattr(model, "feature_name_"))
+            except Exception:
+                cols = None
+        elif hasattr(model, "booster_") and hasattr(model.booster_, "feature_name"):
+            try:
+                cols = list(model.booster_.feature_name())
+            except Exception:
+                cols = None
+
+        if cols:
             if isinstance(X, pd.DataFrame):
-                # 列順をモデルに合わせる（余分は落とし、不足はここで例外にして早期発見）
                 missing = [c for c in cols if c not in X.columns]
                 if missing:
                     raise ValueError(f"Missing features for model: {missing}")
@@ -320,7 +333,7 @@ def _predict_proba_generic(model, X) -> np.ndarray:
                     Xa = Xa.reshape(1, -1)
                 Xs = pd.DataFrame(Xa, columns=cols)
         else:
-            # feature_names_in_ が無いモデルは ndarray でOK
+            # No reliable feature names -> pass through (may warn for some estimators, but we did our best)
             Xs = X.values if isinstance(X, pd.DataFrame) else (np.asarray(X) if not isinstance(X, np.ndarray) else X)
 
         proba = model.predict_proba(Xs)

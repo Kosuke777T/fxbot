@@ -4,6 +4,46 @@ from typing import Dict, Any, Optional
 import time
 import json
 
+
+def _enrich_active_model_meta(meta: dict, model_obj=None) -> dict:
+    """
+    Ensure active_model.json has:
+      - expected_features: list[str] (must be non-empty)
+      - feature_hash: sha256("\n".join(expected_features))
+    Best-effort from model_obj; fallback to meta["feature_order"]/meta["features"].
+    """
+    import hashlib
+
+    exp = meta.get("expected_features") or []
+    # best-effort from model
+    if (not exp) and model_obj is not None:
+        try:
+            if hasattr(model_obj, "feature_name_"):
+                exp = list(getattr(model_obj, "feature_name_"))
+            elif hasattr(model_obj, "feature_names_in_"):
+                exp = list(getattr(model_obj, "feature_names_in_"))
+            elif hasattr(model_obj, "booster_") and hasattr(model_obj.booster_, "feature_name"):
+                exp = list(model_obj.booster_.feature_name())
+            elif hasattr(model_obj, "booster") and callable(getattr(model_obj, "booster", None)):
+                b = model_obj.booster()
+                if hasattr(b, "feature_name"):
+                    exp = list(b.feature_name())
+        except Exception:
+            pass
+
+    # fallback to meta itself
+    if not exp:
+        exp = meta.get("feature_order") or meta.get("features") or []
+
+    # normalize
+    if not isinstance(exp, list) or not exp or not all(isinstance(x, str) and x for x in exp):
+        raise RuntimeError("[active_model] expected_features is empty -> cannot promote/swap model safely")
+
+    meta["expected_features"] = list(exp)
+    meta["feature_hash"] = hashlib.sha256("\n".join(meta["expected_features"]).encode("utf-8")).hexdigest()
+    return meta
+
+
 import numpy as np
 import pandas as pd
 from loguru import logger
@@ -444,6 +484,26 @@ class AISvc:
 
         # ひとまず最初のモデルを使う（現状 1 モデル想定）
         model = next(iter(self.models.values()))
+
+        # Ensure feature names are preserved (LGBMClassifier warning fix)
+        # Convert X to DataFrame with expected feature names from active_model.json when possible
+        try:
+            meta = get_active_model_meta() or {}
+            cols = meta.get("expected_features") or meta.get("feature_order") or meta.get("head") or None
+            if cols is not None and not isinstance(X, pd.DataFrame):
+                Xa = np.asarray(X) if not isinstance(X, np.ndarray) else X
+                if Xa.ndim == 1:
+                    Xa = Xa.reshape(1, -1)
+                X = pd.DataFrame(Xa, columns=list(cols))
+            elif cols is not None and isinstance(X, pd.DataFrame):
+                # align order; fail fast if missing
+                missing = [c for c in cols if c not in X.columns]
+                if missing:
+                    raise ValueError(f"[feature_check] Missing features for model: {missing}")
+                X = X.loc[:, list(cols)]
+        except Exception:
+            # best effort; keep original behavior
+            pass
 
         try:
             # sklearn 互換モデルの場合
@@ -1071,5 +1131,123 @@ def get_ai_service() -> AISvc:
         _ai_service = AISvc()
     return _ai_service
 
+def validate_feature_order_fail_fast(feature_order: list[str], *, context: str = "backtest") -> None:
+    """
+    Fail-fast: Backtest/推論開始前に feature_order の不整合を検知して即停止する。
+    - active_model.json を唯一の真実として使用（expected_features/feature_hash 等）
+    - model側 feature 名/順序（feature_name_ / feature_names_in_）が取得できれば照合
+    - 不一致なら例外（RuntimeError）を投げる（呼び出し元でログして終了）
+    """
+    import json, hashlib
+    from pathlib import Path
 
+    # --- locate active_model.json (existing conventions) ---
+    candidates = [
+        Path("config/active_model.json"),
+        Path("configs/active_model.json"),
+        Path("active_model.json"),
+        Path("models/active_model.json"),
+    ]
+    am_path = next((p for p in candidates if p.exists()), None)
+    if am_path is None:
+        raise RuntimeError(f"[feature_check] active_model.json not found (context={context})")
 
+    meta = json.loads(am_path.read_text(encoding="utf-8"))
+    expected = meta.get("expected_features") or meta.get("feature_order") or meta.get("features") or []
+    # expected_features が無い/空は fail-fast（運用事故防止）
+    if len(expected) == 0:
+        raise RuntimeError(
+            "[feature_check] expected_features is empty in active_model.json -> FAIL-FAST\n"
+            f"  context={context}\n"
+            f"  active_model={am_path.as_posix()}\n"
+            "  hint=Write expected_features to active_model.json during promote/swap (required for fail-fast)\n"
+        )
+    if not isinstance(expected, list) or not all(isinstance(x, str) for x in expected):
+        raise RuntimeError(f"[feature_check] invalid expected_features in {am_path} (context={context})")
+
+    # --- compare expected vs input ---
+    if list(expected) != list(feature_order):
+        # どこが違うかを明確化（運用事故防止）
+        exp_set = set(expected)
+        got_set = set(feature_order)
+        missing = [x for x in expected if x not in got_set]
+        extra   = [x for x in feature_order if x not in exp_set]
+
+        # order diff (first mismatch)
+        first_mismatch = None
+        for i, (a, b) in enumerate(zip(expected, feature_order)):
+            if a != b:
+                first_mismatch = (i, a, b)
+                break
+        if first_mismatch is None and len(expected) != len(feature_order):
+            first_mismatch = (min(len(expected), len(feature_order)), "<len>", "<len>")
+
+        msg = (
+            "[feature_check] feature_order mismatch -> FAIL-FAST\n"
+            f"  context={context}\n"
+            f"  active_model={am_path.as_posix()}\n"
+            f"  expected_n={len(expected)} got_n={len(feature_order)}\n"
+            f"  missing={missing[:20]}\n"
+            f"  extra={extra[:20]}\n"
+            f"  first_mismatch={first_mismatch}\n"
+        )
+        raise RuntimeError(msg)
+
+    # --- optional: feature_hash check (if meta has it) ---
+    meta_hash = meta.get("feature_hash") or meta.get("features_hash") or None
+    if meta_hash:
+        s = "\n".join(expected).encode("utf-8")
+        got_hash = hashlib.sha256(s).hexdigest()
+        if str(meta_hash) != str(got_hash):
+            raise RuntimeError(
+                "[feature_check] feature_hash mismatch -> FAIL-FAST\n"
+                f"  context={context}\n"
+                f"  expected_hash(meta)={meta_hash}\n"
+                f"  got_hash(expected_features)={got_hash}\n"
+            )
+
+    # --- optional: model-side feature names/order check (best effort) ---
+    # 既存ローダがある場合はそれを優先して利用（新規関数を増やさない）
+    model_path = meta.get("model_path")
+    if model_path:
+        try:
+            # try common existing loaders
+            mdl = None
+            try:
+                from app.core.ai.loader import load_model as _load_model  # type: ignore
+                mdl = _load_model(model_path)
+            except Exception:
+                pass
+            if mdl is None:
+                try:
+                    from app.core.ai.loader import load_model_cached as _load_model_cached  # type: ignore
+                    mdl = _load_model_cached(model_path)
+                except Exception:
+                    pass
+            if mdl is None:
+                try:
+                    import joblib
+                    mdl = joblib.load(model_path)
+                except Exception:
+                    pass
+            if mdl is not None:
+                m_feats = None
+                if hasattr(mdl, "feature_name_"):
+                    m_feats = list(getattr(mdl, "feature_name_"))
+                elif hasattr(mdl, "feature_names_in_"):
+                    m_feats = list(getattr(mdl, "feature_names_in_"))
+                if m_feats is not None and list(m_feats) != list(expected):
+                    raise RuntimeError(
+                        "[feature_check] model feature names/order mismatch -> FAIL-FAST\n"
+                        f"  context={context}\n"
+                        f"  model_path={model_path}\n"
+                        f"  expected_features(active_model)={len(expected)}\n"
+                        f"  model_features={len(m_feats)}\n"
+                        f"  first_expected={expected[:5]}\n"
+                        f"  first_model={m_feats[:5]}\n"
+                    )
+        except RuntimeError:
+            raise
+        except Exception:
+            # 取得不能は「検証できない」だけ。active_model vs input は既に一致しているので通す。
+            return
