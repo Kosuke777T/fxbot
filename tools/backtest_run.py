@@ -634,6 +634,7 @@ def run_backtest(
     out_dir: Path,
     profile: str = "michibiki_std",
     symbol: str = "USDJPY-",
+    init_position: str = "flat",
 ) -> Path:
     """
     v5.1 準拠のバックテストを実行する
@@ -695,8 +696,19 @@ def run_backtest(
 
     tag_start = start or "ALL"
     tag_end = end or "ALL"
-    print(f"[bt] slice {tag_start} .. {tag_end}", flush=True)
-    df = slice_period(df, start, end)
+
+    # warm-up: include a small window before start for feature generation
+    warm_start = None
+    trade_start_ts = None
+    if start:
+        try:
+            ts = pd.Timestamp(start)
+            trade_start_ts = ts
+            warm_start = (ts - pd.Timedelta(days=1)).strftime("%Y-%m-%d")
+        except Exception:
+            warm_start = start
+    print(f"[bt] slice {warm_start or tag_start} .. {tag_end}", flush=True)
+    df = slice_period(df, warm_start, end)
     if df.empty:
         raise RuntimeError("No data in the requested period.")
     # _print_progress(30)  # iter_with_progress で5%刻みになるので削除
@@ -732,11 +744,13 @@ def run_backtest(
         # IMPORTANT: order is defined by expected_features (model input order)
         feature_order = list(expected)
         validate_feature_order_fail_fast(feature_order, context="backtest")
-        print(f"[bt] Initializing BacktestEngine (profile={profile}, filter_level={current_filter_level})", flush=True)
+        print(f"[bt] Initializing BacktestEngine (profile={profile}, filter_level={current_filter_level}, init_position={init_position})", flush=True)
         engine = BacktestEngine(
             profile=profile,
             initial_capital=capital,
             filter_level=current_filter_level,
+            init_position=init_position,
+            trade_start_ts=trade_start_ts,
         )
 
         print(f"[bt] Running backtest...", flush=True)
@@ -907,6 +921,7 @@ def run_wfo(
     capital: float,
     out_dir: Path,
     train_ratio: float = 0.7,
+    init_position: str = "flat",
 ) -> Path:
     print("[wfo] start", flush=True)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -1100,6 +1115,12 @@ def main() -> None:
     ap.add_argument("--end-date", help="終了日付 YYYY-MM-DD", required=False)
 
     ap.add_argument("--capital", type=float, default=100000.0)
+    ap.add_argument(
+        "--init-position",
+        choices=["flat", "carry"],
+        default="flat",
+        help="初期ポジション: flat=開始前取引禁止 / carry=開始前持越し可",
+    )
     ap.add_argument("--mode", choices=["bt", "wfo"], default="bt")
     ap.add_argument("--symbol", default="USDJPY-")
     ap.add_argument("--timeframe", default="M5")
@@ -1121,8 +1142,18 @@ def main() -> None:
     print(f"[main] mode={args.mode} csv={csv}", flush=True)
     print(f"[main] period={period_tag}", flush=True)
     print(f"[main] profile={args.profile}", flush=True)
+    print(f"[main] init_position={args.init_position}", flush=True)
     if args.mode == "bt":
-        p = run_backtest(csv, start_str, end_str, args.capital, period_dir, profile=args.profile, symbol=args.symbol)
+        p = run_backtest(
+            csv,
+            start_str,
+            end_str,
+            args.capital,
+            period_dir,
+            profile=args.profile,
+            symbol=args.symbol,
+            init_position=args.init_position,
+        )
     else:
         p = run_wfo(
             csv,
@@ -1131,6 +1162,7 @@ def main() -> None:
             args.capital,
             period_dir,
             train_ratio=args.train_ratio,
+            init_position=args.init_position,
         )
 
     # 期間付きフォルダの内容を「最新結果」として backtests/<profile>/ へミラー

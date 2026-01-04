@@ -9,9 +9,8 @@ import sys
 import re
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
-
-import pandas as pd
 import numpy as np
+import pandas as pd
 from PyQt6 import QtCore, QtWidgets
 from PyQt6.QtCore import Qt, QProcess, QTimer, QDate
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as Canvas
@@ -218,6 +217,10 @@ class BacktestTab(QtWidgets.QWidget):
         self.btn_load_candles_csv = QtWidgets.QPushButton("ローソク足CSV 読込")
         self.chk_wfo = QtWidgets.QCheckBox("WFO")
         self.chk_wfo.setToolTip("ON: metrics.json が train/test の場合、test を優先して表示（対応している場合）")
+        self.init_pos_combo = QtWidgets.QComboBox()
+        self.init_pos_combo.addItems(["flat", "carry"])
+        self.init_pos_combo.setCurrentText("flat")
+        self.init_pos_combo.setToolTip("flat: 開始日前は取引しない / carry: 開始前から持越し可")
 
         for b in (self.btn_run_bt, self.btn_load_latest, self.btn_pick_result_dir, self.btn_load_equity_csv, self.btn_load_candles_csv):
             b.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -228,6 +231,8 @@ class BacktestTab(QtWidgets.QWidget):
         act.addWidget(self.btn_load_equity_csv)
         act.addWidget(self.btn_load_candles_csv)
         act.addWidget(self.chk_wfo)
+        act.addWidget(QtWidgets.QLabel("Init pos:"))
+        act.addWidget(self.init_pos_combo)
         act.addStretch(1)
 
         # selected backtest directory (optional)
@@ -499,43 +504,57 @@ class BacktestTab(QtWidgets.QWidget):
         try:
             bt_dir = Path(bt_dir)
 
-            # 代表ファイルを探す（直下優先、無ければサブ）
-            eq = bt_dir / 'equity_curve.csv'
-            if not eq.exists():
-                c = list(bt_dir.rglob('equity_curve.csv'))
-                eq = c[0] if c else eq
+            # 代表ファイルを探す（BT/WFO で優先順位を変える）
+            bt_dir = Path(bt_dir)
 
-            mp = bt_dir / 'metrics.json'
-            if not mp.exists():
-                c = list(bt_dir.rglob('metrics.json'))
-                mp = c[0] if c else mp
+            # bt_mode 推定：GUIの WFO チェックを優先、無ければフォルダ名で推定
+            is_wfo = False
+            try:
+                is_wfo = bool(getattr(self, "chk_wfo", None) and self.chk_wfo.isChecked())
+            except Exception:
+                pass
+            if not is_wfo:
+                try:
+                    name = bt_dir.name.lower()
+                    if name.startswith("wfo_") or "wfo" in name:
+                        is_wfo = True
+                except Exception:
+                    pass
 
-            # 代表ファイルを探す（WFOなら test優先）
-            eq_test = bt_dir / "equity_test.csv"
-            eq_train = bt_dir / "equity_train.csv"
-            eq_curve = bt_dir / "equity_curve.csv"
+            if is_wfo:
+                # WFO: test を最優先で表示
+                eq_candidates = ["equity_test.csv", "equity_curve.csv", "equity_train.csv"]
+            else:
+                # BT: equity_curve を最優先（test/train は見ない）
+                eq_candidates = ["equity_curve.csv", "equity.csv"]
 
             eq = None
-            if eq_test.exists():
-                eq = eq_test
-            elif eq_curve.exists():
-                eq = eq_curve
-            elif eq_train.exists():
-                eq = eq_train
-            else:
-                c = (
-                    list(bt_dir.rglob("equity_test.csv"))
-                    or list(bt_dir.rglob("equity_curve.csv"))
-                    or list(bt_dir.rglob("equity_train.csv"))
-                )
-                eq = c[0] if c else None
+            for fn in eq_candidates:
+                cand = bt_dir / fn
+                if cand.exists():
+                    eq = cand
+                    break
+            if eq is None:
+                # サブフォルダも含めて探す（候補の先頭を優先）
+                for fn in eq_candidates:
+                    hits = list(bt_dir.rglob(fn))
+                    if hits:
+                        hits.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+                        eq = hits[0]
+                        break
+
+            mp = bt_dir / "metrics.json"
+            if not mp.exists():
+                c = list(bt_dir.rglob("metrics.json"))
+                mp = c[0] if c else mp
 
             bands = None
             if eq is not None and Path(eq).exists():
+                self._append_progress(f"[gui] equity picked: {eq.name} (mode={'wfo' if is_wfo else 'bt'})")
                 bands = self._try_load_bands_for_equity(Path(eq))
                 self._load_plot(Path(eq), bands=bands)
             else:
-                self._append_progress(f"[gui] equity csv not found under {bt_dir}")
+                self._append_progress(f"[gui] equity file not found under {bt_dir} (mode={'wfo' if is_wfo else 'bt'})")
 
             if mp.exists():
                 self._load_metrics(mp)
@@ -597,6 +616,7 @@ class BacktestTab(QtWidgets.QWidget):
             # WFO: checkbox を引数に反映（CLIが未対応でも害はないよう optional に）
             use_wfo = bool(self.chk_wfo.isChecked())
             bt_mode = "wfo" if use_wfo else "bt"
+            init_pos = (self.init_pos_combo.currentText() or "flat").lower()
 
             # --csv は backtest_run.py で必須
             # 優先: 直近の price CSV（ローソク足CSV 読込で選んだもの）
@@ -633,8 +653,10 @@ class BacktestTab(QtWidgets.QWidget):
                 "--end", ed,
                 "--profile", str(getattr(self, "_profile_name", "michibiki_std")),
                 "--mode", bt_mode,
+                "--init-position", init_pos,
             ]
             self._append_progress(f"[gui] Backtest run cmd: {exe} " + " ".join(args))
+            self._append_progress(f"[gui] init_position={init_pos}")
             # Expected output dir: don't assume naming (bt/wfo may differ).
             base_tf_dir = Path("logs") / "backtest" / symbol / tf
             if bt_mode == "wfo":
@@ -815,6 +837,16 @@ class BacktestTab(QtWidgets.QWidget):
                 self._current_equity_df = df
                 self._current_price_df = None
 
+                # init_position を取得してタイトルに反映
+                init_pos = None
+                try:
+                    init_pos = self.init_pos_combo.currentText().strip()
+                except Exception:
+                    init_pos = getattr(self, "_init_position_last", None)
+                if init_pos:
+                    self._init_position_last = init_pos
+                note_with_init = f"{p.name} (init={init_pos})" if init_pos else p.name
+
                 # 描画前のデバッグログ
                 csv_abs_path = str(p.resolve())
                 equity_min = float(df["equity"].min()) if "equity" in df.columns and len(df) > 0 else None
@@ -824,7 +856,7 @@ class BacktestTab(QtWidgets.QWidget):
                 self._append_progress(f"[gui] EQUITY plot before: csv={csv_abs_path}")
                 self._append_progress(f"[gui] EQUITY plot before: equity min={equity_min} max={equity_max} unique={equity_unique_count} len={len(df)}")
                 self._append_progress(f"[gui] EQUITY plot before: time unique={time_unique_count}")
-                plot_equity_with_markers_to_figure(self.fig, csv_path, note=p.name, bands=bands)
+                plot_equity_with_markers_to_figure(self.fig, csv_path, note=note_with_init, bands=bands)
 
                 # axes数の確認（デバッグ用）
                 axes_count = len(self.fig.axes)
@@ -856,9 +888,33 @@ class BacktestTab(QtWidgets.QWidget):
                 self.canvas.flush_events()
 
                 self._append_progress(f"[gui] plotted EQUITY (markers) from {p.name}, axes={axes_count}")
+
+                # === visualize trade_start ===
+                try:
+                    # trade_start_ts（開始日）に縦線を描く（flat/carryの差が出る境界）
+                    start_date = None
+                    try:
+                        qd = self.start_edit.date()
+                        start_date = qd.toPyDate() if hasattr(qd, "toPyDate") else None
+                    except Exception:
+                        start_date = None
+
+                    if start_date is not None:
+                        ts0 = pd.Timestamp(start_date)
+                        ax = self.fig.axes[0] if getattr(self, "fig", None) and self.fig.axes else None
+                        if ax is not None:
+                            ax.axvline(ts0, linewidth=1.0)
+                            self._append_progress(f"[gui] draw trade_start vline: {ts0} (init={init_pos})")
+                            try:
+                                self.canvas.draw_idle()
+                            except Exception:
+                                pass
+                except Exception as e:
+                    self._append_progress(f"[gui] visualize trade_start warn: {e}")
+
                 self._last_plot_kind = "equity"
                 self._last_plot_data = str(p)  # CSVパスを記憶（期間ジャンプで利用）
-                self._last_plot_note = p.name
+                self._last_plot_note = note_with_init
                 # 直近表示種別を保存（期間ジャンプ用）
                 if self._pop is not None:
                     self._pop._last_kind = "equity"

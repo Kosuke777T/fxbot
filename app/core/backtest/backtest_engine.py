@@ -71,6 +71,8 @@ class BacktestEngine:
         initial_capital: float = 100000.0,
         contract_size: int = 100000,
         filter_level: int = 3,
+        init_position: str = "flat",
+        trade_start_ts: Optional[pd.Timestamp] = None,
     ):
         """
         Parameters
@@ -88,6 +90,8 @@ class BacktestEngine:
         self.initial_capital = initial_capital
         self.contract_size = contract_size
         self.filter_level = filter_level
+        self.init_position = (init_position or "flat").lower()
+        self.trade_start_ts = trade_start_ts
 
         self.ai_service = AISvc()
         self.executor = SimulatedExecution(initial_capital, contract_size)
@@ -195,6 +199,17 @@ class BacktestEngine:
         for idx, row in iter_with_progress(df_features, step=5, use_iterrows=True):
             timestamp = pd.Timestamp(row["time"])
             price = float(row["close"])
+
+            # flat: start以前は取引を抑止（特徴量更新のみ許可）
+            try:
+                if (
+                    self.init_position == "flat"
+                    and self.trade_start_ts is not None
+                    and timestamp < self.trade_start_ts
+                ):
+                    continue
+            except Exception:
+                pass
 
             # 特徴量を辞書形式に変換
             features_dict = {col: float(row[col]) for col in df_features.columns if col not in ["time", "close"]}
