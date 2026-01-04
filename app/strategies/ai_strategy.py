@@ -264,59 +264,87 @@ def _ensure_feature_order(feat_df: pd.DataFrame, params: Dict[str, Any]) -> pd.D
 def _sigmoid(x):
     return 1.0 / (1.0 + np.exp(-x))
 
-def _predict_proba_generic(model, X: np.ndarray) -> np.ndarray:
+def _predict_proba_generic(model, X) -> np.ndarray:
     """
     LightGBM / XGBoost / Sklearn いずれでも陽性確率を返す汎用ハンドラー
+
+    重要:
+      - sklearn(LGBMClassifier含む) は feature_names_in_ を持つ場合があり、
+        ndarray を渡すと "X does not have valid feature names" warning になる。
+      - そのため sklearn系では可能な限り DataFrame(列名あり) を維持して predict_proba に渡す。
     """
     import lightgbm as lgb
 
-    # Xは常にndarray化して安全側に倒す
-    if isinstance(X, pd.DataFrame):
-        X = X.values
-    elif not isinstance(X, np.ndarray):
-        X = np.asarray(X)
-
-    # LightGBM Booster（生boosterまたはラッパー）
+    # ----------------------------
+    # 1) LightGBM Booster 系（列名不要）
+    # ----------------------------
     if isinstance(model, lgb.Booster):
+        Xb = X.values if isinstance(X, pd.DataFrame) else (np.asarray(X) if not isinstance(X, np.ndarray) else X)
         try:
-            prob1 = model.predict(X)
+            prob1 = model.predict(Xb)
         except Exception as e:
             print(f"[wfo] warn: Booster.predict failed: {e}  -> fallback sigmoid(raw score)", flush=True)
-            raw = model.predict(X, raw_score=True)
+            raw = model.predict(Xb, raw_score=True)
             prob1 = 1.0 / (1.0 + np.exp(-raw))
         prob1 = np.asarray(prob1).reshape(-1)
         prob0 = 1.0 - prob1
         return np.vstack([prob0, prob1]).T
 
-    # ラッパー（_BoosterWrapper）なら predict_proba を直接呼ぶ
+    # ラッパー（_BoosterWrapper）なら predict_proba を直接呼ぶ（列名不要）
     if hasattr(model, "bst") and hasattr(model.bst, "predict"):
+        Xb = X.values if isinstance(X, pd.DataFrame) else (np.asarray(X) if not isinstance(X, np.ndarray) else X)
         try:
-            prob1 = model.bst.predict(X)
+            prob1 = model.bst.predict(Xb)
             prob1 = np.asarray(prob1).reshape(-1)
             prob0 = 1.0 - prob1
             return np.vstack([prob0, prob1]).T
         except Exception as e:
             print(f"[wfo] warn: BoosterWrapper predict failed: {e}", flush=True)
 
-    # Sklearn系：predict_proba
+    # ----------------------------
+    # 2) Sklearn系：predict_proba（feature names を尊重）
+    # ----------------------------
     if hasattr(model, "predict_proba"):
-        proba = model.predict_proba(X)
+        # ここが本丸：feature_names_in_ があるなら DataFrame で列名を一致させる
+        if hasattr(model, "feature_names_in_"):
+            cols = list(getattr(model, "feature_names_in_"))
+            if isinstance(X, pd.DataFrame):
+                # 列順をモデルに合わせる（余分は落とし、不足はここで例外にして早期発見）
+                missing = [c for c in cols if c not in X.columns]
+                if missing:
+                    raise ValueError(f"Missing features for model: {missing}")
+                Xs = X.loc[:, cols]
+            else:
+                Xa = np.asarray(X) if not isinstance(X, np.ndarray) else X
+                if Xa.ndim == 1:
+                    Xa = Xa.reshape(1, -1)
+                Xs = pd.DataFrame(Xa, columns=cols)
+        else:
+            # feature_names_in_ が無いモデルは ndarray でOK
+            Xs = X.values if isinstance(X, pd.DataFrame) else (np.asarray(X) if not isinstance(X, np.ndarray) else X)
+
+        proba = model.predict_proba(Xs)
+        proba = np.asarray(proba)
         if proba.ndim == 1:
             return proba
         if proba.shape[1] == 2:
             return proba[:, 1]
         return proba[:, -1]
 
-    # decision_function（SVMなど）
+    # ----------------------------
+    # 3) decision_function（SVMなど）
+    # ----------------------------
     if hasattr(model, "decision_function"):
-        score = model.decision_function(X)
+        Xa = X.values if isinstance(X, pd.DataFrame) else (np.asarray(X) if not isinstance(X, np.ndarray) else X)
+        score = model.decision_function(Xa)
         return _sigmoid(score)
 
-    # それ以外は predict() の結果を確率扱い
-    pred = model.predict(X)
+    # ----------------------------
+    # 4) それ以外は predict() の結果を確率扱い
+    # ----------------------------
+    Xa = X.values if isinstance(X, pd.DataFrame) else (np.asarray(X) if not isinstance(X, np.ndarray) else X)
+    pred = model.predict(Xa)
     return np.asarray(pred).astype(float)
-
-
 def predict_signals(kind: str, payload, df_feat: pd.DataFrame, threshold: float = 0.0, params=None) -> pd.Series:
     """
     - builtin_sma: fast/slow のクロスで +1/-1 を返す
@@ -366,7 +394,7 @@ def predict_signals(kind: str, payload, df_feat: pd.DataFrame, threshold: float 
             # DataFrameに戻す（列名は維持）
             X = pd.DataFrame(Xv, index=X.index, columns=X.columns)
         ##
-        proba = _predict_proba_generic(model, X.values)
+        proba = _predict_proba_generic(model, X)
 
         # 2次元(=確率2列)なら陽性側だけを採用
         if proba.ndim == 2 and proba.shape[1] == 2:

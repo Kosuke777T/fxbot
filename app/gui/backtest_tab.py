@@ -709,11 +709,11 @@ class BacktestTab(QtWidgets.QWidget):
                 return None
             # 既存API優先：存在するものだけ試す
             if hasattr(ks, 'load_equity_curve_with_action_bands'):
-                out = ks.load_equity_curve_with_action_bands(equity_csv=Path(equity_csv))
+                out = ks.load_equity_curve_with_action_bands(profile=self._profile_name, symbol="USDJPY-")
                 if isinstance(out, dict):
                     return out.get('bands') or (out.get('payload') or {}).get('bands')
             if hasattr(ks, 'load_backtest_kpi_summary'):
-                out = ks.load_backtest_kpi_summary(equity_csv=Path(equity_csv), profile=self._profile_name)
+                out = ks.load_backtest_kpi_summary(profile=self._profile_name)
                 if isinstance(out, dict):
                     return out.get('bands') or (out.get('payload') or {}).get('bands')
         except Exception as e:
