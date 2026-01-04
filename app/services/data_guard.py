@@ -1,6 +1,8 @@
 # app/services/data_guard.py
 from __future__ import annotations
 import subprocess
+import os
+import sys
 from pathlib import Path
 import pandas as pd
 
@@ -44,11 +46,31 @@ def ensure_data(symbol_tag: str, timeframe: str, start_date: str, end_date: str,
             "--symbol", symbol_tag,
             "--timeframes", timeframe,
             "--start", start_date,
+            "--end", end_date,
             "--layout", layout,
             "--env", env,
         ]
         # Windows では python 経由で実行
-        subprocess.check_call(["python", *cmd], cwd=str(PROJECT_ROOT))
+        run_env = dict(os.environ)
+        # Ensure project package "app" is importable when called as a script
+        run_env["PYTHONPATH"] = str(PROJECT_ROOT)
+        proc = subprocess.run(
+            [sys.executable, *cmd],
+            cwd=str(PROJECT_ROOT),
+            env=run_env,
+            capture_output=True,
+            text=True,
+        )
+        if proc.returncode != 0:
+            out = (proc.stdout or "").strip()
+            err = (proc.stderr or "").strip()
+            msg = (
+                f"make_csv_from_mt5 failed (rc={proc.returncode})\n"
+                f"cmd={[sys.executable, *cmd]}\n"
+                f"stdout=\n{out[-2000:]}\n"
+                f"stderr=\n{err[-4000:]}\n"
+            )
+            raise RuntimeError(msg)
 
     # 最終チェック
     if not out_csv.exists():

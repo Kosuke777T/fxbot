@@ -13,7 +13,7 @@ from typing import Any, Dict, Optional, Tuple
 import pandas as pd
 import numpy as np
 from PyQt6 import QtCore, QtWidgets
-from PyQt6.QtCore import Qt, QProcess, QTimer
+from PyQt6.QtCore import Qt, QProcess, QTimer, QDate
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as Canvas
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as Toolbar
 from matplotlib.dates import AutoDateLocator, ConciseDateFormatter
@@ -194,8 +194,12 @@ class BacktestTab(QtWidgets.QWidget):
         # date edits (used by _on_range_jump ALL sync)
         self.start_edit = QtWidgets.QDateEdit()
         self.start_edit.setCalendarPopup(True)
+        end_date = QDate.currentDate().addDays(-1)
+        start_date = end_date.addMonths(-1)
+        self.start_edit.setDate(start_date)
         self.end_edit = QtWidgets.QDateEdit()
         self.end_edit.setCalendarPopup(True)
+        self.end_edit.setDate(end_date)
         row.addWidget(QtWidgets.QLabel("開始:"))
         row.addWidget(self.start_edit)
         row.addWidget(QtWidgets.QLabel("終了:"))
@@ -276,6 +280,8 @@ class BacktestTab(QtWidgets.QWidget):
         btn_1w.clicked.connect(lambda: self._on_range_jump("1W"))
         btn_1m.clicked.connect(lambda: self._on_range_jump("1M"))
 
+        self._last_candles_csv_path = None
+        self.tf_combo.currentTextChanged.connect(self._auto_load_candles_for_current_tf)
         self._append_progress("[gui] BacktestTab UI initialized")
 
 
@@ -315,7 +321,7 @@ class BacktestTab(QtWidgets.QWidget):
             bt_dir = Path(d)
             self._bt_dir = bt_dir
             self._append_progress(f'[gui] selected bt_dir={bt_dir}')
-            self._load_from_bt_dir(bt_dir)
+            self._load_from_bt_dir(bt_dir, keep_dates=False)
         except Exception as e:
             QtWidgets.QMessageBox.warning(self, 'フォルダ選択エラー', str(e))
             self._append_progress(f'[gui] pick dir error: {e}')
@@ -338,19 +344,135 @@ class BacktestTab(QtWidgets.QWidget):
             self._append_progress(f'[gui] pick equity csv error: {e}')
 
     def _pick_candles_csv(self) -> None:
+        """
+        ローソク足CSV 読込:
+        - ファイル選択ダイアログは出さない
+        - TF選択に応じて data/{PAIR}/ohlcv/{PAIR}_{TF}.csv を自動で読む
+        - 開始/終了の期間でフィルタして読む
+        - データ不足の可能性があれば ensure_data() で MT5 から補完を試みる（既存API優先）
+        """
         try:
-            start = str(Path('logs').resolve()) if Path('logs').exists() else str(Path('.').resolve())
-            fn, _ = QtWidgets.QFileDialog.getOpenFileName(self, 'ローソク足CSV（OHLCV）を選択', start, 'CSV (*.csv)')
-            if not fn:
-                return
-            csvp = Path(fn)
-            self._append_progress(f'[gui] selected candles_csv={csvp}')
-            self._load_plot(csvp)
+            self._auto_load_candles_for_current_tf(force=True)
         except Exception as e:
             QtWidgets.QMessageBox.warning(self, 'CSV読込エラー', str(e))
-            self._append_progress(f'[gui] pick candles csv error: {e}')
+            self._append_progress(f'[gui] candles auto-load error: {e}')
 
-    def _load_latest_backtest_result(self) -> None:
+
+    def _resolve_ohlcv_csv_path_for_tf(self, tf: str) -> Path:
+        """
+        TFに応じたOHLCV CSVパスを返す。
+        例: TF=M5 -> data/USDJPY/ohlcv/USDJPY_M5.csv
+        """
+        tf = (tf or "M5").upper().strip()
+        # ユーザー要件: \fxbot\data\USDJPY\ohlcv\USDJPY_M5.csv 相当
+        # リポジトリ内では data/USDJPY/ohlcv/USDJPY_M5.csv を想定（プロジェクトルート相対）
+        pair_dir = Path('data') / 'USDJPY' / 'ohlcv'
+        return pair_dir / f'USDJPY_{tf}.csv'
+
+    def _auto_load_candles_for_current_tf(self, force: bool = False) -> None:
+        """
+        現在のTF/期間に合わせてOHLCVを自動ロードする。
+        - force=False の場合、同一TFで既に読んでいれば何もしない（無駄読込回避）
+        """
+        from app.services.data_guard import ensure_data
+        
+        tf = (self.tf_combo.currentText() or "M5").upper()
+        csvp = self._resolve_ohlcv_csv_path_for_tf(tf)
+
+        # 同じTFを既にロード済みならスキップ（force時は除外）
+        if not force and getattr(self, "_last_candles_csv_path", None) == str(csvp):
+            return
+
+        # 期間（QDateEdit）: start..end
+        sd = self.start_edit.date().toString("yyyy-MM-dd")
+        ed = self.end_edit.date().toString("yyyy-MM-dd")
+        self._append_progress(f"[gui] auto candles load: tf={tf} range={sd}..{ed} csv={csvp}")
+
+        # 既存API優先：ensure_data による不足補完（内部でMT5 DLする想定）
+        try:
+            # ensure_data(symbol_tag, timeframe, start_date, end_date, ...)
+            ensure_data(symbol_tag="USDJPY", timeframe=tf, start_date=sd, end_date=ed)
+        except Exception as e:
+            # 補完に失敗しても、既存CSVがあれば読み込みは続行（断定しない）
+            self._append_progress(f"[gui] ensure_data warn: {e}")
+
+        if not csvp.exists():
+            raise RuntimeError(f"OHLCV CSV が見つかりません: {csvp}")
+
+        # 読込 & 期間フィルタ（time列必須）
+        df = pd.read_csv(csvp)
+        if "time" not in df.columns:
+            raise RuntimeError(f"OHLCV CSV に 'time' 列がありません。columns={list(df.columns)}")
+
+        df["time"] = pd.to_datetime(df["time"], errors="coerce")
+        df = df.dropna(subset=["time"])
+
+        start_dt = pd.to_datetime(sd)
+        end_dt = pd.to_datetime(ed) + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)
+        df = df[(df["time"] >= start_dt) & (df["time"] <= end_dt)]
+
+        if len(df) < 2:
+            raise RuntimeError("指定期間のローソク足データが不足しています（フィルタ後行数が少ない）。")
+
+        # 保持して描画
+        self._current_price_df = df
+        self._current_equity_df = None
+        self._last_plot_kind = "price"
+        self._last_plot_data = str(csvp)
+        self._last_plot_note = csvp.name
+        self._last_candles_csv_path = str(csvp)
+
+        # 描画（time×close）
+        self.fig.clear()
+        ax = self.fig.add_subplot(111)
+
+        if "close" not in df.columns:
+            raise RuntimeError(f"OHLCV CSV に 'close' 列がありません。columns={list(df.columns)}")
+
+        y = pd.to_numeric(df["close"], errors="coerce").ffill()
+        ax.plot(df["time"], y, label=f"Close ({tf})")
+
+        # keep x-range aligned to selected period even if CSV has gaps
+        try:
+            ax.set_xlim(start_dt, end_dt)
+        except Exception:
+            pass
+
+        # warn if data does not reach the selected end
+        try:
+            last_dt = pd.to_datetime(df["time"].max(), errors="coerce")
+            if pd.notna(last_dt) and last_dt < (end_dt - pd.Timedelta(minutes=1)):
+                self._append_progress(f"[gui] candles warn: data ends at {last_dt} < selected end {end_dt}")
+        except Exception:
+            pass
+        ax.set_xlabel("Date")
+        ax.set_ylabel("Price")
+        ax.set_title(f"OHLCV Preview: USDJPY {tf} ({sd} .. {ed})")
+        ax.grid(True, alpha=0.3)
+        ax.legend()
+
+        # 日付フォーマット
+        try:
+            loc = AutoDateLocator()
+            ax.xaxis.set_major_locator(loc)
+            ax.xaxis.set_major_formatter(ConciseDateFormatter(loc))
+            self.fig.autofmt_xdate()
+        except Exception:
+            pass
+
+        try:
+            self.fig.tight_layout()
+        except Exception as e:
+            self._append_progress(f"[gui] tight_layout error: {e}")
+
+        self.canvas.draw_idle()
+        self.canvas.flush_events()
+        self._append_progress(f"[gui] loaded candles rows={len(df)} from {csvp}")
+
+
+
+
+    def _load_latest_backtest_result(self, keep_dates: bool = False) -> None:
         try:
             base = Path('logs/backtest')
             if not base.exists():
@@ -368,12 +490,12 @@ class BacktestTab(QtWidgets.QWidget):
 
             self._bt_dir = bt_dir
             self._append_progress(f'[gui] latest bt_dir={bt_dir}')
-            self._load_from_bt_dir(bt_dir)
+            self._load_from_bt_dir(bt_dir, keep_dates=keep_dates)
         except Exception as e:
             QtWidgets.QMessageBox.warning(self, '最新結果ロード失敗', str(e))
             self._append_progress(f'[gui] load latest error: {e}')
 
-    def _load_from_bt_dir(self, bt_dir: Path) -> None:
+    def _load_from_bt_dir(self, bt_dir: Path, keep_dates: bool = False) -> None:
         try:
             bt_dir = Path(bt_dir)
 
@@ -399,16 +521,17 @@ class BacktestTab(QtWidgets.QWidget):
                 self._load_metrics(mp)
 
             # 日付ピッカーに範囲を反映（equity が読めた場合だけ）
-            try:
-                df = getattr(self, '_current_equity_df', None)
-                if df is not None and 'time' in df.columns:
-                    t = pd.to_datetime(df['time'], errors='coerce').dropna()
-                    if len(t) >= 2:
-                        first, last = t.iloc[0], t.iloc[-1]
-                        self.start_edit.setDate(QtCore.QDate(first.year, first.month, first.day))
-                        self.end_edit.setDate(QtCore.QDate(last.year, last.month, last.day))
-            except Exception:
-                pass
+            if not keep_dates:
+                try:
+                    df = getattr(self, '_current_equity_df', None)
+                    if df is not None and 'time' in df.columns:
+                        t = pd.to_datetime(df['time'], errors='coerce').dropna()
+                        if len(t) >= 2:
+                            first, last = t.iloc[0], t.iloc[-1]
+                            self.start_edit.setDate(QtCore.QDate(first.year, first.month, first.day))
+                            self.end_edit.setDate(QtCore.QDate(last.year, last.month, last.day))
+                except Exception:
+                    pass
 
         except Exception as e:
             QtWidgets.QMessageBox.warning(self, '結果読込エラー', str(e))
@@ -453,6 +576,7 @@ class BacktestTab(QtWidgets.QWidget):
 
             # WFO: checkbox を引数に反映（CLIが未対応でも害はないよう optional に）
             use_wfo = bool(self.chk_wfo.isChecked())
+            bt_mode = "wfo" if use_wfo else "bt"
 
             # --csv は backtest_run.py で必須
             # 優先: 直近の price CSV（ローソク足CSV 読込で選んだもの）
@@ -475,6 +599,7 @@ class BacktestTab(QtWidgets.QWidget):
                     return
                 csv_in = fn
             self._append_progress(f"[gui] Backtest input --csv = {csv_in}")
+            self._append_progress(f"[gui] backtest_run argparse hints: --end,--start")
 
             # 実行コマンド（なるべく汎用的に）
             # まずは「python tools/backtest_run.py ...」形式（argparseの一般形）で起動する。
@@ -483,18 +608,24 @@ class BacktestTab(QtWidgets.QWidget):
                 str(runner),
                 "--csv", str(csv_in),
                 "--symbol", symbol,
-                "--tf", tf,
+                "--timeframe", tf,
                 "--start", sd,
                 "--end", ed,
                 "--profile", str(getattr(self, "_profile_name", "michibiki_std")),
+                "--mode", bt_mode,
             ]
-            if use_wfo:
-                args.append("--wfo")
-
             self._append_progress(f"[gui] Backtest run cmd: {exe} " + " ".join(args))
+            # Expected output dir (prefer loading this over "latest" to avoid showing old results on failure)
+            target_bt_dir = Path("logs") / "backtest" / symbol / tf / f"backtest_{sd}_to_{ed}"
+            self._append_progress(f"[gui] expected bt_dir: {target_bt_dir}")
 
             proc = QProcess(self)
             self._bt_proc = proc
+            # Ensure script runs with project root as CWD (imports/relative paths)
+            try:
+                proc.setWorkingDirectory(str(Path(".").resolve()))
+            except Exception:
+                pass
 
             # 出力取り込み
             proc.setProcessChannelMode(QProcess.ProcessChannelMode.MergedChannels)
@@ -510,9 +641,41 @@ class BacktestTab(QtWidgets.QWidget):
 
             def _on_finished(code: int, status: QProcess.ExitStatus):
                 self._append_progress(f"[gui] Backtest finished: code={code} status={status}")
-                # 終了後に最新結果をロード（失敗してもGUIは生きる）
+
+                # Do NOT overwrite the view with an old result when backtest fails.
+                if int(code) != 0:
+                    try:
+                        QtWidgets.QMessageBox.warning(
+                            self,
+                            "Backtest実行",
+                            f"バックテストが失敗しました (code={code}).\nログを確認してください。"
+                        )
+                    except Exception:
+                        pass
+                    try:
+                        self._bt_proc = None
+                    except Exception:
+                        pass
+                    return
+
+                # Prefer loading the expected directory for the selected period.
                 try:
-                    self._load_latest_backtest_result()
+                    bt_dir = target_bt_dir
+                except Exception:
+                    bt_dir = None
+
+                try:
+                    if bt_dir is not None and Path(bt_dir).exists():
+                        try:
+                            self._load_from_bt_dir(Path(bt_dir), keep_dates=True)
+                        except TypeError:
+                            self._load_from_bt_dir(Path(bt_dir))
+                    else:
+                        # Fallback: load latest result only on success
+                        try:
+                            self._load_latest_backtest_result(keep_dates=True)
+                        except TypeError:
+                            self._load_latest_backtest_result()
                 except Exception as e:
                     self._append_progress(f"[gui] post-load warn: {e}")
                 finally:
@@ -520,6 +683,7 @@ class BacktestTab(QtWidgets.QWidget):
                         self._bt_proc = None
                     except Exception:
                         pass
+
 
             proc.readyReadStandardOutput.connect(_on_ready)
             proc.finished.connect(_on_finished)
@@ -639,11 +803,26 @@ class BacktestTab(QtWidgets.QWidget):
                 price = pd.to_numeric(df["close"], errors="coerce").ffill()
                 if len(price) == 0 or price.iloc[0] == 0:
                     raise ValueError("プレビュー用 'close' 列が空です。")
-                norm = price / price.iloc[0] * 100.0
-                ax.plot(norm.values, label="Price (close, =100@start)")
+                
+                if "time" in df.columns:
+                    df["time"] = pd.to_datetime(df["time"], errors="coerce")
+                    df = df.dropna(subset=["time"])
+                    ax.plot(df["time"], price, label="Close")
+                    ax.set_xlabel("Date")
+                    ax.set_ylabel("Price")
+                    try:
+                        loc = AutoDateLocator()
+                        ax.xaxis.set_major_locator(loc)
+                        ax.xaxis.set_major_formatter(ConciseDateFormatter(loc))
+                        self.fig.autofmt_xdate()
+                    except Exception:
+                        pass
+                else:
+                    norm = price / price.iloc[0] * 100.0
+                    ax.plot(norm.values, label="Price (close, =100@start)")
 
-                ax.set_title("Price Preview (from OHLCV)")
-                ax.set_ylabel("index (=100@start)")
+                ax.set_title("OHLCV Preview")
+                ax.set_ylabel("Price")
                 self._append_progress(f"[gui] plotted PRICE {len(df)} rows from {p.name}")
                 self._last_plot_kind = "price"
                 self._last_plot_data = str(p)
@@ -655,7 +834,8 @@ class BacktestTab(QtWidgets.QWidget):
             else:
                 raise ValueError(f"CSVに 'close' 列が含まれていません。columns={list(df.columns)}")
 
-            ax.set_xlabel("bars")
+            if "time" not in df.columns:
+                ax.set_xlabel("Date")
             ax.legend()
 
             # レイアウト調整
