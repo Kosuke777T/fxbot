@@ -828,6 +828,16 @@ class BacktestEngine:
         with open(decisions_jsonl, "w", encoding="utf-8") as f:
             for decision in self.decisions:
                 normalized = self._normalize_for_json_recursive(decision)
+                # --- ensure action field for condition mining ---
+                if isinstance(normalized, dict) and ('action' not in normalized):
+                    fp = normalized.get('filter_pass', None)
+                    if fp is True:
+                        normalized['action'] = 'ENTRY'
+                    elif fp is False:
+                        normalized['action'] = 'BLOCKED'
+                    else:
+                        normalized['action'] = 'HOLD'
+                # --- end action ---
                 f.write(json.dumps(normalized, ensure_ascii=False) + "\n")
         print(f"[BacktestEngine] Wrote {decisions_jsonl}", flush=True)
 

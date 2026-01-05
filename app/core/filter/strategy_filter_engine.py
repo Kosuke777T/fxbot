@@ -93,8 +93,11 @@ class StrategyFilterEngine:
         # ① 取引時間帯（level >= 1）
         if filter_level >= 1:
             if not self._check_time_window(ctx):
-                reasons.append("time_window")
-
+                if os.getenv('CM_DEBUG_BYPASS_TIME_WINDOW') == '1':
+                    # debug: bypass time_window filter to seed ENTRY samples
+                    pass
+                else:
+                    reasons.append("time_window")
         # ② ATR（level >= 2）
         if filter_level >= 2:
             if not self._check_atr(ctx):

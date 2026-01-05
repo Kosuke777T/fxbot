@@ -144,8 +144,19 @@ def get_condition_mining_window(profile: Optional[str] = None) -> Dict[str, Any]
                 out[k] = int(win[k])
             except Exception:
                 pass
-    return out
 
+    # --- apply config-level override (v5.2) ---
+    ov = cfg.get('override')
+    if isinstance(ov, dict):
+        for k in ('recent_minutes', 'past_minutes', 'past_offset_minutes'):
+            if k in ov and ov.get(k) is not None:
+                try:
+                    out[k] = int(ov.get(k))
+                except Exception:
+                    pass
+    # --- end override ---
+
+    return out
 
 def set_condition_mining_window(patch: Dict[str, Any], profile: Optional[str] = None) -> Dict[str, Any]:
     """

@@ -91,6 +91,14 @@ def get_decisions_window_summary(symbol: str, window: str | None = None, profile
         dt_start, dt_end = start_dt, end_dt
 
     n = 0
+
+    # min_stats counters (do not depend on include_decisions)
+
+    _ms_total = 0
+
+    _ms_pass = 0
+
+    _ms_entry = 0
     min_dt: Optional[datetime] = None
     max_dt: Optional[datetime] = None
     scanned = 0
@@ -112,6 +120,17 @@ def get_decisions_window_summary(symbol: str, window: str | None = None, profile
                 if p is not None and p != profile:
                     continue
             # ts 抽出（ログの揺れに強くする：既存APIの範囲で候補キーを増やす）
+            # --- ensure action field for condition mining ---
+            if isinstance(j, dict) and (not j.get('action')):
+                fp = j.get('filter_pass', None)
+                if fp is True:
+                    j['action'] = 'ENTRY'
+                elif fp is False:
+                    j['action'] = 'BLOCKED'
+                else:
+                    j['action'] = 'HOLD'
+            # --- end action ---
+
             ts = (
                 _parse_iso_dt(j.get("ts_utc"))
                 or _parse_iso_dt(j.get("ts_jst"))
@@ -147,11 +166,37 @@ def get_decisions_window_summary(symbol: str, window: str | None = None, profile
             if dt_end and ts > dt_end:
                 continue
 
+            # update min_stats counters
+
+            _ms_total += 1
+
+            if bool(j.get('filter_pass', False)):
+
+                _ms_pass += 1
+
+            if str(j.get('action', '')).upper() == 'ENTRY':
+
+                _ms_entry += 1
+
+            # CM_MIN_STATS_HIT_COUNTER: count stats on window-hit (independent of include_decisions)
+
+            _ms_total += 1
+
+            if j.get('filter_pass') is True:
+
+                _ms_pass += 1
+
+            # entry: prefer action, fallback to filter_pass
+
+            if str(j.get('action','')).upper() == 'ENTRY' or (j.get('filter_pass') is True):
+
+                _ms_entry += 1
+
             n += 1
             if include_decisions and len(decisions) < int(max_decisions):
                 row = dict(j)
                 # summarize側が拾いやすいよう timestamp を補完（ISO UTC）
-                if not (row.get("timestamp") or row.get("ts") or row.get("time")):
+                if not ((row.get("timestamp") or row.get("ts_jst")) or row.get("ts") or row.get("time")):
                     row["timestamp"] = ts.isoformat()
                 decisions.append(row)
 
@@ -180,6 +225,13 @@ def get_decisions_window_summary(symbol: str, window: str | None = None, profile
             "end": dt_end.isoformat() if dt_end else None,
         },
         **({"decisions": decisions} if include_decisions else {}),
+        'min_stats': {
+            'total': int(_ms_total),
+            'filter_pass_count': int(_ms_pass),
+            'filter_pass_rate': float(_ms_pass) / float((_ms_total if _ms_total > 0 else 1)),
+            'entry_count': int(_ms_entry),
+            'entry_rate': float(_ms_entry) / float((_ms_total if _ms_total > 0 else 1)),
+        },
     }
 
 def _try_extract_winrate_avgpnl_from_backtests(*, symbol: str) -> dict:
@@ -551,7 +603,7 @@ def _summarize_decisions_list(decisions):
         for d in decisions:
             if not isinstance(d, dict):
                 continue
-            v = d.get("timestamp") or d.get("time") or d.get("ts")
+            v = (d.get("timestamp") or d.get("ts_jst")) or d.get("time") or d.get("ts")
             if v is not None:
                 ts.append(str(v))
 

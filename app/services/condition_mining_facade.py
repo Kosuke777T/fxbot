@@ -57,7 +57,9 @@ def get_decisions_recent_past_window_info(symbol: str, profile: Optional[str] = 
             except Exception:
                 ops_cards = []
 
-        return {
+        # CM_FACADE_INJECT_MIN_STATS: prefer data-layer min_stats over facade defaults
+
+        out = {
             "recent": {
                 "n": rn,
                 "range": recent.get("range", {"start": None, "end": None}),
@@ -71,6 +73,33 @@ def get_decisions_recent_past_window_info(symbol: str, profile: Optional[str] = 
             "warnings": warnings,
             "ops_cards": ops_cards,
         }
+
+        try:
+
+            from app.services.condition_mining_data import get_decisions_window_summary
+
+            _r = get_decisions_window_summary(symbol, window='recent', profile=profile, include_decisions=False)
+
+            _p = get_decisions_window_summary(symbol, window='past', profile=profile, include_decisions=False)
+
+            _rms = (_r or {}).get('min_stats') or {}
+
+            _pms = (_p or {}).get('min_stats') or {}
+
+            if isinstance(out.get('recent'), dict):
+
+                out['recent']['min_stats'] = _rms if isinstance(_rms, dict) else {}
+
+            if isinstance(out.get('past'), dict):
+
+                out['past']['min_stats'] = _pms if isinstance(_pms, dict) else {}
+
+        except Exception:
+
+            pass
+
+        return out
+
     except Exception:
         # 縮退：キー欠落を絶対に起こさない
         warnings: List[str] = ["window_info_failed"]
@@ -178,7 +207,7 @@ def _get_filter_reasons(rec: Dict[str, Any]) -> List[str]:
     return []
 
 
-def get_condition_candidates(symbol: str = "USDJPY-", top_n: int = 10) -> dict:
+def get_condition_candidates(symbol: str, top_n: int = 10, profile=None, **kwargs):
     # T-43 条件探索・比較AI（Facade）
     # - 既存GUI/API互換を維持（top_n を維持）
     # - 内部で T-43-2 core を呼ぶ（top_k にマップ）
@@ -365,3 +394,81 @@ def set_condition_mining_window_settings(patch, profile=None):
     patch は部分更新可。
     """
     return mt5_account_store.set_condition_mining_window(patch=patch, profile=profile)
+
+# --- v5.2 wiring: safe wrappers for condition mining facade ---
+# --- v5.2 wiring: safe wrappers for condition mining facade ---
+# NOTE:
+# - 既存実装を壊さず、返却の「形」だけを固定するための末尾ラッパ。
+# - recent_delta の実値は次ステップで埋める（ここではキーだけ保証する）。
+
+def _cm__ensure_candidate_shape(cands):
+    """
+    Ops/Facade で要求される最低限キーを強制付与する（形を先に固定）。
+    - score / stable / reasons / recent_delta
+    """
+    if not isinstance(cands, list):
+        return []
+    out = []
+    for d in cands:
+        if not isinstance(d, dict):
+            continue
+        d.setdefault("score", None)
+        d.setdefault("stable", None)
+        d.setdefault("reasons", [])
+        d.setdefault("recent_delta", None)  # Step2-20 配線未完のため、まずキーを固定
+        out.append(d)
+    return out
+
+
+# --- wrap get_condition_candidates (if exists) ---
+try:
+    _cm__orig_get_condition_candidates = get_condition_candidates  # type: ignore[name-defined]
+except Exception:
+    _cm__orig_get_condition_candidates = None
+
+if callable(_cm__orig_get_condition_candidates):
+    def get_condition_candidates(*args, **kwargs):  # type: ignore[override]
+        out = _cm__orig_get_condition_candidates(*args, **kwargs)
+        # dict で返す実装にも対応
+        if isinstance(out, dict):
+            c = out.get("candidates")
+            if isinstance(c, list):
+                out["candidates"] = _cm__ensure_candidate_shape(c)
+            return out
+        return _cm__ensure_candidate_shape(out)
+
+
+# --- wrap get_condition_mining_ops_snapshot (if exists) ---
+try:
+    _cm__orig_get_ops_snapshot = get_condition_mining_ops_snapshot  # type: ignore[name-defined]
+except Exception:
+    _cm__orig_get_ops_snapshot = None
+
+if callable(_cm__orig_get_ops_snapshot):
+    def get_condition_mining_ops_snapshot(*args, **kwargs):  # type: ignore[override]
+        out = _cm__orig_get_ops_snapshot(*args, **kwargs)
+        if not isinstance(out, dict):
+            return out
+        # candidates が無ければ後付け（read-only）
+        if "candidates" not in out:
+            try:
+                # symbol は kwargs / 位置引数の両方から解決（smoke の呼び方差分に耐える）
+                _sym = None
+                try:
+                    if "symbol" in kwargs and kwargs.get("symbol") is not None:
+                        _sym = kwargs.get("symbol")
+                    elif len(args) >= 1 and args[0] is not None:
+                        _sym = args[0]
+                except Exception:
+                    _sym = None
+                cands = get_condition_candidates(symbol=(_sym or "USDJPY-"), top_n=10)
+                if isinstance(cands, dict):
+                    out["candidates"] = cands.get("candidates", [])
+                else:
+                    out["candidates"] = cands
+            except Exception:
+                out["candidates"] = []
+        # 形だけは必ず固定
+        if isinstance(out.get("candidates"), list):
+            out["candidates"] = _cm__ensure_candidate_shape(out.get("candidates"))
+        return out

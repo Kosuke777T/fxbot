@@ -444,6 +444,22 @@ def _write_decision_log(symbol: str, record: Dict[str, Any]) -> None:
         path = logs_dir / f"decisions_{d}.jsonl"
 
         with path.open("a", encoding="utf-8") as f:
+            
+            # --- ensure action field for condition mining (final exit) ---
+            if isinstance(record, dict) and ("action" not in record or not record.get("action")):
+                dd = record.get("decision_detail")
+                if isinstance(dd, dict) and dd.get("action"):
+                    record["action"] = dd.get("action")
+                else:
+                    fp = record.get("filter_pass", None)
+                    if fp is True:
+                        record["action"] = "ENTRY"
+                    elif fp is False:
+                        record["action"] = "BLOCKED"
+                    else:
+                        record["action"] = "HOLD"
+            # --- end action ---
+
             f.write(json.dumps(record, ensure_ascii=False) + "\n")
     except Exception:
         # ログ失敗で売買・探索を止めない
@@ -2171,6 +2187,7 @@ def debug_emit_single_decision() -> None:
     フィルタ + decisions.jsonl ログを 1 回だけテスト出力するデバッグ関数。
     ExecutionService を経由せず、内部ロガーの経路だけを直接叩く。
     """
+    symbol = 'USDJPY-'
     from datetime import datetime
     from app.services.filter_service import evaluate_entry
 
@@ -2248,7 +2265,7 @@ def debug_emit_single_decision() -> None:
     # runtime フィールドを追加（正規出口で統一、純化）
     # build_runtime() を使用して live/demo で統一（v2）
     runtime = trade_state.build_runtime(
-        symbol,
+        'USDJPY-',
         ts_str=ts_debug,  # テスト用の ts
         spread_pips=0.0,  # テスト用のデフォルト値
         mode="demo",  # デバッグ用は demo モード

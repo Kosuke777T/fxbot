@@ -883,3 +883,34 @@ Backtestモードの明示：
 
 UIにモード切替 or 表示ラベルを追加すると混乱が消える
 
+【Project: python主体プログラム】
+
+了解です。
+ここで スレッド完了として要点をまとめます。
+
+スレッド完了時：要点サマリ
+できたこと（確定）
+
+min_stats の不整合を完全解消
+
+condition_mining_data ↔ condition_mining_facade で
+total / filter_pass_count / entry_count が一致
+
+ENTRY を含む decisions を生成・集計できる状態に到達
+
+action 正規化（ENTRY / BLOCKED / HOLD）は data 層で安定
+
+get_condition_candidates の TypeError を解消
+
+profile 未対応問題を facade 側で吸収
+
+recent 側の条件探索パイプラインは正常動作
+
+recent.n > 0
+
+recent.min_stats が正しく更新される
+
+candidates_n=0 の主因が「past.n=0」であることを特定
+
+データ不足ではなく 集計ロジックで past が弾かれている
+

@@ -47,6 +47,10 @@ def _iter_jsonl(path: Path) -> Iterable[dict[str, Any]]:
                 # JSON解析
                 try:
                     obj = json.loads(line)
+                    # schema normalize (ts_jst -> timestamp)
+                    if isinstance(obj, dict) and ('timestamp' not in obj) and ('ts_jst' in obj):
+                        obj['timestamp'] = obj.get('ts_jst')
+
                 except (json.JSONDecodeError, ValueError) as e:
                     # 壊れた1行があっても全体は止めない（ログは出さない）
                     continue
