@@ -1,0 +1,52 @@
+Cursor2.0 Agent（GPT-5.2）に貼る「設計主導パッチ指示テンプレ」
+重要：
+「こう直して」ではなく「こういう状態にして」 と書く
+禁止事項・優先順位・成功条件を必ず含める
+推測で直すな / 観測で確定せよ を明示する
+
+以下は例になります。
+【目的】
+Condition Mining の recent/past window 計算が mt5_accounts.json の
+override / profile 設定を正しく反映しない問題を修正したい。
+
+現在は recent/past が常に 30分固定になったり、
+past_offset_minutes=0 が 1440 に化けるなどの不整合がある。
+
+【期待する最終状態（成功条件）】
+- get_condition_mining_window(profile) が返す
+  recent_minutes / past_minutes / past_offset_minutes が
+  Condition Mining の window 計算に必ず反映される
+- profile が見つからない場合でも cfg['override'] は必ず最後に適用される
+- past_offset_minutes=0 は 0 のまま扱われる（falsy 判定禁止）
+- recent/past window の「要求レンジ」は minutes から算出され、
+  データ実在レンジは別で保持される（start==end にならない）
+- py_compile が通り、既存APIの呼び出し仕様は壊さない
+
+【制約】
+- 既存APIを優先して使用（新規関数は最小限）
+- 責務境界（gui / services / core）を厳守
+- 推測で直さず、まず該当箇所を grep して特定すること
+- minutes 解決ロジックは「caller > store(profile) > default」の順に統一
+- 修正は必要最小限のファイル・差分に留める
+
+【作業指示】
+1. app/services 配下を grep して
+   - recent_minutes / past_minutes / past_offset_minutes
+   - window / resolve / fallback
+   を扱っている関数を特定せよ
+2. window が 30分固定になる原因箇所を説明コメント付きで特定
+3. 以下を満たす最小パッチを作成：
+   - store の window を優先して minutes を確定
+   - fallback resolver も minutes ベースに統一
+   - int(x or default) のような falsy バグを排除
+4. py_compile を実行し、動作確認ログを出力
+5. recent/past window 幅が期待値になることを確認
+
+【禁止事項】
+- 仮定だけでコードを書き換えない
+- profile='override' を特別扱いしない（store側で吸収する）
+- window 表示とデータ範囲を混ぜない
+
+【補足】
+- この修正は Step2-20 の一部であり、
+  次は candidates_n が 0 の理由調査に進む予定

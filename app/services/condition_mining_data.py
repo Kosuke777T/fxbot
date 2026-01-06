@@ -7,6 +7,7 @@ import csv
 from typing import Any, Dict, Iterable, Optional
 
 from app.services import decision_log
+from app.services.mt5_account_store import get_condition_mining_window
 
 
 def _parse_iso_dt(s: Any) -> Optional[datetime]:
@@ -80,6 +81,20 @@ def get_decisions_window_summary(symbol: str, window: str | None = None, profile
     dt_end = _parse_iso_dt(end) if end else None
 
     if dt_start is None and dt_end is None and window:
+        # profile/override の window 設定を反映（明示指定が無い場合のデフォルトとして扱う）
+        if (int(recent_minutes), int(past_minutes), int(past_offset_minutes)) == (30, 30, 24 * 60):
+            try:
+                w = get_condition_mining_window(profile=profile)
+                if isinstance(w, dict):
+                    if w.get("recent_minutes") is not None:
+                        recent_minutes = int(w.get("recent_minutes"))
+                    if w.get("past_minutes") is not None:
+                        past_minutes = int(w.get("past_minutes"))
+                    if w.get("past_offset_minutes") is not None:
+                        past_offset_minutes = int(w.get("past_offset_minutes"))
+            except Exception:
+                pass
+
         now_dt = datetime.now(timezone.utc)
         start_dt, end_dt = resolve_window(
             window=window,
@@ -165,18 +180,6 @@ def get_decisions_window_summary(symbol: str, window: str | None = None, profile
                 continue
             if dt_end and ts > dt_end:
                 continue
-
-            # update min_stats counters
-
-            _ms_total += 1
-
-            if bool(j.get('filter_pass', False)):
-
-                _ms_pass += 1
-
-            if str(j.get('action', '')).upper() == 'ENTRY':
-
-                _ms_entry += 1
 
             # CM_MIN_STATS_HIT_COUNTER: count stats on window-hit (independent of include_decisions)
 
@@ -330,10 +333,29 @@ def _try_extract_winrate_avgpnl_from_backtests(*, symbol: str) -> dict:
     return {}
 def get_decisions_recent_past_summary(symbol: str, profile: Optional[str] = None, **kwargs) -> dict:
     """Aggregate recent/past windows and attach minimal stats."""
-    # --- Step2-11: minutes are accepted via kwargs; pop to avoid unexpected-kw in downstream ---
-    recent_minutes = int(kwargs.pop('recent_minutes', 30) or 30)
-    past_minutes = int(kwargs.pop('past_minutes', 30) or 30)
-    past_offset_minutes = int(kwargs.pop('past_offset_minutes', 24 * 60) or (24 * 60))
+    # --- Step2-11: minutes resolve (caller > mt5_accounts(profile) > defaults) ---
+    _rm = kwargs.pop("recent_minutes", None)
+    _pm = kwargs.pop("past_minutes", None)
+    _om = kwargs.pop("past_offset_minutes", None)
+
+    # NOTE: 0 を有効値として扱う（`or` で潰さない）
+    recent_minutes = int(_rm) if _rm is not None else 30
+    past_minutes = int(_pm) if _pm is not None else 30
+    past_offset_minutes = int(_om) if _om is not None else (24 * 60)
+
+    if (_rm is None) or (_pm is None) or (_om is None):
+        try:
+            w = get_condition_mining_window(profile=profile)
+            if isinstance(w, dict):
+                if _rm is None and w.get("recent_minutes") is not None:
+                    recent_minutes = int(w.get("recent_minutes"))
+                if _pm is None and w.get("past_minutes") is not None:
+                    past_minutes = int(w.get("past_minutes"))
+                if _om is None and w.get("past_offset_minutes") is not None:
+                    past_offset_minutes = int(w.get("past_offset_minutes"))
+        except Exception:
+            # config 読み取り失敗時は既定値のまま
+            pass
 
     recent = get_decisions_window_summary(
         recent_minutes=recent_minutes,
@@ -360,8 +382,11 @@ def get_decisions_recent_past_summary(symbol: str, profile: Optional[str] = None
     r_rows = (recent.get("decisions") or recent.get("rows") or [])
     p_rows = (past.get("decisions") or past.get("rows") or [])
 
-    recent["min_stats"] = _min_stats(r_rows)
-    past["min_stats"] = _min_stats(p_rows)
+    # min_stats は data-layer(get_decisions_window_summary) を優先（include_decisions=False でも集計できる）
+    if not isinstance(recent.get("min_stats"), dict):
+        recent["min_stats"] = _min_stats(r_rows)
+    if not isinstance(past.get("min_stats"), dict):
+        past["min_stats"] = _min_stats(p_rows)
 
     # ★★★ ここが今回の本丸 ★★★
     if (
@@ -370,7 +395,12 @@ def get_decisions_recent_past_summary(symbol: str, profile: Optional[str] = None
         or not past.get("start_ts")
         or not past.get("end_ts")
     ):
-        sR, eR, sP, eP = _resolve_recent_past_window()
+        sR, eR, sP, eP = _resolve_recent_past_window(
+            now_utc=None,
+            recent_minutes=recent_minutes,
+            past_minutes=past_minutes,
+            past_offset_minutes=past_offset_minutes,
+        )
         if recent.get("start_ts") is None:
             recent["start_ts"] = sR.isoformat()
         if recent.get("end_ts") is None:
@@ -481,17 +511,22 @@ def _min_stats(rows):
 def _resolve_recent_past_window(
     now_utc: datetime | None = None,
     recent_minutes: int = 30,
-    past_days: int = 1,
+    past_minutes: int = 30,
+    past_offset_minutes: int = 24 * 60,
 ):
-    """recent/past の window をUTCで返すフォールバック"""
+    """recent/past の window をUTCで返すフォールバック（分ベース）.
+
+    - recent: [now-recent_minutes, now]
+    - past  : [now-past_offset_minutes-past_minutes, now-past_offset_minutes]
+    """
     if now_utc is None:
         now_utc = datetime.now(timezone.utc)
 
     end_recent = now_utc
-    start_recent = now_utc - timedelta(minutes=recent_minutes)
+    start_recent = end_recent - timedelta(minutes=int(recent_minutes))
 
-    start_past = start_recent - timedelta(days=past_days)
-    end_past = end_recent - timedelta(days=past_days)
+    end_past = now_utc - timedelta(minutes=int(past_offset_minutes))
+    start_past = end_past - timedelta(minutes=int(past_minutes))
 
     return start_recent, end_recent, start_past, end_past
 
