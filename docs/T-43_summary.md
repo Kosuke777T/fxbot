@@ -914,3 +914,91 @@ candidates_n=0 の主因が「past.n=0」であることを特定
 
 データ不足ではなく 集計ロジックで past が弾かれている
 
+実施内容と結果（事実ベース）
+
+window/minutes 系の不整合を解消
+
+override / profile / default の優先順位を
+caller > store(profile) > default に統一
+
+past_offset_minutes=0 が 1440 に化ける falsy バグを修正
+
+recent / past の query_range が summary / enrich / ops_snapshot で一致
+
+decisions ログ探索の不具合を修正
+
+_iter_decision_paths() が logs/decisions/*.jsonl しか見ておらず 0 件になる問題を解消
+
+最新 backtest の logs/backtest/**/decisions.jsonl を 優先探索するよう修正
+
+結果：USDJPY- の past 件数が 550 → 3368 に増加
+
+min_stats / rows の整合性修正
+
+min_stats の二重加算を解消
+
+include_decisions=False 経路で min_stats が 0 に戻る問題を修正
+
+n == min_stats.total が成立
+
+past-only fallback を明示的に実装
+
+recent=0 & past>0 の場合に past-only で候補生成
+
+warning: recent_empty_use_past_only を付与
+
+探索AIが縮退せず動作することを確認
+
+候補母集団の拡張（核心）
+
+既存生成器が少なすぎて 候補が12件で頭打ちだった問題を解消
+
+追加した最小ジェネレータ：
+
+hour 単体条件（hour:h09 など）
+
+prob_margin の分位点閾値（quantile）
+
+結果：
+
+candidates 12 → 54
+
+top_k=200, max_conds=80 で安定生成
+
+重複候補の排除
+
+condition.id ベースで 順序維持の dedupe
+
+ID 衝突（例: pm:ge_0.386 重複）を解消
+
+candidates_len=54（重複なし）
+
+デバッグ可視化の強化（opt-in）
+
+CM_CANDIDATES_DEBUG=1 時のみ詳細出力
+
+fallback_used, rows_used_n, top_support を表示
+
+past-only 時の rows_used_n 二重計上を解消（3358で安定）
+
+後方互換性
+
+get_condition_candidates ラッパを追加
+
+既存呼び出しは破壊なし
+
+最終確認
+
+py_compile：OK
+
+candidates 生成：OK（10 / 50 / 200 すべて安定）
+
+smoke：OK（condition_mining_ops_snapshot.json 出力）
+
+現在の状態（結論）
+
+探索AIは 「候補が出る」「観測できる」「拡張できる」健全な状態
+
+recent_empty_use_past_only は データ由来の正常状態（最新 decision が無い）
+
+コード側の詰まり・バグは解消済み
