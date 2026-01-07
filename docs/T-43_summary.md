@@ -1100,3 +1100,48 @@ execution_service が adoption を「消費（参照）」していることを�
 本ステップでは
 「消費地点の確定」と「観測可能にする」
 に限定し、安全に完了とした。
+
+T-43-3 補助フェーズ
+目的達成状況
+T-43-4 には進まず、adoption 消費ラインの足元固め・観測強化のみを実施
+挙動変更なし（観測・確認・文章化のみ）
+確定した事実（ログ＋実体コード根拠）
+adoption の生成と消費
+生成点：condition_mining_facade.py
+out["adoption"] = _build_condition_mining_adoption(out)
+消費点：execution_service.py
+**発注直前（dry_run / MT5発注の直前）**に Step2-23 ブロックとして存在
+services 層の健全性
+python -m py_compile app/services/**/*.py → 成功
+既存 smoke（condition_mining_smoke.ps1）→ 成功
+観測の安定性（決定的証拠）
+最新 logs/decisions_2026-01-07.jsonl において：
+"meta.cm_adoption" が存在
+"decision_detail.cm_adoption" が存在
+文字列ベースの2条件チェックでも 両方OK
+dry_run / real 相当経路で 片肺なし
+不変条件（この先も守る前提）
+cm_adoption は 観測用メタ情報
+この段階では：
+発注条件・sizing・next_action に 一切影響しない
+decisions ログでは常に：
+meta.cm_adoption
+decision_detail.cm_adoption
+が 同時に存在すること
+破壊検知ポイント（NG条件）
+以下のいずれかが起きたら 即 No-Go
+meta.cm_adoption が消える
+decision_detail.cm_adoption が消える
+片方だけ残る（片肺）
+dry_run と real 相当で結果が食い違う
+Go / No-Go 判定
+Go（T-43-4 に進める条件）
+上記2キーが decisions に安定して残る証拠がある
+adoption 消費境界（発注直前）が明確に特定されている
+破壊検知を1コマンドで再確認できる
+No-Go
+上記いずれかが満たせなくなった場合
+補足仕様の確定
+status=adopted 以外（none / adoption_failed）を
+現時点ではログに載せない仕様のままでOK
+理由：本フェーズの目的は「存在保証」であり、すでに達成済み
