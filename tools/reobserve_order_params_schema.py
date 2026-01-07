@@ -34,6 +34,13 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(description="Re-observe order_params schema (read-only).")
     ap.add_argument("--path", type=str, default="", help="decisions_*.jsonl path (optional).")
     ap.add_argument("--tail", type=int, default=5, help="show last N order_params samples.")
+    ap.add_argument(
+        "--scope",
+        type=str,
+        choices=["all", "tail"],
+        default="all",
+        help="judgement scope: 'all' (default) checks all rows; 'tail' checks only last N rows (N=--tail).",
+    )
     args = ap.parse_args(argv)
 
     logs_dir = Path("logs")
@@ -59,7 +66,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     print(f"[obs] decisions_log: {log_path.as_posix()}")
 
     # (line_no, timestamp, source, order_params)
-    order_rows: List[Tuple[int, Any, str, Dict[str, Any]]] = []
+    rows_all: List[Tuple[int, Any, str, Dict[str, Any]]] = []
     try:
         for line_no, obj in _iter_jsonl(log_path):
             op = obj.get("order_params")
@@ -70,48 +77,94 @@ def main(argv: Optional[List[str]] = None) -> int:
                     op = dd.get("order_params")
                     src = "decision_detail.order_params"
             if isinstance(op, dict):
-                order_rows.append((line_no, obj.get("timestamp"), src, op))
+                rows_all.append((line_no, obj.get("timestamp"), src, op))
     except Exception as e:
         print("[NG] re-observe failed (read/decode)")
         print(f"- {e}")
         return 2
 
-    if len(order_rows) == 0:
+    if len(rows_all) == 0:
         print("[NG] no rows with order_params found")
         print("- condition_not_met: order_params_rows >= 1")
         return 2
 
+    tail_n = max(0, int(args.tail))
+    if args.scope == "tail":
+        rows_scope = rows_all[-tail_n:] if tail_n > 0 else []
+    else:
+        rows_scope = rows_all
+
+    # ---- all rows stats (always shown; not used for scope judgement unless scope=all) ----
     keys_union = set()
-    missing_schema: List[str] = []
-    for line_no, _ts, src, op in order_rows:
+    missing_schema_all: List[str] = []
+    for line_no, _ts, src, op in rows_all:
         keys_union.update(op.keys())
         if "schema_version" not in op:
-            missing_schema.append(f"line={line_no} src={src}")
+            missing_schema_all.append(f"line={line_no} src={src}")
+
+    # ---- scope rows judgement ----
+    missing_schema_scope: List[str] = []
+    for line_no, _ts, src, op in rows_scope:
+        if "schema_version" not in op:
+            missing_schema_scope.append(f"line={line_no} src={src}")
 
     keys_sorted = sorted(keys_union)
-    print(f"[obs] order_params.rows: {len(order_rows)}")
+    print(f"[obs] order_params.rows: {len(rows_all)}")
     print(f"[obs] order_params.keys_union({len(keys_sorted)}): {keys_sorted}")
 
-    if missing_schema:
-        print("[NG] schema_version missing in some order_params rows")
-        print("- condition_not_met: all order_params have 'schema_version'")
-        print(f"- missing_schema_version_rows: {missing_schema[:50]}" + (" ..." if len(missing_schema) > 50 else ""))
-        # still show tail for debugging
-        tail_n = max(0, int(args.tail))
+    # stats display (do not mix scope judgement and all-stats)
+    all_rows_n = len(rows_all)
+    all_missing_n = len(missing_schema_all)
+    all_ratio = (all_missing_n / all_rows_n) if all_rows_n > 0 else 0.0
+    scope_rows_n = len(rows_scope)
+    scope_missing_n = len(missing_schema_scope)
+    scope_ratio = (scope_missing_n / scope_rows_n) if scope_rows_n > 0 else 0.0
+    print(
+        f"[scope] scope={args.scope} tail_n={tail_n} scope_rows={scope_rows_n} "
+        f"missing_schema_version={scope_missing_n} ratio={scope_ratio:.3f}"
+    )
+    print(
+        f"[all] all_rows={all_rows_n} missing_schema_version={all_missing_n} ratio={all_ratio:.3f}"
+    )
+
+    unmet: List[str] = []
+    if scope_rows_n <= 0:
+        unmet.append("order_params_rows_in_scope >= 1")
+    if scope_missing_n > 0:
+        unmet.append("all order_params in scope have 'schema_version'")
+
+    if unmet:
+        print("[NG] scope check failed")
+        for c in unmet:
+            print(f"- condition_not_met: {c}")
+        if scope_missing_n > 0:
+            print(
+                f"- missing_schema_version_rows_in_scope: {missing_schema_scope[:50]}"
+                + (" ..." if len(missing_schema_scope) > 50 else "")
+            )
+        if args.scope == "tail" and all_missing_n > 0:
+            print(
+                f"[info] all-rows missing_schema_version exists: n={all_missing_n}/{all_rows_n} "
+                f"(ratio={all_ratio:.3f})"
+            )
     else:
-        print("[OK] schema_version present in all observed order_params rows")
-        tail_n = max(0, int(args.tail))
+        print("[OK] scope check passed")
+        if args.scope == "tail" and all_missing_n > 0:
+            print(
+                f"[info] all-rows missing_schema_version exists (ignored by scope=tail): n={all_missing_n}/{all_rows_n} "
+                f"(ratio={all_ratio:.3f})"
+            )
 
     if tail_n > 0:
         print(f"[obs] tail_samples: last {tail_n} order_params rows")
-        for line_no, ts, src, op in order_rows[-tail_n:]:
+        for line_no, ts, src, op in rows_all[-tail_n:]:
             print(f"--- line={line_no} timestamp={ts} src={src} ---")
             try:
                 print(json.dumps(op, ensure_ascii=False, sort_keys=True))
             except Exception:
                 print(str(op))
 
-    return 0 if not missing_schema else 2
+    return 0 if not unmet else 2
 
 
 if __name__ == "__main__":

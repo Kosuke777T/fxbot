@@ -1249,3 +1249,44 @@ schema_version 欠落行あり → [NG]
 Step2-2 の目的（再観測基盤の確立）は 完了
 残課題は「過去ログ混在で常時NGになる問題」への対処であり、
 これは 次ステップ：(2) 判定スコープ追加 に切り出すのが適切
+
+T-43-4 Step2-2-1
+目的
+order_params schema 再観測において、
+過去ログ混在で常時 NG になる問題を回避しつつ、
+将来の破壊は観測だけで即 NG にできる運用を確立する。
+実施内容（確定観測ベース）
+変更範囲を tools のみに限定
+tools/reobserve_order_params_schema.py
+tools/reobserve_order_params_schema.ps1
+read-only 厳守（ログ書き込みなし）
+Python / PS1 両方に --scope {all|tail} を追加（既定 all）
+判定対象と観測統計を明確に分離：
+rows_all：全対象行（統計用・常に表示）
+rows_scope：判定対象行
+all → 全行
+tail → 末尾 N 件（--tail）
+OK/NG 判定は rows_scope のみ
+全体欠落数・比率は scope に関わらず必ず表示
+NG 時は「満たされなかった条件」を明示し exit code=2
+OK 時は exit code=0
+py_compile 実行済み・構文エラーなし
+動作確認結果（Cursor 実行）
+all（既定）
+判定対象：全14行
+schema_version 欠落あり → NG
+終了コード：2
+tail（末尾5件）
+判定対象：末尾5行
+末尾にも欠落あり → NG
+終了コード：2
+併せて全体統計（14行中13欠落）を表示
+※ 末尾 N 件がすべて schema_version を持つ状態では
+　-Scope tail は exit 0 になる設計。
+成功条件チェック
+tools のみ最小改修：✅
+既存 all 挙動維持：✅
+判定スコープ追加（tail）：✅
+全体欠落の事実を非隠蔽：✅
+NG 理由明示＋終了コード安定：✅
+CI / ローカルで同一結果：✅
