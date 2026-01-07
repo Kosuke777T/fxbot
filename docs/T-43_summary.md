@@ -1002,3 +1002,21 @@ smoke：OK（condition_mining_ops_snapshot.json 出力）
 recent_empty_use_past_only は データ由来の正常状態（最新 decision が無い）
 
 コード側の詰まり・バグは解消済み
+
+T-43-3 Step2-21
+達成事項（事実ベース）
+ops_snapshot（logs/condition_mining_ops_snapshot.json）に top_candidates が確実に出力されるよう修正完了。
+candidates と condition_candidates を相互ミラー（既存優先・追加のみ）する処理を facade 末尾ラッパに追加。
+スモーク後の確認結果：
+has_candidates=True (n=7)
+has_condition_candidates=True (n=7)
+has_top_candidates=True (n=5)
+top0 が期待どおり（id/score/support/confidence/degradation を含む）
+lint / py_compile / smoke すべて 問題なし。
+変更点（最小差分）
+変更ファイル：app/services/condition_mining_facade.py
+末尾ラッパ get_condition_mining_ops_snapshot にキー相互ミラーと top_candidates 生成を追加。
+既存API・責務境界（gui/services/core）を維持。新規関数なし。
+非変更（重要）
+既存の候補生成・評価ロジック（score/confidence/degradation）は不変更。
+スモークの成功条件・主要キー構造は維持（追加のみ）。

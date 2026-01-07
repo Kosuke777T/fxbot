@@ -992,5 +992,38 @@ def get_condition_mining_ops_snapshot(symbol: str, profile=None, **kwargs):
     except Exception as e:
         out["warnings"].append(f"evidence_enrich_failed:{type(e).__name__}")
 
-    return out
+    # --- Step2-21: attach condition candidates summary (additive; safe) ---
+    try:
+        from app.services.condition_mining_candidates import get_condition_candidates_core
 
+        cand_ret = get_condition_candidates_core(
+            symbol=symbol,
+            profile=profile,
+            top_k=50,
+            max_conds=80,
+        )
+        # keep raw candidates under a stable key (do not break existing keys)
+        out["condition_candidates"] = cand_ret.get("candidates") or []
+        # propagate candidate-side warnings (e.g. recent_empty_use_past_only)
+        cw = cand_ret.get("warnings") or []
+        if isinstance(cw, list):
+            out["warnings"].extend([str(x) for x in cw])
+
+        cands = out.get("condition_candidates") or []
+        if isinstance(cands, list) and cands and isinstance(cands[0], dict):
+            top = cands[:5]  # already sorted by score desc in candidates.py
+            out["top_candidates"] = [
+                {
+                    "id": ((c.get("condition") or {}).get("id")) if isinstance(c.get("condition"), dict) else c.get("id"),
+                    "score": c.get("score"),
+                    "support": c.get("support"),
+                    "condition_confidence": c.get("condition_confidence"),
+                    "degradation": c.get("degradation"),
+                }
+                for c in top
+            ]
+    except Exception as e:
+        out["warnings"].append(f"attach_candidates_failed:{type(e).__name__}")
+    # --- end Step2-21 ---
+
+    return out

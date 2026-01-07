@@ -471,4 +471,38 @@ if callable(_cm__orig_get_ops_snapshot):
         # 形だけは必ず固定
         if isinstance(out.get("candidates"), list):
             out["candidates"] = _cm__ensure_candidate_shape(out.get("candidates"))
+
+        # [CM_KEYS_MIRROR] unify candidate keys without breaking compatibility
+        try:
+            if "candidates" not in out and "condition_candidates" in out:
+                out["candidates"] = out.get("condition_candidates") or []
+            if "condition_candidates" not in out and "candidates" in out:
+                out["condition_candidates"] = out.get("candidates") or []
+        except Exception:
+            pass
+
+        # top_candidates（表示用サマリ）を付与（既存キーは壊さない）
+        if "top_candidates" not in out:
+            try:
+                cands = out.get("candidates") or []
+                if isinstance(cands, list) and cands and isinstance(cands[0], dict):
+                    top = cands[:5]
+                    out["top_candidates"] = [
+                        {
+                            "id": (
+                                ((c.get("condition") or {}).get("id"))
+                                if isinstance(c.get("condition"), dict)
+                                else c.get("id")
+                            ),
+                            "score": c.get("score"),
+                            "support": c.get("support"),
+                            "condition_confidence": c.get("condition_confidence"),
+                            "degradation": c.get("degradation"),
+                        }
+                        for c in top
+                    ]
+                else:
+                    out["top_candidates"] = []
+            except Exception:
+                out["top_candidates"] = []
         return out
