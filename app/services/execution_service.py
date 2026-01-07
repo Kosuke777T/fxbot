@@ -975,6 +975,18 @@ class ExecutionService:
             "size_multiplier": float(mult),
             "size_reason": reason,
         }
+        # schema固定（追加のみ・既存キー上書き禁止）
+        try:
+            from app.services.order_params_schema import ensure_order_params_schema
+
+            order_params = ensure_order_params_schema(
+                order_params,
+                pair=symbol,  # 補助キー（renameではなく追加）
+                symbol=symbol,
+                mode=("dry_run" if dry_run else "live"),
+            )
+        except Exception:
+            pass
         # lot/qty が存在する場合のみ入れる（現時点では未実装でも将来に備える）
         try:
             if "lot" in locals() and isinstance(lot, (int, float)):

@@ -1190,3 +1190,24 @@ services 層のみ
 app/services/execution_service.py
 既存キー削除・改名なし（追加のみ）
 GUI / core 未変更
+
+T-43-4 Step2-1
+order_params の schema 固定を完了
+ensure_order_params_schema() を 追加のみ に厳密化
+既存キー・既存値の 変更／型変換は一切なし
+schema_version を 固定アンカー（v1） として setdefault で付与
+services 層のみで実装（責務境界を厳守）
+観測 → 実装 → 再観測 を順守
+観測結果（確定）
+最新 logs/decisions_2026-01-07.jsonl にて確認
+order_params.keys：
+['mode', 'pair', 'schema_version', 'side', 'size_multiplier', 'size_reason', 'symbol']
+末尾サンプルに schema_version: 1 / pair / mode を確認
+dry_run / live 分岐に影響なし
+変更ファイル
+app/services/order_params_schema.py（新規／追加のみ）
+成功条件の達成状況
+✔ schema 固定アンカー（schema_version）が実ログに存在
+✔ 既存キーの欠落・意味変更なし
+✔ services 層のみで完結
+✔ 将来の実発注ロジックと自然接続可能な形を確保
