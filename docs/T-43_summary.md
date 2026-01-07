@@ -1060,3 +1060,43 @@ adoption が存在
 adoption.status = adopted
 missing_keys = []
 adopted が例の通り（例：{'id':'hour:h08_15','weight':1.0,'condition_confidence':'MID','note':None}）
+
+
+T-43-3 Step2-23
+目的
+**Condition Mining の adoption が「どこで消費されるべきか」**をコードベース全体から観測し、
+一次採用の消費地点を安全に確定する。
+観測結果（事実ベース）
+adoption / confidence_cap / weight / notes は
+condition_mining_facade.py 内で生成されるのみで、
+実運用（execution / sizing / entry）では未消費だった。
+ops_snapshot.json は facade 経由で確定しており、smoke も facade を参照。
+消費地点の確定（設計判断）
+一次採用 = guard（安全優先）
+消費地点を
+👉 ExecutionService.execute_entry() の「発注直前（dry_run 分岐直前）」
+に固定。
+実装内容（最小差分・services層のみ）
+対象ファイル
+app/services/execution_service.py
+差し込み位置
+execute_entry() 内、dry_run 判定の直前
+処理内容
+get_condition_mining_ops_snapshot(symbol) を呼び出し
+adoption.status == "adopted" の場合のみ
+decision_detail["cm_adoption"]
+meta_val["cm_adoption"]
+に 加法で埋め込み（既存キー破壊なし）
+検証結果
+py_compile / import：OK
+dry_run=True で execute_entry() を1回実行
+最新の logs/decisions_*.jsonl に：
+meta.cm_adoption が存在
+decision_detail.cm_adoption が存在
+execution_service が adoption を「消費（参照）」していることを客観的に確認
+重要な制約・判断
+この repo には PROMOTE という action 概念が存在しない
+よって Step2-23 では 挙動変更（PROMOTE→HOLD 等）は不可
+本ステップでは
+「消費地点の確定」と「観測可能にする」
+に限定し、安全に完了とした。

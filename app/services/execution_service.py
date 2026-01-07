@@ -820,6 +820,46 @@ class ExecutionService:
 
             return {"ok": False, "reasons": reasons}
 
+        # --- Step2-23: condition mining adoption guard (consume in execution_service) ---
+        # NOTE:
+        # - adoption は ops_snapshot の付帯情報で、ここでは「消費地点を execution_service に固定」する。
+        # - 実際の発注ロジックが後で追加されても、ここ（dry_run 分岐の直前）は “発注直前” に相当する。
+        # - 既存APIを壊さないため、現時点ではログ/メタへの付与のみ（挙動変更は最小）。
+        cm_adoption = None
+        try:
+            from app.services.condition_mining_facade import get_condition_mining_ops_snapshot
+
+            _cm = get_condition_mining_ops_snapshot(symbol=symbol)
+            if isinstance(_cm, dict):
+                cm_adoption = _cm.get("adoption")
+        except Exception:
+            cm_adoption = None
+
+        if isinstance(cm_adoption, dict) and cm_adoption.get("status") == "adopted":
+            try:
+                cm_payload = {
+                    "status": cm_adoption.get("status"),
+                    "weight": cm_adoption.get("weight"),
+                    "confidence_cap": cm_adoption.get("confidence_cap"),
+                    "notes": cm_adoption.get("notes"),
+                    "adopted": cm_adoption.get("adopted"),
+                    "rejected": cm_adoption.get("rejected"),
+                }
+            except Exception:
+                cm_payload = {"status": "adopted"}
+            # decision_detail / meta に加法で載せる（既存フィールドを壊さない）
+            try:
+                if isinstance(decision_detail, dict) and "cm_adoption" not in decision_detail:
+                    decision_detail["cm_adoption"] = cm_payload
+            except Exception:
+                pass
+            try:
+                if isinstance(meta_val, dict) and "cm_adoption" not in meta_val:
+                    meta_val["cm_adoption"] = cm_payload
+            except Exception:
+                pass
+        # --- /Step2-23 ---
+
         # --- 5) dry_run モードの場合、MT5発注の直前で分岐 ---
         if dry_run:
             # decision_detail を更新
