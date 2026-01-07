@@ -135,20 +135,16 @@ def get_condition_mining_window(profile: Optional[str] = None) -> Dict[str, Any]
 
     name = profile or cfg.get("active_profile") or ""
     p = profiles.get(name) if isinstance(profiles, dict) else None
-    if not isinstance(p, dict):
-        return dict(DEFAULT)
-
-    win = p.get("condition_mining_window")
-    if not isinstance(win, dict):
-        return dict(DEFAULT)
-
-    out = dict(DEFAULT)
-    for k in DEFAULT:
-        if k in win:
-            try:
-                out[k] = int(win[k])
-            except Exception:
-                pass
+    # profile-scoped window (if available)
+    if isinstance(p, dict):
+        win = p.get("condition_mining_window")
+        if isinstance(win, dict):
+            for k in DEFAULT:
+                if k in win:
+                    try:
+                        out[k] = int(win[k])
+                    except Exception:
+                        pass
 
     # --- apply config-level override (v5.2) ---
     ov = cfg.get('override')

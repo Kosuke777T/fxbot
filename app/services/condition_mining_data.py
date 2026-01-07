@@ -417,10 +417,54 @@ def _try_extract_winrate_avgpnl_from_backtests(*, symbol: str) -> dict:
     return {}
 def get_decisions_recent_past_summary(symbol: str, profile: Optional[str] = None, **kwargs) -> dict:
     """Aggregate recent/past windows and attach minimal stats."""
-    # --- Step2-11: minutes are accepted via kwargs; pop to avoid unexpected-kw in downstream ---
-    recent_minutes = int(kwargs.pop('recent_minutes', 30) or 30)
-    past_minutes = int(kwargs.pop('past_minutes', 30) or 30)
-    past_offset_minutes = int(kwargs.pop('past_offset_minutes', 24 * 60) or (24 * 60))
+    # --- Step2-20: resolve minutes (caller > store(profile) > default) ---
+    # NOTE:
+    # - 0 は有効値（falsy 判定で潰さない）。None のみ「未指定」。
+    # - data層でも store の override/profile を反映させ、summary/enrich/ops の window を統一する。
+    try:
+        from app.services import mt5_account_store as _cm_store
+    except Exception:
+        _cm_store = None
+
+    _rm = kwargs.pop("recent_minutes", None) if "recent_minutes" in kwargs else None
+    _pm = kwargs.pop("past_minutes", None) if "past_minutes" in kwargs else None
+    _om = kwargs.pop("past_offset_minutes", None) if "past_offset_minutes" in kwargs else None
+
+    resolved = {"recent_minutes": 30, "past_minutes": 30, "past_offset_minutes": 24 * 60}
+
+    if _cm_store is not None:
+        try:
+            w = _cm_store.get_condition_mining_window(profile=profile)
+            if isinstance(w, dict):
+                for k in ("recent_minutes", "past_minutes", "past_offset_minutes"):
+                    if w.get(k) is not None:
+                        try:
+                            resolved[k] = int(w.get(k))
+                        except Exception:
+                            pass
+        except Exception:
+            pass
+
+    if _rm is not None:
+        try:
+            resolved["recent_minutes"] = int(_rm)
+        except Exception:
+            pass
+    if _pm is not None:
+        try:
+            resolved["past_minutes"] = int(_pm)
+        except Exception:
+            pass
+    if _om is not None:
+        try:
+            resolved["past_offset_minutes"] = int(_om)
+        except Exception:
+            pass
+
+    recent_minutes = int(resolved["recent_minutes"])
+    past_minutes = int(resolved["past_minutes"])
+    past_offset_minutes = int(resolved["past_offset_minutes"])
+    # --- end minutes resolve ---
 
     recent = get_decisions_window_summary(
         recent_minutes=recent_minutes,
@@ -447,8 +491,11 @@ def get_decisions_recent_past_summary(symbol: str, profile: Optional[str] = None
     r_rows = (recent.get("decisions") or recent.get("rows") or [])
     p_rows = (past.get("decisions") or past.get("rows") or [])
 
-    recent["min_stats"] = _min_stats(r_rows)
-    past["min_stats"] = _min_stats(p_rows)
+    # min_stats は window_summary 側を優先（include_decisions=False でも集計できる）
+    if not isinstance(recent.get("min_stats"), dict):
+        recent["min_stats"] = _min_stats(r_rows)
+    if not isinstance(past.get("min_stats"), dict):
+        past["min_stats"] = _min_stats(p_rows)
 
     # ★★★ ここが今回の本丸 ★★★
     if (
@@ -457,7 +504,12 @@ def get_decisions_recent_past_summary(symbol: str, profile: Optional[str] = None
         or not past.get("start_ts")
         or not past.get("end_ts")
     ):
-        sR, eR, sP, eP = _resolve_recent_past_window()
+        sR, eR, sP, eP = _resolve_recent_past_window(
+            now_utc=None,
+            recent_minutes=recent_minutes,
+            past_minutes=past_minutes,
+            past_offset_minutes=past_offset_minutes,
+        )
         if recent.get("start_ts") is None:
             recent["start_ts"] = sR.isoformat()
         if recent.get("end_ts") is None:
