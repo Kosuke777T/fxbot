@@ -860,6 +860,85 @@ class ExecutionService:
                 pass
         # --- /Step2-23 ---
 
+        # --- T-43-4 Step1: cm_adoption -> sizing multiplier (services-only, minimal) ---
+        # 方針:
+        # - entry可否は触らない（decision/ok を変更しない）
+        # - まずは “sizing の倍率” を決め、監査用に decision_detail.size_decision を必ず残す
+        # - lot/qty 変数が存在する場合のみ安全に乗算（現時点では未実装でも将来に備える）
+        cm_payload_for_size = None
+        try:
+            if isinstance(decision_detail, dict):
+                cm_payload_for_size = decision_detail.get("cm_adoption")
+        except Exception:
+            cm_payload_for_size = None
+        if cm_payload_for_size is None:
+            try:
+                if isinstance(meta_val, dict):
+                    cm_payload_for_size = meta_val.get("cm_adoption")
+            except Exception:
+                cm_payload_for_size = None
+
+        conf = None
+        status = None
+        try:
+            if isinstance(cm_payload_for_size, dict):
+                status = cm_payload_for_size.get("status")
+                adopted = cm_payload_for_size.get("adopted")
+                if isinstance(adopted, dict):
+                    conf = adopted.get("condition_confidence")
+        except Exception:
+            conf = None
+            status = None
+
+        # 最小マッピング（段階のみ使用）
+        # HIGH: 1.20 / MID: 1.00 / LOW: 0.50 / else: 1.00
+        mult = 1.0
+        reason = "cm_adoption_missing"
+        if status == "adopted":
+            if conf == "HIGH":
+                mult = 1.20
+                reason = "cm_adoption_high"
+            elif conf == "MID":
+                mult = 1.00
+                reason = "cm_adoption_mid"
+            elif conf == "LOW":
+                mult = 0.50
+                reason = "cm_adoption_low"
+            else:
+                mult = 1.00
+                reason = "cm_adoption_unknown_or_none"
+
+        # lot/qty どちらを使っていても壊れないよう、存在する変数だけに適用
+        # （この直前で確定した“最終値”に掛けるのが重要）
+        try:
+            if "lot" in locals() and isinstance(lot, (int, float)):
+                lot = float(lot) * float(mult)
+            if "volume" in locals() and isinstance(volume, (int, float)):
+                volume = float(volume) * float(mult)
+            if "qty" in locals() and isinstance(qty, (int, float)):
+                qty = float(qty) * float(mult)
+            if "quantity" in locals() and isinstance(quantity, (int, float)):
+                quantity = float(quantity) * float(mult)
+        except Exception:
+            # ここで落ちると本末転倒なので、sizing介入は縮退
+            mult = 1.0
+            reason = "cm_adoption_apply_failed"
+
+        # 監査ログ（破壊検知用）：decision_detail に必ず残す
+        try:
+            if not isinstance(decision_detail, dict):
+                decision_detail = {}
+            decision_detail["size_decision"] = {
+                "multiplier": float(mult),
+                "reason": reason,
+                "source": "cm_adoption",
+                "condition_confidence": conf,
+                "cm_status": status,
+            }
+        except Exception:
+            pass
+        # --- /T-43-4 Step1 ---
+
         # --- 5) dry_run モードの場合、MT5発注の直前で分岐 ---
         if dry_run:
             # decision_detail を更新
