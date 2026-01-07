@@ -1211,3 +1211,41 @@ app/services/order_params_schema.py（新規／追加のみ）
 ✔ 既存キーの欠落・意味変更なし
 ✔ services 層のみで完結
 ✔ 将来の実発注ロジックと自然接続可能な形を確保
+
+T-43-4 Step2-2
+目的の達成状況
+order_params schema 再観測の運用固定を実現
+schema_version をアンカーにした OK / NG 判定を終了コードで即時返す仕組みを確立
+人手レビュー不要・観測のみ（read-only） の運用ガードが成立
+実装内容（スコープ厳守）
+tools 配下に新規2ファイルのみ追加
+tools/reobserve_order_params_schema.py
+tools/reobserve_order_params_schema.ps1
+services / core / gui は 一切未変更
+ログは 読み取り専用（書き込み・改変なし）
+再観測ツールの仕様ポイント
+最新 logs/decisions_*.jsonl を 自動検出
+order_params の取得において
+トップレベル / decision_detail.order_params の両方を観測対象
+観測結果として以下を必ず出力：
+order_params 行数
+keys の union 一覧
+schema_version 欠落行の明示
+末尾 N 件（tail）のサンプル表示
+判定結果：
+OK：exit code 0
+NG：exit code 2 ＋ 失敗理由を明示
+動作確認（(1) 通常：最新自動検出）
+実行コマンド：
+pwsh -NoProfile -ExecutionPolicy Bypass -File tools/reobserve_order_params_schema.ps1 -Tail 5
+観測結果（要点）：
+最新ログ：logs/decisions_2026-01-07.jsonl
+観測行数：order_params.rows > 0
+keys_union：['mode', 'pair', 'schema_version', 'side', 'size_multiplier', 'size_reason', 'symbol']
+schema_version 欠落行あり → [NG]
+終了コード：2
+→ ツールは仕様通り正しく異常を検知
+判断
+Step2-2 の目的（再観測基盤の確立）は 完了
+残課題は「過去ログ混在で常時NGになる問題」への対処であり、
+これは 次ステップ：(2) 判定スコープ追加 に切り出すのが適切
