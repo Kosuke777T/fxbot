@@ -1145,3 +1145,48 @@ No-Go
 status=adopted 以外（none / adoption_failed）を
 現時点ではログに載せない仕様のままでOK
 理由：本フェーズの目的は「存在保証」であり、すでに達成済み
+
+T-43-4 Step1〜Step2-0
+目的（達成状況）
+cm_adoption を観測メタから実挙動へ安全に接続する経路を services 層のみで構築
+破壊検知可能な形で、段階的に挙動（sizing）へ影響させる基盤を完成
+→ 達成
+確定した事実（観測証拠ベース）
+介入点の一点固定
+execution_service.execute_entry() 内
+Step2-23 直後〜 if dry_run: 直前 が「発注直前相当」の唯一の介入点
+cm_adoption → size_decision（Step1）
+adopted.condition_confidence を正しく抽出
+マッピング：
+HIGH → 1.20
+MID → 1.00
+LOW → 0.50
+無し/不明 → 1.00
+decision_detail.size_decision を必ず生成
+フォールバック（cm_adoption_missing）を実ログで確認
+order_params の生成（Step2-0）
+同一介入点で order_params を必ず生成
+order_params.size_multiplier == size_decision.multiplier を保証
+decision_detail.order_params に保存
+dry_run 戻り値 / 通常戻り値の両方に追加
+致命的不具合の修正（Hotfix）
+simulated-return が if dry_run: の外にあり、通常パスが死んでいた問題を修正
+修正後：
+dry_run=True → simulated=True で早期return
+dry_run=False → 通常パスに到達（実行ログで証明）
+実ログによる検証証拠
+dry_run
+simulated=True
+order_params あり
+dry_run=False
+simulated キー 存在しない
+order_params あり
+整合性
+order_params.size_multiplier == size_decision.multiplier
+フォールバック
+cm_adoption_missing が実ログに出現（落ちない）
+変更範囲
+services 層のみ
+app/services/execution_service.py
+既存キー削除・改名なし（追加のみ）
+GUI / core 未変更

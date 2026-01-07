@@ -479,7 +479,15 @@ class ExecutionService:
                         r,
                     )
 
-    def execute_entry(self, features: Dict[str, float], *, symbol: Optional[str] = None, dry_run: bool = False, timestamp: Optional[datetime] = None) -> Dict[str, Any]:
+    def execute_entry(
+        self,
+        features: Dict[str, float],
+        *,
+        symbol: Optional[str] = None,
+        dry_run: bool = False,
+        timestamp: Optional[datetime] = None,
+        suppress_metrics: bool = False,
+    ) -> Dict[str, Any]:
         """
         売買判断 → フィルタ判定 → decisions.jsonl 出力まで一貫処理
 
@@ -802,6 +810,16 @@ class ExecutionService:
 
             # --- metrics に runtime 情報を追加 ---
             from app.services.metrics import publish_metrics
+            # opt-in: 検証実行時などに runtime/metrics_*.json 更新を抑止する
+            try:
+                _suppress_metrics = bool(
+                    suppress_metrics
+                    or (isinstance(decision_detail, dict) and decision_detail.get("suppress_metrics") is True)
+                    or (isinstance(meta_val, dict) and meta_val.get("suppress_metrics") is True)
+                )
+            except Exception:
+                _suppress_metrics = bool(suppress_metrics)
+
             runtime_for_metrics = {
                 "schema_version": runtime.get("schema_version", 2),
                 "symbol": runtime.get("symbol", symbol),
@@ -814,9 +832,15 @@ class ExecutionService:
                 "open_positions": runtime.get("open_positions", 0),
                 "max_positions": runtime.get("max_positions", 1),
             }
-            publish_metrics({
-                "runtime": runtime_for_metrics,  # 新規追加：runtime 情報
-            }, no_metrics=False)
+            if _suppress_metrics:
+                logging.getLogger(__name__).info("[exec] suppress_metrics=True -> skip publish_metrics (filter_ng path)")
+            else:
+                publish_metrics(
+                    {
+                        "runtime": runtime_for_metrics,  # 新規追加：runtime 情報
+                    },
+                    no_metrics=False,
+                )
 
             return {"ok": False, "reasons": reasons}
 
@@ -939,6 +963,42 @@ class ExecutionService:
             pass
         # --- /T-43-4 Step1 ---
 
+        # --- T-43-4 Step1 (cont): build order_params for audit (services-only) ---
+        # 目的:
+        # - “発注直前相当”で order_params を必ず生成（将来の実発注ロジックに繋ぐ）
+        # - dry_run では decision_detail に保存し、戻り値にも載せて監査できるようにする
+        # - entry可否（ok/decision）は変更しない
+        order_params = {
+            "symbol": symbol,
+            "side": getattr(signal, "side", None),
+            # size_decision と整合する倍率（必ず一致させる）
+            "size_multiplier": float(mult),
+            "size_reason": reason,
+        }
+        # lot/qty が存在する場合のみ入れる（現時点では未実装でも将来に備える）
+        try:
+            if "lot" in locals() and isinstance(lot, (int, float)):
+                order_params["lot"] = float(lot)
+            if "volume" in locals() and isinstance(volume, (int, float)):
+                order_params["volume"] = float(volume)
+            if "qty" in locals() and isinstance(qty, (int, float)):
+                order_params["qty"] = float(qty)
+            if "quantity" in locals() and isinstance(quantity, (int, float)):
+                order_params["quantity"] = float(quantity)
+        except Exception:
+            # order_params は監査情報。ここで落ちないように縮退
+            pass
+
+        # decision_detail に保存（追加のみ）
+        try:
+            if not isinstance(decision_detail, dict):
+                decision_detail = {}
+            if "order_params" not in decision_detail:
+                decision_detail["order_params"] = order_params
+        except Exception:
+            pass
+        # --- /T-43-4 Step1 (cont) ---
+
         # --- 5) dry_run モードの場合、MT5発注の直前で分岐 ---
         if dry_run:
             # decision_detail を更新
@@ -1005,16 +1065,18 @@ class ExecutionService:
                 "decision_context": decision_context,  # 新規追加：判断材料を分離
             })
 
-        return {
-            "ok": True,
-            "reasons": [],
-            # 確率は pred から取得
-            "prob_buy": prob_buy,
-            "prob_sell": prob_sell,
-            "signal": signal,
-            "dry_run": True,
-            "simulated": True,
-        }
+            return {
+                "ok": True,
+                "reasons": [],
+                # 確率は pred から取得
+                "prob_buy": prob_buy,
+                "prob_sell": prob_sell,
+                "signal": signal,
+                "dry_run": True,
+                "simulated": True,
+                # 監査用: 発注パラメータ（size_decision と整合する）
+                "order_params": order_params,
+            }
 
         # 通常モードの場合、decision_detail は "ENTRY" のまま
         decision_detail = _ensure_decision_detail_minimum(
@@ -1067,6 +1129,16 @@ class ExecutionService:
 
         # --- metrics に runtime 情報を追加 ---
         from app.services.metrics import publish_metrics
+        # opt-in: 検証実行時などに runtime/metrics_*.json 更新を抑止する
+        try:
+            _suppress_metrics = bool(
+                suppress_metrics
+                or (isinstance(decision_detail, dict) and decision_detail.get("suppress_metrics") is True)
+                or (isinstance(meta_val, dict) and meta_val.get("suppress_metrics") is True)
+            )
+        except Exception:
+            _suppress_metrics = bool(suppress_metrics)
+
         runtime_for_metrics = {
             "schema_version": runtime.get("schema_version", 2),
             "symbol": runtime.get("symbol", symbol),
@@ -1079,9 +1151,15 @@ class ExecutionService:
             "open_positions": runtime.get("open_positions", 0),
             "max_positions": runtime.get("max_positions", 1),
         }
-        publish_metrics({
-            "runtime": runtime_for_metrics,  # 新規追加：runtime 情報
-        }, no_metrics=False)
+        if _suppress_metrics:
+            logging.getLogger(__name__).info("[exec] suppress_metrics=True -> skip publish_metrics (normal path)")
+        else:
+            publish_metrics(
+                {
+                    "runtime": runtime_for_metrics,  # 新規追加：runtime 情報
+                },
+                no_metrics=False,
+            )
 
         # --- 6) 実際のMT5発注（dry_run=False の場合のみ） ---
         # 発注ロジックはそのまま（TradeService などを呼び出す想定）
@@ -1093,6 +1171,8 @@ class ExecutionService:
             "prob_buy": prob_buy,
             "prob_sell": prob_sell,
             "signal": signal,
+            # 監査用（追加のみ）: 発注パラメータ
+            "order_params": order_params,
         }
 
     def execute_exit(self, symbol: Optional[str] = None, dry_run: bool = False) -> Dict[str, Any]:
