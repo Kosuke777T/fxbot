@@ -1146,7 +1146,7 @@ status=adopted 以外（none / adoption_failed）を
 現時点ではログに載せない仕様のままでOK
 理由：本フェーズの目的は「存在保証」であり、すでに達成済み
 
-T-43-4 Step1〜Step2-0
+T-43-3-1 Step1〜Step2-0
 目的（達成状況）
 cm_adoption を観測メタから実挙動へ安全に接続する経路を services 層のみで構築
 破壊検知可能な形で、段階的に挙動（sizing）へ影響させる基盤を完成
@@ -1191,7 +1191,7 @@ app/services/execution_service.py
 既存キー削除・改名なし（追加のみ）
 GUI / core 未変更
 
-T-43-4 Step2-1
+T-43-3-2 Step2-1
 order_params の schema 固定を完了
 ensure_order_params_schema() を 追加のみ に厳密化
 既存キー・既存値の 変更／型変換は一切なし
@@ -1212,7 +1212,7 @@ app/services/order_params_schema.py（新規／追加のみ）
 ✔ services 層のみで完結
 ✔ 将来の実発注ロジックと自然接続可能な形を確保
 
-T-43-4 Step2-2
+T-43-3-3 Step2-2
 目的の達成状況
 order_params schema 再観測の運用固定を実現
 schema_version をアンカーにした OK / NG 判定を終了コードで即時返す仕組みを確立
@@ -1250,7 +1250,7 @@ Step2-2 の目的（再観測基盤の確立）は 完了
 残課題は「過去ログ混在で常時NGになる問題」への対処であり、
 これは 次ステップ：(2) 判定スコープ追加 に切り出すのが適切
 
-T-43-4 Step2-2-1
+T-43-3-4 Step2-2-1
 目的
 order_params schema 再観測において、
 過去ログ混在で常時 NG になる問題を回避しつつ、
@@ -1290,3 +1290,56 @@ tools のみ最小改修：✅
 全体欠落の事実を非隠蔽：✅
 NG 理由明示＋終了コード安定：✅
 CI / ローカルで同一結果：✅
+
+目的
+order_params の schema_version が付与される正規生成経路を
+コード変更なし（read-only）・推測なしで観測により確定する。
+実施内容（観測のみ）
+最新 logs/decisions_2026-01-07.jsonl を行単位で集計し、
+schema_version の 有無／位置（nested/top/none） を分類。
+同一ファイル内で schema_version が混在している事実を確定。
+grep とコード読取により、
+decision ログの writer 経路と order_params 生成箇所を現行コード上で特定。
+確定した事実
+schema_version 欠落は すべて decision_detail.order_params（nested）。
+writer は 別系統ではなく単一：
+ExecutionService → DecisionsLogger.log() → execution_stub._write_decision_log()。
+decision_detail["order_params"] を代入しているのは execution_service.py のみ。
+現行コードには order_params 構築直後に ensure_order_params_schema() を通す実装が存在。
+欠落行（13行）は、schema_version 付与前の旧実行由来の行が同日ファイルに混在しているものと、ログ＋grepから確定。
+正規生成経路（1行定義）
+ExecutionService.execute_entry() が order_params を確定直後に ensure_order_params_schema() を通し、decision_detail["order_params"] として設定した上で、DecisionsLogger.log() → _write_decision_log() により logs/decisions_YYYY-MM-DD.jsonl に追記する経路。
+設計判断
+欠落自体は レガシー混在としては仕様。
+ただし運用ゲートが reobserve --scope=tail のため、
+今後の tail に欠落が混入する場合は設計矛盾＝バグとして services 側の生成責務で扱う。
+
+
+目的
+境界時刻（schema_version 初付与）以降に、schema_version 欠落が再発していないかを
+read-only 観測のみで最終確定する。
+前提（確定事項）
+schema_version は
+ExecutionService → DecisionsLogger → _write_decision_log
+の単一正規経路で付与される設計。
+同一 decisions_YYYY-MM-DD.jsonl 内の欠落は
+境界以前のレガシー run 混在が原因。
+reobserve --scope=tail は運用健全性チェックとして使用可能。
+観測結果（read-only）
+対象ログ：decisions_2026-01-07.jsonl
+境界時刻（初付与）
+line_no = 26
+timestamp = 2026-01-07T17:58:55+09:00
+reobserve --scope=tail（200/500/1000）
+境界以前の欠落混在により 全て NG（想定通り）
+boundary-filtered（境界以降限定）再チェック
+tail=200/500/1000 すべて欠落 0 / exit=0
+推測なしの結論（断言）
+2026-01-07T17:58:55+09:00 以降に生成された decisions では
+schema_version 欠落は再発していない。
+services 修正は不要。
+運用上の注意（設計判断）
+生の reobserve --scope=tail は、レガシー混在ログでは常時NGになり得る。
+運用ゲートとしては boundary-filtered 判定が有効。
+境界以降の行数が増えたタイミングで、同じ観測を再実行すれば信頼度がさらに上がる。
+
