@@ -420,6 +420,81 @@ def _cm__ensure_candidate_shape(cands):
     return out
 
 
+def _build_condition_mining_adoption(snapshot: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Step2-22: Condition Mining の「採択(adoption)」を構築する（services層のみ）。
+
+    方針:
+    - candidates の先頭から、ゲートに落ちない最初の候補を採択する
+    - past-only fallback（recent_empty_use_past_only）が出ている場合は safety shrink:
+      weight=0.5 / confidence_cap="MID" を付与
+    - degradation=True は基本 reject
+    - condition_confidence="LOW" は基本 reject
+    """
+    warnings = snapshot.get("warnings") or []
+    past_only = isinstance(warnings, list) and ("recent_empty_use_past_only" in warnings)
+
+    weight = 0.5 if past_only else 1.0
+    confidence_cap = "MID" if past_only else None
+
+    rejected: List[Dict[str, Any]] = []
+    adopted: Optional[Dict[str, Any]] = None
+
+    cands = snapshot.get("candidates") or snapshot.get("condition_candidates") or []
+    if not isinstance(cands, list):
+        cands = []
+
+    def _cap_conf(conf: Any) -> Any:
+        if confidence_cap == "MID" and isinstance(conf, str) and conf.upper() == "HIGH":
+            return "MID"
+        return conf
+
+    for c in cands:
+        if not isinstance(c, dict):
+            continue
+
+        cid = None
+        cond = c.get("condition")
+        if isinstance(cond, dict) and isinstance(cond.get("id"), str):
+            cid = cond.get("id")
+        elif isinstance(c.get("id"), str):
+            cid = c.get("id")
+
+        reason_codes: List[str] = []
+
+        if c.get("degradation") is True:
+            reason_codes.append("degradation_gate")
+
+        conf = c.get("condition_confidence")
+        if isinstance(conf, str) and conf.upper() == "LOW":
+            reason_codes.append("confidence_low")
+
+        if reason_codes:
+            rejected.append({"id": cid, "reason_codes": reason_codes})
+            continue
+
+        adopted = {
+            "id": cid,
+            "weight": float(weight),
+            "condition_confidence": _cap_conf(conf),
+            "note": "past_only_fallback" if past_only else None,
+        }
+        break
+
+    notes: List[str] = []
+    if past_only:
+        notes.append("adoption_past_only_fallback")
+
+    return {
+        "status": "adopted" if adopted else "none",
+        "adopted": adopted,
+        "rejected": rejected,
+        "weight": float(weight),
+        "confidence_cap": confidence_cap,
+        "notes": notes,
+    }
+
+
 # --- wrap get_condition_candidates (if exists) ---
 try:
     _cm__orig_get_condition_candidates = get_condition_candidates  # type: ignore[name-defined]
@@ -505,4 +580,22 @@ if callable(_cm__orig_get_ops_snapshot):
                     out["top_candidates"] = []
             except Exception:
                 out["top_candidates"] = []
+
+        # adoption（採択）を付与（既存キーは壊さない）
+        if "adoption" not in out:
+            try:
+                out["adoption"] = _build_condition_mining_adoption(out)
+                # adoption の note を warnings にも載せる（加法）
+                for n in (out.get("adoption") or {}).get("notes") or []:
+                    if isinstance(n, str) and n not in (out.get("warnings") or []):
+                        out.setdefault("warnings", []).append(n)
+            except Exception:
+                out["adoption"] = {
+                    "status": "none",
+                    "adopted": None,
+                    "rejected": [],
+                    "weight": 1.0,
+                    "confidence_cap": None,
+                    "notes": ["adoption_failed"],
+                }
         return out

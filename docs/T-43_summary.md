@@ -1020,3 +1020,43 @@ lint / py_compile / smoke すべて 問題なし。
 非変更（重要）
 既存の候補生成・評価ロジック（score/confidence/degradation）は不変更。
 スモークの成功条件・主要キー構造は維持（追加のみ）。
+
+
+T-43-3 Step2-22
+目的
+ops_snapshot に「採択（adoption）」を services層のみ・最小差分で追加し、smoke後の JSON 反映まで 観測で確認する
+
+■ 実施内容（事実）
+logs/condition_mining_ops_snapshot.json に adoption を出力するよう、facade末尾ラッパの get_condition_mining_ops_snapshot に採択結果を付与
+採択は「candidates先頭から gate を通る最初の1件」を adopted とし、落ちた候補は rejected に理由コード付きで格納
+adoption の要求キー ['status','adopted','rejected','weight','confidence_cap','notes'] が すべて揃うことを確認
+触ったレイヤ：services のみ
+新規関数：あり（採択構築ヘルパ：_build_condition_mining_adoption）
+
+■ 変更ファイル
+app/services/condition_mining_facade.py
+get_condition_mining_ops_snapshot（末尾ラッパ側：おおむね 300行目前後）
+_build_condition_mining_adoption 追加（おおむね 423行目付近）
+tools/condition_mining_smoke.ps1：変更なし（実行のみ）
+
+■ 守った制約
+最小差分
+既存API優先使用（facade末尾ラッパでの加法）
+責務境界（gui/services/core）遵守（servicesのみ）
+PowerShell Here-String 前提（docstring をエスケープしない運用）
+
+■ 挙動の変化
+変わった点：logs/condition_mining_ops_snapshot.json に adoption が追加され、採択結果が JSON で観測可能になった
+変わっていない点（重要）：candidates / condition_candidates / top_candidates の既存出力と smoke の流れは維持（破壊的変更なし）
+
+■ 確認方法
+実行した確認コマンド
+python -m py_compile app/services/condition_mining_facade.py
+python -c "import app.services.condition_mining_facade"
+pwsh -File tools/condition_mining_smoke.ps1 -Symbol "USDJPY-"
+logs/condition_mining_ops_snapshot.json の adoption キー確認
+OKと判断できる条件
+adoption が存在
+adoption.status = adopted
+missing_keys = []
+adopted が例の通り（例：{'id':'hour:h08_15','weight':1.0,'condition_confidence':'MID','note':None}）
