@@ -1526,3 +1526,33 @@ schema_version 欠落率
 Step2-E は成功・完了
 正規境界を前提にした Condition Mining 入力が安定
 以降の設計判断は 観測可能なログ構造に固定された
+
+T-43-4 Step2-F
+ゴール
+candidates=0 の原因を 推測なし・観測のみで確定する
+観測で確定した事実
+recent/past window 内に decision 行が 0 件
+condition_mining_smoke が warnings=['no_decisions_in_recent_and_past']
+window が空のため、候補生成が縮退して candidates=0
+必須キー欠落や src 比率は主因ではない
+filter_pass / prob_buy・prob_sell / decision/action は揃っている
+src=="order_params" 比率は低いが、今回は window ヒット 0 が支配的
+A/B/C/D 判定
+ケースA/B（windowにデータ無し） に確定
+→ 改善対象は window設定 または データ供給 のどちらか
+実施した変更（toolsのみ）
+tools/condition_mining_smoke.ps1 を最小差分で拡張
+追加引数：-Tail, -Symbol, -RecentMinutes, -PastMinutes, -Offset
+既定挙動は完全互換（未指定時は従来どおり）
+実行時に 使用中の window 設定を必ず表示（黙らない）
+Python 呼び出しは 指定があるものだけ kwargs で渡す（Noneは渡さない）
+logs 削除・加工なし
+gui/services/core 不変更
+動作確認
+compileall tools / services import：OK
+smoke 既定実行：互換確認OK
+smoke オーバーライド実行：正常完走（candidates=0はデータ側事情）
+このスレッドの結論
+Step2-F は成功
+根因は「window内 decision 0 件」で確定。
+次に打つ手は window設定を見直すか decision のデータ供給を増やすかの二択に整理できた。

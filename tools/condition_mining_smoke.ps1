@@ -1,6 +1,11 @@
 param(
   [string]$Symbol = "USDJPY-",
-  [string]$OutJson = "logs/condition_mining_ops_snapshot.json"
+  [string]$OutJson = "logs/condition_mining_ops_snapshot.json",
+  # Step2-F: optional overrides (defaults kept if not specified)
+  [Nullable[int]]$Tail = $null,
+  [Nullable[int]]$RecentMinutes = $null,
+  [Nullable[int]]$PastMinutes = $null,
+  [Nullable[int]]$Offset = $null
 )
 
 $ErrorActionPreference = "Stop"
@@ -26,12 +31,34 @@ if ($logsDir -and !(Test-Path $logsDir)) {
 # Python を一時ファイルに書いて実行（Here-String 地雷回避）
 $py = Join-Path $env:TEMP "cm_ops_snapshot_smoke.py"
 
+$tailVal   = if ($Tail -ne $null) { $Tail } else { "None" }
+$recentVal = if ($RecentMinutes -ne $null) { $RecentMinutes } else { "None" }
+$pastVal   = if ($PastMinutes -ne $null) { $PastMinutes } else { "None" }
+$offsetVal = if ($Offset -ne $null) { $Offset } else { "None" }
+
+Write-Host ("[cm_smoke] tail={0} symbol={1} recent_minutes={2} past_minutes={3} offset={4}" -f $tailVal,$Symbol,$recentVal,$pastVal,$offsetVal) -ForegroundColor DarkCyan
+
 Set-Content -Path $py -Encoding UTF8 -Value @"
 import json
 from app.services.condition_mining_facade import get_condition_mining_ops_snapshot
 
 symbol = r"$Symbol"
-out = get_condition_mining_ops_snapshot(symbol)
+tail = $tailVal
+recent = $recentVal
+past = $pastVal
+offset = $offsetVal
+
+kwargs = {}
+if tail is not None:
+    kwargs["max_decisions"] = int(tail)
+if recent is not None:
+    kwargs["recent_minutes"] = int(recent)
+if past is not None:
+    kwargs["past_minutes"] = int(past)
+if offset is not None:
+    kwargs["past_offset_minutes"] = int(offset)
+
+out = get_condition_mining_ops_snapshot(symbol, **kwargs)
 
 required = ["warnings","ops_cards_first","evidence","evidence_kind","evidence_src","symbol"]
 missing = [k for k in required if k not in out]
