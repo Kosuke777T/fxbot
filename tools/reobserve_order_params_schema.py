@@ -41,6 +41,22 @@ def main(argv: Optional[List[str]] = None) -> int:
         default="all",
         help="judgement scope: 'all' (default) checks all rows; 'tail' checks only last N rows (N=--tail).",
     )
+    ap.add_argument(
+        "--boundary-filtered",
+        action="store_true",
+        help=(
+            "If set, PASS/FAIL judgement excludes nested sources (e.g. decision_detail.order_params) "
+            "and evaluates only top-level src=='order_params' rows. Display stats remain mixed-source."
+        ),
+    )
+    ap.add_argument(
+        "--allow-empty-gate",
+        action="store_true",
+        help=(
+            "If set with --boundary-filtered, gate_rows==0 is treated as OK (skipped) with a WARN line. "
+            "Default: gate_rows must be >=1."
+        ),
+    )
     args = ap.parse_args(argv)
 
     logs_dir = Path("logs")
@@ -103,10 +119,21 @@ def main(argv: Optional[List[str]] = None) -> int:
             missing_schema_all.append(f"line={line_no} src={src}")
 
     # ---- scope rows judgement ----
+    # Display-only scope stats (mixed-source as-is)
     missing_schema_scope: List[str] = []
     for line_no, _ts, src, op in rows_scope:
         if "schema_version" not in op:
             missing_schema_scope.append(f"line={line_no} src={src}")
+
+    rows_gate = rows_scope
+    if args.boundary_filtered:
+        # Gate judgement only on top-level order_params (exclude decision_detail.order_params, etc.)
+        rows_gate = [r for r in rows_scope if isinstance(r, tuple) and len(r) >= 3 and r[2] == "order_params"]
+
+    missing_schema_judge: List[str] = []
+    for line_no, _ts, src, op in rows_gate:
+        if "schema_version" not in op:
+            missing_schema_judge.append(f"line={line_no} src={src}")
 
     keys_sorted = sorted(keys_union)
     print(f"[obs] order_params.rows: {len(rows_all)}")
@@ -119,28 +146,40 @@ def main(argv: Optional[List[str]] = None) -> int:
     scope_rows_n = len(rows_scope)
     scope_missing_n = len(missing_schema_scope)
     scope_ratio = (scope_missing_n / scope_rows_n) if scope_rows_n > 0 else 0.0
+    # judgement uses rows_gate / missing_schema_judge (optionally boundary-filtered)
+    judge_rows_n = len(rows_gate)
+    judge_missing_n = len(missing_schema_judge)
+    judge_ratio = (judge_missing_n / judge_rows_n) if judge_rows_n > 0 else 0.0
     print(
         f"[scope] scope={args.scope} tail_n={tail_n} scope_rows={scope_rows_n} "
         f"missing_schema_version={scope_missing_n} ratio={scope_ratio:.3f}"
     )
+    if args.boundary_filtered:
+        print(
+            f"[gate] boundary_filtered=1 gate_rows={judge_rows_n} "
+            f"missing_schema_version={judge_missing_n} ratio={judge_ratio:.3f}"
+        )
+        if args.allow_empty_gate and judge_rows_n <= 0:
+            print("[WARN] boundary-filtered gate_rows==0 -> skipped (allow-empty-gate=1)")
     print(
         f"[all] all_rows={all_rows_n} missing_schema_version={all_missing_n} ratio={all_ratio:.3f}"
     )
 
     unmet: List[str] = []
-    if scope_rows_n <= 0:
-        unmet.append("order_params_rows_in_scope >= 1")
-    if scope_missing_n > 0:
+    if judge_rows_n <= 0:
+        if not (args.boundary_filtered and args.allow_empty_gate):
+            unmet.append("order_params_rows_in_scope >= 1")
+    if judge_missing_n > 0:
         unmet.append("all order_params in scope have 'schema_version'")
 
     if unmet:
         print("[NG] scope check failed")
         for c in unmet:
             print(f"- condition_not_met: {c}")
-        if scope_missing_n > 0:
+        if judge_missing_n > 0:
             print(
-                f"- missing_schema_version_rows_in_scope: {missing_schema_scope[:50]}"
-                + (" ..." if len(missing_schema_scope) > 50 else "")
+                f"- missing_schema_version_rows_in_scope: {missing_schema_judge[:50]}"
+                + (" ..." if len(missing_schema_judge) > 50 else "")
             )
         if args.scope == "tail" and all_missing_n > 0:
             print(

@@ -631,4 +631,131 @@ if callable(_cm__orig_get_ops_snapshot):
                     "confidence_cap": None,
                     "notes": ["adoption_failed"],
                 }
+
+        # --- T-43-4 Step2-B: adoption rationale ops card (add-only / no re-sort) ---
+        # 方針:
+        # - ops_cards_first に「採択理由カード」1枚を追加（既存カード削除なし）
+        # - adopted は adoption.adopted を優先。説明/スコア等は top_candidates から補完（追加のみ）
+        # - not_adopted は top_candidates[1:4] を “候補として見えていたが採択されなかった” として列挙（再ソートなし）
+        # - 文章生成はしない：存在するキーだけを key=value で列挙
+        try:
+            ops_cards = out.get("ops_cards_first")
+            if isinstance(ops_cards, list):
+                _already = False
+                for _c in ops_cards:
+                    if not isinstance(_c, dict):
+                        continue
+                    # 既に同等カードがあれば二重挿入しない（kind 優先、title も補助）
+                    if _c.get("kind") == "condition_mining_adoption_rationale":
+                        _already = True
+                        break
+                    if _c.get("title") == "採択理由（Condition Mining）":
+                        _already = True
+                        break
+                if not _already:
+                    tc = out.get("top_candidates")
+                    if not isinstance(tc, list):
+                        tc = []
+
+                    ad = out.get("adoption")
+                    adopted = None
+                    adopted_id = None
+                    if isinstance(ad, dict) and isinstance(ad.get("adopted"), dict):
+                        adopted = dict(ad.get("adopted") or {})
+                        adopted_id = adopted.get("id")
+
+                    # enrich adopted from top_candidates (same id) without re-sort
+                    if isinstance(adopted, dict) and isinstance(adopted_id, str) and adopted_id:
+                        for _t in tc:
+                            if isinstance(_t, dict) and _t.get("id") == adopted_id:
+                                for k in (
+                                    "id",
+                                    "description",
+                                    "tags",
+                                    "score",
+                                    "support",
+                                    "condition_confidence",
+                                    "degradation",
+                                ):
+                                    adopted.setdefault(k, _t.get(k))
+                                break
+
+                    # fallback: top_candidates[0]
+                    if not isinstance(adopted, dict):
+                        if tc and isinstance(tc[0], dict):
+                            adopted = dict(tc[0])
+
+                    def _fmt_kv(d: dict, keys: list[str]) -> list[str]:
+                        xs: list[str] = []
+                        for k in keys:
+                            if k in d:
+                                xs.append(f"{k}={d.get(k)}")
+                        return xs
+
+                    if isinstance(adopted, dict):
+                        # list only existing fields (no prose)
+                        keys_main = [
+                            "id",
+                            "description",
+                            "tags",
+                            "score",
+                            "support",
+                            "condition_confidence",
+                            "degradation",
+                            "weight",
+                            "note",
+                        ]
+                        bullets: list[str] = []
+                        bullets.append("adopted: " + " / ".join(_fmt_kv(adopted, keys_main)))
+
+                        not_adopted: list[dict] = []
+                        for _t in tc[1:4]:
+                            if not isinstance(_t, dict):
+                                continue
+                            not_adopted.append(
+                                {
+                                    "id": _t.get("id"),
+                                    "description": _t.get("description"),
+                                    "facts": _fmt_kv(
+                                        _t,
+                                        [
+                                            "score",
+                                            "support",
+                                            "condition_confidence",
+                                            "degradation",
+                                            "tags",
+                                        ],
+                                    ),
+                                }
+                            )
+                        for i, _r in enumerate(not_adopted, start=1):
+                            bullets.append(
+                                f"not_adopted[{i}]: "
+                                + " / ".join(
+                                    [
+                                        f"id={_r.get('id')}",
+                                        f"description={_r.get('description')}",
+                                        f"facts={_r.get('facts')}",
+                                    ]
+                                )
+                            )
+
+                        # ops_cards_first は既存互換（title/summary/bullets/evidence）を維持しつつ、kind を固定する
+                        card = {
+                            "kind": "condition_mining_adoption_rationale",
+                            "title": "採択理由（Condition Mining）",
+                            "summary": "adopted / not_adopted の観測値（key=value）を列挙",
+                            "bullets": list(bullets),
+                            "caveats": [],
+                            "evidence": {
+                                "adopted": {k: adopted.get(k) for k in keys_main if k in adopted},
+                                "not_adopted": not_adopted,
+                            },
+                        }
+                        # ops sees it first; keep existing cards intact
+                        ops_cards.insert(0, card)
+        except Exception:
+            # ops card は説明情報。ここで落ちないよう縮退。
+            pass
+        # --- end: adoption rationale ops card ---
         return out

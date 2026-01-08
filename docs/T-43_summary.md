@@ -1385,3 +1385,39 @@ schema_version gate：boundary-filtered（tail=200/500/1000）で missing=0 維�
 変更ファイル：app/services/condition_mining_facade.py（末尾ラッパの top_candidates 生成ブロック周辺）
 condition_mining_facade
 守った制約：既存API優先／新規関数最小／責務境界維持（GUI無改修）／ログ削除・加工なし／闇リファクタなし。
+
+
+T-43-4 Step2-B
+目的
+condition_mining_ops_snapshot に「採択理由が読める ops_card（1枚）」を追加し、snapshot単体で「採択/理由/却下」を運用者が読める状態にする
+schema_version gate を壊さず、混在ログでも運用できるよう boundary-filtered 判定を整備する
+実施内容（観測→最小パッチ→検証）
+採択理由カード（Step2-B 本筋）
+実装箇所：app/services/condition_mining_facade.py の 末尾ラッパ内のみ
+ops_cards_first.insert(0, card) で カード1枚だけ追加（既存カード削除なし）
+kind を condition_mining_adoption_rationale に固定
+adopted は adoption.adopted 優先、無ければ top_candidates[0] fallback
+理由は 推測の文章生成なし（存在フィールドのみ key=value 列挙）
+not_adopted は top_candidates[1:4] を 順序保持で列挙（再ソートなし）
+boundary-filtered gate（tools側の最小改善）
+tools/reobserve_order_params_schema.py
+既存：rows_scope は (line_no, ts, src, op) の タプル配列であることを観測
+--boundary-filtered を追加し、PASS/FAIL 判定用 rows_gate を src=="order_params" のみに限定
+--allow-empty-gate を追加し、--boundary-filtered かつ gate_rows==0 の場合に **任意でOK（WARN付きスキップ）**を可能に
+tools/reobserve_order_params_schema.ps1
+-BoundaryFiltered / -AllowEmptyGate を追加し、Pythonへ --boundary-filtered / --allow-empty-gate を渡す
+観測結果（成功条件）
+smoke / snapshot 観測
+ops_cards_first_n=1
+採択理由カード検出：kind=condition_mining_adoption_rationale
+evidence.adopted と evidence.not_adopted(1〜3件) を確認
+必須キー欠落なし：must_missing=[]
+gate 再実行（2パターン）
+-BoundaryFiltered：gate_rows=0 → NG（行数条件 unmet）
+-BoundaryFiltered -AllowEmptyGate：gate_rows=0 → OK + WARN skipped
+禁止事項順守
+推測での改変なし（観測ベースでパッチ点を確定）
+GUI改修なし（services + tools のみ）
+logs削除/加工なし
+闇リファクタなし（必要最小差分）
+top_candidates の順序保持（再ソートなし）
