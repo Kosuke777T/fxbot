@@ -1421,3 +1421,44 @@ GUI改修なし（services + tools のみ）
 logs削除/加工なし
 闇リファクタなし（必要最小差分）
 top_candidates の順序保持（再ソートなし）
+
+
+T-43-4 Step2-C
+目的
+boundary-filtered gate（src=="order_params"）で
+tail スコープの gate_rows が 常に 0 件になる根因を
+推測なし・観測のみで確定する。
+観測で確定した事実（コード × ログ）
+1. 実ログの事実
+対象ログ：logs/decisions_2026-01-07.jsonl
+tail 全行で：
+トップレベル order_params：0 件
+decision_detail.order_params：存在（複数行）
+src / source / kind：いずれも未設定
+そのため boundary-filtered（src=="order_params"）では
+構造上 gate_rows=0 になる。
+2. Writer 経路の事実（コード観測）
+app/services/execution_service.py
+order_params は 必ず decision_detail["order_params"] にのみ格納
+トップレベル record["order_params"] への代入経路は存在しない
+_write_decision_log（app/services/execution_stub.py）
+record をほぼそのまま JSONL に書き出すのみ
+src の付与なし
+トップレベル order_params の補完・ミラー処理なし
+3. 設計条件の確定
+設計コメント上の意図：
+発注直前相当で order_params を生成
+dry_run / real を問わず保存先は decision_detail
+トップレベル order_params を書く設計・実装は現行コードに存在しない
+結論（推測なしで説明可能な状態）
+正規境界 src=="order_params" が tail で 0 件になる理由は：
+コードが order_params を decision_detail にしか書かない
+ログ書き出し時に トップレベルへの昇格も src 付与も行っていない
+これは **バグではなく「未実装の正規境界」**という状態。
+判断材料の整理
+修正が必要か？
+→ 必要（正規境界を成立させたいなら）
+どこを直すべきか？
+→ services 層の ログ最終出口（writer 1 箇所）
+影響範囲は？
+→ 追加のみで互換維持可能（detail は残す）
