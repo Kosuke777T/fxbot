@@ -1368,3 +1368,20 @@ python -m py_compile app/services/condition_mining_candidates.py
 pwsh -File tools/condition_mining_smoke.ps1 -Symbol "USDJPY-"
 schema_version gate（boundary-filtered）再観測：tail=200/500/1000 で missing=0
 OK条件：smoke に TOP10行が id | description | ... で並び、最後に [OK]／ゲート missing=0
+
+T-43-4 Step1
+目的：ops_snapshot に top_candidates を 常設キーとして追加し、snapshot 単体で上位候補（top_k件）を観測できる状態を作る（順序維持・再ソートなし、追加のみ）。
+観測で確定した実装点：app/services/condition_mining_facade.py の末尾に ops_snapshot の末尾ラッパが存在し、ここで candidates 注入、candidates/condition_candidates ミラー、top_candidates 付与、adoption 付与を行っていた。
+condition_mining_facade
+最小パッチ（facade側・追加のみ）
+out.setdefault("top_k", ...) を追加し、top_candidates の根拠値を同梱（互換加法）。
+top_candidates を candidates[:top_k] に変更（候補の順序を尊重・再ソートなし）。
+top_candidates の要素を {id, description, score, support, condition_confidence, degradation, tags} に正規化（値は候補トップレベル優先、無ければ condition.* から安全に取得）。
+動作確認（観測）
+py_compile：condition_mining_facade.py OK、services全体OK（PowerShell互換の -c 方式で実行）。
+smoke：tools/condition_mining_smoke.ps1 OK（Step0 の TOP10表示/欠落検知も維持）。
+snapshot：logs/condition_mining_ops_snapshot.json に top_k と top_candidates が常設、top_candidates_n == top_k == 10、先頭要素に必要キーが揃うことを確認。
+schema_version gate：boundary-filtered（tail=200/500/1000）で missing=0 維持。
+変更ファイル：app/services/condition_mining_facade.py（末尾ラッパの top_candidates 生成ブロック周辺）
+condition_mining_facade
+守った制約：既存API優先／新規関数最小／責務境界維持（GUI無改修）／ログ削除・加工なし／闇リファクタなし。

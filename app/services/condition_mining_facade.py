@@ -539,6 +539,12 @@ if callable(_cm__orig_get_ops_snapshot):
                 cands = get_condition_candidates(symbol=(_sym or "USDJPY-"), top_n=10)
                 if isinstance(cands, dict):
                     out["candidates"] = cands.get("candidates", [])
+                    # T-43-4 Step1: top_candidates の件数根拠（top_k）を ops_snapshot に加法で同梱
+                    # - 既存キーは壊さない（setdefault）
+                    try:
+                        out.setdefault("top_k", int(cands.get("top_k") or cands.get("top_n") or 10))
+                    except Exception:
+                        out.setdefault("top_k", 10)
                 else:
                     out["candidates"] = cands
             except Exception:
@@ -561,18 +567,45 @@ if callable(_cm__orig_get_ops_snapshot):
             try:
                 cands = out.get("candidates") or []
                 if isinstance(cands, list) and cands and isinstance(cands[0], dict):
-                    top = cands[:5]
+                    # T-43-4 Step1: top_k 件を常設（順序は candidates の並びを尊重。再ソートしない）
+                    try:
+                        top_k = int(out.get("top_k") or 10)
+                    except Exception:
+                        top_k = 10
+                    if top_k < 0:
+                        top_k = 0
+                    top = cands[:top_k]
                     out["top_candidates"] = [
                         {
                             "id": (
-                                ((c.get("condition") or {}).get("id"))
-                                if isinstance(c.get("condition"), dict)
-                                else c.get("id")
+                                c.get("id")
+                                or (
+                                    ((c.get("condition") or {}).get("id"))
+                                    if isinstance(c.get("condition"), dict)
+                                    else None
+                                )
                             ),
-                            "score": c.get("score"),
+                            "description": (
+                                c.get("description")
+                                or (
+                                    ((c.get("condition") or {}).get("description"))
+                                    if isinstance(c.get("condition"), dict)
+                                    else ""
+                                )
+                            ),
+                            "score": (c.get("score") if c.get("score") is not None else c.get("weight")),
                             "support": c.get("support"),
                             "condition_confidence": c.get("condition_confidence"),
                             "degradation": c.get("degradation"),
+                            "tags": (
+                                c.get("tags")
+                                if isinstance(c.get("tags"), list)
+                                else (
+                                    ((c.get("condition") or {}).get("tags"))
+                                    if isinstance(c.get("condition"), dict)
+                                    else []
+                                )
+                            ),
                         }
                         for c in top
                     ]
