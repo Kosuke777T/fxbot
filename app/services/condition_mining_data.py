@@ -391,6 +391,16 @@ def get_decisions_window_summary(symbol: str, window: str | None = None, profile
         else:
             # no rows at all; keep legacy (n=0)
             pass
+    else:
+        # Default path (backward compatible):
+        # Use the full population ("all" bucket). Step2-E introduced bucket counters,
+        # so we must explicitly restore n/min_stats/min/max for the non-CM path.
+        n = int(_b_total["all"])
+        _ms_total = int(_b_total["all"])
+        _ms_pass = int(_b_pass["all"])
+        _ms_entry = int(_b_entry["all"])
+        min_dt = _b_min_dt["all"]
+        max_dt = _b_max_dt["all"]
 
     return {
         "symbol": symbol,

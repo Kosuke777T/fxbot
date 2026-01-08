@@ -1556,3 +1556,58 @@ smoke オーバーライド実行：正常完走（candidates=0はデータ側�
 Step2-F は成功
 根因は「window内 decision 0 件」で確定。
 次に打つ手は window設定を見直すか decision のデータ供給を増やすかの二択に整理できた。
+
+
+T-43-4  Step2-G~I
+目的
+
+T-43-4（条件探索AI）/ Step2-I
+
+recent/past=0 縮退の真因を解消し、window 集計を既定互換で正常化する。
+
+観測で確定した事実
+
+入力ログ・時刻キー・ISO/TZ パースは 問題なし。
+
+get_decisions_window_summary() 直呼びで
+
+cm_prefer_src_order_params=False（既定）だけ n=0 固定
+
+True では n が取れる、という 挙動差を観測。
+
+原因は Step2-E のバケット導入後、既定経路で “all bucket” の集計値を n/min_stats に反映していなかった点。
+
+実施した最小パッチ
+
+対象：app/services/condition_mining_data.py
+
+内容：cm_prefer_src_order_params=False の既定経路で
+“all bucket” の n / min_stats / min_dt / max_dt を復元（1点修正）。
+
+正規境界（order_params / src）や責務境界は 不変更。
+
+動作確認（すべてOK）
+
+py_compile / import：OK
+
+直呼び：
+
+prefer=False → recent.n / past.n が正常にカウント（n=0 固定解消）
+
+prefer=True → src境界優先は継続
+
+smoke：
+
+no_decisions_in_recent_and_past 消滅
+
+ops_snapshot 生成
+
+candidates=0 は データ条件由来（window 縮退ではない）
+
+結論
+
+window 集計の既定互換が回復。
+
+candidates=0 は **次の層（候補生成ロジック）**の問題で、window 起因ではない。
+
+
