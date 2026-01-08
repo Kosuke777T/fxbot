@@ -1462,3 +1462,32 @@ dry_run / real を問わず保存先は decision_detail
 → services 層の ログ最終出口（writer 1 箇所）
 影響範囲は？
 → 追加のみで互換維持可能（detail は残す）
+
+T-43-4  Step2-D
+目的
+正規境界 order_params を services 層の writer 最終出口で実装し、
+boundary-filtered（src=="order_params"）の gate を 観測で PASS させる。
+実装内容（最小差分）
+対象：app/services/execution_stub.py の _write_decision_log（最終出口）
+追加のみ・互換維持：
+decision_detail.order_params が 存在 かつ トップレベル未存在 の場合のみ
+→ order_params を deepcopy ミラー
+トップレベル order_params が dict の場合のみ
+→ src="order_params" を setdefault で付与（上書きなし）
+decision_detail は 破壊せず温存
+禁止事項の遵守
+推測修正なし（コード×ログで観測確定）
+闇リファクタなし（services の最終出口のみ）
+logs 非改変／責務境界厳守／新規関数乱立なし
+検証結果（観測）
+py_compile / import：OK
+実ログ（logs/decisions_2026-01-08.jsonl tail）：
+トップレベル order_params と src:"order_params" を確認
+decision_detail.order_params は残存
+reobserve_order_params_schema.ps1 -Scope tail -Tail 200 -BoundaryFiltered：
+gate_rows=1、missing_schema_version=0、PASS
+tail に src=order_params 行を確認
+成果
+設計未実装だった正規境界が確立
+boundary-filtered gate を 実ログで PASS
+既存構造・互換性を保ったまま 最小差分で達成

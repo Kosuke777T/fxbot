@@ -435,6 +435,24 @@ def _write_decision_log(symbol: str, record: Dict[str, Any]) -> None:
                 # 検証で例外が出た場合も warn-only なので警告のみ（運用で落とさない）
                 logger.warning(f"[decision_context_schema] validation failed (warn-only): {e}")
 
+        # --- Step2-D: normalize boundary for order_params (mirror + src) ---
+        # decision構造はログ互換のため、破壊・変換しない（追加のみ）。
+        # - mirror: decision_detail.order_params -> top-level order_params (only if missing)
+        # - tag: top-level order_params が存在する場合のみ src="order_params" を付与（上書きしない）
+        try:
+            detail = record.get("decision_detail")
+            if isinstance(detail, dict):
+                if "order_params" not in record and isinstance(detail.get("order_params"), dict):
+                    from copy import deepcopy
+
+                    record["order_params"] = deepcopy(detail["order_params"])
+                if isinstance(record.get("order_params"), dict):
+                    record.setdefault("src", "order_params")
+        except Exception:
+            # ログ出力の安全性を優先（loggerで落ちて売買/解析全停止を避ける）
+            pass
+        # --- end Step2-D ---
+
     try:
         # v5.2: フラットに logs_YYYY-MM-DD.jsonl
         logs_dir = Path("logs")
@@ -444,7 +462,7 @@ def _write_decision_log(symbol: str, record: Dict[str, Any]) -> None:
         path = logs_dir / f"decisions_{d}.jsonl"
 
         with path.open("a", encoding="utf-8") as f:
-            
+
             # --- ensure action field for condition mining (final exit) ---
             if isinstance(record, dict) and ("action" not in record or not record.get("action")):
                 dd = record.get("decision_detail")
