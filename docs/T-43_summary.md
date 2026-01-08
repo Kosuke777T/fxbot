@@ -1491,3 +1491,38 @@ tail に src=order_params 行を確認
 設計未実装だった正規境界が確立
 boundary-filtered gate を 実ログで PASS
 既存構造・互換性を保ったまま 最小差分で達成
+
+T-43-4 Step2-E
+1️⃣ 観測で確定した事実（推測なし）
+decisions の 正規境界は top-level order_params + src="order_params" で確定
+最新ログでは src="order_params" 行は 1/177（少数だが gate は成立）
+order_params は top/detail で 同一キー集合（5 keys）
+評価軸（filter_pass / decision / action / prob_*）は 十分に揃っている
+schema_version 欠落なし（reobserve PASS）
+2️⃣ Step2-E の設計判断（フェーズ確定）
+この段階で 評価ロジックを増やさない
+まず 入力品質の固定（src優先 + fallback警告） を最優先
+Condition Mining の入力を 正規境界に寄せつつ、後方互換は warnings で可視化する方針を採用
+3️⃣ 実装した最小パッチ（責務境界厳守）
+services
+condition_mining_data.get_decisions_window_summary()
+オプトインで src=="order_params" 優先
+fallback 発生時は 必ず warnings に記録
+condition_mining_candidates
+CM 側のみ 境界優先ON で decisions を取得
+tools（read-only）
+decisions_src_report.py / .ps1
+1コマンドで以下を観測可能に：
+src 分布
+order_params（top / detail / fallback）の件数
+schema_version 欠落率
+評価軸キーの存在数
+4️⃣ 動作確認結果（成功条件）
+✅ decisions_src_report：期待どおり出力
+✅ CM smoke：fallback/入力不足は warnings に明示
+✅ reobserve（BoundaryFiltered）：gate_rows=1 / missing=0 で PASS
+✅ py_compile / import：エラーなし
+5️⃣ Step2-E の最終結論
+Step2-E は成功・完了
+正規境界を前提にした Condition Mining 入力が安定
+以降の設計判断は 観測可能なログ構造に固定された

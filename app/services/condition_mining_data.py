@@ -127,6 +127,9 @@ def get_decisions_window_summary(symbol: str, window: str | None = None, profile
     max_scan: int = 200_000,
     include_decisions: bool = False,
     max_decisions: int = 5000,
+    # Step2-E: prefer canonical boundary rows for Condition Mining (opt-in; default off)
+    cm_prefer_src_order_params: bool = False,
+    cm_allow_fallback: bool = True,
 ) -> Dict[str, Any]:
     # --- Step2-20: resolve minutes (caller args > store(profile) > default) ---
     # Why: get_decisions_window_summary is called directly (enrich path) and must reflect mt5_accounts.json
@@ -205,6 +208,19 @@ def get_decisions_window_summary(symbol: str, window: str | None = None, profile
     scanned = 0
     sources: list[str] = []
     decisions: list[dict] = []  # optional (include_decisions)
+    # Step2-E: keep boundary candidates separately; decide at end (avoid “guessing” mid-scan)
+    decisions_src: list[dict] = []
+    decisions_top_nosrc: list[dict] = []
+    decisions_detail_only: list[dict] = []
+
+    # counters per bucket (so n/min_stats/data_range are consistent with the selected bucket)
+    _b_total = {"all": 0, "src": 0, "top_nosrc": 0, "detail": 0}
+    _b_pass = {"all": 0, "src": 0, "top_nosrc": 0, "detail": 0}
+    _b_entry = {"all": 0, "src": 0, "top_nosrc": 0, "detail": 0}
+    _b_min_dt: dict[str, Optional[datetime]] = {"all": None, "src": None, "top_nosrc": None, "detail": None}
+    _b_max_dt: dict[str, Optional[datetime]] = {"all": None, "src": None, "top_nosrc": None, "detail": None}
+
+    cm_boundary_warnings: list[str] = []
 
     for path in _iter_decision_paths():
         sources.append(str(path))
@@ -267,29 +283,53 @@ def get_decisions_window_summary(symbol: str, window: str | None = None, profile
             if dt_end and ts > dt_end:
                 continue
 
-            # CM_MIN_STATS_HIT_COUNTER: count stats on window-hit (independent of include_decisions)
-            #
-            # NOTE: ここで二重加算していたため n と min_stats.total がズレていた。
-            # window-hit 1件につき 1回だけ加算する。
-            _ms_total += 1
-            fp = j.get('filter_pass')
-            if fp is True:
-                _ms_pass += 1
-            # entry: prefer action, fallback to filter_pass
-            if str(j.get('action','')).upper() == 'ENTRY' or (fp is True):
-                _ms_entry += 1
+            # --- Step2-E: bucketize rows for canonical boundary selection (opt-in) ---
+            # canonical: src=="order_params" AND top-level order_params exists
+            _src = j.get("src")
+            _top_op = j.get("order_params")
+            _dd = j.get("decision_detail")
+            _detail_op = (_dd.get("order_params") if isinstance(_dd, dict) else None)
 
-            n += 1
+            is_top = isinstance(_top_op, dict) and bool(_top_op)
+            is_src = (isinstance(_src, str) and _src == "order_params" and is_top)
+            is_top_nosrc = (is_top and not is_src)
+            is_detail_only = (not is_top) and isinstance(_detail_op, dict) and bool(_detail_op)
+
+            def _bump(bucket: str) -> None:
+                fp = j.get("filter_pass")
+                _b_total[bucket] += 1
+                if fp is True:
+                    _b_pass[bucket] += 1
+                if str(j.get("action", "")).upper() == "ENTRY" or (fp is True):
+                    _b_entry[bucket] += 1
+                if _b_min_dt[bucket] is None or ts < _b_min_dt[bucket]:  # type: ignore[operator]
+                    _b_min_dt[bucket] = ts
+                if _b_max_dt[bucket] is None or ts > _b_max_dt[bucket]:  # type: ignore[operator]
+                    _b_max_dt[bucket] = ts
+
+            # always bump "all"
+            _bump("all")
+            if is_src:
+                _bump("src")
+            elif is_top_nosrc:
+                _bump("top_nosrc")
+            elif is_detail_only:
+                _bump("detail")
+
+            # collect decision rows (include_decisions only)
             if include_decisions and len(decisions) < int(max_decisions):
                 row = dict(j)
-                # summarize側が拾いやすいよう timestamp を補完（ISO UTC）
                 if not ((row.get("timestamp") or row.get("ts_jst")) or row.get("ts") or row.get("time")):
                     row["timestamp"] = ts.isoformat()
                 decisions.append(row)
+                if is_src and len(decisions_src) < int(max_decisions):
+                    decisions_src.append(row)
+                elif is_top_nosrc and len(decisions_top_nosrc) < int(max_decisions):
+                    decisions_top_nosrc.append(row)
+                elif is_detail_only and len(decisions_detail_only) < int(max_decisions):
+                    decisions_detail_only.append(row)
 
-
-
-
+            # keep legacy min/max for non-CM callers
             if min_dt is None or ts < min_dt:
                 min_dt = ts
             if max_dt is None or ts > max_dt:
@@ -297,6 +337,60 @@ def get_decisions_window_summary(symbol: str, window: str | None = None, profile
 
         if scanned > max_scan:
             break
+
+    # --- Step2-E: decide boundary for Condition Mining (opt-in) ---
+    if cm_prefer_src_order_params:
+        # prefer src bucket; if empty, fallback (top_nosrc -> detail_only -> all)
+        chosen = "src" if _b_total["src"] > 0 else None
+        if chosen is None and cm_allow_fallback and _b_total["top_nosrc"] > 0:
+            chosen = "top_nosrc"
+            cm_boundary_warnings.append("cm_boundary_fallback:top_order_params_without_src")
+        if chosen is None and cm_allow_fallback and _b_total["detail"] > 0:
+            chosen = "detail"
+            cm_boundary_warnings.append("cm_boundary_fallback:decision_detail_order_params")
+        if chosen is None and cm_allow_fallback and _b_total["all"] > 0:
+            chosen = "all"
+            cm_boundary_warnings.append("cm_boundary_fallback:no_order_params_rows_used_all")
+
+        if chosen == "src":
+            n = _b_total["src"]
+            _ms_total = _b_total["src"]
+            _ms_pass = _b_pass["src"]
+            _ms_entry = _b_entry["src"]
+            min_dt = _b_min_dt["src"]
+            max_dt = _b_max_dt["src"]
+            if include_decisions:
+                decisions = decisions_src
+        elif chosen == "top_nosrc":
+            n = _b_total["top_nosrc"]
+            _ms_total = _b_total["top_nosrc"]
+            _ms_pass = _b_pass["top_nosrc"]
+            _ms_entry = _b_entry["top_nosrc"]
+            min_dt = _b_min_dt["top_nosrc"]
+            max_dt = _b_max_dt["top_nosrc"]
+            if include_decisions:
+                decisions = decisions_top_nosrc
+        elif chosen == "detail":
+            n = _b_total["detail"]
+            _ms_total = _b_total["detail"]
+            _ms_pass = _b_pass["detail"]
+            _ms_entry = _b_entry["detail"]
+            min_dt = _b_min_dt["detail"]
+            max_dt = _b_max_dt["detail"]
+            if include_decisions:
+                decisions = decisions_detail_only
+        elif chosen == "all":
+            # keep legacy n/min_stats/min/max as-is (already computed)
+            n = _b_total["all"]
+            _ms_total = _b_total["all"]
+            _ms_pass = _b_pass["all"]
+            _ms_entry = _b_entry["all"]
+            min_dt = _b_min_dt["all"]
+            max_dt = _b_max_dt["all"]
+            # decisions already all
+        else:
+            # no rows at all; keep legacy (n=0)
+            pass
 
     return {
         "symbol": symbol,
@@ -312,6 +406,18 @@ def get_decisions_window_summary(symbol: str, window: str | None = None, profile
             "end": dt_end.isoformat() if dt_end else None,
         },
         **({"decisions": decisions} if include_decisions else {}),
+        **(
+            {
+                "cm_boundary": {
+                    "enabled": True,
+                    "prefer": "src==order_params",
+                    "counts": dict(_b_total),
+                },
+                "cm_boundary_warnings": cm_boundary_warnings,
+            }
+            if cm_prefer_src_order_params
+            else {}
+        ),
         'min_stats': {
             'total': int(_ms_total),
             'filter_pass_count': int(_ms_pass),
@@ -560,6 +666,15 @@ def get_decisions_recent_past_summary(symbol: str, profile: Optional[str] = None
                 "decisions_*.jsonl が存在しません（稼働停止/出力設定/権限/パスの可能性）"
             ],
         })
+
+    # Step2-E: propagate boundary fallback warnings (truth-only; do not hide)
+    try:
+        for _k in ("recent", "past"):
+            _w = (out.get(_k) or {}).get("cm_boundary_warnings")
+            if isinstance(_w, list) and _w:
+                warnings.extend([str(x) for x in _w])
+    except Exception:
+        pass
 
     out["warnings"] = warnings
     out["ops_cards"] = ops_cards
@@ -859,7 +974,12 @@ def get_condition_mining_ops_snapshot(symbol: str, profile=None, **kwargs):
         "evidence": {},
     }
 
-    summary = get_decisions_recent_past_summary(symbol, profile=profile, **kwargs)
+    # Step2-E: prefer canonical boundary (src==order_params) for condition mining input; fallback allowed with warnings.
+    _kw = dict(kwargs)
+    _kw.setdefault("cm_prefer_src_order_params", True)
+    _kw.setdefault("cm_allow_fallback", True)
+
+    summary = get_decisions_recent_past_summary(symbol, profile=profile, **_kw)
 
     # summary 側の縮退情報（warnings/ops_cards）を ops_snapshot に引き継ぐ
     if isinstance(summary, dict):
@@ -917,8 +1037,8 @@ def get_condition_mining_ops_snapshot(symbol: str, profile=None, **kwargs):
 
     # --- Step2-9: enrich evidence with window decisions (real data) ---
     try:
-        recent_ws = get_decisions_window_summary(symbol=symbol, window="recent", profile=profile, include_decisions=True, **kwargs)
-        past_ws   = get_decisions_window_summary(symbol=symbol, window="past",   profile=profile, include_decisions=True, **kwargs)
+        recent_ws = get_decisions_window_summary(symbol=symbol, window="recent", profile=profile, include_decisions=True, **_kw)
+        past_ws   = get_decisions_window_summary(symbol=symbol, window="past",   profile=profile, include_decisions=True, **_kw)
 
         recent_decisions = recent_ws.get("decisions") or []
         past_decisions   = past_ws.get("decisions") or []
@@ -969,7 +1089,7 @@ def get_condition_mining_ops_snapshot(symbol: str, profile=None, **kwargs):
         }
         # recent/past が 0 件の場合：ウィンドウ不一致の可能性が高いので、全期間（上限つき）で evidence を埋める
         if len(recent_decisions) == 0 and len(past_decisions) == 0:
-            all_ws = get_decisions_window_summary(symbol=symbol, window=None, profile=profile, include_decisions=True, **kwargs)
+            all_ws = get_decisions_window_summary(symbol=symbol, window=None, profile=profile, include_decisions=True, **_kw)
             all_decisions = all_ws.get("decisions") or []
             if all_decisions:
                 all_sum = _summarize_decisions_list(all_decisions)

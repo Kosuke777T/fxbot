@@ -141,14 +141,26 @@ def get_condition_candidates_core(
     if isinstance(summary, dict):
         data = summary
     else:
-        data = get_decisions_recent_past_summary(symbol, profile=profile, include_decisions=True)
+        data = get_decisions_recent_past_summary(
+            symbol,
+            profile=profile,
+            include_decisions=True,
+            cm_prefer_src_order_params=True,
+            cm_allow_fallback=True,
+        )
 
     recent = (data.get("recent") or {})
     past = (data.get("past") or {})
 
     # if passed-in summary doesn't contain decisions, refetch with include_decisions=True
     if (("decisions" not in recent) and ("decisions" not in past)):
-        data = get_decisions_recent_past_summary(symbol, profile=profile, include_decisions=True)
+        data = get_decisions_recent_past_summary(
+            symbol,
+            profile=profile,
+            include_decisions=True,
+            cm_prefer_src_order_params=True,
+            cm_allow_fallback=True,
+        )
         recent = (data.get("recent") or {})
         past = (data.get("past") or {})
 
