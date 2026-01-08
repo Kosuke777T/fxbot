@@ -59,6 +59,32 @@ else:
 print("evidence_kind=", out.get("evidence_kind"))
 print("evidence_src=", out.get("evidence_src"))
 
+# --- T-43-4: TOP10 candidates view (description must be present) ---
+cands = out.get("candidates") or out.get("condition_candidates") or []
+if not isinstance(cands, list):
+    cands = []
+top = cands[:10]
+print("top_candidates_n=", len(top))
+missing_desc = 0
+for i, c in enumerate(top, start=1):
+    if not isinstance(c, dict):
+        continue
+    cond = c.get("condition") if isinstance(c.get("condition"), dict) else {}
+    cid = c.get("id") or cond.get("id")
+    desc = c.get("description") or cond.get("description") or ""
+    if not isinstance(desc, str) or not desc.strip():
+        missing_desc += 1
+    support = c.get("support")
+    score = c.get("weight", c.get("score"))
+    conf = c.get("condition_confidence")
+    degr = c.get("degradation")
+    print(f"{i:02d}. {cid} | {desc} | support={support} score={score} conf={conf} degr={degr}")
+
+if top and missing_desc:
+    raise SystemExit(f"[NG] TOP10 description missing: {missing_desc}/{len(top)}")
+print("[OK] TOP10 description present")
+print("# --- /T-43-4 ---")
+
 out_path = r"$OutJson"
 with open(out_path, "w", encoding="utf-8") as f:
     json.dump(out, f, ensure_ascii=False, indent=2)
@@ -67,3 +93,4 @@ print("[OK] wrote:", out_path)
 "@
 
 & $pythonExe -X utf8 $py
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

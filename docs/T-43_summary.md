@@ -1343,3 +1343,28 @@ services 修正は不要。
 運用ゲートとしては boundary-filtered 判定が有効。
 境界以降の行数が増えたタイミングで、同じ観測を再実行すれば信頼度がさらに上がる。
 
+◆T-43-4　Step0
+■ 目的
+Condition Mining の候補を TOP10 + description付きで smoke 出力から観測できるようにし、欠落時は exit!=0 で検知可能にする（基盤は壊さない）
+■ 実施内容（事実）
+services：候補カードに トップレベル id/description/tags を setdefault/追加のみでミラー（既存の condition:{id,description,tags} は維持）
+tools：smoke に TOP10表示 と description 欠落検知（非0終了） を追加
+触ったレイヤ：services / tools（gui/core は未変更）
+新規関数：あり（最小：id から description を作る補助のため）
+■ 変更ファイル
+app/services/condition_mining_candidates.py（候補dict生成点：cards.append({...}) 付近）
+tools/condition_mining_smoke.ps1（snapshot生成後に TOP10 表示/欠落検知を追記）
+■ 守った制約
+最小差分（追加のみ、既存キー/構造は維持）
+既存API優先（get_condition_mining_ops_snapshot() の経路を利用）
+責務境界（gui/services/core）遵守（GUI改修なし）
+logs の削除・加工なし
+PowerShell 7 / Here-String 前提
+■ 挙動の変化
+変わった点：smoke 出力だけで TOP10が description 付きで観測でき、欠落があれば即 [NG] で終了
+変わっていない点（重要）：condition_mining_ops_snapshot の必須キー互換・候補の既存ネスト構造・decisions の schema_version 付与経路
+■ 確認方法
+python -m py_compile app/services/condition_mining_candidates.py
+pwsh -File tools/condition_mining_smoke.ps1 -Symbol "USDJPY-"
+schema_version gate（boundary-filtered）再観測：tail=200/500/1000 で missing=0
+OK条件：smoke に TOP10行が id | description | ... で並び、最後に [OK]／ゲート missing=0

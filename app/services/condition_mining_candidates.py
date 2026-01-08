@@ -290,6 +290,12 @@ def get_condition_candidates_core(
 
         cards.append(
             {
+                # T-43-4: TOP10 観測（PS7/CI）用のフラットキー（追加のみ）
+                # - 既存の "condition": {...} は維持（互換）
+                # - GUI/ops から見やすいよう、id/description/tags をトップレベルにも持たせる
+                "id": c.get("id"),
+                "description": c.get("description"),
+                "tags": c.get("tags") or [],
                 "condition": {
                     "id": c.get("id"),
                     "description": c.get("description"),
