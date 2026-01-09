@@ -1813,3 +1813,52 @@ facade直呼びで candidates_len=6 / warnings=[] / window反映を観測
 env切替で fallback.min_src_rows が 10→5 に変化することを観測
 
 git diff/status が空であることを確認
+
+T-43-4 Step3-A~C
+先に確定していた前提
+
+Step2-P（仕様固定・docs化）完了
+
+Step2-Q（回帰チェック：観測のみ）完了（src優先＋fallback、CM_MIN_SRC_ROWS反映を観測で確定）
+
+このスレッド開始時点で実装変更なし（read-only）
+
+実施した作業（順番）
+
+Step3-A（read-only）
+
+snapshot JSON を検証器でチェック → exit_code=10（NG）
+
+失敗理由：support の型が int期待に対して dict実データ（観測）
+
+Step3-B（read-only）
+
+docs / services / snapshot を突合（推測なし）
+
+docs は support 型を明示せず
+
+services は support を dict（recent/past）として生成する意図がコメント含めて確定
+
+snapshot も dict 形式で一致
+
+Step3-C（read-only）
+
+検証器を support=int|dict（dictはrecent/past int必須） に更新して再実行
+
+exit_code=0（PASS） を観測で確定
+
+結論（観測で確定したこと）
+
+現行仕様（docsの型未明示＋services実装意図＋snapshot実データ）において、support は {'recent': int, 'past': int} の dict 形式が正
+
+候補品質チェック（必須キー/型、top_candidates subset）を snapshot ベースで read-only にPASS判定できる状態になった
+
+今回は services層の変更は不要（闇リファクタ/暗黙仕様変更なし）
+
+成功条件への到達
+
+candidates/top_candidates の Done条件達成可否を 観測でOK/NG判定可能 ✅
+
+不足時のみ最小パッチ、という方針に対し今回は 不足なし（PASS）で実装変更ゼロ ✅
+
+再現可能な確認方法（Step3-Cブロック）を確立 ✅
