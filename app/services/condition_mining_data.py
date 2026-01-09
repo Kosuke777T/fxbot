@@ -4,6 +4,7 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 import json
 import csv
+import os
 from typing import Any, Dict, Iterable, Optional
 
 from app.services import decision_log
@@ -221,6 +222,7 @@ def get_decisions_window_summary(symbol: str, window: str | None = None, profile
     _b_max_dt: dict[str, Optional[datetime]] = {"all": None, "src": None, "top_nosrc": None, "detail": None}
 
     cm_boundary_warnings: list[str] = []
+    cm_boundary_fallback: dict[str, Any] | None = None
 
     for path in _iter_decision_paths():
         sources.append(str(path))
@@ -353,6 +355,43 @@ def get_decisions_window_summary(symbol: str, window: str | None = None, profile
             cm_boundary_warnings.append("cm_boundary_fallback:no_order_params_rows_used_all")
 
         if chosen == "src":
+            # Step2-L: src insufficiency fallback (additive; default behavior preserved when src is sufficient)
+            # - If src exists but is too small, widen input deterministically:
+            #   src + detail_only -> src + top_nosrc -> all (last resort)
+            # - Threshold is controlled by env var to avoid changing public APIs.
+            #   Default: 20 (aligns with min_support default in candidates).
+            try:
+                min_src_rows = int(os.environ.get("CM_MIN_SRC_ROWS", "20") or "20")
+            except Exception:
+                min_src_rows = 20
+
+            if cm_allow_fallback and 0 < int(_b_total["src"]) < int(min_src_rows):
+                if _b_total["detail"] > 0:
+                    chosen = "src+detail"
+                    cm_boundary_warnings.append("cm_boundary_fallback:src_insufficient_used_detail")
+                    cm_boundary_fallback = {
+                        "min_src_rows": int(min_src_rows),
+                        "src_rows": int(_b_total["src"]),
+                        "used": "detail",
+                    }
+                elif _b_total["top_nosrc"] > 0:
+                    chosen = "src+top_nosrc"
+                    cm_boundary_warnings.append("cm_boundary_fallback:src_insufficient_used_top_nosrc")
+                    cm_boundary_fallback = {
+                        "min_src_rows": int(min_src_rows),
+                        "src_rows": int(_b_total["src"]),
+                        "used": "top_nosrc",
+                    }
+                else:
+                    chosen = "all"
+                    cm_boundary_warnings.append("cm_boundary_fallback:src_insufficient_used_all")
+                    cm_boundary_fallback = {
+                        "min_src_rows": int(min_src_rows),
+                        "src_rows": int(_b_total["src"]),
+                        "used": "all",
+                    }
+
+        if chosen == "src":
             n = _b_total["src"]
             _ms_total = _b_total["src"]
             _ms_pass = _b_pass["src"]
@@ -361,6 +400,26 @@ def get_decisions_window_summary(symbol: str, window: str | None = None, profile
             max_dt = _b_max_dt["src"]
             if include_decisions:
                 decisions = decisions_src
+        elif chosen == "src+detail":
+            n = int(_b_total["src"]) + int(_b_total["detail"])
+            _ms_total = int(_b_total["src"]) + int(_b_total["detail"])
+            _ms_pass = int(_b_pass["src"]) + int(_b_pass["detail"])
+            _ms_entry = int(_b_entry["src"]) + int(_b_entry["detail"])
+            # union min/max (None-safe)
+            min_dt = _b_min_dt["src"] if _b_min_dt["detail"] is None else (_b_min_dt["detail"] if _b_min_dt["src"] is None else min(_b_min_dt["src"], _b_min_dt["detail"]))
+            max_dt = _b_max_dt["src"] if _b_max_dt["detail"] is None else (_b_max_dt["detail"] if _b_max_dt["src"] is None else max(_b_max_dt["src"], _b_max_dt["detail"]))
+            if include_decisions:
+                # buckets are disjoint by construction
+                decisions = list(decisions_src) + list(decisions_detail_only)
+        elif chosen == "src+top_nosrc":
+            n = int(_b_total["src"]) + int(_b_total["top_nosrc"])
+            _ms_total = int(_b_total["src"]) + int(_b_total["top_nosrc"])
+            _ms_pass = int(_b_pass["src"]) + int(_b_pass["top_nosrc"])
+            _ms_entry = int(_b_entry["src"]) + int(_b_entry["top_nosrc"])
+            min_dt = _b_min_dt["src"] if _b_min_dt["top_nosrc"] is None else (_b_min_dt["top_nosrc"] if _b_min_dt["src"] is None else min(_b_min_dt["src"], _b_min_dt["top_nosrc"]))
+            max_dt = _b_max_dt["src"] if _b_max_dt["top_nosrc"] is None else (_b_max_dt["top_nosrc"] if _b_max_dt["src"] is None else max(_b_max_dt["src"], _b_max_dt["top_nosrc"]))
+            if include_decisions:
+                decisions = list(decisions_src) + list(decisions_top_nosrc)
         elif chosen == "top_nosrc":
             n = _b_total["top_nosrc"]
             _ms_total = _b_total["top_nosrc"]
@@ -422,6 +481,7 @@ def get_decisions_window_summary(symbol: str, window: str | None = None, profile
                     "enabled": True,
                     "prefer": "src==order_params",
                     "counts": dict(_b_total),
+                    **({"fallback": cm_boundary_fallback} if isinstance(cm_boundary_fallback, dict) else {}),
                 },
                 "cm_boundary_warnings": cm_boundary_warnings,
             }

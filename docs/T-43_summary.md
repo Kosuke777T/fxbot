@@ -1611,3 +1611,85 @@ window 集計の既定互換が回復。
 candidates=0 は **次の層（候補生成ロジック）**の問題で、window 起因ではない。
 
 
+T-43-4 Step2-J~O
+対象
+
+T-43-4（条件探索AI）
+
+Step2-J → Step2-O
+
+テーマ：src 優先入力が少ない場合でも、観測可能・安全に candidates を復帰させる
+
+結論（最重要）
+
+candidates=0 の根因は window でもフィルタでもなく、src 行が 1 件しか無い状態で min_support=20 の guard に落ちていたこと
+
+src 不足時に段階的 fallback（detail → top_nosrc → all）を行う設計を services 層に最小差分で実装
+
+fallback は warnings と cm_boundary.fallback で必ず観測可能
+
+既定経路（cm_prefer_src_order_params=False）には一切影響しないことを観測で確定
+
+やったこと（観測 → 実装 → 観測の因果鎖）
+
+Step2-J / K
+
+rows_used_n=1 の原因を src優先境界で src 行が 1 件しか無いこととして観測で一意確定
+
+Step2-L
+
+get_decisions_window_summary() の
+chosen=="src" 分岐 1点のみに最小差分で fallback ロジックを追加
+
+fallback 順序：
+
+src + detail → src + top_nosrc → all
+
+環境変数：
+
+CM_MIN_SRC_ROWS（既定 20）
+
+Step2-M
+
+candidates 側でも fallback 入力が正しく使われていることを観測で確認
+
+rows_used_n=14 / candidates_n=6 に復帰
+
+Step2-N
+
+fallback が 黙らず・壊れず・既定経路に影響しないことを観測柵として確定
+
+Step2-O
+
+CM_MIN_SRC_ROWS=10 / 5 に変更すると
+cm_boundary.fallback.min_src_rows が正しく反映されることを観測で確定
+
+used が固定なのはログ分布構造由来で、仕様どおりと説明可能
+
+現在の仕様（確定）
+
+cm_prefer_src_order_params=True の場合：
+
+src が十分 → srcのみ
+
+src 不足 → warnings を出しつつ段階 fallback
+
+fallback 状態は必ず以下で観測可能：
+
+cm_boundary_warnings
+
+cm_boundary.fallback = {min_src_rows, src_rows, used}
+
+既定経路（src非優先）は env・fallbackの影響を受けない
+
+成功条件の達成状況
+
+ 推測なし、すべて観測で確定
+
+ services 層のみ・最小差分
+
+ logs 非破壊
+
+ warnings による説明責任確保
+
+ candidates 復帰（top_candidates_n>0）
