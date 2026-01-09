@@ -2033,3 +2033,78 @@ top_candidates は 表示用に投影されるが、candidates と同一スキ�
 stable / reasons / recent_delta は ops_snapshot の必須契約キー
 
 T-43-4 の出力は T-43-5（adoption / next_action 接続）に安全に渡せる状態
+
+T-43-5
+条件探索AI（Condition Mining）の結果を next_action に「根拠（evidence）」として接続
+
+売買判断ロジックは一切変更しない
+
+推測ではなく 観測で確定する
+
+確定事項（観測ベース）
+1. 接続点（唯一・安全）
+
+OpsHistoryService.summarize_ops_history()
+
+last_view["next_action"] を 確定する直後が唯一の choke point
+
+next_action の生成ロジック（kind / reason / priority）には非干渉
+
+2. 接続方法（追加のみ）
+
+接続先：
+
+next_action["params"]["evidence"]["condition_mining"]
+
+
+付与内容（投影のみ・再計算なし）：
+
+adoption
+
+top_candidates
+
+window（存在する場合のみ）
+
+実装ルール：
+
+setdefault のみ使用（上書き禁止）
+
+try/except で例外は握る
+
+失敗時でも next_action を壊さない
+
+3. 取得元（services内・最短経路）
+
+get_condition_mining_ops_snapshot(symbol)
+
+symbol は summarize_ops_history() 内で解決可能であることを観測で確認
+
+動作確認（すべて観測でOK）
+
+python -m py_compile app/services → exit_code=0
+
+one-shot 観測：
+
+next_action.kind / reason / priority：既存値のまま
+
+has_cm_evidence = True
+
+adoption.status = none
+
+top_candidates.len = 6
+
+has_window = True
+
+変更範囲
+
+app/services/ops_history_service.py のみ
+
+services 層限定・最小差分
+
+結論
+
+T-43-5 完了
+
+next_action に対する evidence 接続の設計・実装・検証がすべて観測で確定
+
+後続フェーズ（例：evidence を使った判断高度化）に安全に進める状態

@@ -1071,6 +1071,49 @@ class OpsHistoryService:
                 except Exception as e:
                     logger.warning(f"Failed to calculate next_action for last_view: {e}")
                     last_view["next_action"] = {"kind": "NONE", "reason": "", "params": {}, "priority": 0}
+
+        # --- T-43-5: attach condition mining evidence to next_action (add-only / no behavior change) ---
+        # NOTE:
+        # - Do NOT change next_action.kind/reason/priority decision logic.
+        # - Add evidence only when missing; never overwrite existing keys.
+        try:
+            if last_view and isinstance(last_view.get("next_action"), dict):
+                na = last_view.get("next_action") or {}
+                params = na.setdefault("params", {}) if isinstance(na, dict) else {}
+                if isinstance(params, dict):
+                    ev = params.setdefault("evidence", {})
+                    if isinstance(ev, dict) and "condition_mining" not in ev:
+                        try:
+                            from app.services.condition_mining_facade import get_condition_mining_ops_snapshot
+
+                            _sym = (
+                                symbol
+                                or last_view.get("symbol")
+                                or (
+                                    (last_view.get("raw") or {}).get("symbol")
+                                    if isinstance(last_view.get("raw"), dict)
+                                    else None
+                                )
+                                or "USDJPY-"
+                            )
+                            cm = get_condition_mining_ops_snapshot(symbol=_sym)
+                            if isinstance(cm, dict):
+                                payload = {
+                                    "adoption": cm.get("adoption"),
+                                    "top_candidates": cm.get("top_candidates"),
+                                }
+                                try:
+                                    _w = (cm.get("evidence") or {}).get("window")
+                                    if isinstance(_w, dict):
+                                        payload["window"] = _w
+                                except Exception:
+                                    pass
+                                ev["condition_mining"] = payload
+                        except Exception:
+                            pass
+        except Exception:
+            pass
+        # --- /T-43-5 ---
         t_hint_end = time.perf_counter()
         hint_sec = t_hint_end - t_hint_start
 
