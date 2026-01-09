@@ -867,7 +867,12 @@ class OpsHistoryService:
         key = f"{symbol}|{started_at}|{profiles_str}|{step}|{ok}"
         return hashlib.sha1(key.encode("utf-8")).hexdigest()[:16]
 
-    def summarize_ops_history(self, symbol: Optional[str] = None, cache_sec: int = 5) -> dict:
+    def summarize_ops_history(
+        self,
+        symbol: Optional[str] = None,
+        cache_sec: int = 5,
+        include_condition_mining: bool = True,
+    ) -> dict:
         """
         履歴を集計する。
 
@@ -1074,10 +1079,13 @@ class OpsHistoryService:
 
         # --- T-43-5: attach condition mining evidence to next_action (add-only / no behavior change) ---
         # NOTE:
+        # - This may be heavy (condition mining snapshot scans decision logs).
+        # - Gate it to avoid blocking GUI startup when include_condition_mining=False.
+        # NOTE:
         # - Do NOT change next_action.kind/reason/priority decision logic.
         # - Add evidence only when missing; never overwrite existing keys.
         try:
-            if last_view and isinstance(last_view.get("next_action"), dict):
+            if include_condition_mining and last_view and isinstance(last_view.get("next_action"), dict):
                 na = last_view.get("next_action") or {}
                 params = na.setdefault("params", {}) if isinstance(na, dict) else {}
                 if isinstance(params, dict):
@@ -1198,7 +1206,11 @@ def get_ops_history_service() -> OpsHistoryService:
 
 
 # トップレベル関数ラッパー（互換性のため）
-def summarize_ops_history(symbol: Optional[str] = None, cache_sec: int = 5) -> dict:
+def summarize_ops_history(
+    symbol: Optional[str] = None,
+    cache_sec: int = 5,
+    include_condition_mining: bool = True,
+) -> dict:
     """
     履歴を集計する（トップレベル関数ラッパー）。
 
@@ -1209,7 +1221,11 @@ def summarize_ops_history(symbol: Optional[str] = None, cache_sec: int = 5) -> d
     Returns:
         集計結果（OpsHistoryService.summarize_ops_history と同じ）
     """
-    return get_ops_history_service().summarize_ops_history(symbol=symbol, cache_sec=cache_sec)
+    return get_ops_history_service().summarize_ops_history(
+        symbol=symbol,
+        cache_sec=cache_sec,
+        include_condition_mining=include_condition_mining,
+    )
 
 
 def load_ops_history(symbol: Optional[str] = None, limit: int = 200) -> list[dict]:

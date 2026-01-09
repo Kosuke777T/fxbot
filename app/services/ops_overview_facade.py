@@ -35,7 +35,7 @@ def _load_latest_retrain_report() -> Optional[Dict[str, Any]]:
         return None
 
 
-def get_ops_overview() -> Dict[str, Any]:
+def get_ops_overview(include_condition_mining: bool = True) -> Dict[str, Any]:
     """
     Ops / Scheduler / AI の「運用意思決定」を GUI が1回で描画できるようにまとめて返す薄いラッパ。
     - 既存APIの結果を寄せ集めるだけ（判断ロジックは各service側に置く）
@@ -56,7 +56,7 @@ def get_ops_overview() -> Dict[str, Any]:
 
     # 1) next_action（PROMOTE/HOLD/BLOCKED 等）
     try:
-        summary = summarize_ops_history(cache_sec=2)
+        summary = summarize_ops_history(cache_sec=2, include_condition_mining=include_condition_mining)
         last_view = summary.get("last_view") or {}
         next_action = last_view.get("next_action")
         if next_action:

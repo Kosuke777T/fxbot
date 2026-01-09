@@ -7,7 +7,7 @@ reasonは説明表示にのみ使用し、UIの分岐には使わない。
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Optional
 
 
 @dataclass
@@ -155,4 +155,106 @@ def get_action_priority(next_action: Optional[dict]) -> int:
     # フォールバック：UI仕様から取得（後方互換、通常は使われない）
     spec = ui_for_next_action(next_action)
     return spec.priority if spec.visible else 0
+
+
+# ==============================
+# T-43-5: Condition Mining evidence (display-only)
+# ==============================
+def extract_condition_mining_evidence(next_action: Optional[dict]) -> dict:
+    """
+    Display-only helper:
+    Extract condition mining evidence attached at:
+      next_action.params.evidence.condition_mining
+
+    This must NEVER affect next_action decision logic; GUI uses it only for rendering.
+    """
+    try:
+        if not isinstance(next_action, dict):
+            return {}
+        params = next_action.get("params") or {}
+        if not isinstance(params, dict):
+            return {}
+        ev = params.get("evidence") or {}
+        if not isinstance(ev, dict):
+            return {}
+        cm = ev.get("condition_mining") or {}
+        return cm if isinstance(cm, dict) else {}
+    except Exception:
+        return {}
+
+
+def _fmt_support(sup: Any) -> str:
+    if isinstance(sup, dict):
+        r = sup.get("recent")
+        p = sup.get("past")
+        if isinstance(r, int) and isinstance(p, int):
+            return f"support r={r} p={p}"
+        return "support (dict)"
+    if isinstance(sup, int):
+        return f"support={sup}"
+    return "support (n/a)"
+
+
+def format_condition_mining_evidence_text(next_action: Optional[dict], top_n: int = 3) -> dict:
+    """
+    Display-only formatter for Ops View.
+
+    Returns:
+      {
+        "has": bool,
+        "summary": str,
+        "top_lines": list[str],
+        "warnings": list[str],
+      }
+    """
+    cm = extract_condition_mining_evidence(next_action)
+    if not cm:
+        return {"has": False, "summary": "CM: (no evidence)", "top_lines": [], "warnings": []}
+
+    adoption = cm.get("adoption") if isinstance(cm.get("adoption"), dict) else {}
+    status = adoption.get("status") if isinstance(adoption, dict) else None
+    notes = adoption.get("notes") if isinstance(adoption, dict) else None
+    warnings: list[str] = [str(x) for x in notes] if isinstance(notes, list) else []
+
+    top_candidates = cm.get("top_candidates")
+    if not isinstance(top_candidates, list):
+        top_candidates = []
+
+    # pick representative candidate for 3 flags: prefer adopted.id, else top[0]
+    rep = None
+    try:
+        if isinstance(adoption, dict) and isinstance(adoption.get("adopted"), dict):
+            aid = adoption["adopted"].get("id")
+            if isinstance(aid, str) and aid:
+                for c in top_candidates:
+                    if isinstance(c, dict) and c.get("id") == aid:
+                        rep = c
+                        break
+    except Exception:
+        rep = None
+    if rep is None and top_candidates and isinstance(top_candidates[0], dict):
+        rep = top_candidates[0]
+
+    degr = rep.get("degradation") if isinstance(rep, dict) else None
+    conf = rep.get("condition_confidence") if isinstance(rep, dict) else None
+    sup = rep.get("support") if isinstance(rep, dict) else None
+    sup_s = _fmt_support(sup)
+
+    summary = f"CM: adoption={status or 'none'} | degr={degr} | conf={conf} | {sup_s}"
+
+    lines: list[str] = []
+    n = int(top_n) if isinstance(top_n, int) else 3
+    if n < 0:
+        n = 0
+    for i, c in enumerate(top_candidates[:n], start=1):
+        if not isinstance(c, dict):
+            continue
+        cid = c.get("id")
+        desc = c.get("description")
+        cconf = c.get("condition_confidence")
+        cdegr = c.get("degradation")
+        csup = _fmt_support(c.get("support"))
+        lines.append(f"{i}) {cid} | {desc} | conf={cconf} degr={cdegr} | {csup}")
+
+    return {"has": True, "summary": summary, "top_lines": lines, "warnings": warnings}
 

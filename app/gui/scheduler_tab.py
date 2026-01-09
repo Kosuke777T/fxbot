@@ -46,6 +46,7 @@ from app.services.scheduler_facade import (
     get_scheduler_daemon_status,
     open_scheduler_daemon_log,
 )
+from app.gui.ops_ui_rules import format_condition_mining_evidence_text
 
 _JOB_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
@@ -317,8 +318,12 @@ class SchedulerTab(QWidget):
         self.cm_profile.currentTextChanged.connect(self._cm_load_settings)
         self.cm_save_btn.clicked.connect(self._cm_save_settings)
 
+        # T-43-6: snapshot is heavy; load lazily when CM tab is selected
+        self._cm_snapshot_loaded = False
+        self.tabs.currentChanged.connect(self._on_tab_changed)
+
         # 初期ロード
-        self._cm_load_settings(self.cm_profile.currentText())
+        self._cm_load_settings(self.cm_profile.currentText(), refresh_snapshot=False)
         # ---- /Condition Mining Settings UI ----
 
         self.tabs.addTab(self.tab_logs, "Logs")
@@ -476,6 +481,16 @@ class SchedulerTab(QWidget):
         self.lbl_warnings.setWordWrap(True)
         # ---- /ensure next_action / warnings ----
 
+        # ---- T-43-5: condition_mining evidence for next_action (display-only) ----
+        self.lbl_cm_next_action = QLabel("-", self)
+        self.lbl_cm_next_action.setWordWrap(True)
+        self.lbl_cm_next_action.setStyleSheet("color:#cfe;")  # subtle highlight (display only)
+
+        self.lbl_cm_next_action_warn = QLabel("", self)
+        self.lbl_cm_next_action_warn.setWordWrap(True)
+        self.lbl_cm_next_action_warn.setVisible(False)
+        # ---- /T-43-5 ----
+
         self.lbl_cm_recent = QLabel("-", self)
         self.lbl_cm_recent_cand = QLabel("-", self)
         self.lbl_cm_past = QLabel("-", self)
@@ -488,7 +503,8 @@ class SchedulerTab(QWidget):
 
         # Status card: next_action + warnings + 次の一手（表示のみ）
         try:
-            ops_snapshot = get_ops_overview() or {}
+            # T-43-6: do not run heavy condition mining snapshot during GUI startup
+            ops_snapshot = get_ops_overview(include_condition_mining=False) or {}
         except Exception:
             ops_snapshot = {}
         status_icon_sp = _status_icon_sp_from_next_action(ops_snapshot.get('next_action'))
@@ -496,6 +512,8 @@ class SchedulerTab(QWidget):
             icon_sp=status_icon_sp)
         v_status.addWidget(self.lbl_next_action)
         v_status.addWidget(self.lbl_warnings)
+        v_status.addWidget(self.lbl_cm_next_action)
+        v_status.addWidget(self.lbl_cm_next_action_warn)
 
         na_row = QHBoxLayout()
         na_row.setSpacing(8)
@@ -712,8 +730,23 @@ class SchedulerTab(QWidget):
     # ----------------------------
     # Condition Mining tab helpers
     # ----------------------------
-    def _cm_load_settings(self, profile: str) -> None:
-        """profile別 window 設定を読み込み、SpinBoxへ反映し、snapshotも更新する。"""
+    def _is_cm_tab_selected(self) -> bool:
+        try:
+            return bool(self.tabs.currentWidget() == self.tab_condition_mining)
+        except Exception:
+            return False
+
+    def _on_tab_changed(self, idx: int) -> None:
+        # Display-only: refresh CM snapshot only when CM tab is selected, and only once per selection.
+        try:
+            if self._is_cm_tab_selected() and (not bool(getattr(self, "_cm_snapshot_loaded", False))):
+                self._cm_refresh_snapshot()
+                self._cm_snapshot_loaded = True
+        except Exception:
+            pass
+
+    def _cm_load_settings(self, profile: str, refresh_snapshot: bool = True) -> None:
+        """profile別 window 設定を読み込み、SpinBoxへ反映する。snapshot更新は必要時のみ。"""
         try:
             win = get_condition_mining_window_settings(profile=profile) or {}
         except Exception:
@@ -730,7 +763,16 @@ class SchedulerTab(QWidget):
         if ov is not None:
             self.cm_past_offset.setValue(int(ov))
 
-        self._cm_refresh_snapshot()
+        # Heavy: snapshot is fetched only when explicitly requested AND CM tab is selected.
+        try:
+            if not self._is_cm_tab_selected():
+                # settings changed but snapshot not refreshed -> mark stale
+                self._cm_snapshot_loaded = False
+            elif bool(refresh_snapshot):
+                self._cm_refresh_snapshot()
+                self._cm_snapshot_loaded = True
+        except Exception:
+            pass
 
     def _cm_save_settings(self) -> None:
         """保存→snapshot再取得→即反映（GUI再起動なし）。"""
@@ -746,7 +788,15 @@ class SchedulerTab(QWidget):
             self.cm_snapshot.setPlainText(f"[save_failed] {e}")
             return
 
-        self._cm_refresh_snapshot()
+        # Refresh snapshot only when CM tab is visible; otherwise keep it lazy.
+        try:
+            if self._is_cm_tab_selected():
+                self._cm_refresh_snapshot()
+                self._cm_snapshot_loaded = True
+            else:
+                self._cm_snapshot_loaded = False
+        except Exception:
+            pass
 
     def _cm_refresh_snapshot(self) -> None:
         """現在の設定で snapshot を取得し、JSONとして表示。"""
@@ -1209,69 +1259,96 @@ class SchedulerTab(QWidget):
     def _refresh_ops_overview(self) -> None:
         """Ops Overviewパネルを更新（next_action/wfo_stability/latest_retrain）"""
         try:
-            o = get_ops_overview()
-            # --- T-42-3-18 Step 4-3: condition_mining min_stats ---
+            # T-43-6: avoid heavy condition mining snapshot on startup; enable only on CM tab
+            is_cm_tab = False
             try:
-                symbol = "USDJPY-"  # 仕様: symbol は USDJPY-
-                win = get_condition_mining_window_settings()
-                out = get_condition_mining_ops_snapshot(
-                    symbol=symbol,
-                    **win,
+                is_cm_tab = bool(
+                    getattr(self, "tabs", None) is not None
+                    and getattr(self, "tab_condition_mining", None) is not None
+                    and self.tabs.currentWidget() == self.tab_condition_mining
                 )
-                # --- T-43-3 Step2-10: show all-fallback & window mismatch in UI (labels) ---
-                evw = ((out.get("evidence") or {}).get("window") or {})
-                cm_mode = evw.get("mode")  # "recent_past" / "all_fallback"
-                cm_warn_mismatch = "window_range_mismatch" in (out.get("warnings") or [])
-
-                r = (out.get("recent") or {}).get("min_stats") or {}
-                p2 = (out.get("past") or {}).get("min_stats") or {}
-
-                def _fmt(ms: dict) -> str:
-                    total = ms.get("total", 0)
-                    fpc = ms.get("filter_pass_count", 0)
-                    fpr = float(ms.get("filter_pass_rate", 0.0))
-                    ec = ms.get("entry_count", 0)
-                    er = float(ms.get("entry_rate", 0.0))
-                    return f"total={total}  filter_pass={fpc} ({fpr:.1%})  entry={ec} ({er:.1%})"
-
-                txt_r = _fmt(r) if r else "-"
-                tags = []
-                if cm_mode == "all_fallback":
-                    tags.append("[ALL]")
-                if cm_warn_mismatch:
-                    tags.append("[WARN]")
-                if tags:
-                    txt_r = txt_r + " " + " ".join(tags)
-                self.lbl_cm_recent.setText(txt_r)
-                txt_p = _fmt(p2) if p2 else "-"
-                tags = []
-                if cm_mode == "all_fallback":
-                    tags.append("[ALL]")
-                if cm_warn_mismatch:
-                    tags.append("[WARN]")
-                if tags:
-                    txt_p = txt_p + " " + " ".join(tags)
-                self.lbl_cm_past.setText(txt_p)
-                # --- T-42-3-22: condition_mining candidates ---
-                try:
-                    # get_condition_candidates は未実装のため、エラーハンドリングで対応
-                    # 将来的に実装された場合はここで呼び出す
-                    self.lbl_cm_recent_cand.setText("-")
-                    self.lbl_cm_past_cand.setText("-")
-                except Exception:
-                    self.lbl_cm_recent_cand.setText("-")
-                    self.lbl_cm_past_cand.setText("-")
-                # --- /T-42-3-22 ---
             except Exception:
+                is_cm_tab = False
+
+            o = get_ops_overview(include_condition_mining=is_cm_tab)
+
+            # --- T-43-6: avoid heavy CM snapshot on UI startup (display-only gating) ---
+            # NOTE:
+            # - next_action + CM evidence (next_action.params.evidence.condition_mining) is rendered below.
+            # - CM recent/past min_stats snapshot is heavy (decision_log scan). Run it only when
+            #   the Condition Mining tab is currently selected.
+            # (is_cm_tab computed above)
+
+            if not is_cm_tab:
+                # 起動直後含む：重処理はしない（UIは落とさない）
                 self.lbl_cm_recent.setText("-")
                 self.lbl_cm_past.setText("-")
                 self.lbl_cm_recent_cand.setText("-")
                 self.lbl_cm_past_cand.setText("-")
-            # --- /T-42-3-18 Step 4-3 ---
+            else:
+                # --- T-42-3-18 Step 4-3: condition_mining min_stats ---
+                try:
+                    symbol = "USDJPY-"  # 仕様: symbol は USDJPY-
+                    win = get_condition_mining_window_settings()
+                    out = get_condition_mining_ops_snapshot(
+                        symbol=symbol,
+                        **win,
+                    )
+                    # --- T-43-3 Step2-10: show all-fallback & window mismatch in UI (labels) ---
+                    evw = ((out.get("evidence") or {}).get("window") or {})
+                    cm_mode = evw.get("mode")  # "recent_past" / "all_fallback"
+                    cm_warn_mismatch = "window_range_mismatch" in (out.get("warnings") or [])
+
+                    r = (out.get("recent") or {}).get("min_stats") or {}
+                    p2 = (out.get("past") or {}).get("min_stats") or {}
+
+                    def _fmt(ms: dict) -> str:
+                        total = ms.get("total", 0)
+                        fpc = ms.get("filter_pass_count", 0)
+                        fpr = float(ms.get("filter_pass_rate", 0.0))
+                        ec = ms.get("entry_count", 0)
+                        er = float(ms.get("entry_rate", 0.0))
+                        return f"total={total}  filter_pass={fpc} ({fpr:.1%})  entry={ec} ({er:.1%})"
+
+                    txt_r = _fmt(r) if r else "-"
+                    tags = []
+                    if cm_mode == "all_fallback":
+                        tags.append("[ALL]")
+                    if cm_warn_mismatch:
+                        tags.append("[WARN]")
+                    if tags:
+                        txt_r = txt_r + " " + " ".join(tags)
+                    self.lbl_cm_recent.setText(txt_r)
+                    txt_p = _fmt(p2) if p2 else "-"
+                    tags = []
+                    if cm_mode == "all_fallback":
+                        tags.append("[ALL]")
+                    if cm_warn_mismatch:
+                        tags.append("[WARN]")
+                    if tags:
+                        txt_p = txt_p + " " + " ".join(tags)
+                    self.lbl_cm_past.setText(txt_p)
+                    # --- T-42-3-22: condition_mining candidates ---
+                    try:
+                        # get_condition_candidates は未実装のため、エラーハンドリングで対応
+                        # 将来的に実装された場合はここで呼び出す
+                        self.lbl_cm_recent_cand.setText("-")
+                        self.lbl_cm_past_cand.setText("-")
+                    except Exception:
+                        self.lbl_cm_recent_cand.setText("-")
+                        self.lbl_cm_past_cand.setText("-")
+                    # --- /T-42-3-22 ---
+                except Exception:
+                    self.lbl_cm_recent.setText("-")
+                    self.lbl_cm_past.setText("-")
+                    self.lbl_cm_recent_cand.setText("-")
+                    self.lbl_cm_past_cand.setText("-")
+                # --- /T-42-3-18 Step 4-3 ---
+            # --- /T-43-6 ---
         except Exception as e:
             self.lbl_next_action.setText(f"ERROR: {e}")
-
-            self.lbl_next_action.setToolTip(str(((ops_snapshot.get('next_action') or {}).get('reason') or '')).strip())
+            # ops_snapshot is not defined here; keep tooltip safe
+            self.lbl_next_action.setToolTip(str(e))
 
             self.lbl_wfo.setText("-")
             self.lbl_retrain.setText("-")
@@ -1317,6 +1394,43 @@ class SchedulerTab(QWidget):
         priority = na.get("priority", "-")
         reason = na.get("reason", "")
         self.lbl_next_action.setText(f"{kind} (prio={priority})\n{reason}")
+
+        # ---- T-43-5: render condition_mining evidence attached to next_action (display-only) ----
+        try:
+            cm_view = format_condition_mining_evidence_text(na, top_n=3) or {}
+        except Exception:
+            cm_view = {"has": False, "summary": "CM: (error)", "top_lines": [], "warnings": []}
+
+        try:
+            summary = str(cm_view.get("summary") or "CM: (n/a)")
+            top_lines = cm_view.get("top_lines") or []
+            if not isinstance(top_lines, list):
+                top_lines = []
+            warn_lines = cm_view.get("warnings") or []
+            if not isinstance(warn_lines, list):
+                warn_lines = []
+
+            body = summary
+            if top_lines:
+                body = body + "\n" + "\n".join([str(x) for x in top_lines[:5]])
+
+            self.lbl_cm_next_action.setText(body)
+
+            if warn_lines:
+                self.lbl_cm_next_action_warn.setVisible(True)
+                self.lbl_cm_next_action_warn.setText("CM warnings:\n- " + "\n- ".join([str(x) for x in warn_lines[:5]]))
+                self.lbl_cm_next_action_warn.setStyleSheet(
+                    "border-radius:10px; padding:6px 10px; font-weight:700; background:#664; color:#ffe;"
+                )
+            else:
+                self.lbl_cm_next_action_warn.setVisible(False)
+                self.lbl_cm_next_action_warn.setText("")
+        except Exception:
+            # never crash UI
+            self.lbl_cm_next_action.setText("CM: (n/a)")
+            self.lbl_cm_next_action_warn.setVisible(False)
+            self.lbl_cm_next_action_warn.setText("")
+        # ---- /T-43-5 ----
 
         # wfo_stability
         reasons = ws.get("reasons") or []
