@@ -1768,3 +1768,48 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File tools/reobserve_order_params_schem
 OK判定：
 - BoundaryFiltered の gate_rows が 0 固定ではない（観測対象がある）
 - missing_schema_version 等の指標が表示される
+
+T-43-4 / Step2-Q（回帰チェック：観測のみ）
+■ 目的
+
+Step2-Pでdocs固定した「src優先＋不足時fallback」「CM_MIN_SRC_ROWSの意味」が、現コード＋現ログで成立しているかを観測で確定する
+
+■ 実施内容（事実）
+
+tools/decisions_src_report.ps1 で src分布・order_params形状・schema欠落率を観測
+
+condition_mining_facade.get_condition_mining_ops_snapshot(...) を直呼びして、candidates_len / warnings / window反映を観測
+
+CM_MIN_SRC_ROWS を 10→5 に切替し、fallback.min_src_rows が変化することを観測
+
+smoke.ps1のTEMP/ログ書き込みは避け、同等観測に置換（read-only厳守）
+
+■ 変更ファイル
+
+変更なし（git diff / status ともに空）
+
+■ 守った制約
+
+推測で直さず観測で確定
+
+闇リファクタなし
+
+logs削除・加工なし
+
+新規ファイル作成なし（smoke.ps1の挙動を回避）
+
+責務境界を跨ぐ変更なし（そもそも変更なし）
+
+■ 挙動の変化
+
+変化なし（観測のみ）
+
+■ 確認方法
+
+decisions_src_report で src分布を観測（'(none)'多数、order_params少数）
+
+facade直呼びで candidates_len=6 / warnings=[] / window反映を観測
+
+env切替で fallback.min_src_rows が 10→5 に変化することを観測
+
+git diff/status が空であることを確認
