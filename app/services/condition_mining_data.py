@@ -605,6 +605,9 @@ def get_decisions_recent_past_summary(symbol: str, profile: Optional[str] = None
     _rm = kwargs.pop("recent_minutes", None) if "recent_minutes" in kwargs else None
     _pm = kwargs.pop("past_minutes", None) if "past_minutes" in kwargs else None
     _om = kwargs.pop("past_offset_minutes", None) if "past_offset_minutes" in kwargs else None
+    # `top_k` is an ops-only parameter (top_candidates slicing) and must not be forwarded
+    # into window summary functions via **kwargs.
+    kwargs.pop("top_k", None)
 
     resolved = {"recent_minutes": 30, "past_minutes": 30, "past_offset_minutes": 24 * 60}
 

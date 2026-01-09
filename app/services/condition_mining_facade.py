@@ -324,10 +324,16 @@ def get_condition_mining_ops_snapshot(
                 kwargs["past_offset_minutes"] = win.get("past_offset_minutes")
 
     # --- main data ---
+    # NOTE: `top_k` is an ops-only parameter (top_candidates slicing) and must NOT
+    # propagate into window/data functions via **kwargs.
+    # Keep it for the ops snapshot envelope, but strip it from the window kwargs.
+    _ops_top_k = kwargs.get("top_k")
+    kwargs2 = dict(kwargs)
+    kwargs2.pop("top_k", None)
     out = get_decisions_recent_past_summary(
         symbol=symbol,
         profile=profile,
-        **kwargs,
+        **kwargs2,
     )
 
     recent = out.get("recent") or {}
@@ -369,7 +375,7 @@ def get_condition_mining_ops_snapshot(
             }
         )
 
-    return {
+    ret = {
         "symbol": symbol,
         "warnings": warnings,
         "ops_cards_first": ops_cards_first,
@@ -377,6 +383,14 @@ def get_condition_mining_ops_snapshot(
         "evidence_kind": out.get("evidence_kind"),
         "evidence_src": out.get("evidence_src"),
     }
+    # Preserve user-specified top_k for downstream ops wrapper (setdefault there).
+    if _ops_top_k is not None:
+        try:
+            ret["top_k"] = int(_ops_top_k)
+        except Exception:
+            # ignore invalid values; wrapper will fall back to default
+            pass
+    return ret
 
 # ==============================
 # Condition Mining window settings (profile-scoped)

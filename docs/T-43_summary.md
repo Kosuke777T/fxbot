@@ -1922,3 +1922,63 @@ adoption の生成・接続は docs 通りに成立
 今回の目的（OK / NG の観測判定）は OK で完了
 
 コード変更なし（禁止事項・進め方ルール遵守）
+
+
+T-43-4/ top_k 責務境界
+目的
+
+get_condition_mining_ops_snapshot() に渡した top_k が、window 系関数へ **kwargs で誤伝播し TypeError を起こす問題について、
+観測ベースで責務境界を確定し、services 層のみ・最小差分で是正する。
+
+観測で確定した事実
+
+top_k は ops_snapshot（候補上位K件）専用の引数である。
+
+既存実装では get_condition_mining_ops_snapshot(**kwargs) →
+get_decisions_recent_past_summary(..., **kwargs) →
+get_decisions_window_summary(..., **kwargs) と kwargs が素通りし、
+get_decisions_window_summary() が top_k を受け取れず TypeError になっていた。
+
+top_k を渡さなければ正常動作することは、事前観測ですでに確定していた。
+
+実施した対応（最小差分・servicesのみ）
+A) app/services/condition_mining_facade.py
+
+get_condition_mining_ops_snapshot() 内で
+kwargs2 = dict(kwargs); kwargs2.pop("top_k", None) を作成。
+
+下位の get_decisions_recent_past_summary() には kwargs2 のみを渡す。
+
+top_k 自体は ops_snapshot の返り値に保持し、top_candidates のスライス用途にのみ使用。
+
+B) app/services/condition_mining_data.py
+
+get_decisions_recent_past_summary() 冒頭で
+kwargs.pop("top_k", None) を追加。
+
+window 系（get_decisions_window_summary）へ top_k が流れない 二重ガードを実装。
+
+成功条件の達成状況（観測で確定）
+
+get_condition_mining_ops_snapshot(symbol='USDJPY-', top_k=10)
+→ TypeError なしで完走
+
+top_candidates_len == min(len(candidates), top_k) を assert で確認 OK
+
+py_compile / import：OK
+
+git diff --name-only：
+
+変更は app/services/condition_mining_facade.py
+
+app/services/condition_mining_data.py
+
+のみ（docs / logs / 他層への波及なし）
+
+確定した仕様（責務境界）
+
+top_k は ops_snapshot 専用引数。
+
+役割は 候補の上位K件（top_candidates）を決めることのみ。
+
+window 集計系関数には 渡されない（kwargs から除外される）。
