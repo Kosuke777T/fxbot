@@ -1693,3 +1693,78 @@ cm_boundary.fallback = {min_src_rows, src_rows, used}
  warnings による説明責任確保
 
  candidates 復帰（top_candidates_n>0）
+
+
+T-43-4（条件探索AI）/ Step2-P
+
+## T-43 Condition Mining：src優先と段階fallback（仕様固定）
+
+### 目的
+Condition Mining は「候補条件（candidates）」を生成する際に、
+**order_params の出自（src）を優先**して評価対象ログを選ぶ。
+ただし src 行が不足する環境では、探索が成立せず candidates=0 になり得るため、
+**不足時は段階的に母集団を広げる fallback を行う**。
+
+### 用語
+- src：トップレベル order_params の由来を示す値（例：src="order_params"）
+- detail：decision_detail 由来の order_params 相当（srcが取れない場合の補助）
+- top_nosrc：src が無い行のうち、上位（top）側の代表集合（※実装定義に従う）
+- all：利用可能な全行（最後のフォールバック）
+
+※「src/detail/top_nosrc/all」の実在と使い分けは、logs 分布・window 集計・fallback の観測結果に基づく。
+
+### src優先の適用条件（重要）
+- この仕様は **cm_prefer_src_order_params=True** の経路でのみ有効。
+- 既定経路（cm_prefer_src_order_params=False）には影響しない（後方互換）。
+
+### 段階fallback の仕様（src不足時）
+cm_prefer_src_order_params=True のとき、探索対象の行が不足して
+min_support 等の成立条件を満たせない場合、母集団を次の順で拡大する。
+
+1) src + detail を優先して使用
+2) それでも不足なら src + top_nosrc
+3) それでも不足なら all（全体）
+
+この fallback は「探索不能を避けるための縮退」であり、
+src が十分ある場合は常に src 優先のまま動作する。
+
+### CM_MIN_SRC_ROWS（src最小行数しきい値）
+- CM_MIN_SRC_ROWS は「src を優先して探索するために最低限必要な src 行数」を表す。
+- src_rows < CM_MIN_SRC_ROWS の場合、段階fallback により used 集合が切り替わり得る。
+- CM_MIN_SRC_ROWS を変更した場合、その値が **cm_boundary.fallback.min_src_rows** として観測される。
+
+### 観測点（回帰防止：必ずここで確認する）
+fallback の発生有無・採用集合は、次の2箇所で必ず観測できる。
+- warnings：探索縮退の警告（fallbackが起きた事実の表明）
+- cm_boundary.fallback：縮退内容の機械可読スナップショット
+  例：{min_src_rows: X, src_rows: Y, used: "..."} など
+
+### よくある失敗（観測で確定済みの範囲）
+- src_rows が極端に小さい（例：1）場合、min_support を満たせず candidates=0 になり得る。
+  このとき fallback が発生しているかを warnings / cm_boundary.fallback で確認する。
+
+---
+
+## 回帰チェック用：観測コマンド（貼って使う）
+
+### 1) src分布の観測（order_params / src の現状把握）
+pwsh -NoProfile -ExecutionPolicy Bypass -File tools/decisions_src_report.ps1
+
+OK判定：
+- src の分布が表示される
+- order_params の位置（top-level / detail）が観測できる
+
+### 2) Condition Mining smoke（ops_snapshot + warnings + fallback 観測）
+pwsh -NoProfile -ExecutionPolicy Bypass -File tools/condition_mining_smoke.ps1
+
+OK判定：
+- ops_snapshot が生成される
+- warnings が空または縮退理由が明示される（黙らない）
+- cm_boundary.fallback が出力される（fallback時）
+
+### 3) schema / boundary 再観測（order_params schema_version 監視）
+pwsh -NoProfile -ExecutionPolicy Bypass -File tools/reobserve_order_params_schema.ps1 -Scope tail -Tail 200 -BoundaryFiltered
+
+OK判定：
+- BoundaryFiltered の gate_rows が 0 固定ではない（観測対象がある）
+- missing_schema_version 等の指標が表示される
