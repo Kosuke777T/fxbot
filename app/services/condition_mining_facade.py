@@ -609,6 +609,10 @@ if callable(_cm__orig_get_ops_snapshot):
                             ),
                             "score": (c.get("score") if c.get("score") is not None else c.get("weight")),
                             "support": c.get("support"),
+                            # add-only: keep schema contract with candidates (no re-sort / no type conversion)
+                            "stable": c.get("stable"),
+                            "reasons": c.get("reasons"),
+                            "recent_delta": c.get("recent_delta"),
                             "condition_confidence": c.get("condition_confidence"),
                             "degradation": c.get("degradation"),
                             "tags": (

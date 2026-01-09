@@ -1982,3 +1982,54 @@ top_k は ops_snapshot 専用引数。
 役割は 候補の上位K件（top_candidates）を決めることのみ。
 
 window 集計系関数には 渡されない（kwargs から除外される）。
+
+T-43-4：Ops向けスキーマ契約の固定
+ops_snapshot における top_candidates のスキーマ契約を観測で確定する
+
+■ 観測で確定した事実
+
+get_condition_mining_ops_snapshot(symbol='USDJPY-', top_k=10) は 例外なく完走
+
+top_candidates は candidates[:top_k] と id部分列一致（prefix_match=True）
+
+しかし当初は top_candidates 側のみで
+stable / reasons / recent_delta が欠落しており、契約チェックは exit_code=1（NG）
+
+■ 原因（推測なし）
+
+app/services/condition_mining_facade.py の wrapper 内で
+top_candidates を dict投影（キー限定コピー） しており、
+その 投影キー一覧に stable / reasons / recent_delta が含まれていなかった
+
+■ 対応内容（最小差分・services層のみ）
+
+condition_mining_facade.py
+
+top_candidates の dict投影に
+**stable / reasons / recent_delta を「追加のみ」**で復元
+
+並び順維持、再ソートなし、型変換なし
+
+変更ファイルは 1ファイルのみ
+
+■ 再観測結果（成功条件）
+
+py_compile app/services/**/*.py → exit_code=0
+
+one-shot 契約チェック → exit_code=0
+
+top_candidates_len == expected_top_len
+
+prefix_match=True
+
+warnings_is_list=True
+
+missing_keys_count=0
+
+■ 確定した仕様（今後の前提）
+
+top_candidates は 表示用に投影されるが、candidates と同一スキーマを満たす
+
+stable / reasons / recent_delta は ops_snapshot の必須契約キー
+
+T-43-4 の出力は T-43-5（adoption / next_action 接続）に安全に渡せる状態
