@@ -1862,3 +1862,63 @@ candidates/top_candidates の Done条件達成可否を 観測でOK/NG判定可�
 不足時のみ最小パッチ、という方針に対し今回は 不足なし（PASS）で実装変更ゼロ ✅
 
 再現可能な確認方法（Step3-Cブロック）を確立 ✅
+
+
+T-43-4/ adoption 接続観測
+観測で確定した事実
+1. adoption の生成・配置
+
+生成箇所：app/services/condition_mining_facade.py
+
+_build_condition_mining_adoption()
+
+配置箇所：get_condition_mining_ops_snapshot() の戻り値（ops_snapshot）
+
+services 層のみで完結（責務境界遵守）
+
+2. ops_snapshot の実データ
+
+has_candidates = true
+
+has_top_candidates = true
+
+has_adoption = true
+
+candidates_len = 6
+
+top_candidates_len = 6
+
+adoption_keys = ['adopted', 'confidence_cap', 'notes', 'rejected', 'status', 'weight']
+
+3. adoption の状態（今回のrun）
+
+adoption.status = "none"
+
+adoption.adopted = null
+
+よって candidates → adoption のID突合は発生しない
+
+これは「採択されていない状態」として 仕様的に想定内
+
+4. 安全性チェック
+
+git status：clean（変更なし）
+
+import app.services.condition_mining_facade：OK
+
+注意事項（観測事実として確定）
+
+get_condition_mining_ops_snapshot(top_k=10) を渡すと
+get_decisions_window_summary() が top_k を受け取れず TypeError
+
+top_k を渡さずに呼び出すと正常動作
+
+本スレッドでは 修正は行わず、再現・運用手順として事実を記録のみ
+
+結論
+
+adoption の生成・接続は docs 通りに成立
+
+今回の目的（OK / NG の観測判定）は OK で完了
+
+コード変更なし（禁止事項・進め方ルール遵守）
