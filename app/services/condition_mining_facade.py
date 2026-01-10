@@ -308,6 +308,22 @@ def get_condition_mining_ops_snapshot(
     window 設定は profile → kwargs → fallback の順で解決する。
     """
 
+    # --- T-43-6: caller trace (read-only / env-gated) ---
+    # 目的: GUI起動中に [cond_mine] が出た瞬間の呼び出し元（どこがCM snapshotを叩いたか）を
+    # 推測なしで確定する。通常運用ログを汚さないため env=1 のときだけ出す。
+    try:
+        import os
+
+        if os.getenv("OPS_TRACE_CM_CALLER") == "1":
+            import traceback
+            from loguru import logger
+
+            stack = "".join(traceback.format_stack(limit=10))
+            logger.info("[cm_trace] caller_stack:\n{}", stack)
+    except Exception:
+        pass
+    # --- /T-43-6 ---
+
     # --- Step2-11: resolve window BEFORE data access ---
     if (
         "recent_minutes" not in kwargs

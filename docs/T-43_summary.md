@@ -2108,3 +2108,74 @@ T-43-5 完了
 next_action に対する evidence 接続の設計・実装・検証がすべて観測で確定
 
 後続フェーズ（例：evidence を使った判断高度化）に安全に進める状態
+
+
+T-43-6（次アクション活用 / evidence消費設計）
+目的
+
+起動直後に Condition Mining（CM）が勝手に走って重くなる問題を、
+観測ベースで原因特定 → 最小差分で完全に遮断する。
+
+観測で確定した事実
+
+起動直後の [cond_mine] は SchedulerTab の currentChanged 初期連鎖が原因。
+
+CM snapshot 呼び出し元は
+SchedulerTab._on_tab_changed → _cm_refresh_snapshot() のみ。
+
+History / Ops / KPI 側の summarize_ops_history は CM非関与（include_condition_mining=False）で正常。
+
+起動時の選択タブは Overview (index=0) で確定。
+
+実装した最終対策（最小・確実）
+1. 物理遮断（最重要）
+
+currentChanged.connect(...) を __init__ から削除
+
+QTimer.singleShot(0) 内で初めて connect
+
+→ 初期 currentChanged 連鎖を物理的に遮断
+
+2. 論理ガード（二重防御）
+
+_ui_ready ガード（ui初回tick前は return）
+
+_on_tab_changed(idx) は CMタブ index 一致のときだけ通過
+
+Overview を ui_ready 時点で再指定
+
+_cm_snapshot_loaded = False を ui_ready 時に再初期化
+
+3. 観測用ログ（env制御）
+
+OPS_UI_TRACE_CM=1
+
+init時点 / ui_ready時点 の選択タブを両方ログ出力
+
+OPS_TRACE_CM_CALLER=1
+
+CM snapshot 呼び出し時のみ caller stack を出力
+
+成功条件の観測結果
+
+python -X utf8 -m compileall app/gui app/services → exit_code=0
+
+無操作起動（10秒以上）：
+
+[cm_trace] 0回
+
+[cond_mine] 0回
+
+初期タブ：Overview → ui_ready後も Overview（ログで確認）
+
+CMタブをユーザーがクリックした瞬間のみ：
+
+1回だけ [cm_trace] → [cond_mine] 発生（期待通り）
+
+現在の状態（結論）
+
+起動直後にCMが走る問題は完全解消
+
+CMは ユーザーが明示的に CMタブを選択した時だけ実行
+
+パフォーマンス問題は解決、残る PERF summarize_ops_history は軽量（~0.003s）で実害なし

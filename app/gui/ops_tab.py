@@ -566,7 +566,8 @@ class OpsTab(QWidget):
         """
         try:
             history_service = get_ops_history_service()
-            summary = history_service.summarize_ops_history()
+            # T-43-6: Ops UI refresh must never trigger heavy condition mining snapshot.
+            summary = history_service.summarize_ops_history(cache_sec=5, include_condition_mining=False)
 
             # last_viewを優先、次にlast、最後にitemsの先頭
             rec = summary.get("last_view") or summary.get("last") or (summary.get("items") or [None])[0]

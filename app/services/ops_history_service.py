@@ -28,6 +28,11 @@ def _load_saved_wfo_stability(run_id: str) -> dict | None:
 # TTLキャッシュ（モジュールレベル）
 _SUMMARY_CACHE = {"ts": 0.0, "value": None}
 
+# T-43-6: CM snapshot独立キャッシュ（モジュールレベル）
+# - include_condition_mining=True の呼び出しが残っても、短時間に連発しないようにする保険
+# - ロジックは不変（計算頻度だけを落とす）
+_CM_SNAPSHOT_CACHE: dict[str, dict[str, object]] = {}
+
 # step正規化用：未知のstep_raw値を記録（ログ抑制用）
 _UNKNOWN_STEP_SEEN: set[str] = set()
 
@@ -1104,7 +1109,26 @@ class OpsHistoryService:
                                 )
                                 or "USDJPY-"
                             )
-                            cm = get_condition_mining_ops_snapshot(symbol=_sym)
+
+                            # T-43-6: independent CM snapshot cache (>=60s)
+                            cm = None
+                            try:
+                                cm_cache_sec = 60
+                                try:
+                                    cm_cache_sec = max(int(cache_sec or 0), 60)
+                                except Exception:
+                                    cm_cache_sec = 60
+
+                                now = time.monotonic()
+                                rec = _CM_SNAPSHOT_CACHE.get(str(_sym) or "USDJPY-") or {}
+                                ts = float(rec.get("ts") or 0.0)
+                                if rec.get("value") is not None and (now - ts) < float(cm_cache_sec):
+                                    cm = rec.get("value")
+                                else:
+                                    cm = get_condition_mining_ops_snapshot(symbol=_sym)
+                                    _CM_SNAPSHOT_CACHE[str(_sym) or "USDJPY-"] = {"ts": now, "value": cm}
+                            except Exception:
+                                cm = get_condition_mining_ops_snapshot(symbol=_sym)
                             if isinstance(cm, dict):
                                 payload = {
                                     "adoption": cm.get("adoption"),

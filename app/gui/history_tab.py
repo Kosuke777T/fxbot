@@ -74,7 +74,9 @@ class HistoryTab(QtWidgets.QWidget):
         main_layout.addWidget(splitter)
 
         self._timer = QtCore.QTimer(self)
-        self._timer.setInterval(1000)
+        # T-43-6: GUIの定期更新は秒単位で叩かない（UIフリーズ防止）。
+        # UiEventは1秒でも良いが、ops_history要約は重くなり得るため間引く。
+        self._timer.setInterval(5000)
         self._timer.timeout.connect(self.refresh)
         self._timer.start()
 
@@ -97,7 +99,8 @@ class HistoryTab(QtWidgets.QWidget):
         """Ops履歴カードを更新する。"""
         try:
             history_service = get_ops_history_service()
-            summary = history_service.summarize_ops_history()
+            # T-43-6: GUI refresh must never trigger heavy condition mining snapshot.
+            summary = history_service.summarize_ops_history(cache_sec=5, include_condition_mining=False)
             items = summary.get("items", [])
             last_view = summary.get("last_view")  # 最新の表示用ビュー（現在は未使用だが取得しておく）
 

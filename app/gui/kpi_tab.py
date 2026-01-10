@@ -119,7 +119,8 @@ class KPITab(QWidget):
             history_service = get_ops_history_service()
             # 現在選択中のsymbolを取得（プロファイルから推定、またはNone）
             symbol = None  # 必要に応じてプロファイルからsymbolを取得
-            summary = history_service.summarize_ops_history(symbol=symbol)
+            # T-43-6: KPI UI refresh must never trigger heavy condition mining snapshot.
+            summary = history_service.summarize_ops_history(symbol=symbol, cache_sec=10, include_condition_mining=False)
 
             # 週次統計
             week_total = summary.get("week_total", 0)

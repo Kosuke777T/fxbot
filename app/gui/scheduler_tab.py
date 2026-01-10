@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import time
 from functools import partial
 from typing import Any, Dict, List, Optional
 
@@ -47,6 +49,7 @@ from app.services.scheduler_facade import (
     open_scheduler_daemon_log,
 )
 from app.gui.ops_ui_rules import format_condition_mining_evidence_text
+from loguru import logger
 
 _JOB_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
@@ -256,6 +259,8 @@ class SchedulerTab(QWidget):
 
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
+        # T-43-6: avoid running heavy CM snapshot due to initial currentChanged chain during widget construction
+        self._ui_ready = False
 
         root = QVBoxLayout(self)
         root.setContentsMargins(8, 6, 8, 8)  # 上を詰める
@@ -320,7 +325,6 @@ class SchedulerTab(QWidget):
 
         # T-43-6: snapshot is heavy; load lazily when CM tab is selected
         self._cm_snapshot_loaded = False
-        self.tabs.currentChanged.connect(self._on_tab_changed)
 
         # 初期ロード
         self._cm_load_settings(self.cm_profile.currentText(), refresh_snapshot=False)
@@ -710,6 +714,74 @@ class SchedulerTab(QWidget):
         # KPIサービスを初期化
         self._recent_kpi = RecentKPIService()
 
+        # T-43-6: Ops Overview is display-only; throttle refresh to avoid periodic heavy work.
+        self._ops_overview_last_ts = 0.0
+        self._ops_overview_last_state: tuple[bool, bool] | None = None
+
+        # T-43-6: observe initial selected tab (env-gated)
+        try:
+            if os.environ.get("OPS_UI_TRACE_CM", "0") == "1":
+                idx = int(self.tabs.currentIndex())
+                cm_idx = int(self.tabs.indexOf(self.tab_condition_mining))
+                txt = self.tabs.tabText(idx) if idx >= 0 else "(n/a)"
+                cm_txt = self.tabs.tabText(cm_idx) if cm_idx >= 0 else "(n/a)"
+                logger.info(
+                    f"[ops_ui] SchedulerTab.init: currentIndex={idx} tabText={txt!r} "
+                    f"cm_index={cm_idx} cm_tabText={cm_txt!r}"
+                )
+        except Exception:
+            pass
+
+        # T-43-6: fix initial selected sub-tab to Overview to prevent accidental CM selection on startup
+        try:
+            self.tabs.setCurrentWidget(self.tab_overview)
+        except Exception:
+            pass
+
+        # UI init done: allow _on_tab_changed after the first event-loop tick
+        def _mark_ui_ready() -> None:
+            try:
+                self._ui_ready = True
+                # 起動直後の事故を完全に潰す：Overview を再指定（保険）
+                try:
+                    self.tabs.setCurrentWidget(self.tab_overview)
+                except Exception:
+                    pass
+
+                # 起動直後の意図しない snapshot 済み扱いを避ける（保険）
+                try:
+                    self._cm_snapshot_loaded = False
+                except Exception:
+                    pass
+
+                # ★ここで初めて接続する（初期 currentChanged 連鎖を物理的に遮断）
+                try:
+                    try:
+                        self.tabs.currentChanged.disconnect(self._on_tab_changed)
+                    except Exception:
+                        pass
+                    self.tabs.currentChanged.connect(self._on_tab_changed)
+                except Exception:
+                    pass
+
+                if os.environ.get("OPS_UI_TRACE_CM", "0") == "1":
+                    idx = int(self.tabs.currentIndex())
+                    cm_idx = int(self.tabs.indexOf(self.tab_condition_mining))
+                    txt = self.tabs.tabText(idx) if idx >= 0 else "(n/a)"
+                    cm_txt = self.tabs.tabText(cm_idx) if cm_idx >= 0 else "(n/a)"
+                    logger.info(
+                        f"[ops_ui] SchedulerTab.ui_ready: currentIndex={idx} tabText={txt!r} "
+                        f"cm_index={cm_idx} cm_tabText={cm_txt!r}"
+                    )
+            except Exception:
+                self._ui_ready = True
+
+        try:
+            QTimer.singleShot(0, _mark_ui_ready)
+        except Exception:
+            # fallback (should still be safe due to other guards)
+            _mark_ui_ready()
+
         # 初回描画
         self.refresh()
 
@@ -738,6 +810,15 @@ class SchedulerTab(QWidget):
 
     def _on_tab_changed(self, idx: int) -> None:
         # Display-only: refresh CM snapshot only when CM tab is selected, and only once per selection.
+        if not bool(getattr(self, "_ui_ready", False)):
+            return
+        try:
+            cm_idx = int(self.tabs.indexOf(self.tab_condition_mining))
+        except Exception:
+            return
+        # CMタブに切り替わったときだけ処理（起動直後/Overview切替などでは絶対に呼ばない）
+        if int(idx) != cm_idx:
+            return
         try:
             if self._is_cm_tab_selected() and (not bool(getattr(self, "_cm_snapshot_loaded", False))):
                 self._cm_refresh_snapshot()
@@ -1259,6 +1340,13 @@ class SchedulerTab(QWidget):
     def _refresh_ops_overview(self) -> None:
         """Ops Overviewパネルを更新（next_action/wfo_stability/latest_retrain）"""
         try:
+            # T-43-6: throttle ops overview refresh (display only)
+            now = time.monotonic()
+            last = float(getattr(self, "_ops_overview_last_ts", 0.0) or 0.0)
+            if (now - last) < 10.0:
+                return
+            self._ops_overview_last_ts = now
+
             # T-43-6: avoid heavy condition mining snapshot on startup; enable only on CM tab
             is_cm_tab = False
             try:
@@ -1270,7 +1358,21 @@ class SchedulerTab(QWidget):
             except Exception:
                 is_cm_tab = False
 
-            o = get_ops_overview(include_condition_mining=is_cm_tab)
+            # T-43-6: Ops Overview must NEVER run CM snapshot. CM tab is responsible for snapshot display.
+            include_cm = False
+
+            # T-43-6: observation log (low-frequency due to throttle)
+            try:
+                st = (bool(is_cm_tab), bool(include_cm))
+                if os.environ.get("OPS_UI_TRACE_CM", "0") == "1":
+                    if st != getattr(self, "_ops_overview_last_state", None):
+                        logger.info(f"[ops_ui] is_cm_tab={st[0]} include_cm={st[1]}")
+                        self._ops_overview_last_state = st
+                    logger.info(f"[ops_ui] get_ops_overview(include_condition_mining={include_cm})")
+            except Exception:
+                pass
+
+            o = get_ops_overview(include_condition_mining=include_cm)
 
             # --- T-43-6: avoid heavy CM snapshot on UI startup (display-only gating) ---
             # NOTE:
@@ -1279,71 +1381,11 @@ class SchedulerTab(QWidget):
             #   the Condition Mining tab is currently selected.
             # (is_cm_tab computed above)
 
-            if not is_cm_tab:
-                # 起動直後含む：重処理はしない（UIは落とさない）
-                self.lbl_cm_recent.setText("-")
-                self.lbl_cm_past.setText("-")
-                self.lbl_cm_recent_cand.setText("-")
-                self.lbl_cm_past_cand.setText("-")
-            else:
-                # --- T-42-3-18 Step 4-3: condition_mining min_stats ---
-                try:
-                    symbol = "USDJPY-"  # 仕様: symbol は USDJPY-
-                    win = get_condition_mining_window_settings()
-                    out = get_condition_mining_ops_snapshot(
-                        symbol=symbol,
-                        **win,
-                    )
-                    # --- T-43-3 Step2-10: show all-fallback & window mismatch in UI (labels) ---
-                    evw = ((out.get("evidence") or {}).get("window") or {})
-                    cm_mode = evw.get("mode")  # "recent_past" / "all_fallback"
-                    cm_warn_mismatch = "window_range_mismatch" in (out.get("warnings") or [])
-
-                    r = (out.get("recent") or {}).get("min_stats") or {}
-                    p2 = (out.get("past") or {}).get("min_stats") or {}
-
-                    def _fmt(ms: dict) -> str:
-                        total = ms.get("total", 0)
-                        fpc = ms.get("filter_pass_count", 0)
-                        fpr = float(ms.get("filter_pass_rate", 0.0))
-                        ec = ms.get("entry_count", 0)
-                        er = float(ms.get("entry_rate", 0.0))
-                        return f"total={total}  filter_pass={fpc} ({fpr:.1%})  entry={ec} ({er:.1%})"
-
-                    txt_r = _fmt(r) if r else "-"
-                    tags = []
-                    if cm_mode == "all_fallback":
-                        tags.append("[ALL]")
-                    if cm_warn_mismatch:
-                        tags.append("[WARN]")
-                    if tags:
-                        txt_r = txt_r + " " + " ".join(tags)
-                    self.lbl_cm_recent.setText(txt_r)
-                    txt_p = _fmt(p2) if p2 else "-"
-                    tags = []
-                    if cm_mode == "all_fallback":
-                        tags.append("[ALL]")
-                    if cm_warn_mismatch:
-                        tags.append("[WARN]")
-                    if tags:
-                        txt_p = txt_p + " " + " ".join(tags)
-                    self.lbl_cm_past.setText(txt_p)
-                    # --- T-42-3-22: condition_mining candidates ---
-                    try:
-                        # get_condition_candidates は未実装のため、エラーハンドリングで対応
-                        # 将来的に実装された場合はここで呼び出す
-                        self.lbl_cm_recent_cand.setText("-")
-                        self.lbl_cm_past_cand.setText("-")
-                    except Exception:
-                        self.lbl_cm_recent_cand.setText("-")
-                        self.lbl_cm_past_cand.setText("-")
-                    # --- /T-42-3-22 ---
-                except Exception:
-                    self.lbl_cm_recent.setText("-")
-                    self.lbl_cm_past.setText("-")
-                    self.lbl_cm_recent_cand.setText("-")
-                    self.lbl_cm_past_cand.setText("-")
-                # --- /T-42-3-18 Step 4-3 ---
+            # T-43-6: these labels are kept, but snapshot is loaded only in CM tab via _cm_refresh_snapshot().
+            self.lbl_cm_recent.setText("-")
+            self.lbl_cm_past.setText("-")
+            self.lbl_cm_recent_cand.setText("-")
+            self.lbl_cm_past_cand.setText("-")
             # --- /T-43-6 ---
         except Exception as e:
             self.lbl_next_action.setText(f"ERROR: {e}")
