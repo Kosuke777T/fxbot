@@ -2179,3 +2179,85 @@ CMタブをユーザーがクリックした瞬間のみ：
 CMは ユーザーが明示的に CMタブを選択した時だけ実行
 
 パフォーマンス問題は解決、残る PERF summarize_ops_history は軽量（~0.003s）で実害なし
+
+
+T-43-7（KPIService 月次ダッシュボード例外修正）
+発生していた問題
+
+[KPIService] compute_monthly_dashboard error: KpiMonthlyRecord() takes no arguments
+
+原因：
+
+呼び出し側：KpiMonthlyRecord(year_month=..., return_pct=..., max_dd_pct=..., total_trades=..., pf=...)
+
+定義側：@dataclass なしの素の class → __init__ が引数を受けない
+
+呼び出し形と定義形の 不一致
+
+観測で確定した事実（修正前）
+
+app/services/kpi_service.py:288-297
+
+compute_monthly_dashboard() 内で キーワード引数5項目を渡して生成
+
+app/services/kpi_service.py:108-115
+
+KpiMonthlyRecord は @dataclass なし
+
+inspect.signature(KpiMonthlyRecord) == ()
+
+設計判断
+
+方針A：KpiMonthlyRecord を dataclass 化
+
+理由：
+
+呼び出し側は「純データレコード生成」として自然
+
+最小差分（1ファイル・1行追加）
+
+KPI以外へ影響なし
+
+実装内容（最小差分）
+
+変更ファイル：app/services/kpi_service.py のみ
+
+変更点：
+
+KpiMonthlyRecord に @dataclass を付与
+
+フィールド構成・呼び出し側は一切変更なし
+
+動作確認結果
+
+python -X utf8 -m compileall app/services
+
+exit_code=0
+
+inspect.signature(KpiMonthlyRecord)
+
+KpiMonthlyRecord(year_month, return_pct, max_dd_pct, total_trades, pf)
+
+python -m app.gui.main
+
+[KPIService] compute_monthly_dashboard error: 消失
+
+KPI表示処理は静かに正常動作
+
+既存ログ（Ops / CM / Scheduler）
+
+副作用なし
+
+変更範囲
+
+git diff --name-only
+
+app/services/kpi_service.py のみ
+
+結論
+
+例外は完全解消
+
+KPIService は安定動作
+
+設計・責務境界・影響範囲すべて健全

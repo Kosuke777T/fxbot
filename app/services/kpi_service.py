@@ -105,6 +105,7 @@ def _try_load_next_action_timeline(run_dir: Path):
         return rows
     except Exception:
         return None
+@dataclass
 class KpiMonthlyRecord:
     year_month: str
     return_pct: float
