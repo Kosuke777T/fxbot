@@ -9,7 +9,12 @@ from loguru import logger
 
 from app.services.event_store import EVENT_STORE, UiEvent
 from app.services.ops_history_service import get_ops_history_service
-from app.gui.ops_ui_rules import format_action_hint_text, ui_for_next_action, get_action_priority
+from app.gui.ops_ui_rules import (
+    format_action_hint_text,
+    format_condition_mining_evidence_text,
+    ui_for_next_action,
+    get_action_priority,
+)
 
 _COLUMNS = ["ts", "kind", "symbol", "side", "price", "sl", "tp", "profit_jpy", "reason", "notes"]
 
@@ -17,6 +22,9 @@ _COLUMNS = ["ts", "kind", "symbol", "side", "price", "sl", "tp", "profit_jpy", "
 class HistoryTab(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
+
+        # T-43-8 Step3(A): CM evidence display in History can be heavy; default OFF.
+        self._cm_heavy_enabled: bool = False
 
         # タブで分割（左：UiEvent、右：Ops履歴）
         splitter = QtWidgets.QSplitter(QtCore.Qt.Orientation.Horizontal, self)
@@ -37,11 +45,20 @@ class HistoryTab(QtWidgets.QWidget):
         if v is not None:
             v.setVisible(False)
 
+        # Controls row (display-only)
+        controls_row = QtWidgets.QHBoxLayout()
+        self.chk_cm_heavy = QtWidgets.QCheckBox("CM表示（重い）")
+        self.chk_cm_heavy.setChecked(False)
+        self.chk_cm_heavy.toggled.connect(self._on_toggle_cm_heavy)
+        controls_row.addWidget(self.chk_cm_heavy)
+        controls_row.addStretch(1)
+
         self.btnExport = QtWidgets.QPushButton("Export CSV")
         self.btnExport.clicked.connect(self._export_csv)
+        controls_row.addWidget(self.btnExport)
 
         left_layout.addWidget(self.table)
-        left_layout.addWidget(self.btnExport)
+        left_layout.addLayout(controls_row)
         splitter.addWidget(left_widget)
 
         # 右側：Ops履歴カード表示
@@ -82,6 +99,14 @@ class HistoryTab(QtWidgets.QWidget):
 
         self.refresh()
 
+    def _on_toggle_cm_heavy(self, checked: bool) -> None:
+        """UI-only: toggle heavy CM evidence fetch for History cards."""
+        self._cm_heavy_enabled = bool(checked)
+        try:
+            self._refresh_ops_cards()
+        except Exception as e:
+            logger.error(f"Failed to refresh ops cards after CM toggle: {e}")
+
     def refresh(self) -> None:
         # UiEventテーブルを更新
         events: List[UiEvent] = EVENT_STORE.recent(300)
@@ -99,8 +124,13 @@ class HistoryTab(QtWidgets.QWidget):
         """Ops履歴カードを更新する。"""
         try:
             history_service = get_ops_history_service()
-            # T-43-6: GUI refresh must never trigger heavy condition mining snapshot.
-            summary = history_service.summarize_ops_history(cache_sec=5, include_condition_mining=False)
+            # T-43-8: default OFF for CM evidence (heavy); enable only by explicit user toggle.
+            include_cm = bool(getattr(self, "_cm_heavy_enabled", False))
+            cache_sec = 60 if include_cm else 5
+            summary = history_service.summarize_ops_history(
+                cache_sec=cache_sec,
+                include_condition_mining=include_cm,
+            )
             items = summary.get("items", [])
             last_view = summary.get("last_view")  # 最新の表示用ビュー（現在は未使用だが取得しておく）
 
@@ -190,6 +220,24 @@ class HistoryTab(QtWidgets.QWidget):
                     # 表示テキストを生成（reasonは説明表示にのみ使用）
                     hint_text = format_action_hint_text(next_action)
                     if hint_text:
+                        # T-43-8 Step3(A): unify CM evidence rendering with Ops (Scheduler)
+                        # - Add-only: if CM evidence exists, append summary to the one-line text.
+                        # - Never crash UI if evidence is missing/partial.
+                        cm_view = {}
+                        try:
+                            cm_view = format_condition_mining_evidence_text(next_action, top_n=3) or {}
+                        except Exception:
+                            cm_view = {}
+
+                        disp_text = str(hint_text)
+                        try:
+                            if isinstance(cm_view, dict) and bool(cm_view.get("has")):
+                                cm_sum = cm_view.get("summary")
+                                if isinstance(cm_sum, str) and cm_sum.strip():
+                                    disp_text = disp_text + " | " + cm_sum.strip()
+                        except Exception:
+                            pass
+
                         next_action_label = QLabel(hint_text)
                         next_action_label.setStyleSheet(spec.style + " font-size: 9pt;")
                         next_action_label.setWordWrap(True)
@@ -197,8 +245,43 @@ class HistoryTab(QtWidgets.QWidget):
                         next_action_label.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Preferred)
                         # tooltipにreasonを設定
                         reason = next_action.get("reason", "")
-                        if reason:
-                            next_action_label.setToolTip(f"{spec.tooltip_prefix}{reason}")
+                        try:
+                            tip_lines: list[str] = []
+                            if reason:
+                                tip_lines.append(f"{spec.tooltip_prefix}{reason}")
+
+                            # Append CM details into tooltip (top_lines + warnings), same formatter as Ops.
+                            if isinstance(cm_view, dict) and bool(cm_view.get("has")):
+                                top_lines = cm_view.get("top_lines") or []
+                                warn_lines = cm_view.get("warnings") or []
+                                if not isinstance(top_lines, list):
+                                    top_lines = []
+                                if not isinstance(warn_lines, list):
+                                    warn_lines = []
+
+                                if top_lines:
+                                    tip_lines.append("")
+                                    tip_lines.append("CM:")
+                                    for x in top_lines[:5]:
+                                        tip_lines.append("- " + str(x))
+                                if warn_lines:
+                                    tip_lines.append("")
+                                    tip_lines.append("CM warnings:")
+                                    for x in warn_lines[:5]:
+                                        tip_lines.append("- " + str(x))
+
+                            if tip_lines:
+                                next_action_label.setToolTip("\n".join([str(x) for x in tip_lines if x is not None]))
+                        except Exception:
+                            # fallback to legacy tooltip
+                            if reason:
+                                next_action_label.setToolTip(f"{spec.tooltip_prefix}{reason}")
+
+                        # set final display text (may include CM summary)
+                        try:
+                            next_action_label.setText(disp_text)
+                        except Exception:
+                            pass
                         card_layout.addWidget(next_action_label)
 
             return card
