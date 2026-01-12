@@ -1,0 +1,329 @@
+v5.3 の位置づけ（1文）
+
+ミチビキ ToDo リスト v5.3 は、ENTRY後の判断（利益・EXIT・サイズ）を理由付きで自動実行できる状態に到達するための、実運用最短ロードマップである。
+
+v5.3 のスコープ宣言（超重要）
+v5.3 で「やる」
+
+ENTRY後の意思決定（T-44）
+
+EXIT / サイズ / 伸ばし
+
+自動売買の最小実装（T-45）
+
+実運用で止まらない最低限のガード（T-45-4）
+
+連続稼働の実運用チェック（T-46）
+
+v5.3 で「やらない」
+
+エディション分け
+
+課金・権限・承認フロー
+
+高度な最適化・学習
+
+“勝率を上げる研究”
+
+👉 v5.3 = 動く・止まらない・説明できる
+
+重要メモ（v5.3の前提範囲）
+
+Part 1〜4（T-10〜T-42）は、ミチビキの既存資産（UI/分析/スケジューラ等）として扱う。
+
+ただし v5.3 の自動売買成立に必須なのは「ENTRY が発生する状態」だけである。
+（KPI/診断AI/WFO/Edition は v5.3 の“必須条件”ではない）
+
+◆ Part 1：AIタブ & KPI（資産：完成版に向けた機能群）
+
+AIタブと月次3％ダッシュボードが、ミチビキの“顔”になる機能群。
+
+T-10｜KPIダッシュボード本実装
+
+月次12ヶ月の折れ線グラフ
+
+今月の進捗ゲージ（利益/3%）
+
+最大DD・勝率・PF の表示
+
+KPIService の正式拡張（仕様書 v5準拠）
+
+T-11｜FI/SHAP の Edition 対応（※v5.3では後回し可）
+
+fi_level（0/1/2/3）で Top3/Top20/All を切り替え
+
+shap_level（0/1/2/3）で SHAP の表示内容を切り替え
+
+Lazy-load のまま EditionGuard に完全準拠
+
+T-12｜診断AI（v0 → Full）（※v5.3では後回し可）
+
+時間帯 × 相場タイプ分析
+
+勝率の高い相場条件
+
+DD直前の特徴
+
+連勝区間の特徴
+
+異常点の自動検出
+
+（将来）来週のシナリオ提示
+
+◆ Part 2：フィルタエンジン完成（StrategyFilterEngine）
+T-20｜フィルタエンジン v5.1 完全版
+
+評価順を固定（時間帯 → ATR → ボラ → トレンド → 連敗回避）
+
+EntryContext の標準化
+
+decisions.jsonl に理由を統合
+
+filter_level で有効化範囲を制御（※v5.3ではEdition無視）
+
+T-21｜連敗回避ロジックの実装（安全装置）
+
+連敗数カウンタ
+
+閾値に達するとエントリーストップ
+
+勝利 or 時間経過で解除
+
+（将来）UI表示
+
+T-22｜プロファイル自動切替（※v5.3では後回し可）
+
+過去 N トレード or 月次成績から最適プロファイルに自動切替
+
+切替履歴ログ
+
+ON/OFF 切り替え
+
+◆ Part 3：バックテスト & Walk-Forward（WFO）
+T-30｜BacktestEngine の v5.1 準拠化
+
+StrategyBase → Filter → SimulatedExecution の統一
+
+monthly_returns.csv（公式形式）を必ず出力
+
+バックテスト版 decisions.jsonl も出力
+
+T-31｜WFO（Walk-Forward再学習）の安定化（※v5.3では後回し可）
+
+expected_features の整合性チェック
+
+active_model.json の自動/手動更新
+
+retry / timeout / エラーサマリ
+
+プロファイルごとの WFO 確立
+
+◆ Part 4：スケジューラ（標準 & 常駐）
+T-40｜Scheduler v5.1 の StateMachine
+
+IDLE → RUNNING → SUCCESS/FAILED の遷移
+
+last_run_at による重複防止
+
+scheduler.yaml 読み込み
+
+T-41｜Edition制御（scheduler_level）の適用（※v5.3では無視）
+
+（v5.3ではエディション概念を一旦採用しない）
+
+T-42｜Scheduler GUI 完成
+
+（既存の運用基盤として整備）
+
+T-43｜条件探索・比較AI（Ops意思決定を“根拠供給”で強化）
+
+（※T-43の詳細は既存記述を踏襲。v5.3の自動売買必須ではないが、判断説明に効く資産）
+
+T-43 完了条件（CM表示・最終整理）
+
+（既に追記済みの完了条件定義を維持）
+
+T-44｜利益重視設計（Profit Decision Layer）
+目的（Why）
+
+ENTRY後の
+「どれくらい伸ばすか／いつ降りるか／どれだけ賭けるか」
+を 感覚ではなく判断として 定義し、勝率ではなく 期待値と資金曲線 を守る。
+
+T-44-1｜利益評価軸の確定（Profit Metrics）
+やること
+
+既存ログ・KPIから以下を計算できるようにする：
+
+expectancy（期待値）
+
+avg_win / avg_loss
+
+profit_factor
+
+max_favorable_excursion（可能なら）
+
+Done（完了条件）
+
+「この戦略は なぜ 儲かっている／いないか」を勝率なしで説明できる
+
+services から profit 指標が dict で取得できる
+
+T-44-2｜伸びしろ判定（Upside Potential）
+やること
+
+ENTRY条件＋過去分布から
+「当たった場合、どれくらい伸びやすいか」を段階化（予測ではなく過去分布ベース）
+
+出力例
+
+upside_potential: HIGH | MID | LOW
+
+Done
+
+ENTRY時点で upside_potential が必ず付与される
+
+T-44-3｜EXIT判断を自動化（Exit as Decision）
+やること
+
+EXITを2系統に分離：
+
+防御EXIT（条件崩壊・異常・急変）
+
+利益EXIT（伸びしろ枯渇・失速）
+
+出力例
+
+exit_type: DEFENSE | PROFIT
+
+exit_reason: "condition_degraded"
+
+Done
+
+EXITした全トレードに理由が残る
+
+人が見て「なぜ利確／損切りしたか」が分かる
+
+T-44-4｜ポジションサイズ判断（Sizing）
+やること
+
+サイズを以下で決定：
+
+condition_confidence（T-43）
+
+upside_potential（T-44-2）
+
+stability / recent 状態
+
+出力例
+size_decision:
+  multiplier: 0.5 | 1.0 | 1.5
+  reason: "high_confidence_high_upside"
+
+Done
+
+すべての ENTRY に size_decision が付く
+
+サイズ変更理由がログで追える
+
+T-44 Done（ここまでで何ができるか）
+
+✅ ENTRY後の EXIT・サイズ・伸ばす判断がすべて「理由付き」で決まる
+（まだ自動実行はしない）
+
+T-45｜自動売買の最小実装（Auto Trading MVP）
+
+※ エディション・承認・段階制御は一切考えない
+※ とにかく自動で回す
+
+T-45-1｜自動実行ON/OFFスイッチ
+やること
+
+設定1つで
+
+dry_run（ログだけ）
+
+live_run（実取引）
+を切り替え
+
+Done
+
+dry_run → live_run を切り替えてもロジックは一切変わらない
+
+T-45-2｜自動EXITの実行
+やること
+
+T-44-3 の EXIT判断を ExecutionService に接続し自動発注する（防御EXIT・利益EXIT）
+
+Done
+
+条件崩壊時に人の操作なしでポジションが閉じる
+
+EXIT理由が decisions / ops_history に残る
+
+T-45-3｜自動サイズ反映
+やること
+
+size_decision.multiplier をロット計算に反映する
+
+Done
+
+同じENTRY条件でも状態に応じてロットが変わる
+
+ロット理由がログで説明できる
+
+T-45-4｜最小ガードレール（必須）
+やること
+
+以下だけは必ず入れる：
+
+size 上限
+
+連続損失時の size_down
+
+異常時の即 EXIT
+
+ポジション状態を State として一貫管理し、ENTRY/EXIT の競合（多重ENTRY・EXIT中再ENTRY等）が起きないこと
+
+Done
+
+ロジック暴走で資金が吹き飛ばない
+
+取引の重複・競合が起きない（状態遷移が保証される）
+
+T-45 Done（ここで何が可能になるか）
+
+🎯 完全自動売買が可能
+
+ENTRY → EXIT → サイズ
+
+すべて自動
+
+すべて理由付き
+
+あとから検証可能
+
+T-46｜実運用チェック（最低限）
+目的
+
+「動く」ではなく「安心して回せる」へ
+
+やること
+
+連続稼働テスト
+
+異常系（APIエラー・急変）確認
+
+ログだけ見て状況が分かるか検証
+
+Done
+
+数日〜1週間の連続稼働
+
+APIエラー・急変でも破綻しない
+
+手動介入したくならない
+
+v5.3 の本当のゴール（最終）
+
+自動売買が行われ、あとから「なぜこの結果になったか」を ログと画面だけで説明できること

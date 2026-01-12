@@ -1,0 +1,568 @@
+◆ Part 1：AIタブ & KPI（完成版）
+
+AIタブと月次3％ダッシュボードが、ミチビキの“顔”になる機能群。
+
+T-10｜KPIダッシュボード本実装
+
+月次12ヶ月の折れ線グラフ
+
+今月の進捗ゲージ（利益/3%）
+
+最大DD・勝率・PF の表示
+
+KPIService の正式拡張（仕様書 v5準拠）
+
+これが完成すると「今、どのくらい順調なのか」を一目で判断できる。
+
+T-11｜FI/SHAP の Edition 対応
+
+fi_level（0/1/2/3）で Top3/Top20/All を切り替え
+
+shap_level（0/1/2/3）で SHAP の表示内容を切り替え
+
+Lazy-load のまま EditionGuard に完全準拠
+
+AIタブが製品版仕様になる重要ステップ。
+
+T-12｜診断AI（v0 → Full）
+
+時間帯 × 相場タイプ分析
+
+勝率の高い相場条件
+
+DD直前の特徴
+
+連勝区間の特徴
+
+異常点の自動検出
+
+Expert 限定：来週のシナリオ提示
+
+Pro/Expert で差別化の核になる部分。
+
+◆ Part 2：フィルタエンジン完成（StrategyFilterEngine）
+T-20｜フィルタエンジン v5.1 完全版
+
+評価順を固定（時間帯 → ATR → ボラ → トレンド → 連敗回避）
+
+EntryContext の標準化
+
+decisions.jsonl に理由を統合
+
+filter_level で有効化範囲を制御（Edition 適用）
+
+仕様書のルールに最も沿った“エンジンの完成版”。
+
+T-21｜連敗回避ロジックの実装
+
+連敗数カウンタ
+
+閾値に達するとエントリーストップ
+
+勝利 or 時間経過で解除
+
+Expertのみ UI 表示
+
+自動売買中の深い損失を防ぐ、安全装置。
+
+T-22｜プロファイル自動切替（Expert）
+
+過去 N トレード or 月次成績から最適プロファイルに自動切替
+
+切替履歴ログ
+
+ON/OFF 切り替え
+
+“市場に合わせて勝手に戦略を選ぶ” ミチビキの高度モード。
+
+◆ Part 3：バックテスト & Walk-Forward（WFO）
+T-30｜BacktestEngine の v5.1 準拠化
+
+StrategyBase → Filter → SimulatedExecution の統一
+
+monthly_returns.csv（公式形式）を必ず出力
+
+バックテスト版 decisions.jsonl も出力
+
+すべての分析機能（KPI/診断AI/ランキング）が連動し始める。
+
+T-31｜WFO（Walk-Forward再学習）の安定化
+
+expected_features の整合性チェック
+
+active_model.json の自動/手動更新
+
+retry / timeout / エラーサマリ
+
+プロファイルごとの WFO 確立
+
+ここが完成すると、
+ミチビキは “モデルを毎週自動的に強化するAI” となる。
+
+◆ Part 4：スケジューラ（標準 & 常駐）
+T-40｜Scheduler v5.1 の StateMachine
+
+IDLE → RUNNING → SUCCESS/FAILED の遷移
+
+last_run_at による重複防止
+
+scheduler.yaml 読み込み
+
+ジョブの安定稼働がここで確立。
+
+T-41｜Edition制御（scheduler_level）の適用
+
+Free：表示のみ
+
+Basic：週1固定ジョブ
+
+Pro：1ジョブだけ実行可能
+
+Expert：複数ジョブ & ジョブ連鎖
+
+課金エディションの要。
+
+T-42｜Scheduler GUI 完成
+
+
+# **T-43 条件探索・比較AI（Ops意思決定を“根拠供給”で強化）**
+
+**目的**
+
+- 「条件（フィルタ/特徴）の組み合わせが本当に効いているか」を、過去ログから統計的に評価して Opsの判断材料として提示する
+- 予測AIではなく、信用度（信頼性・劣化・再現性）を出すAIとして設計
+- 出力は Ops View が理解できる語彙（next_action / stability / retrain と同じ系統）に寄せる
+
+**前提**
+
+- GUI は services の公開APIだけを呼ぶ（新規は薄い facade）
+- 既存の ops_history / retrain / stability を最優先で再利用
+- 評価は「当たった/外れた」ではなく、サンプル数・差分・安定性・劣化を主にする
+
+# **T-43-1 探索対象データの統一取得（Read-only）**
+
+成果物
+
+- 探索AIが参照するデータ取得関数（読み取り専用）
+- “どのログを正とするか”の定義
+
+内容
+
+- decisions.jsonl（Backtest/Live）から必要キーを抽出（既存の標準キーに完全準拠）
+- retrain report / stability / ops_history の run_id や data_range と紐づくビューを作る
+- 時系列ウィンドウ定義（例：recent=直近N日、past=それ以前、など）
+
+Done条件
+
+- PS7 1コマンドで「期間・銘柄・プロファイル指定→件数・期間が返る」
+
+# **T-43-2 条件テンプレと自動生成（Condition DSL）**
+
+成果物
+
+- 条件（ルール）の表現を統一する最小DSL（Python dict でOK）
+- 自動生成器（総当たりし過ぎないガード込み）
+
+内容
+
+- 条件タイプ（例）
+    - フィルタ条件：filter_pass、reasons、spread/atr/adx/volなど既存filters
+    - 確率条件：prob_buy/prob_sell/threshold/ai_margin
+    - 市場条件：time-of-day、曜日、ボラ帯、レンジ/トレンド簡易指標（既存があればそれ優先）
+-
+- 生成戦略
+    - 単体条件 → 2条件AND → 3条件AND（上限あり）
+    - サンプル数が一定未満になる条件は自動で棄却
+    - 近い条件（ほぼ同義）をまとめる（重複抑制）
+-
+
+Done条件
+
+- 生成された条件数と、各条件の成立回数（support）が一覧できる
+
+# **T-43-3 条件ごとの評価（統計・安定性・劣化）**
+
+成果物
+
+- 条件スコアリング関数
+- “最近効いてる/死んだ”判定（degradation）
+
+内容
+
+- 指標（最低限）
+    - support（成立回数）
+    - pass_rate（通過率）
+    - outcome系（あなたの基盤に合わせる）：例）勝率、平均損益、PF、DD、期待値、など 取れる範囲で
+    - recent vs past の差分（lift / delta）
+-
+- 信頼性ガード
+    - support不足は「参考」扱い
+    - 多重比較の暴走を抑える簡易補正（厳密でなくてよいが、誤検出を抑える）
+-
+- 劣化検出
+    - recentで指標が閾値割れ
+    - 安定性（WFO stable/reasons）と矛盾する場合は優先度を下げる
+-
+---
+
+## T-43 完了条件（CM表示・最終整理）
+
+### 目的の確定
+T-43 の目的は、**Condition Mining（CM）evidence の表示ルールを統一し、
+Ops（SchedulerTab/Overview）と History の両UIで「同一の最終文字列生成規則」を使っている状態を作ること**である。
+
+本タスクは **ロジック変更ではなく表示整理のみ**を対象とし、services / CMコア / 売買ロジックは一切変更しない。
+
+---
+
+### 統一の定義
+本タスクにおける「表示統一」とは、以下を指す：
+
+- CM evidence から **UI表示用の最終文字列**（本文・警告）を生成する規則が **単一であること**
+- Ops と History で表示単位（1件 / N件）が異なっても、
+  **本文（body）および警告（warn_body）の生成ルールが同一**であれば統一と見なす
+
+---
+
+### 単一接点（正式指定）
+CM表示の最終文字列生成は、以下の関数を **唯一の接点**とする：
+
+- `app/gui/ops_ui_rules.py::build_condition_mining_evidence_strings()`
+
+役割分担は以下の通りとする：
+
+- `format_condition_mining_evidence_text()`
+  - CM evidence の構造抽出（summary / top_lines / warnings）
+  - **最終文字列の責務は持たない**
+- `build_condition_mining_evidence_strings()`
+  - UIで使用する **本文（body）/警告（warn_body）を最終確定**する
+
+---
+
+### 表示単位の許容差
+以下の差異は **仕様として許容**する：
+
+- Ops（SchedulerTab/Overview）：
+  - 単一の `next_action` を対象に CM 表示を行う
+- History：
+  - N件（`idx < render_limit`）に限定して CM 表示を行う
+  - 1行表示（summary）＋ tooltip 表示（body / warn_body）
+
+一方、以下は **許容しない差異**とする：
+
+- body / warn_body の生成ルールの差異
+- warnings の扱い（表示条件・見出し・最大行数）の差異
+
+---
+
+### ガード挙動（仕様として固定）
+以下のガード挙動は **本タスクで確定した仕様**とする：
+
+- Ops（Overview）では CM snapshot を実行しない（`include_condition_mining=False`）
+- History では CM 表示 ON 中、定期更新で重い services 呼び出しを行わない
+- History の CM 表示は render_limit により件数制限される
+
+---
+
+### 完了判定（観測条件）
+以下がすべて満たされていることをもって、T-43 は完了と判定する：
+
+- CM表示の最終文字列が、必ず
+  `build_condition_mining_evidence_strings()` 経由で生成されている
+- 変更範囲が GUI 内（`ops_ui_rules.py / scheduler_tab.py / history_tab.py`）に限定されている
+- `python -X utf8 -m compileall app/gui` が成功する
+- 画面観測により、以下が確認できる：
+  - Ops（Overview）で body / warn_body が表示される
+  - History で summary が追記され、tooltip に body / warn_body が表示される
+  - CM 表示 ON 中、History の自動更新が抑制されている
+
+---
+
+
+Done条件
+
+- 条件ごとに score / stable / reasons / recent_delta が返る
+
+
+
+T-44｜利益重視設計（Profit Decision Layer）
+目的（Why）
+
+ENTRY後の
+「どれくらい伸ばすか／いつ降りるか／どれだけ賭けるか」
+を 感覚ではなく判断として 定義する
+
+勝率ではなく 期待値と資金曲線 を守るための設計を入れる
+
+T-44-1｜利益評価軸の確定（Profit Metrics）
+
+やること
+
+既存ログ・KPIから以下を計算できるようにする
+
+expectancy（期待値）
+
+avg_win / avg_loss
+
+profit_factor
+
+max_favorable_excursion（可能なら）
+
+Done（完了条件）
+
+「この戦略は なぜ 儲かっている／いないか」を
+勝率なしで説明できる
+
+services から profit 指標が dict で取得できる
+
+T-44-2｜伸びしろ判定（Upside Potential）
+
+やること
+
+ENTRY条件＋過去分布から
+
+「当たった場合、どれくらい伸びやすいか」を段階化
+
+予測ではなく 過去分布ベース
+
+出力例
+
+upside_potential: HIGH | MID | LOW
+
+
+Done
+
+ENTRY時点で upside_potential が必ず付与される
+
+T-44-3｜EXIT判断を自動化（Exit as Decision）
+
+やること
+
+EXITを2系統に分離
+
+防御EXIT（条件崩壊・異常・急変）
+
+利益EXIT（伸びしろ枯渇・失速）
+
+出力
+
+exit_type: DEFENSE | PROFIT
+exit_reason: "condition_degraded"
+
+
+Done
+
+EXITした全トレードに 理由が残る
+
+人が見て「なぜ利確／損切りしたか」が分かる
+
+T-44-4｜ポジションサイズ判断（Sizing）
+
+やること
+
+サイズを以下で決定
+
+condition_confidence（T-43）
+
+upside_potential（T-44-2）
+
+stability / recent 状態
+
+出力
+
+size_decision:
+  multiplier: 0.5 | 1.0 | 1.5
+  reason: "high_confidence_high_upside"
+
+
+Done
+
+すべての ENTRY に size_decision が付く
+
+サイズ変更理由がログで追える
+
+T-44 Done（ここまでで何ができるか）
+
+✅ ENTRY後の
+EXIT・サイズ・伸ばす判断がすべて「理由付き」で決まる
+（まだ自動実行はしない）
+
+T-45｜自動売買の最小実装（Auto Trading MVP）
+
+※ エディション・承認・段階制御は一切考えない
+※ とにかく自動で回す
+
+T-45-1｜自動実行ON/OFFスイッチ
+
+やること
+
+設定1つで
+
+dry_run（ログだけ）
+
+live_run（実取引）
+を切り替え
+
+Done
+
+dry_run → live_run を切り替えても
+ロジックは一切変わらない
+
+T-45-2｜自動EXITの実行
+
+やること
+
+T-44-3 の EXIT判断を
+
+ExecutionService に接続
+
+防御EXIT・利益EXITを自動発注
+
+Done
+
+条件崩壊時に 人の操作なしでポジションが閉じる
+
+EXIT理由が decisions / ops_history に残る
+
+T-45-3｜自動サイズ反映
+
+やること
+
+size_decision.multiplier を
+
+ロット計算に反映
+
+Done
+
+同じENTRY条件でも
+状態に応じてロットが変わる
+
+ロット理由がログで説明できる
+
+T-45-4｜最小ガードレール（必須）
+
+やること
+
+以下だけは必ず入れる
+
+size 上限
+
+連続損失時の size_down
+
+異常時の即 EXIT
+
+Done
+
+ロジック暴走で資金が吹き飛ばない
+
+T-45 Done（ここで何が可能になるか）
+
+🎯 完全自動売買が可能
+
+ENTRY → EXIT → サイズ
+
+すべて自動
+
+すべて理由付き
+
+あとから検証可能
+
+T-46｜実運用チェック（最低限）
+目的
+
+「動く」ではなく 「安心して回せる」
+
+やること
+
+連続稼働テスト
+
+異常系（APIエラー・急変）確認
+
+ログだけ見て状況が分かるか検証
+
+Done
+
+1週間回しても
+手動介入したくならない
+
+v5.3 のスコープ宣言（超重要）
+v5.3 で「やる」
+
+ENTRY後の意思決定（T-44）
+
+EXIT / サイズ / 伸ばし
+
+自動売買の最小実装（T-45）
+
+実運用で止まらない最低限のガード
+
+v5.3 で「やらない」
+
+エディション分け
+
+課金・権限・承認フロー
+
+高度な最適化・学習
+
+“勝率を上げる研究”
+
+👉 v5.3 = 動く・止まらない・説明できる
+
+T-44｜利益判断レイヤ（Profit Decision Layer）
+
+目的
+ENTRY後の「伸ばす／降りる／賭ける」を判断として定義する。
+
+完了条件（T-44 Done）
+
+すべてのトレードに以下が付く
+
+upside_potential
+
+exit_type / exit_reason
+
+size_decision（multiplier + reason）
+
+勝ち負けに関係なく「なぜそうしたか」を説明できる
+
+T-45｜自動売買MVP
+
+目的
+人が触らなくても回る状態を作る。
+
+完了条件（T-45 Done）
+
+dry_run / live_run 切替が可能
+
+自動ENTRY・自動EXIT・自動サイズ反映
+
+異常時に即EXITできる
+
+ログだけ見て状況が分かる
+
+T-46｜実運用チェック
+
+目的
+「動く」から「安心して回せる」へ。
+
+完了条件（T-46 Done）
+
+数日〜1週間の連続稼働
+
+APIエラー・急変でも破綻しない
+
+手動介入したくならない
+
+④ v5.3 での“本当のゴール”
+
+自動売買が行われ、
+あとから「なぜこの結果になったか」を
+ログと画面だけで説明できること
+
+これは
+
+FX bot
+
+裁量トレード
+
+将来のAI強化
