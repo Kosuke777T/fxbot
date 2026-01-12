@@ -10,6 +10,7 @@ import json
 import re
 import time
 import copy
+from collections import deque
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Optional, Any
@@ -35,6 +36,85 @@ _CM_SNAPSHOT_CACHE: dict[str, dict[str, object]] = {}
 
 # step正規化用：未知のstep_raw値を記録（ログ抑制用）
 _UNKNOWN_STEP_SEEN: set[str] = set()
+
+
+def compute_profit_metrics(trades: list[dict]) -> dict:
+    """
+    Profit metrics (display-only / analysis-only).
+
+    Input:
+      - trades: list of dict that contains pnl in one of:
+        - trade["pnl"]
+        - trade["profit_jpy"]
+        - trade["profit"]
+
+    Output:
+      {
+        "expectancy": float,
+        "avg_win": float,
+        "avg_loss": float,
+        "profit_factor": float,
+        "max_favorable_excursion": Optional[float],
+      }
+    """
+    pnls: list[float] = []
+    mfes: list[float] = []
+
+    for t in trades:
+        if not isinstance(t, dict):
+            continue
+        pnl = None
+        for k in ("pnl", "profit_jpy", "profit"):
+            if k in t:
+                pnl = t.get(k)
+                break
+        if pnl is None:
+            continue
+        try:
+            pnls.append(float(pnl))
+        except Exception:
+            continue
+
+        for k in ("max_favorable_excursion", "mfe"):
+            if k in t and t.get(k) is not None:
+                try:
+                    mfes.append(float(t.get(k)))
+                except Exception:
+                    pass
+                break
+
+    if not pnls:
+        return {
+            "expectancy": 0.0,
+            "avg_win": 0.0,
+            "avg_loss": 0.0,
+            "profit_factor": 0.0,
+            "max_favorable_excursion": None,
+        }
+
+    wins = [x for x in pnls if x > 0]
+    losses = [x for x in pnls if x < 0]
+
+    avg_win = (sum(wins) / len(wins)) if wins else 0.0
+    avg_loss = (sum([abs(x) for x in losses]) / len(losses)) if losses else 0.0
+    expectancy = sum(pnls) / len(pnls)
+
+    gross_profit = sum(wins)
+    gross_loss_abs = sum([abs(x) for x in losses])
+    if gross_loss_abs > 0:
+        profit_factor = gross_profit / gross_loss_abs
+    else:
+        profit_factor = float("inf") if gross_profit > 0 else 0.0
+
+    max_fav = max(mfes) if mfes else None
+
+    return {
+        "expectancy": float(expectancy),
+        "avg_win": float(avg_win),
+        "avg_loss": float(avg_loss),
+        "profit_factor": float(profit_factor),
+        "max_favorable_excursion": (float(max_fav) if max_fav is not None else None),
+    }
 
 
 def _normalize_step_raw(raw: object) -> tuple[str, bool]:
@@ -1188,6 +1268,43 @@ class OpsHistoryService:
         t_total_end = time.perf_counter()
         total_sec = t_total_end - t_total_start
 
+        # --- T-44-1: Profit metrics (expectancy-based), display-only / add-only ---
+        profit_metrics: dict | None = None
+        try:
+            # Source of realized PnL: logs/ui_events.jsonl (CLOSE events with profit_jpy)
+            # NOTE: This does NOT change any trade logic; it only aggregates logged results.
+            sym = (symbol or "USDJPY-") if isinstance(symbol, str) or symbol is None else "USDJPY-"
+            sym = str(sym) if sym else "USDJPY-"
+            sym_alt = sym[:-1] if sym.endswith("-") else sym
+
+            log_file = self.project_root / "logs" / "ui_events.jsonl"
+            pnl_trades: deque[dict] = deque(maxlen=500)
+            if log_file.exists():
+                with log_file.open(encoding="utf-8", errors="replace") as f:
+                    for line in f:
+                        s = (line or "").strip()
+                        if not s:
+                            continue
+                        try:
+                            ev = json.loads(s)
+                        except Exception:
+                            continue
+                        if not isinstance(ev, dict):
+                            continue
+                        if str(ev.get("kind") or "") != "CLOSE":
+                            continue
+                        ev_sym = str(ev.get("symbol") or "")
+                        if ev_sym not in (sym, sym_alt):
+                            continue
+                        pj = ev.get("profit_jpy")
+                        if pj is None:
+                            continue
+                        pnl_trades.append({"profit_jpy": pj})
+
+            profit_metrics = compute_profit_metrics(list(pnl_trades))
+        except Exception:
+            profit_metrics = None
+
         result = {
             "week_total": week_total,
             "week_ok": week_ok,
@@ -1203,6 +1320,8 @@ class OpsHistoryService:
             "items": items_sorted,  # GUIで使う表示用ビュー（ソート済み）
             "last_view": last_view,  # 最新の表示用ビュー（新規追加）
         }
+        if profit_metrics is not None:
+            result.setdefault("profit_metrics", profit_metrics)
 
         # 計測ログ出力
         logger.info(
