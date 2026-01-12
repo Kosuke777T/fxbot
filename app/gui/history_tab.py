@@ -80,6 +80,18 @@ class HistoryTab(QtWidgets.QWidget):
         self.lbl_cm_loading_left.setVisible(False)
         controls_row.addWidget(self.lbl_cm_loading_left)
 
+        lbl_cm_limit = QLabel("CM表示件数")
+        lbl_cm_limit.setToolTip("CM整形を行うカード件数。反映は次回『CM再読込』から")
+        controls_row.addWidget(lbl_cm_limit)
+
+        self.spn_cm_limit = QtWidgets.QSpinBox()
+        self.spn_cm_limit.setRange(1, 50)
+        self.spn_cm_limit.setSingleStep(1)
+        self.spn_cm_limit.setValue(int(getattr(self, "_cm_render_limit", 5)))
+        self.spn_cm_limit.setToolTip("CM整形を行うカード件数。反映は次回『CM再読込』から")
+        self.spn_cm_limit.valueChanged.connect(self._on_change_cm_render_limit)
+        controls_row.addWidget(self.spn_cm_limit)
+
         # CM ON中のみ手動で再読込（QThread heavy fetch を再実行）
         self.btn_cm_reload = QtWidgets.QPushButton("CM再読込")
         self.btn_cm_reload.setEnabled(False)
@@ -190,6 +202,14 @@ class HistoryTab(QtWidgets.QWidget):
             return
         # トグル処理は呼ばず、fetchだけ再実行する
         self._start_cm_heavy_fetch()
+
+    def _on_change_cm_render_limit(self, v: int) -> None:
+        """表示のみ：CM整形を行うカード件数（次回再読込から反映）。"""
+        try:
+            self._cm_render_limit = int(v)
+        except Exception:
+            self._cm_render_limit = 5
+        logger.info(f"[history] cm_render_limit_changed v={v} (apply on next reload)")
 
     def _on_cm_thread_finished(self) -> None:
         self._cm_thread = None

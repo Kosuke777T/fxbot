@@ -2309,3 +2309,29 @@ CM再読込のキャンセル対応
 CM再読込の軽量/フルの二段階
 
 最新N件のNをUIで可変
+
+
+T-43-9
+目的達成：HistoryタブのCM表示N件数をUIで可変化（反映は次回「CM再読込」限定）
+
+変更範囲：app/gui/history_tab.py のみ（services/CMコア/売買ロジック不変更）
+
+実装内容
+
+controls_row に 「CM表示件数」QSpinBox を追加（range 1..50、初期=5、tooltip付）
+
+valueChanged は _cm_render_limit 更新＋ログのみ（fetch/再描画を呼ばない）
+
+観測で確定した動作
+
+SpinBox変更時：cm_render_limit_changed ... のみ（heavy fetchログは出ない）
+
+CM ON / 手動再読込時：heavy fetch が走り、cm_render_limit=1 items=20 が出力され 最新値が反映（今回の設定値が1だったため一貫）
+
+動作確認
+
+python -X utf8 -m py_compile app/gui/history_tab.py：OK
+
+アプリ実行ログで挙動確認：OK
+
+git diff --name-only：app/gui/history_tab.py のみ
