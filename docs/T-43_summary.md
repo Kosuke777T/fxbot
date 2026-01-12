@@ -2261,3 +2261,51 @@ app/services/kpi_service.py のみ
 KPIService は安定動作
 
 設計・責務境界・影響範囲すべて健全
+
+T-43-8
+目的
+
+CM ON時の重さを解消し、操作時のみ重い処理が走る設計にする
+
+達成内容
+
+✅ CM ON中は定期更新で Opsカードを更新しない
+→ 周期的な summarize_ops_history(include_cm=True) を停止
+
+✅ 手動「CM再読込」ボタンでのみ heavy fetch を実行
+→ 必要なときだけ重い処理
+
+✅ トグル処理と再読込処理を分離
+→ ログのノイズ解消（toggled と reload を明確化）
+
+✅ QThread 化／0.5秒最小表示／interval 切替を維持
+
+✅ CM表示は最新N件のみ整形（UI体感の軽量化）
+
+✅ 変更範囲は app/gui/history_tab.py のみ
+
+✅ compileall app/gui PASS
+
+観測結果
+
+CM ONで放置しても 7秒級のPERFが周期的に出ない
+
+CM再読込時のみ 7秒級が出る（仕様どおり）
+
+ログは
+
+トグル：[history] cm_heavy_toggled ...（状態変更時のみ）
+
+再読込：[history] cm_heavy_reload_click ... → fetch → done
+
+結論
+
+設計意図どおりの挙動に収束。実運用に耐える状態。
+
+次スレに進む場合の候補（参考）
+
+CM再読込のキャンセル対応
+
+CM再読込の軽量/フルの二段階
+
+最新N件のNをUIで可変

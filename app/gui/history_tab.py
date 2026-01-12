@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import Callable, List, Optional
 
 from PyQt6 import QtCore, QtWidgets
 from PyQt6.QtWidgets import QHeaderView, QScrollArea, QVBoxLayout, QHBoxLayout, QLabel, QGroupBox, QWidget
@@ -19,12 +19,34 @@ from app.gui.ops_ui_rules import (
 _COLUMNS = ["ts", "kind", "symbol", "side", "price", "sl", "tp", "profit_jpy", "reason", "notes"]
 
 
+class _OpsHistoryFetchWorker(QtCore.QObject):
+    finished = QtCore.pyqtSignal(object)  # items
+    failed = QtCore.pyqtSignal(str)
+
+    def __init__(self, fn: Callable[[], object]):
+        super().__init__()
+        self._fn = fn
+
+    def run(self) -> None:
+        try:
+            self.finished.emit(self._fn())
+        except Exception as e:
+            self.failed.emit(str(e))
+
+
 class HistoryTab(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
 
         # T-43-8 Step3(A): CM evidence display in History can be heavy; default OFF.
         self._cm_heavy_enabled: bool = False
+        # 表示のみ：CM整形を最新N件に限定（重さ軽減）
+        self._cm_render_limit: int = 5
+        self._cm_fetch_inflight: bool = False
+        self._cm_thread: Optional[QtCore.QThread] = None
+        self._cm_worker: Optional[_OpsHistoryFetchWorker] = None
+        self._cm_loading_timer: Optional[QtCore.QElapsedTimer] = None
+        self._cm_last_updated_str: str = ""
 
         # タブで分割（左：UiEvent、右：Ops履歴）
         splitter = QtWidgets.QSplitter(QtCore.Qt.Orientation.Horizontal, self)
@@ -51,6 +73,25 @@ class HistoryTab(QtWidgets.QWidget):
         self.chk_cm_heavy.setChecked(False)
         self.chk_cm_heavy.toggled.connect(self._on_toggle_cm_heavy)
         controls_row.addWidget(self.chk_cm_heavy)
+
+        # 左下（チェック行）にローディング表示：確実に目に入る位置
+        self.lbl_cm_loading_left = QLabel("CM読込中…")
+        self.lbl_cm_loading_left.setStyleSheet("color: #888; font-size: 9pt;")
+        self.lbl_cm_loading_left.setVisible(False)
+        controls_row.addWidget(self.lbl_cm_loading_left)
+
+        # CM ON中のみ手動で再読込（QThread heavy fetch を再実行）
+        self.btn_cm_reload = QtWidgets.QPushButton("CM再読込")
+        self.btn_cm_reload.setEnabled(False)
+        self.btn_cm_reload.clicked.connect(self._on_click_cm_reload)
+        controls_row.addWidget(self.btn_cm_reload)
+
+        # CM ON中は自動更新停止＋最終更新を表示（表示のみ）
+        self.lbl_cm_status = QLabel("", self)
+        self.lbl_cm_status.setStyleSheet("color: #888; font-size: 9pt;")
+        self.lbl_cm_status.setVisible(False)
+        controls_row.addWidget(self.lbl_cm_status)
+
         controls_row.addStretch(1)
 
         self.btnExport = QtWidgets.QPushButton("Export CSV")
@@ -68,6 +109,11 @@ class HistoryTab(QtWidgets.QWidget):
         ops_label = QLabel("Ops履歴", right_widget)
         ops_label.setStyleSheet("font-weight: bold; font-size: 12pt;")
         right_layout.addWidget(ops_label)
+
+        self.lbl_cm_loading = QLabel("CM読込中…", right_widget)
+        self.lbl_cm_loading.setStyleSheet("color: #888; font-size: 9pt;")
+        self.lbl_cm_loading.setVisible(False)
+        right_layout.addWidget(self.lbl_cm_loading)
 
         # スクロール可能なカードエリア
         scroll_area = QScrollArea(right_widget)
@@ -101,11 +147,259 @@ class HistoryTab(QtWidgets.QWidget):
 
     def _on_toggle_cm_heavy(self, checked: bool) -> None:
         """UI-only: toggle heavy CM evidence fetch for History cards."""
+        logger.info(f"[history] cm_heavy_toggled checked={checked} inflight={self._cm_fetch_inflight}")
         self._cm_heavy_enabled = bool(checked)
+        # CM ON中は定期更新を抑制（UIフリーズ再発防止）
+        try:
+            self._timer.setInterval(30000 if checked else 5000)
+        except Exception:
+            pass
+        # CM再読込ボタンの有効/無効
+        try:
+            self.btn_cm_reload.setEnabled(bool(checked) and (not self._cm_fetch_inflight))
+        except Exception:
+            pass
+        # 自動更新停止ステータスの表示
+        try:
+            if checked:
+                last = self._cm_last_updated_str or "未更新"
+                self.lbl_cm_status.setText(f"CM表示中：自動更新停止（最終更新: {last}）")
+                self.lbl_cm_status.setVisible(True)
+            else:
+                self.lbl_cm_status.setVisible(False)
+        except Exception:
+            pass
+        if checked:
+            self._start_cm_heavy_fetch()
+            return
+
+        # OFF時は従来通り軽量（同期）で即時反映
+        self._hide_cm_loading_with_min_duration()
         try:
             self._refresh_ops_cards()
         except Exception as e:
             logger.error(f"Failed to refresh ops cards after CM toggle: {e}")
+
+    def _on_click_cm_reload(self) -> None:
+        """CM ON中のみ、heavy fetch を手動で再実行する（表示のみ）。"""
+        logger.info(f"[history] cm_heavy_reload_click inflight={self._cm_fetch_inflight}")
+        try:
+            if not self.chk_cm_heavy.isChecked():
+                return
+        except Exception:
+            return
+        # トグル処理は呼ばず、fetchだけ再実行する
+        self._start_cm_heavy_fetch()
+
+    def _on_cm_thread_finished(self) -> None:
+        self._cm_thread = None
+        self._cm_worker = None
+
+    def _start_cm_heavy_fetch(self) -> None:
+        """CM heavy fetch（QThread）開始。トグル副作用は持たない。"""
+        if self._cm_fetch_inflight:
+            return
+        self._cm_fetch_inflight = True
+        try:
+            self.chk_cm_heavy.setEnabled(False)
+        except Exception:
+            pass
+        try:
+            self.btn_cm_reload.setEnabled(False)
+        except Exception:
+            pass
+        try:
+            # 左側ラベルを優先して表示（見えない問題の確実な解消）
+            self.lbl_cm_loading_left.setVisible(True)
+            # 右側は残すが、主表示は左側
+            self.lbl_cm_loading.setVisible(True)
+            try:
+                # Ensure the loading label is painted before starting the background thread.
+                QtWidgets.QApplication.processEvents()
+            except Exception:
+                pass
+            self._cm_loading_timer = QtCore.QElapsedTimer()
+            self._cm_loading_timer.start()
+        except Exception:
+            pass
+
+        def _fetch_items() -> object:
+            logger.info("[history] cm_heavy_fetch: summarize_ops_history(include_cm=True) begin")
+            history_service = get_ops_history_service()
+            summary = history_service.summarize_ops_history(
+                cache_sec=60,
+                include_condition_mining=True,
+            )
+            items = summary.get("items", [])
+            try:
+                n = len(items)  # type: ignore[arg-type]
+            except Exception:
+                n = -1
+            logger.info(f"[history] cm_heavy_fetch: summarize_ops_history end items={n}")
+            return items
+
+        try:
+            thread = QtCore.QThread(self)
+            worker = _OpsHistoryFetchWorker(_fetch_items)
+            worker.moveToThread(thread)
+
+            thread.started.connect(worker.run)
+            worker.finished.connect(self._on_cm_fetch_done)
+            worker.failed.connect(self._on_cm_fetch_fail)
+            worker.finished.connect(thread.quit)
+            worker.failed.connect(thread.quit)
+            thread.finished.connect(worker.deleteLater)
+            thread.finished.connect(thread.deleteLater)
+            thread.finished.connect(self._on_cm_thread_finished)
+
+            self._cm_thread = thread
+            self._cm_worker = worker
+            logger.info("[history] cm_heavy_fetch: starting QThread")
+            thread.start()
+            logger.info("[history] cm_heavy_fetch: QThread started")
+            return
+        except Exception as e:
+            # 例外安全：起動に失敗してもUIを復帰させる
+            self._cm_fetch_inflight = False
+            try:
+                self.chk_cm_heavy.setEnabled(True)
+            except Exception:
+                pass
+            self._hide_cm_loading_with_min_duration()
+            logger.error(f"Failed to start CM fetch thread: {e}")
+            # 起動失敗時は重い表示に入らない（同期heavyに落ちて固まるのを防ぐ）
+            self._on_cm_fetch_fail(str(e))
+
+    def _hide_cm_loading_with_min_duration(self) -> None:
+        """CM読込中…を最低0.5秒は表示した上で隠す（UI復帰は遅延しない）。"""
+        try:
+            t = self._cm_loading_timer
+            elapsed = int(t.elapsed()) if t is not None else 10_000
+        except Exception:
+            elapsed = 10_000
+        remaining = 500 - elapsed
+        if remaining > 0:
+            # 500ms経つまでは必ず表示を維持（OFF/完了/失敗で先に消されないようにする）
+            try:
+                self.lbl_cm_loading_left.setVisible(True)
+            except Exception:
+                pass
+            try:
+                self.lbl_cm_loading.setVisible(True)
+            except Exception:
+                pass
+            QtCore.QTimer.singleShot(
+                remaining,
+                lambda: self._hide_cm_loading_with_min_duration(),
+            )
+            return
+
+        self._cm_loading_timer = None
+        try:
+            self.lbl_cm_loading_left.setVisible(False)
+        except Exception:
+            pass
+        try:
+            self.lbl_cm_loading.setVisible(False)
+        except Exception:
+            pass
+
+    def _on_cm_fetch_done(self, items_obj: object) -> None:
+        try:
+            n = len(items_obj)  # type: ignore[arg-type]
+        except Exception:
+            n = -1
+        try:
+            checked_now = self.chk_cm_heavy.isChecked()
+        except Exception:
+            checked_now = False
+        logger.info(f"[history] cm_heavy_fetch_done items={n} checked_now={checked_now}")
+        self._cm_fetch_inflight = False
+        try:
+            self.chk_cm_heavy.setEnabled(True)
+        except Exception:
+            pass
+        try:
+            self.btn_cm_reload.setEnabled(bool(self._cm_heavy_enabled))
+        except Exception:
+            pass
+        self._hide_cm_loading_with_min_duration()
+
+        # 状態尊重：完了時点でOFFなら結果は捨てて軽量refreshへ
+        try:
+            if not self.chk_cm_heavy.isChecked():
+                self._cm_heavy_enabled = False
+                self._refresh_ops_cards()
+                return
+        except Exception:
+            self._cm_heavy_enabled = False
+            try:
+                self._refresh_ops_cards()
+            except Exception:
+                pass
+            return
+
+        items = items_obj if isinstance(items_obj, list) else []
+        try:
+            logger.info(f"[history] cm_render_limit={self._cm_render_limit} items={len(items)}")
+        except Exception:
+            pass
+        # 表示のみ：最終更新時刻を更新
+        try:
+            self._cm_last_updated_str = QtCore.QDateTime.currentDateTime().toString("yyyy-MM-dd HH:mm:ss")
+            self.lbl_cm_status.setText(f"CM表示中：自動更新停止（最終更新: {self._cm_last_updated_str}）")
+            self.lbl_cm_status.setVisible(True)
+        except Exception:
+            pass
+        try:
+            self._render_ops_cards(items)
+        except Exception as e:
+            logger.error(f"Failed to render ops cards after CM fetch: {e}")
+
+    def _on_cm_fetch_fail(self, msg: str) -> None:
+        logger.error(f"[history] cm_heavy_fetch_fail: {msg}")
+        self._cm_fetch_inflight = False
+        try:
+            self.chk_cm_heavy.setEnabled(True)
+        except Exception:
+            pass
+        try:
+            self.btn_cm_reload.setEnabled(False)
+        except Exception:
+            pass
+        self._hide_cm_loading_with_min_duration()
+
+        logger.error(f"CM fetch failed: {msg}")
+        try:
+            self.chk_cm_heavy.setToolTip(f"CM取得失敗: {msg}")
+        except Exception:
+            pass
+
+        # 分かりやすさ優先：失敗時はOFFに戻す（例外で落とさない）
+        try:
+            blocker = QtCore.QSignalBlocker(self.chk_cm_heavy)
+            self.chk_cm_heavy.setChecked(False)
+            del blocker
+        except Exception:
+            try:
+                self.chk_cm_heavy.setChecked(False)
+            except Exception:
+                pass
+
+        self._cm_heavy_enabled = False
+        # シグナルをブロックしてOFFに戻すため、ここでintervalも復帰させる
+        try:
+            self._timer.setInterval(5000)
+        except Exception:
+            pass
+        try:
+            self.lbl_cm_status.setVisible(False)
+        except Exception:
+            pass
+        try:
+            self._refresh_ops_cards()
+        except Exception as e:
+            logger.error(f"Failed to refresh ops cards after CM fetch fail: {e}")
 
     def refresh(self) -> None:
         # UiEventテーブルを更新
@@ -118,10 +412,16 @@ class HistoryTab(QtWidgets.QWidget):
                 self.table.setItem(r, c, item)
 
         # Ops履歴カードを更新
+        # CM ON中は定期更新で重いservices呼び出しをしない（UiEventのみ更新）
+        if bool(getattr(self, "_cm_heavy_enabled", False)):
+            return
         self._refresh_ops_cards()
 
     def _refresh_ops_cards(self) -> None:
         """Ops履歴カードを更新する。"""
+        # バックグラウンド取得中は定期更新が割り込まないようにする（多重実行防止）
+        if self._cm_fetch_inflight and bool(getattr(self, "_cm_heavy_enabled", False)):
+            return
         try:
             history_service = get_ops_history_service()
             # T-43-8: default OFF for CM evidence (heavy); enable only by explicit user toggle.
@@ -134,25 +434,30 @@ class HistoryTab(QtWidgets.QWidget):
             items = summary.get("items", [])
             last_view = summary.get("last_view")  # 最新の表示用ビュー（現在は未使用だが取得しておく）
 
-            # 既存のカードをクリア
-            while self.ops_cards_layout.count():
-                child = self.ops_cards_layout.takeAt(0)
-                if child.widget():
-                    child.widget().deleteLater()
-
-            # itemsはservices層で既にソート済み（priority降順、started_at降順、record_idで安定化）
-            # カードを生成（services層のソート順を維持）
-            for item in items:
-                card = self._create_ops_card(item)
-                if card:
-                    self.ops_cards_layout.addWidget(card)
-
-            # スペーサーを追加
-            self.ops_cards_layout.addStretch()
+            # keep last_view local for now (unused); avoids breaking existing behavior
+            _ = last_view
+            self._render_ops_cards(items)
         except Exception as e:
             logger.error(f"Failed to refresh ops cards: {e}")
 
-    def _create_ops_card(self, item: dict) -> Optional[QWidget]:
+    def _render_ops_cards(self, items: list) -> None:
+        # 既存のカードをクリア
+        while self.ops_cards_layout.count():
+            child = self.ops_cards_layout.takeAt(0)
+            if child.widget():
+                child.widget().deleteLater()
+
+        # itemsはservices層で既にソート済み（priority降順、started_at降順、record_idで安定化）
+        # カードを生成（services層のソート順を維持）
+        for idx, item in enumerate(items):
+            card = self._create_ops_card(item, idx=idx)
+            if card:
+                self.ops_cards_layout.addWidget(card)
+
+        # スペーサーを追加
+        self.ops_cards_layout.addStretch()
+
+    def _create_ops_card(self, item: dict, idx: int = 0) -> Optional[QWidget]:
         """Ops履歴カードを作成する。"""
         try:
             card = QGroupBox()
@@ -220,18 +525,23 @@ class HistoryTab(QtWidgets.QWidget):
                     # 表示テキストを生成（reasonは説明表示にのみ使用）
                     hint_text = format_action_hint_text(next_action)
                     if hint_text:
+                        include_cm = bool(getattr(self, "_cm_heavy_enabled", False))
+                        cm_limit = int(getattr(self, "_cm_render_limit", 5))
+                        allow_cm_render = bool(include_cm and (idx < cm_limit))
+
                         # T-43-8 Step3(A): unify CM evidence rendering with Ops (Scheduler)
                         # - Add-only: if CM evidence exists, append summary to the one-line text.
                         # - Never crash UI if evidence is missing/partial.
-                        cm_view = {}
-                        try:
-                            cm_view = format_condition_mining_evidence_text(next_action, top_n=3) or {}
-                        except Exception:
-                            cm_view = {}
+                        cm_view: Optional[dict] = None
+                        if allow_cm_render:
+                            try:
+                                cm_view = format_condition_mining_evidence_text(next_action, top_n=3) or {}
+                            except Exception:
+                                cm_view = {}
 
                         disp_text = str(hint_text)
                         try:
-                            if isinstance(cm_view, dict) and bool(cm_view.get("has")):
+                            if allow_cm_render and isinstance(cm_view, dict) and bool(cm_view.get("has")):
                                 cm_sum = cm_view.get("summary")
                                 if isinstance(cm_sum, str) and cm_sum.strip():
                                     disp_text = disp_text + " | " + cm_sum.strip()
@@ -251,7 +561,7 @@ class HistoryTab(QtWidgets.QWidget):
                                 tip_lines.append(f"{spec.tooltip_prefix}{reason}")
 
                             # Append CM details into tooltip (top_lines + warnings), same formatter as Ops.
-                            if isinstance(cm_view, dict) and bool(cm_view.get("has")):
+                            if allow_cm_render and isinstance(cm_view, dict) and bool(cm_view.get("has")):
                                 top_lines = cm_view.get("top_lines") or []
                                 warn_lines = cm_view.get("warnings") or []
                                 if not isinstance(top_lines, list):
