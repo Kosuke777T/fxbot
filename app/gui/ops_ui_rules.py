@@ -258,3 +258,74 @@ def format_condition_mining_evidence_text(next_action: Optional[dict], top_n: in
 
     return {"has": True, "summary": summary, "top_lines": lines, "warnings": warnings}
 
+
+def build_condition_mining_evidence_strings(
+    next_action: Optional[dict],
+    *,
+    top_n: int = 3,
+    max_top_lines: int = 5,
+    max_warn_lines: int = 5,
+) -> dict:
+    """
+    UI helper (display-only):
+    Wrap format_condition_mining_evidence_text() and return final strings used by UI.
+
+    Returns:
+      {
+        "has": bool,
+        "summary": str,
+        "top_lines": list[str],
+        "warnings": list[str],
+        "body": str,       # summary + optional top_lines
+        "warn_body": str,  # "CM warnings:\n- ..."
+      }
+    """
+    base = format_condition_mining_evidence_text(next_action, top_n=top_n) or {}
+    try:
+        has = bool(base.get("has"))
+    except Exception:
+        has = False
+
+    summary = str(base.get("summary") or "CM: (n/a)")
+
+    top_lines = base.get("top_lines") or []
+    if not isinstance(top_lines, list):
+        top_lines = []
+    top_lines_s: list[str] = [str(x) for x in top_lines]
+
+    warnings = base.get("warnings") or []
+    if not isinstance(warnings, list):
+        warnings = []
+    warnings_s: list[str] = [str(x) for x in warnings]
+
+    try:
+        m = int(max_top_lines)
+    except Exception:
+        m = 5
+    if m < 0:
+        m = 0
+
+    body = summary
+    if top_lines_s and m > 0:
+        body = body + "\n" + "\n".join(top_lines_s[:m])
+
+    try:
+        mw = int(max_warn_lines)
+    except Exception:
+        mw = 5
+    if mw < 0:
+        mw = 0
+
+    warn_body = ""
+    if warnings_s and mw > 0:
+        warn_body = "CM warnings:\n- " + "\n- ".join(warnings_s[:mw])
+
+    return {
+        "has": has,
+        "summary": summary,
+        "top_lines": top_lines_s,
+        "warnings": warnings_s,
+        "body": body,
+        "warn_body": warn_body,
+    }
+

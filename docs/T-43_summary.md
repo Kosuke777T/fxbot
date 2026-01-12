@@ -2335,3 +2335,87 @@ python -X utf8 -m py_compile app/gui/history_tab.py：OK
 アプリ実行ログで挙動確認：OK
 
 git diff --name-only：app/gui/history_tab.py のみ
+
+
+目的
+
+KPI / Ops / CM 表示の最終整理に向け、Ops（SchedulerTab/Overview）と History の CM表示を「ロジック不変・表示統一」するため、
+GUI内に 本文/警告の最終文字列を生成する単一接点を設け、その正当性を観測で確定した。
+
+実施内容（確定事実）
+
+単一接点の確立（GUI内）
+
+ファイル：app/gui/ops_ui_rules.py
+
+関数：build_condition_mining_evidence_strings()
+
+役割：
+
+既存 format_condition_mining_evidence_text() をラップ
+
+本文（body）＝ summary + top_lines
+
+警告（warn_body）＝ CM warnings…
+
+UIで使う「最終文字列」をここで確定
+
+Ops（SchedulerTab/Overview）側
+
+include_cm=False ガード維持（OverviewでCM snapshotを走らせない）
+
+CM表示は 単一接点経由で body / warn_body をラベル反映
+
+確定箇所：
+
+scheduler_tab.py:1340-1376（ガード）
+
+scheduler_tab.py:1440-1472（表示）
+
+History側
+
+CM ON中の自動更新抑制：維持
+
+N件ガード（idx < _cm_render_limit）：維持
+
+CM整形は allow_cm_render時のみ単一接点経由
+
+1行表示：従来どおり summary を追記
+
+tooltip：body / warn_body（統一ルール）
+
+確定箇所：
+
+history_tab.py:424-438（自動更新抑制）
+
+history_tab.py:548-551（N件ガード）
+
+history_tab.py:555-607（CM表示）
+
+変更範囲
+
+変更ファイルは GUIの3ファイルのみ
+
+app/gui/ops_ui_rules.py
+
+app/gui/scheduler_tab.py
+
+app/gui/history_tab.py
+
+services / CMコア / 売買ロジック 未変更
+
+機械観測
+
+python -X utf8 -m compileall app/gui：OK
+
+単一接点 → 呼び出し → ガード維持、すべて file:line で観測確定
+
+成功条件の達成状況
+
+差分点は推測なし・行番号付きで確定：✅
+
+本文/警告の最終文字列が必ず単一接点経由：✅
+
+ガード挙動（CMトグル/N件制限/自動更新抑制）維持：✅
+
+変更範囲の拡大なし（GUI内3ファイル）：✅

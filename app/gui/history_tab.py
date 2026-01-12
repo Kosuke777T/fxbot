@@ -11,7 +11,7 @@ from app.services.event_store import EVENT_STORE, UiEvent
 from app.services.ops_history_service import get_ops_history_service
 from app.gui.ops_ui_rules import (
     format_action_hint_text,
-    format_condition_mining_evidence_text,
+    build_condition_mining_evidence_strings,
     ui_for_next_action,
     get_action_priority,
 )
@@ -555,9 +555,21 @@ class HistoryTab(QtWidgets.QWidget):
                         cm_view: Optional[dict] = None
                         if allow_cm_render:
                             try:
-                                cm_view = format_condition_mining_evidence_text(next_action, top_n=3) or {}
+                                cm_view = build_condition_mining_evidence_strings(
+                                    next_action,
+                                    top_n=3,
+                                    max_top_lines=5,
+                                    max_warn_lines=5,
+                                ) or {}
                             except Exception:
-                                cm_view = {}
+                                cm_view = {
+                                    "has": False,
+                                    "summary": "CM: (error)",
+                                    "top_lines": [],
+                                    "warnings": [],
+                                    "body": "CM: (error)",
+                                    "warn_body": "",
+                                }
 
                         disp_text = str(hint_text)
                         try:
@@ -582,23 +594,16 @@ class HistoryTab(QtWidgets.QWidget):
 
                             # Append CM details into tooltip (top_lines + warnings), same formatter as Ops.
                             if allow_cm_render and isinstance(cm_view, dict) and bool(cm_view.get("has")):
-                                top_lines = cm_view.get("top_lines") or []
-                                warn_lines = cm_view.get("warnings") or []
-                                if not isinstance(top_lines, list):
-                                    top_lines = []
-                                if not isinstance(warn_lines, list):
-                                    warn_lines = []
-
-                                if top_lines:
+                                body = str(cm_view.get("body") or "")
+                                warn_body = str(cm_view.get("warn_body") or "")
+                                if body.strip():
                                     tip_lines.append("")
-                                    tip_lines.append("CM:")
-                                    for x in top_lines[:5]:
-                                        tip_lines.append("- " + str(x))
-                                if warn_lines:
+                                    for ln in body.splitlines():
+                                        tip_lines.append(str(ln))
+                                if warn_body.strip():
                                     tip_lines.append("")
-                                    tip_lines.append("CM warnings:")
-                                    for x in warn_lines[:5]:
-                                        tip_lines.append("- " + str(x))
+                                    for ln in warn_body.splitlines():
+                                        tip_lines.append(str(ln))
 
                             if tip_lines:
                                 next_action_label.setToolTip("\n".join([str(x) for x in tip_lines if x is not None]))

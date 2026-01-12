@@ -48,7 +48,7 @@ from app.services.scheduler_facade import (
     get_scheduler_daemon_status,
     open_scheduler_daemon_log,
 )
-from app.gui.ops_ui_rules import format_condition_mining_evidence_text
+from app.gui.ops_ui_rules import build_condition_mining_evidence_strings
 from loguru import logger
 
 _JOB_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
@@ -1439,28 +1439,25 @@ class SchedulerTab(QWidget):
 
         # ---- T-43-5: render condition_mining evidence attached to next_action (display-only) ----
         try:
-            cm_view = format_condition_mining_evidence_text(na, top_n=3) or {}
+            cm_view = build_condition_mining_evidence_strings(na, top_n=3, max_top_lines=5, max_warn_lines=5) or {}
         except Exception:
-            cm_view = {"has": False, "summary": "CM: (error)", "top_lines": [], "warnings": []}
+            cm_view = {
+                "has": False,
+                "summary": "CM: (error)",
+                "top_lines": [],
+                "warnings": [],
+                "body": "CM: (error)",
+                "warn_body": "",
+            }
 
         try:
-            summary = str(cm_view.get("summary") or "CM: (n/a)")
-            top_lines = cm_view.get("top_lines") or []
-            if not isinstance(top_lines, list):
-                top_lines = []
-            warn_lines = cm_view.get("warnings") or []
-            if not isinstance(warn_lines, list):
-                warn_lines = []
-
-            body = summary
-            if top_lines:
-                body = body + "\n" + "\n".join([str(x) for x in top_lines[:5]])
-
+            body = str(cm_view.get("body") or "CM: (n/a)")
+            warn_body = str(cm_view.get("warn_body") or "")
             self.lbl_cm_next_action.setText(body)
 
-            if warn_lines:
+            if warn_body.strip():
                 self.lbl_cm_next_action_warn.setVisible(True)
-                self.lbl_cm_next_action_warn.setText("CM warnings:\n- " + "\n- ".join([str(x) for x in warn_lines[:5]]))
+                self.lbl_cm_next_action_warn.setText(warn_body)
                 self.lbl_cm_next_action_warn.setStyleSheet(
                     "border-radius:10px; padding:6px 10px; font-weight:700; background:#664; color:#ffe;"
                 )
