@@ -71,3 +71,39 @@ python -X utf8 -m compileall app/services ✅ 成功
 ✅ GUI未コミット差分と非干渉
 
 ✅ 次フェーズに安全に進める状態
+
+
+T-44-2
+■ 目的
+
+MFE（伸び代）を算出できる既存ログの有無を“実ファイル観測”で確定し、無い場合は 確定済み profit_jpy（CLOSE）だけで作れる proxy に切替えて、profit_metrics.upside_potential（LOW/MID/HIGH）を 必ず返す 状態にする。
+
+■ 実施内容（事実）
+
+logs/ 配下の .jsonl/.json を対象に、MFE関連キー（unrealized/floating/mfe/runup/position/tick/bid/ask/max_* 等）を総当り検索し、MFE算出に必要な建玉中ログが存在しないことを確定。
+
+MFEが作れない前提で、勝ちトレードの profit_jpy 分布（realized）を proxy にして upside_potential を段階化し、profit_metrics に 追加のみで拡張。
+
+触ったレイヤ：services のみ（GUI/COREは不変更）
+
+新規関数：なし（既存 compute_profit_metrics() の返却dictにキー追加のみ）
+
+■ 変更ファイル
+
+app/services/ops_history_service.py（compute_profit_metrics() 付近：profit_metrics の返却dictに upside_potential を追加）
+
+既存APIのみ使用
+
+責務境界（gui/services/core）遵守
+
+■ 挙動の変化
+
+変わった点：profit_metrics に upside_potential: LOW|MID|HIGH が追加され、常に返る。
+
+変わっていない点：既存の profit_metrics のキー/型/意味（profit_factor, max_favorable_excursion など）は維持（追加のみ）。
+
+■ 確認方法
+
+python -X utf8 -m compileall app/services → exit_code=0
+
+summarize_ops_history(...) の返却 profit_metrics に upside_potential が含まれることを確認（例：'upside_potential': 'LOW'）。

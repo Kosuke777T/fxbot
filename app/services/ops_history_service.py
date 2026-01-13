@@ -55,6 +55,7 @@ def compute_profit_metrics(trades: list[dict]) -> dict:
         "avg_loss": float,
         "profit_factor": float,
         "max_favorable_excursion": Optional[float],
+        "upside_potential": "LOW"|"MID"|"HIGH",
       }
     """
     pnls: list[float] = []
@@ -90,6 +91,7 @@ def compute_profit_metrics(trades: list[dict]) -> dict:
             "avg_loss": 0.0,
             "profit_factor": 0.0,
             "max_favorable_excursion": None,
+            "upside_potential": "LOW",
         }
 
     wins = [x for x in pnls if x > 0]
@@ -108,12 +110,64 @@ def compute_profit_metrics(trades: list[dict]) -> dict:
 
     max_fav = max(mfes) if mfes else None
 
+    # T-44-2: Upside Potential (proxy)
+    # NOTE (observation-based):
+    # - No unrealized/position snapshot logs were found under logs/ for MFE computation.
+    # - Therefore, we classify upside potential using realized PnL distribution only.
+    #
+    # Rule:
+    # - Use win profit 66th percentile (win_q66) vs avg_loss as a proxy.
+    #   win_q66 / avg_loss >= 2.0  => HIGH
+    #   win_q66 / avg_loss >= 1.0  => MID
+    #   else                       => LOW
+    def _q(sorted_vals: list[float], p: float) -> float:
+        if not sorted_vals:
+            return 0.0
+        n = len(sorted_vals)
+        if n == 1:
+            return float(sorted_vals[0])
+        try:
+            pp = float(p)
+        except Exception:
+            pp = 0.0
+        if pp < 0.0:
+            pp = 0.0
+        if pp > 1.0:
+            pp = 1.0
+        idx = int((n - 1) * pp)
+        if idx < 0:
+            idx = 0
+        if idx > (n - 1):
+            idx = n - 1
+        return float(sorted_vals[idx])
+
+    upside_potential = "LOW"
+    try:
+        if wins:
+            wins_sorted = sorted([float(x) for x in wins])
+            win_q66 = _q(wins_sorted, 0.66)
+            if avg_loss <= 0:
+                upside_potential = "HIGH"
+            else:
+                r = float(win_q66) / float(avg_loss)
+                if r >= 2.0:
+                    upside_potential = "HIGH"
+                elif r >= 1.0:
+                    upside_potential = "MID"
+                else:
+                    upside_potential = "LOW"
+        else:
+            upside_potential = "LOW"
+    except Exception:
+        upside_potential = "LOW"
+
     return {
         "expectancy": float(expectancy),
         "avg_win": float(avg_win),
         "avg_loss": float(avg_loss),
         "profit_factor": float(profit_factor),
         "max_favorable_excursion": (float(max_fav) if max_fav is not None else None),
+        "upside_potential": str(upside_potential),
     }
 
 
