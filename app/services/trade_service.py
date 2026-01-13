@@ -384,6 +384,45 @@ class TradeService:
                 default_lot = float((cfg.get("trade", {}) or {}).get("default_lot", 0.01))
             lot_val = float(default_lot)
 
+        # --- T-44-4: size_decision.multiplier を最終ロットに反映（services-only / add-only） ---
+        # 目的:
+        # - 最終ロット = base_lot × size_decision.multiplier
+        # - multiplier=1.0 の場合、従来挙動と完全一致（実質 no-op）
+        # 入力:
+        # - features["size_decision"] = {"multiplier": 0.5|1.0|1.5, "reason": "..."} を優先
+        # - 無ければ features["size_multiplier"] を参照（後方互換）
+        size_mult = 1.0
+        size_reason = None
+        try:
+            if isinstance(features, dict):
+                sd = features.get("size_decision")
+                if isinstance(sd, dict):
+                    if sd.get("multiplier") is not None:
+                        size_mult = float(sd.get("multiplier"))
+                    if sd.get("reason") is not None:
+                        size_reason = str(sd.get("reason"))
+                elif features.get("size_multiplier") is not None:
+                    size_mult = float(features.get("size_multiplier"))
+        except Exception:
+            size_mult = 1.0
+            size_reason = None
+
+        try:
+            if isinstance(lot_val, (int, float)) and size_mult != 1.0:
+                base_lot = float(lot_val)
+                lot_val = base_lot * float(size_mult)
+                self._logger.info(
+                    "[lot] apply size_decision: base_lot=%.6f mult=%.3f -> lot=%.6f reason=%s",
+                    base_lot,
+                    float(size_mult),
+                    float(lot_val),
+                    size_reason,
+                )
+        except Exception:
+            # ここで例外を出すと発注自体が止まるため、縮退（倍率を無視）
+            pass
+        # --- /T-44-4 ---
+
         self._last_lot_result = lot_result
         self.last_lot_result = lot_result
 
