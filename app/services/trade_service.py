@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+import threading
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, Dict, Iterable, Optional
@@ -321,12 +322,11 @@ class TradeService:
         tp: float | None = None,
         comment: str = "",
         features: Dict[str, Any] | None = None,
+        dry_run: bool = False,
     ) -> None:
         """
         MT5 への発注。ATR を元に lot 計算を優先し、なければ ATR なしのフォールバック lot で送信。
         """
-        if self._mt5 is None:
-            raise RuntimeError("MT5 client is not configured on TradeService.")
         if self._profile is None:
             raise RuntimeError("Strategy profile is not configured on TradeService.")
 
@@ -334,106 +334,380 @@ class TradeService:
         if side_up not in {"BUY", "SELL"}:
             raise ValueError('side must be "buy" or "sell"')
 
+        # --- T-45-4(A): ENTRYゲート（単一） ---
+        # 目的:
+        # - 多重ENTRY/EXIT競合（inflight/open）を抑止
+        # - 連続損失が閾値以上なら ENTRY を deny（最も安全）
+        # 方針:
+        # - 例外で止めない（denyしてreturn）
+        # - 監査用にINFOログを必ず残す
+        evidence_keys: list[str] = []
+        try:
+            if isinstance(features, dict):
+                evidence_keys = list(features.keys())
+        except Exception:
+            evidence_keys = []
+
+        # --- MT5未設定の live 実行は縮退（例外停止禁止） ---
+        # - dry_run は従来どおり通す（発注だけスキップ）
+        # - live は ENTRY deny + 監査ログ（app.log / ui_events INFO）
+        if (not dry_run) and (self._mt5 is None):
+            msg = "[guard][entry] denied reason=mt5_unavailable symbol=%s side=%s evidence_keys=%s"
+            self._logger.info(msg, symbol, side_up, evidence_keys)
+            try:
+                EVENT_STORE.add(
+                    kind="INFO",
+                    symbol=symbol,
+                    side=side_up,
+                    reason="mt5_unavailable",
+                    notes=(msg % (symbol, side_up, evidence_keys)),
+                )
+            except Exception:
+                pass
+            return
+
         # --- フィルタエンジン呼び出しを追加 ---
         # 連敗数を取得（プロファイル名・シンボルは実際の変数名に合わせてください）
         profile_name = self._profile.name if hasattr(self._profile, "name") and self._profile else "michibiki_std"
         consecutive_losses = get_consecutive_losses(profile_name, symbol)
 
-        entry_context = {
-            "timestamp": datetime.now(),
-            "atr": atr,
-            "volatility": features.get("volatility") if isinstance(features, dict) else None,
-            "trend_strength": features.get("trend_strength") if isinstance(features, dict) else None,
-            "consecutive_losses": consecutive_losses,
-            "profile_stats": {
-                "profile_name": profile_name,
-            } if self._profile else {},
-        }
-
-        ok, reasons = evaluate_entry(entry_context)
-
-        if not ok:
-            # ここではまだ decisions.jsonl には書かず、ログだけ軽く出しておく
-            self._logger.info(f"[Filter] entry blocked. reasons={reasons}")
-            return
-
-        equity = float(self._mt5.get_equity())
-        tick_spec: TickSpec = self._mt5.get_tick_spec(symbol)
-
-        lot_result: LotSizingResult | None = None
-        lot_val = lot
-
-        # ATR が指定されていて lot が決まっていない場合は ATR ベースで計算
-        if (lot_val is None or lot_val == 0) and atr is not None and atr > 0:
-            lot_result = self._profile.compute_lot_size_from_atr(
-                equity=equity,
-                atr=atr,
-                tick_size=tick_spec.tick_size,
-                tick_value=tick_spec.tick_value,
-            )
-            raw_volume = getattr(lot_result, "lot", None)
-            if raw_volume is None:
-                raw_volume = getattr(lot_result, "volume", None)
-            if raw_volume is not None:
-                lot_val = float(raw_volume)
-
-        # フォールバック: ATR が無い/0 のときはデフォルト lot を使う
-        if lot_val is None or lot_val <= 0:
-            default_lot = getattr(self._profile, "default_lot", None)
-            if default_lot is None:
-                default_lot = float((cfg.get("trade", {}) or {}).get("default_lot", 0.01))
-            lot_val = float(default_lot)
-
-        # --- T-44-4: size_decision.multiplier を最終ロットに反映（services-only / add-only） ---
-        # 目的:
-        # - 最終ロット = base_lot × size_decision.multiplier
-        # - multiplier=1.0 の場合、従来挙動と完全一致（実質 no-op）
-        # 入力:
-        # - features["size_decision"] = {"multiplier": 0.5|1.0|1.5, "reason": "..."} を優先
-        # - 無ければ features["size_multiplier"] を参照（後方互換）
-        size_mult = 1.0
-        size_reason = None
+        # 0) circuit breaker（既存のservices状態を使用）
         try:
-            if isinstance(features, dict):
-                sd = features.get("size_decision")
-                if isinstance(sd, dict):
-                    if sd.get("multiplier") is not None:
-                        size_mult = float(sd.get("multiplier"))
-                    if sd.get("reason") is not None:
-                        size_reason = str(sd.get("reason"))
-                elif features.get("size_multiplier") is not None:
-                    size_mult = float(features.get("size_multiplier"))
+            if hasattr(self, "cb") and (not self.cb.can_trade()):
+                msg = (
+                    "[guard][entry] denied reason=circuit_breaker symbol=%s side=%s consec_losses=%s evidence_keys=%s"
+                )
+                self._logger.info(
+                    "[guard][entry] denied reason=circuit_breaker symbol=%s side=%s consec_losses=%s evidence_keys=%s",
+                    symbol,
+                    side_up,
+                    consecutive_losses,
+                    evidence_keys,
+                )
+                try:
+                    EVENT_STORE.add(kind="INFO", symbol=symbol, side=side_up, reason="guard_entry_denied", notes=(msg % (symbol, side_up, consecutive_losses, evidence_keys)))
+                except Exception:
+                    pass
+                return
         except Exception:
+            # 観測不能なら gate は縮退（raiseで止めない）
+            pass
+
+        # 1) position/inflight（既存 PositionGuard を使用）
+        try:
+            # reconcile + open_count gate
+            if not self.can_open(symbol):
+                open_count = getattr(getattr(self.pos_guard, "state", None), "open_count", None)
+                max_pos = getattr(self.pos_guard, "max_positions", None)
+                inflight_n = None
+                try:
+                    inflight_n = len(getattr(getattr(self.pos_guard, "state", None), "inflight_orders", {}) or {})
+                except Exception:
+                    inflight_n = None
+                msg = (
+                    "[guard][entry] denied reason=max_positions_reached symbol=%s side=%s open_count=%s max_positions=%s inflight=%s evidence_keys=%s"
+                )
+                self._logger.info(
+                    "[guard][entry] denied reason=max_positions_reached symbol=%s side=%s open_count=%s max_positions=%s inflight=%s evidence_keys=%s",
+                    symbol,
+                    side_up,
+                    open_count,
+                    max_pos,
+                    inflight_n,
+                    evidence_keys,
+                )
+                try:
+                    EVENT_STORE.add(kind="INFO", symbol=symbol, side=side_up, reason="guard_entry_denied", notes=(msg % (symbol, side_up, open_count, max_pos, inflight_n, evidence_keys)))
+                except Exception:
+                    pass
+                return
+            # inflight gate（ENTRY/EXIT競合の最小抑止）
+            inflight_orders = getattr(getattr(self.pos_guard, "state", None), "inflight_orders", None)
+            if isinstance(inflight_orders, dict) and len(inflight_orders) > 0:
+                msg = (
+                    "[guard][entry] denied reason=inflight_orders symbol=%s side=%s inflight=%s evidence_keys=%s"
+                )
+                self._logger.info(
+                    "[guard][entry] denied reason=inflight_orders symbol=%s side=%s inflight=%s evidence_keys=%s",
+                    symbol,
+                    side_up,
+                    len(inflight_orders),
+                    evidence_keys,
+                )
+                try:
+                    EVENT_STORE.add(kind="INFO", symbol=symbol, side=side_up, reason="guard_entry_denied", notes=(msg % (symbol, side_up, len(inflight_orders), evidence_keys)))
+                except Exception:
+                    pass
+                return
+        except Exception:
+            # 観測不能なら gate は縮退（raiseで止めない）
+            pass
+
+        # 2) loss streak threshold（既存設定と既存ログを使用、推測で作らない）
+        try:
+            # TradeService.reload() で cb.max_consecutive_losses が確定している（configs/config.yaml 由来）
+            streak_th = int(getattr(self.cb, "max_consecutive_losses", 0) or 0)
+            if streak_th > 0 and int(consecutive_losses) >= streak_th:
+                msg = (
+                    "[guard][streak] entry_blocked consec_losses=%d threshold=%d action=DENY reason=loss_streak_limit symbol=%s side=%s evidence_keys=%s"
+                )
+                self._logger.info(
+                    "[guard][streak] entry_blocked consec_losses=%d threshold=%d action=DENY reason=loss_streak_limit symbol=%s side=%s evidence_keys=%s",
+                    int(consecutive_losses),
+                    int(streak_th),
+                    symbol,
+                    side_up,
+                    evidence_keys,
+                )
+                try:
+                    EVENT_STORE.add(kind="INFO", symbol=symbol, side=side_up, reason="guard_streak_denied", notes=(msg % (int(consecutive_losses), int(streak_th), symbol, side_up, evidence_keys)))
+                except Exception:
+                    pass
+                return
+        except Exception:
+            pass
+
+        # 3) entry_inflight（極小フラグ。無い場合のみ遅延生成）
+        entry_inflight_acquired = False
+        _lock = None
+        try:
+            import threading
+
+            if not hasattr(self, "_entry_gate_lock"):
+                setattr(self, "_entry_gate_lock", threading.Lock())
+            if not hasattr(self, "_entry_inflight"):
+                setattr(self, "_entry_inflight", False)
+            _lock = getattr(self, "_entry_gate_lock", None)
+        except Exception:
+            _lock = None
+
+        try:
+            if _lock is not None:
+                with _lock:
+                    if bool(getattr(self, "_entry_inflight", False)):
+                        msg = "[guard][entry] denied reason=entry_inflight symbol=%s side=%s evidence_keys=%s"
+                        self._logger.info(
+                            "[guard][entry] denied reason=entry_inflight symbol=%s side=%s evidence_keys=%s",
+                            symbol,
+                            side_up,
+                            evidence_keys,
+                        )
+                        try:
+                            EVENT_STORE.add(kind="INFO", symbol=symbol, side=side_up, reason="guard_entry_denied", notes=(msg % (symbol, side_up, evidence_keys)))
+                        except Exception:
+                            pass
+                        return
+                    setattr(self, "_entry_inflight", True)
+                    entry_inflight_acquired = True
+            else:
+                # lockが使えない環境では最小のフラグのみ
+                if bool(getattr(self, "_entry_inflight", False)):
+                    msg = "[guard][entry] denied reason=entry_inflight symbol=%s side=%s evidence_keys=%s"
+                    self._logger.info(
+                        "[guard][entry] denied reason=entry_inflight symbol=%s side=%s evidence_keys=%s",
+                        symbol,
+                        side_up,
+                        evidence_keys,
+                    )
+                    try:
+                        EVENT_STORE.add(kind="INFO", symbol=symbol, side=side_up, reason="guard_entry_denied", notes=(msg % (symbol, side_up, evidence_keys)))
+                    except Exception:
+                        pass
+                    return
+                setattr(self, "_entry_inflight", True)
+                entry_inflight_acquired = True
+        except Exception:
+            # フラグが壊れても売買フローは止めない（縮退して継続）
+            pass
+        # --- /T-45-4(A) ---
+        try:
+            entry_context = {
+                "timestamp": datetime.now(),
+                "atr": atr,
+                "volatility": features.get("volatility") if isinstance(features, dict) else None,
+                "trend_strength": features.get("trend_strength") if isinstance(features, dict) else None,
+                "consecutive_losses": consecutive_losses,
+                "profile_stats": {
+                    "profile_name": profile_name,
+                } if self._profile else {},
+            }
+
+            ok, reasons = evaluate_entry(entry_context)
+
+            if not ok:
+                # ここではまだ decisions.jsonl には書かず、ログだけ軽く出しておく
+                self._logger.info(f"[Filter] entry blocked. reasons={reasons}")
+                return
+
+            equity = None
+            tick_spec = None
+            try:
+                if self._mt5 is not None:
+                    equity = float(self._mt5.get_equity())
+                    tick_spec = self._mt5.get_tick_spec(symbol)
+            except Exception:
+                equity = None
+                tick_spec = None
+
+            lot_result: LotSizingResult | None = None
+            lot_val = lot
+
+            # ATR が指定されていて lot が決まっていない場合は ATR ベースで計算
+            if (
+                (lot_val is None or lot_val == 0)
+                and atr is not None
+                and atr > 0
+                and equity is not None
+                and tick_spec is not None
+            ):
+                lot_result = self._profile.compute_lot_size_from_atr(
+                    equity=float(equity),
+                    atr=atr,
+                    tick_size=float(getattr(tick_spec, "tick_size", 0.0) or 0.0),
+                    tick_value=float(getattr(tick_spec, "tick_value", 0.0) or 0.0),
+                )
+                raw_volume = getattr(lot_result, "lot", None)
+                if raw_volume is None:
+                    raw_volume = getattr(lot_result, "volume", None)
+                if raw_volume is not None:
+                    lot_val = float(raw_volume)
+
+            # フォールバック: ATR が無い/0 のときはデフォルト lot を使う
+            if lot_val is None or lot_val <= 0:
+                default_lot = getattr(self._profile, "default_lot", None)
+                if default_lot is None:
+                    default_lot = float((cfg.get("trade", {}) or {}).get("default_lot", 0.01))
+                lot_val = float(default_lot)
+
+            # --- T-44-4: size_decision.multiplier を最終ロットに反映（services-only / add-only） ---
+            # 目的:
+            # - 最終ロット = base_lot × size_decision.multiplier
+            # - multiplier=1.0 の場合、従来挙動と完全一致（実質 no-op）
+            # 入力:
+            # - features["size_decision"] = {"multiplier": 0.5|1.0|1.5, "reason": "..."} を優先
+            # - 無ければ features["size_multiplier"] を参照（後方互換）
             size_mult = 1.0
             size_reason = None
+            try:
+                if isinstance(features, dict):
+                    sd = features.get("size_decision")
+                    if isinstance(sd, dict):
+                        if sd.get("multiplier") is not None:
+                            size_mult = float(sd.get("multiplier"))
+                        if sd.get("reason") is not None:
+                            size_reason = str(sd.get("reason"))
+                    elif features.get("size_multiplier") is not None:
+                        size_mult = float(features.get("size_multiplier"))
+            except Exception:
+                size_mult = 1.0
+                size_reason = None
 
-        try:
-            if isinstance(lot_val, (int, float)) and size_mult != 1.0:
-                base_lot = float(lot_val)
-                lot_val = base_lot * float(size_mult)
+            try:
+                if isinstance(lot_val, (int, float)) and size_mult != 1.0:
+                    base_lot = float(lot_val)
+                    lot_val = base_lot * float(size_mult)
+                    self._logger.info(
+                        "[lot] apply size_decision: base_lot=%.6f mult=%.3f -> lot=%.6f reason=%s",
+                        base_lot,
+                        float(size_mult),
+                        float(lot_val),
+                        size_reason,
+                    )
+            except Exception:
+                # ここで例外を出すと発注自体が止まるため、縮退（倍率を無視）
+                pass
+            # --- /T-44-4 ---
+
+            # --- T-45-4(B): ロット上限（min/max）clamp（multiplier適用後、最終確定直前） ---
+            # 目的:
+            # - size上限が必ず効く（config/defaultどちらでも観測可能）
+            # - multiplier乗算ロジックは変更しない（その後で clamp する）
+            try:
+                lot_cfg = (cfg.get("lot", {}) if isinstance(cfg, dict) else {}) or {}
+                src = "default"
+                if isinstance(lot_cfg, dict) and (("min_lot" in lot_cfg) or ("max_lot" in lot_cfg)):
+                    src = "config"
+                min_lot = float(lot_cfg.get("min_lot", 0.01) if isinstance(lot_cfg, dict) else 0.01)
+                max_lot = float(lot_cfg.get("max_lot", 1.0) if isinstance(lot_cfg, dict) else 1.0)
+
+                before = float(lot_val) if isinstance(lot_val, (int, float)) else None
+                if before is not None:
+                    after = max(min_lot, min(max_lot, before))
+                    clamped = bool(after != before)
+                    # 毎回出す（clamp有無を観測で確定できるように）
+                    self._logger.info(
+                        "[lot][clamp] before=%.6f after=%.6f clamped=%s min=%.6f max=%.6f src=%s reason=size_cap",
+                        before,
+                        after,
+                        clamped,
+                        min_lot,
+                        max_lot,
+                        src,
+                    )
+                    try:
+                        EVENT_STORE.add(
+                            kind="INFO",
+                            symbol=symbol,
+                            side=side_up,
+                            reason="lot_clamp",
+                            notes=(
+                                "[lot][clamp] before=%.6f after=%.6f clamped=%s min=%.6f max=%.6f src=%s reason=size_cap"
+                                % (before, after, clamped, min_lot, max_lot, src)
+                            ),
+                        )
+                    except Exception:
+                        pass
+                    if clamped:
+                        lot_val = after
+            except Exception:
+                # clampが壊れても例外で止めない（縮退）
+                pass
+            # --- /T-45-4(B) ---
+
+            self._last_lot_result = lot_result
+            self.last_lot_result = lot_result
+
+            if dry_run:
+                # dry_run=True のときは発注せず、ENTRYイベントだけ残す（観測用）
+                # - ガード/倍率/クランプは同一ロジックで通る
                 self._logger.info(
-                    "[lot] apply size_decision: base_lot=%.6f mult=%.3f -> lot=%.6f reason=%s",
-                    base_lot,
-                    float(size_mult),
+                    "[order][dry_run] skip order_send symbol=%s side=%s lot=%.6f",
+                    symbol,
+                    side_up,
                     float(lot_val),
-                    size_reason,
                 )
-        except Exception:
-            # ここで例外を出すと発注自体が止まるため、縮退（倍率を無視）
-            pass
-        # --- /T-44-4 ---
-
-        self._last_lot_result = lot_result
-        self.last_lot_result = lot_result
-
-        self._mt5.order_send(
-            symbol=symbol,
-            order_type=side_up,
-            lot=float(lot_val),
-            sl=sl,
-            tp=tp,
-            comment=comment,
-        )
+                try:
+                    EVENT_STORE.add(
+                        kind="ENTRY",
+                        symbol=symbol,
+                        side=side_up,
+                        price=None,
+                        sl=sl,
+                        tp=tp,
+                        notes=(
+                            "dryrun [order][dry_run] skip order_send symbol=%s side=%s lot=%.6f"
+                            % (symbol, side_up, float(lot_val))
+                        ),
+                    )
+                except Exception:
+                    pass
+            else:
+                # live: MT5へ実際に送る
+                self._mt5.order_send(
+                    symbol=symbol,
+                    order_type=side_up,
+                    lot=float(lot_val),
+                    sl=sl,
+                    tp=tp,
+                    comment=comment,
+                )
+        finally:
+            # entry_inflight を解除（例外で止めない）
+            try:
+                if entry_inflight_acquired and hasattr(self, "_entry_inflight"):
+                    setattr(self, "_entry_inflight", False)
+            except Exception:
+                pass
 
     def mark_order_inflight(self, order_id: str) -> None:
         self.pos_guard.mark_inflight(order_id)
@@ -566,7 +840,44 @@ class TradeService:
 # ------------------------------------------------------------------ #
 # Module-level helpers (backwards compatibility)
 # ------------------------------------------------------------------ #
-SERVICE = TradeService()
+_SERVICE: Optional[TradeService] = None
+_SERVICE_LOCK = threading.Lock()
+
+
+def get_default_trade_service() -> TradeService:
+    """
+    TradeService の単一点シングルトン取得。
+
+    - import 時に勝手に生成しない（lazy init）
+    - MT5 が未設定/初期化失敗でも例外で止めない（mt5=None で縮退）
+    """
+    global _SERVICE
+    if _SERVICE is not None:
+        return _SERVICE
+    with _SERVICE_LOCK:
+        if _SERVICE is not None:
+            return _SERVICE
+
+        logger = logging.getLogger(__name__)
+
+        mt5: MT5Client | None = None
+        try:
+            # 既存APIを優先（観測で確定した mt5_client.py の initialize/login/_get_client を使用）
+            ok_init = bool(mt5_client.initialize())
+            ok_login = bool(mt5_client.login()) if ok_init else False
+            if ok_init and ok_login:
+                try:
+                    # mt5_client._get_client() は同モジュール内の既存シングルトン（privateだが観測済み）
+                    mt5 = getattr(mt5_client, "_get_client")()
+                except Exception:
+                    mt5 = None
+        except Exception as e:
+            # 環境変数未設定などで落ち得るので握る（live は open_position のゲートで deny する）
+            logger.info("[mt5] unavailable at service init (%s): %s", type(e).__name__, e)
+            mt5 = None
+
+        _SERVICE = TradeService(mt5_client=mt5, profile=None)
+        return _SERVICE
 
 
 def execute_decision(
@@ -574,6 +885,7 @@ def execute_decision(
     *,
     symbol: Optional[str] = None,
     service: Optional[TradeService] = None,
+    dry_run: bool = False,
 ) -> None:
     """
     Live 用のヘルパ:
@@ -600,23 +912,34 @@ def execute_decision(
         # "SKIP" などの str が来た場合は黙って終了
         return
 
+    # action は top-level を優先し、無ければ decision_detail.action を参照（後方互換）
     action = decision.get("action")
-    if action != "ENTRY":
+    if action is None:
+        _dd0 = decision.get("decision_detail")
+        if isinstance(_dd0, dict):
+            action = _dd0.get("action")
+    if str(action or "").upper() != "ENTRY":
         # エントリー以外（SKIP/BLOCKED/TRAIL_UPDATE）はここでは何もしない
         return
 
+    # side は top-level -> decision_detail -> signal の順で解決
+    side = decision.get("side")
+    if side is None:
+        _dd1 = decision.get("decision_detail")
+        if isinstance(_dd1, dict):
+            side = _dd1.get("side")
     signal = decision.get("signal") or {}
-    if not isinstance(signal, dict):
-        return
-
-    side = signal.get("side")
+    if side is None and isinstance(signal, dict):
+        side = signal.get("side")
     if not side:
         # どっちに建てるか不明なら何もしない
         return
 
-    atr_for_lot = signal.get("atr_for_lot")
+    atr_for_lot = None
+    if isinstance(signal, dict):
+        atr_for_lot = signal.get("atr_for_lot")
 
-    svc = service or SERVICE
+    svc = service or get_default_trade_service()
 
     # symbol が指定されていなければ設定ファイルから拾う（なければ何もしない）
     sym = symbol
@@ -637,15 +960,36 @@ def execute_decision(
     # open_position 側で StrategyProfile.compute_lot_size_from_atr を使って
     # ATR ベースの自動ロット計算が走る（既に実装済み）
 
-    # features があれば取得（フィルタエンジン用）
-    features = signal.get("features") or decision.get("features")
+    # features を dict に正規化（フィルタ/倍率用）
+    features_raw = None
+    if isinstance(signal, dict):
+        features_raw = signal.get("features")
+    if features_raw is None:
+        features_raw = decision.get("features")
+    features: Dict[str, Any] = features_raw if isinstance(features_raw, dict) else {}
+
+    # size_decision を “現実の決定フォーマット” から後方互換で取り込む（add-only）
+    # 優先: decision_detail.size_decision -> meta.size_decision
+    try:
+        dd = decision.get("decision_detail")
+        if isinstance(dd, dict) and "size_decision" in dd and isinstance(dd.get("size_decision"), dict):
+            features.setdefault("size_decision", dd.get("size_decision"))
+    except Exception:
+        pass
+    try:
+        meta = decision.get("meta")
+        if isinstance(meta, dict) and "size_decision" in meta and isinstance(meta.get("size_decision"), dict):
+            features.setdefault("size_decision", meta.get("size_decision"))
+    except Exception:
+        pass
 
     svc.open_position(
         symbol=str(sym),
         side=str(side),
         lot=None,
         atr=float(atr_for_lot) if atr_for_lot is not None else None,
-        features=features if isinstance(features, dict) else None,
+        features=features,
+        dry_run=bool(dry_run),
     )
 
 
@@ -654,15 +998,15 @@ def can_open_new_position(symbol: Optional[str] = None) -> bool:
     if not settings.trading_enabled:
         return False
     sym = symbol or load_config().get("runtime", {}).get("symbol")
-    return SERVICE.can_open(sym)
+    return get_default_trade_service().can_open(sym)
 
 
 def decide_entry(p_buy: float, p_sell: float) -> Optional[str]:
-    return SERVICE.decide_entry(p_buy, p_sell)
+    return get_default_trade_service().decide_entry(p_buy, p_sell)
 
 
 def decide_entry_from_probs(p_buy: float, p_sell: float) -> dict:
-    return SERVICE.decide_entry_from_probs(p_buy, p_sell)
+    return get_default_trade_service().decide_entry_from_probs(p_buy, p_sell)
 
 
 def get_account_summary() -> dict[str, Any] | None:
@@ -751,19 +1095,19 @@ def post_fill_grace_active() -> bool:
 
 
 def mark_order_inflight(order_id: str) -> None:
-    SERVICE.mark_order_inflight(order_id)
+    get_default_trade_service().mark_order_inflight(order_id)
 
 
 def on_order_result(order_id: str, ok: bool, symbol: str) -> None:
-    SERVICE.on_order_result(order_id=order_id, ok=ok, symbol=symbol)
+    get_default_trade_service().on_order_result(order_id=order_id, ok=ok, symbol=symbol)
 
 
 def reconcile_positions(symbol: Optional[str] = None, desync_fix: bool = True) -> None:
-    SERVICE.on_broker_sync(symbol, fix=desync_fix)
+    get_default_trade_service().on_broker_sync(symbol, fix=desync_fix)
 
 
 def on_order_success(ticket: Optional[int], side: str, symbol: str, price: Optional[float] = None) -> None:
-    SERVICE.on_order_success(ticket=ticket, side=side, symbol=symbol, price=price)
+    get_default_trade_service().on_order_success(ticket=ticket, side=side, symbol=symbol, price=price)
 
 
 def record_trade_result(
@@ -773,8 +1117,8 @@ def record_trade_result(
     profit_jpy: float,
     info: Optional[dict[str, Any]] = None,
 ) -> None:
-    SERVICE.record_trade_result(symbol=symbol, side=side, profit_jpy=profit_jpy, info=info)
+    get_default_trade_service().record_trade_result(symbol=symbol, side=side, profit_jpy=profit_jpy, info=info)
 
 
 def circuit_breaker_can_trade() -> bool:
-    return SERVICE.can_trade()
+    return get_default_trade_service().can_trade()

@@ -1122,6 +1122,35 @@ class ExecutionService:
                 "decision_context": decision_context,  # 新規追加：判断材料を分離
             })
 
+            # --- T-45-4: ENTRY decision -> TradeService execution bridge (add-only) ---
+            # dry_run/live で同じ決定を渡し、実発注の有無は TradeService 側で分岐する。
+            try:
+                if str(decision).upper().startswith("ENTRY"):
+                    from app.services import trade_service
+
+                    features_payload: dict = dict(features) if isinstance(features, dict) else {}
+                    if isinstance(decision_detail, dict) and isinstance(decision_detail.get("size_decision"), dict):
+                        features_payload.setdefault("size_decision", decision_detail.get("size_decision"))
+                    payload = {
+                        "action": "ENTRY",
+                        "side": getattr(signal, "side", None),
+                        "decision_detail": decision_detail,
+                        "meta": meta_val or {},
+                        "signal": {
+                            "side": getattr(signal, "side", None),
+                            "atr_for_lot": (features.get("atr_for_lot") if isinstance(features, dict) else None),
+                            "features": features_payload,
+                        },
+                    }
+                    trade_service.execute_decision(payload, symbol=symbol, service=None, dry_run=True)
+            except Exception as e:
+                logging.getLogger(__name__).info(
+                    "[exec][entry_bridge] skip execute_decision (dry_run) due to %s: %s",
+                    type(e).__name__,
+                    e,
+                )
+            # --- /T-45-4 ---
+
             return {
                 "ok": True,
                 "reasons": [],
@@ -1185,6 +1214,35 @@ class ExecutionService:
             record["runtime_detail"] = _prev_rt
         # ---------------------------------------------
         DecisionsLogger.log(record)
+
+        # --- T-45-4: ENTRY decision -> TradeService execution bridge (add-only) ---
+        # 実行ゲートは TradeService.open_position() 冒頭に集約（ここでは gate しない）。
+        try:
+            if str(decision).upper() == "ENTRY":
+                from app.services import trade_service
+
+                features_payload2: dict = dict(features) if isinstance(features, dict) else {}
+                if isinstance(decision_detail, dict) and isinstance(decision_detail.get("size_decision"), dict):
+                    features_payload2.setdefault("size_decision", decision_detail.get("size_decision"))
+                payload2 = {
+                    "action": "ENTRY",
+                    "side": getattr(signal, "side", None),
+                    "decision_detail": decision_detail,
+                    "meta": meta_val or {},
+                    "signal": {
+                        "side": getattr(signal, "side", None),
+                        "atr_for_lot": (features.get("atr_for_lot") if isinstance(features, dict) else None),
+                        "features": features_payload2,
+                    },
+                }
+                trade_service.execute_decision(payload2, symbol=symbol, service=None, dry_run=bool(dry_run))
+        except Exception as e:
+            logging.getLogger(__name__).info(
+                "[exec][entry_bridge] skip execute_decision due to %s: %s",
+                type(e).__name__,
+                e,
+            )
+        # --- /T-45-4 ---
 
         # --- metrics に runtime 情報を追加 ---
         from app.services.metrics import publish_metrics
