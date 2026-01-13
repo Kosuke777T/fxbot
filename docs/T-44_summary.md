@@ -107,3 +107,41 @@ app/services/ops_history_service.py（compute_profit_metrics() 付近：profit_m
 python -X utf8 -m compileall app/services → exit_code=0
 
 summarize_ops_history(...) の返却 profit_metrics に upside_potential が含まれることを確認（例：'upside_potential': 'LOW'）。
+
+
+T-44-3 仕様固定
+テーマ / Step
+
+T-44-3（Exit as Decision）追加作業：record_trade_result(info) 入力契約の仕様固定
+
+目的
+
+caller不在（repo内に呼び出し元が無い）でも、将来どこから呼ばれても「推測ゼロ」で exit_reason/exit_type を渡せる契約を services 側で固定
+
+実施内容（事実）
+
+TradeService.record_trade_result() に docstring で許容キー/優先順位/正規化ルールを明文化
+
+後方互換キー reason/close_reason は "TP"/"SL" のときだけ採用（推測禁止）
+
+UiEvent.exit_* は Optional のまま維持（変更なし）
+
+変更ファイル
+
+app/services/trade_service.py（record_trade_result の docstring 追記）
+
+trade_service
+
+守った制約
+
+挙動不変（ルール明文化のみ）、追加のみ、servicesのみ、推測禁止、責務境界遵守
+
+挙動の変化
+
+仕様固定（コメント/ドック）。ロジック自体は既存方針のまま
+
+確認方法
+
+python -X utf8 -m compileall app/services：OK
+
+info={"reason":"TP"} で CLOSE が exit_reason="TP" / exit_type="PROFIT" になることを観測

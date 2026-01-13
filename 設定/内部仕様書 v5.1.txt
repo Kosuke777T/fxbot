@@ -301,3 +301,6 @@ SHAP全件プロッター
 ランキングAPI切替（mock→prod）
 
 Scheduler 強制起動ツール
+
+
+exit_type は caller 明示を尊重する。ただし TP/SL が明示された場合はその分類を優先する

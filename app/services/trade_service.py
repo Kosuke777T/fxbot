@@ -423,20 +423,87 @@ class TradeService:
         profit_jpy: float,
         info: Optional[dict[str, Any]] = None,
     ) -> None:
+        """
+        決済結果（確定損益）を ui_events.jsonl に記録する（表示/観測用）。
+
+        T-44-3 仕様固定: record_trade_result(info) の入力契約
+        - 目的: repo 内に caller が居ない（観測事実）ため、将来どこから呼ばれても
+          “推測なし”で exit_reason/exit_type を渡せるよう、services 側で正規化ルールを固定する。
+
+        入力（info の許容キー / 優先順位）:
+        - 優先（推奨）:
+          - info["exit_reason"]: str（例: "TP" / "SL" / それ以外の短いコード）
+          - info["exit_type"]:   str（"DEFENSE" | "PROFIT" のみ受理）
+        - 後方互換（限定的に受理）:
+          - info["reason"] または info["close_reason"] が "TP"|"SL" のときだけ exit_reason として採用
+          - "たぶんTP" 等の推測は禁止（= 上記の明示コード以外は採用しない）
+
+        正規化ルール（推測ゼロ）:
+        - 材料が無い場合:
+            exit_reason="UNKNOWN", exit_type="DEFENSE"
+        - exit_reason=="TP" のときだけ:
+            exit_type="PROFIT"
+        - exit_reason=="SL" のときだけ:
+            exit_type="DEFENSE"
+        - それ以外:
+            exit_type は caller 明示が無い限り DEFENSE（推測で PROFIT にしない）
+
+        互換性:
+        - profit_jpy 等の既存ログキーは変更しない（exit_* は追加のみ）。
+        """
         resolved_symbol = symbol or self.state.last_symbol or "-"
         resolved_side = side or self.state.last_side
         notes = "settled"
+        # T-44-3: Exit as Decision (label-only / add-only)
+        # Observation (logs/ui_events.jsonl): CLOSE events currently have no TP/SL discriminator.
+        # Therefore:
+        # - If caller provides explicit exit_reason/exit_type, we use it (add-only).
+        # - Otherwise, we record exit_reason="UNKNOWN" and exit_type="DEFENSE".
+        exit_reason = "UNKNOWN"
+        exit_type = "DEFENSE"
         if info:
             if "notes" in info:
                 notes = str(info["notes"])
             else:
                 notes = str(info)
+
+            # add-only: accept explicit keys only (do not infer)
+            try:
+                if isinstance(info.get("exit_reason"), str) and info.get("exit_reason"):
+                    exit_reason = str(info.get("exit_reason"))
+            except Exception:
+                pass
+            try:
+                if isinstance(info.get("exit_type"), str) and info.get("exit_type"):
+                    et = str(info.get("exit_type")).upper()
+                    if et in ("DEFENSE", "PROFIT"):
+                        exit_type = et
+            except Exception:
+                pass
+
+            # Backwards-compatible: some callers may still pass only "reason".
+            # We only accept explicit TP/SL codes (no guessing).
+            if exit_reason == "UNKNOWN":
+                try:
+                    r = info.get("reason") or info.get("close_reason")
+                    if isinstance(r, str) and r in ("TP", "SL"):
+                        exit_reason = r
+                except Exception:
+                    pass
+
+        # minimal classification using only explicit codes (no guessing)
+        if exit_reason == "TP":
+            exit_type = "PROFIT"
+        elif exit_reason == "SL":
+            exit_type = "DEFENSE"
         EVENT_STORE.add(
             kind="CLOSE",
             symbol=resolved_symbol,
             side=resolved_side,
             profit_jpy=float(profit_jpy),
             notes=notes,
+            exit_type=exit_type,
+            exit_reason=exit_reason,
         )
         self.cb.on_trade_result(profit_jpy)
 

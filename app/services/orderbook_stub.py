@@ -49,11 +49,64 @@ class OrderBook:
         p.closed = True
         p.close_time = datetime.now(JST)
         p.close_price = price
-        pip_delta = market.pips_to_price(p.symbol, 1.0)
+        pip_delta = None
+        try:
+            fn = getattr(market, "pips_to_price", None)
+            pip_delta = fn(p.symbol, 1.0) if callable(fn) else None
+        except Exception:
+            pip_delta = None
         if pip_delta and pip_delta > 0:
             p.profit_pips = (p.close_price - p.entry)/pip_delta if p.side == "BUY" else (p.entry - p.close_price)/pip_delta
         else:
             p.profit_pips = None
+
+        # --- T-44-3: Exit as Decision (display-only / no behavior change) ---
+        # Existing exit conditions in this stub:
+        # - TP: take-profit hit -> PROFIT exit
+        # - SL: stop-loss hit     -> DEFENSE exit
+        # - TIMEOUT/FORCE_CLOSE   -> DEFENSE exit
+        exit_reason = str(reason or "UNKNOWN")
+        exit_type = "DEFENSE"
+        if exit_reason == "TP":
+            exit_type = "PROFIT"
+        elif exit_reason in ("SL", "TIMEOUT", "FORCE_CLOSE"):
+            exit_type = "DEFENSE"
+        else:
+            exit_type = "DEFENSE"
+
+        # Record into decisions_YYYY-MM-DD.jsonl so EXIT has a readable label.
+        # (Do NOT execute any real close orders here; stub already closed internally.)
+        try:
+            from app.services.execution_stub import _write_decision_log
+
+            ts_str = (
+                p.close_time.isoformat(timespec="seconds")
+                if p.close_time
+                else datetime.now(JST).isoformat(timespec="seconds")
+            )
+            record = {
+                "ts_jst": ts_str,
+                "type": "decision",
+                "symbol": p.symbol,
+                "action": "EXIT",
+                "decision": "EXIT",
+                "side": p.side,
+                "meta": {"source": "orderbook_stub"},
+                "decision_detail": {
+                    "action": "EXIT",
+                    "side": p.side,
+                    # add-only
+                    "exit_type": exit_type,
+                    "exit_reason": exit_reason,
+                    "reason": exit_reason,  # legacy single-field reason (readable)
+                },
+            }
+            _write_decision_log(p.symbol, record)
+        except Exception:
+            # never crash dryrun
+            pass
+        # --- /T-44-3 ---
+
         logger.bind(event="dryrun_close").info({
             "mode":"dryrun", "action":"close", "id": p.id, "symbol": p.symbol, "side": p.side,
             "entry": p.entry, "close": p.close_price, "profit_pips": p.profit_pips,
@@ -88,9 +141,9 @@ class OrderBook:
         if symbol:
             tk = market.tick(symbol)
         for p in list(self._positions):
-            if p.closed: 
+            if p.closed:
                 continue
-            if symbol and p.symbol != symbol: 
+            if symbol and p.symbol != symbol:
                 continue
             price = None
             if tk:

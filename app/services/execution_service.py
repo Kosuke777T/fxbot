@@ -1251,6 +1251,11 @@ class ExecutionService:
                 signal=None,
                 ai_margin=0.03,
             )
+            # T-44-3: Exit as Decision (label-only / add-only)
+            # Simulated exit is treated as DEFENSE (forced close in dry_run).
+            if isinstance(decision_detail, dict):
+                decision_detail.setdefault("exit_type", "DEFENSE")
+                decision_detail.setdefault("exit_reason", "exit_simulated")
 
             # decision_context を構築
             decision_context = _build_decision_context(

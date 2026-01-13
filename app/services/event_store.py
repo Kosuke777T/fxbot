@@ -29,6 +29,11 @@ class UiEvent:
     sl: Optional[float] = None
     tp: Optional[float] = None
     profit_jpy: Optional[float] = None
+    # T-44-3: Exit as Decision (label-only / add-only)
+    # - Recorded on CLOSE events in live execution when available
+    # - Must not affect trade logic
+    exit_type: Optional[str] = None  # "DEFENSE" | "PROFIT" | None
+    exit_reason: Optional[str] = None
     reason: Optional[str] = None
     notes: Optional[str] = None
     corr_id: Optional[str] = None  # 相関ID（イベントログで追跡用）
