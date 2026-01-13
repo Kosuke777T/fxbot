@@ -200,6 +200,51 @@ def _ensure_decision_detail_minimum(dd: dict, decision: str, signal=None, ai_mar
     return dd
 
 
+def _compute_size_decision_v1(
+    *,
+    stability: dict | None,
+    condition_confidence: str | None,
+    upside_potential: str | None,
+) -> dict[str, object]:
+    """
+    T-44-4 (sizing) 仕様固定: size_decision を “段階語彙のみ” で確定する（services-only）。
+
+    入力として使ってよい既存情報（新規生成禁止）:
+    - condition_confidence: "LOW" | "MID" | "HIGH"
+    - upside_potential:     "LOW" | "MID" | "HIGH"
+    - stability.stable:     bool
+      stability.score / stability.reasons は評価に使わない（観測用のまま）
+
+    サイズ決定ルール（仕様固定・推測禁止）:
+      1) stability.stable == False
+         → multiplier = 0.5 / reason="unstable_state"
+      2) stability.stable == True の場合のみ
+         - condition_confidence=HIGH かつ upside_potential=HIGH
+             → 1.5 / "high_confidence_high_upside"
+         - condition_confidence=LOW または upside_potential=LOW
+             → 0.5 / "low_confidence_or_low_upside"
+         - 上記以外（MID/MID, 未設定, 想定外値 等）
+             → 1.0 / "baseline_conditions"
+
+    返り値（公式語彙のみ）:
+      {"multiplier": 0.5|1.0|1.5, "reason": str}
+    """
+    st = stability if isinstance(stability, dict) else {}
+    stable = bool(st.get("stable", False))
+
+    if not stable:
+        return {"multiplier": 0.5, "reason": "unstable_state"}
+
+    conf = str(condition_confidence or "").upper()
+    up = str(upside_potential or "").upper()
+
+    if conf == "HIGH" and up == "HIGH":
+        return {"multiplier": 1.5, "reason": "high_confidence_high_upside"}
+    if conf == "LOW" or up == "LOW":
+        return {"multiplier": 0.5, "reason": "low_confidence_or_low_upside"}
+    return {"multiplier": 1.0, "reason": "baseline_conditions"}
+
+
 def _features_hash_from_record(record: dict) -> str | None:
     """
     record 辞書から features を抽出してハッシュを生成する。
@@ -884,11 +929,11 @@ class ExecutionService:
                 pass
         # --- /Step2-23 ---
 
-        # --- T-43-4 Step1: cm_adoption -> sizing multiplier (services-only, minimal) ---
+        # --- T-44-4: ENTRY size_decision (services-only / add-only / label-only) ---
         # 方針:
-        # - entry可否は触らない（decision/ok を変更しない）
-        # - まずは “sizing の倍率” を決め、監査用に decision_detail.size_decision を必ず残す
-        # - lot/qty 変数が存在する場合のみ安全に乗算（現時点では未実装でも将来に備える）
+        # - ENTRY可否は触らない（decision/ok を変更しない）
+        # - size_decision は services 層で確定し、GUI/core で再計算しない
+        # - この Step では “実取引サイズへの反映” はしない（監査ログ用のラベル付けのみ）
         cm_payload_for_size = None
         try:
             if isinstance(decision_detail, dict):
@@ -914,54 +959,54 @@ class ExecutionService:
             conf = None
             status = None
 
-        # 最小マッピング（段階のみ使用）
-        # HIGH: 1.20 / MID: 1.00 / LOW: 0.50 / else: 1.00
-        mult = 1.0
-        reason = "cm_adoption_missing"
-        if status == "adopted":
-            if conf == "HIGH":
-                mult = 1.20
-                reason = "cm_adoption_high"
-            elif conf == "MID":
-                mult = 1.00
-                reason = "cm_adoption_mid"
-            elif conf == "LOW":
-                mult = 0.50
-                reason = "cm_adoption_low"
-            else:
-                mult = 1.00
-                reason = "cm_adoption_unknown_or_none"
-
-        # lot/qty どちらを使っていても壊れないよう、存在する変数だけに適用
-        # （この直前で確定した“最終値”に掛けるのが重要）
+        # stability / upside_potential は “既存の services 出力” から読む（推測で作らない）
+        # - stability: ops_overview_facade.get_ops_overview() が返す wfo_stability（stable/score/reasons）
+        # - upside_potential: ops_history_service.summarize_ops_history() が返す profit_metrics
+        wfo_stability = None
+        upside_potential = None
         try:
-            if "lot" in locals() and isinstance(lot, (int, float)):
-                lot = float(lot) * float(mult)
-            if "volume" in locals() and isinstance(volume, (int, float)):
-                volume = float(volume) * float(mult)
-            if "qty" in locals() and isinstance(qty, (int, float)):
-                qty = float(qty) * float(mult)
-            if "quantity" in locals() and isinstance(quantity, (int, float)):
-                quantity = float(quantity) * float(mult)
-        except Exception:
-            # ここで落ちると本末転倒なので、sizing介入は縮退
-            mult = 1.0
-            reason = "cm_adoption_apply_failed"
+            from app.services.ops_overview_facade import get_ops_overview
 
-        # 監査ログ（破壊検知用）：decision_detail に必ず残す
+            ov = get_ops_overview(include_condition_mining=False)
+            if isinstance(ov, dict):
+                wfo_stability = ov.get("wfo_stability")
+        except Exception:
+            wfo_stability = None
+        try:
+            from app.services.ops_history_service import summarize_ops_history
+
+            _sum = summarize_ops_history(cache_sec=2, include_condition_mining=False)
+            if isinstance(_sum, dict):
+                pm = _sum.get("profit_metrics")
+                if isinstance(pm, dict):
+                    upside_potential = pm.get("upside_potential")
+        except Exception:
+            upside_potential = None
+
+        size_decision = _compute_size_decision_v1(
+            stability=(wfo_stability if isinstance(wfo_stability, dict) else None),
+            condition_confidence=(str(conf) if conf is not None else None),
+            upside_potential=(str(upside_potential) if upside_potential is not None else None),
+        )
+        mult = float(size_decision.get("multiplier", 1.0) if isinstance(size_decision, dict) else 1.0)
+        reason = str(size_decision.get("reason", "baseline_conditions") if isinstance(size_decision, dict) else "baseline_conditions")
+
+        # 監査ログ（破壊検知用）：decision_detail に必ず残す（追加のみ・既存は上書きしない）
         try:
             if not isinstance(decision_detail, dict):
                 decision_detail = {}
-            decision_detail["size_decision"] = {
-                "multiplier": float(mult),
-                "reason": reason,
-                "source": "cm_adoption",
-                "condition_confidence": conf,
-                "cm_status": status,
-            }
+            decision_detail.setdefault("size_decision", {"multiplier": float(mult), "reason": str(reason)})
         except Exception:
             pass
-        # --- /T-43-4 Step1 ---
+
+        # ops_history（ops_service 経由の履歴）で観測できるよう、meta にも add-only で付与
+        # - 返り値 dict の meta に含める（ops_service が hist_rec["meta"] に保存するため）
+        try:
+            if isinstance(meta_val, dict):
+                meta_val.setdefault("size_decision", {"multiplier": float(mult), "reason": str(reason)})
+        except Exception:
+            pass
+        # --- /T-44-4 ---
 
         # --- T-43-4 Step1 (cont): build order_params for audit (services-only) ---
         # 目的:
@@ -1086,6 +1131,8 @@ class ExecutionService:
                 "signal": signal,
                 "dry_run": True,
                 "simulated": True,
+                # ops_history 観測用（add-only）: size_decision は services 層で確定済み
+                "meta": meta_val or {},
                 # 監査用: 発注パラメータ（size_decision と整合する）
                 "order_params": order_params,
             }
@@ -1183,6 +1230,8 @@ class ExecutionService:
             "prob_buy": prob_buy,
             "prob_sell": prob_sell,
             "signal": signal,
+            # ops_history 観測用（add-only）: size_decision は services 層で確定済み
+            "meta": meta_val or {},
             # 監査用（追加のみ）: 発注パラメータ
             "order_params": order_params,
         }

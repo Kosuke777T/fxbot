@@ -145,3 +145,72 @@ trade_service
 python -X utf8 -m compileall app/services：OK
 
 info={"reason":"TP"} で CLOSE が exit_reason="TP" / exit_type="PROFIT" になることを観測
+
+
+T-44-4（Sizing）
+■ 目的
+
+ENTRY 時に付与した size_decision が
+decisions / ops_history の両方で必ず観測できる状態を確定し、
+その観測手順を tools に固定する。
+
+■ 実施内容（事実）
+
+logs/ 配下を総当り観測し、実体パスを確定
+
+decisions: logs/decisions_YYYY-MM-DD.jsonl
+
+ops_history: logs/ops/ops_result.jsonl
+
+PS7 前提の 観測専用スクリプトを tools に固定
+
+tools/reobserve_decisions_tail.ps1（read-only）
+
+スクリプト実行により以下を実ログで確認
+
+decisions の ENTRY 行に decision_detail.size_decision
+
+ops_history の meta.size_decision
+
+■ 変更ファイル
+
+新規
+
+tools/reobserve_decisions_tail.ps1
+
+※ app/services/execution_service.py の変更は 前段（T-44-4実装）由来であり、
+本スレッドの「観測手順固定」ではコードロジック変更なし。
+
+■ 守った制約
+
+推測で直さず、ログ観測で実体を確定
+
+services / tools の責務分離を維持
+
+既存 API・ロジックは不変更
+
+PowerShell 7 前提、Here-String で Python docstring 非エスケープ
+
+■ 挙動の変化
+
+変わった点
+
+decisions / ops_history の正しい参照先が明文化・固定化された
+
+size_decision の有無を即座に再観測できる
+
+変わっていない点（重要）
+
+取引ロジック・サイズ計算ロジック自体は不変
+
+ログ出力仕様は変更なし
+
+■ 確認方法
+
+pwsh -File .\tools\reobserve_decisions_tail.ps1 -Tail 200
+
+OK 条件
+
+ENTRY 行に decision_detail.size_decision が存在
+
+ops_history 行に meta.size_decision が存在
