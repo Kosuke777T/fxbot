@@ -424,18 +424,55 @@ class TradeService:
             # inflight gate（ENTRY/EXIT競合の最小抑止）
             inflight_orders = getattr(getattr(self.pos_guard, "state", None), "inflight_orders", None)
             if isinstance(inflight_orders, dict) and len(inflight_orders) > 0:
+                # NOTE: 観測強化（ロジック不変）
+                # - inflight_orders は {key: ts(float)} 想定だが、型揺れがあり得るためログ生成は安全に行う
+                inflight_timeout_sec = getattr(self.pos_guard, "inflight_timeout_sec", None)
+                inflight_keys = []
+                inflight_age_sec = []
+                try:
+                    _now_ts = time.time()
+                    for _k, _ts in list(inflight_orders.items())[:5]:
+                        inflight_keys.append(_k)
+                        try:
+                            inflight_age_sec.append(round(float(_now_ts - float(_ts)), 2))
+                        except Exception:
+                            inflight_age_sec.append(f"bad_ts:{type(_ts).__name__}")
+                except Exception:
+                    # ログ生成失敗でも guard 判定自体は変えない
+                    inflight_keys = ["<log_failed>"]
+                    inflight_age_sec = ["<log_failed>"]
                 msg = (
-                    "[guard][entry] denied reason=inflight_orders symbol=%s side=%s inflight=%s evidence_keys=%s"
+                    "[guard][entry] denied reason=inflight_orders symbol=%s side=%s inflight=%s inflight_timeout_sec=%s inflight_keys=%s inflight_age_sec=%s evidence_keys=%s"
                 )
                 self._logger.info(
-                    "[guard][entry] denied reason=inflight_orders symbol=%s side=%s inflight=%s evidence_keys=%s",
+                    "[guard][entry] denied reason=inflight_orders symbol=%s side=%s inflight=%s inflight_timeout_sec=%s inflight_keys=%s inflight_age_sec=%s evidence_keys=%s",
                     symbol,
                     side_up,
                     len(inflight_orders),
+                    inflight_timeout_sec,
+                    inflight_keys,
+                    inflight_age_sec,
                     evidence_keys,
                 )
                 try:
-                    EVENT_STORE.add(kind="INFO", symbol=symbol, side=side_up, reason="guard_entry_denied", notes=(msg % (symbol, side_up, len(inflight_orders), evidence_keys)))
+                    EVENT_STORE.add(
+                        kind="INFO",
+                        symbol=symbol,
+                        side=side_up,
+                        reason="guard_entry_denied",
+                        notes=(
+                            msg
+                            % (
+                                symbol,
+                                side_up,
+                                len(inflight_orders),
+                                inflight_timeout_sec,
+                                inflight_keys,
+                                inflight_age_sec,
+                                evidence_keys,
+                            )
+                        ),
+                    )
                 except Exception:
                     pass
                 return

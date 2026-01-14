@@ -118,22 +118,46 @@ class MT5Service:
         snapped = _snap_sl_to_rules(side, price_now, desired_sl, bc)
         if snapped is None:
             return (False, None, f'reject: violates stop/freeze/side rules (desired={desired_sl}, price_now={price_now})')
-        request = {'action': mt5.TRADE_ACTION_SLTP, 'position': ticket, 'symbol': symbol, 'sl': round(snapped, bc.digits), 'tp': float(getattr(pos, 'tp', 0.0) or 0.0), 'deviation': 10, 'comment': f'trail:{reason}'[:28], 'type_time': mt5.ORDER_TIME_GTC, 'type_filling': mt5.ORDER_FILLING_RETURN}
+        # comment: 観測用に intent/ticket を入れる（MT5のcomment制限があるので短くする）
+        _c = f"intent=SLTP t={ticket} {reason}".strip()
+        request = {'action': mt5.TRADE_ACTION_SLTP, 'position': ticket, 'symbol': symbol, 'sl': round(snapped, bc.digits), 'tp': float(getattr(pos, 'tp', 0.0) or 0.0), 'deviation': 10, 'comment': _c[:28], 'type_time': mt5.ORDER_TIME_GTC, 'type_filling': mt5.ORDER_FILLING_RETURN}
         last_err = ''
-        for i in range(self.max_retries + 1):
-            res = mt5.order_send(_resolve_order_send_request(request))
-            if res is None:
-                last_err = f'order_send None: {mt5.last_error()}'
-            else:
-                if res.retcode == mt5.TRADE_RETCODE_DONE or res.retcode == mt5.TRADE_RETCODE_DONE_PARTIAL:
-                    return (True, request['sl'], f'OK retcode={res.retcode}')
-                last_err = f"retcode={res.retcode}, comment={getattr(res, 'comment', '')}"
-            time.sleep(self.backoff_sec)
-            tick = _current_tick(symbol)
-            price_now = _price_for_side(tick, side)
-            snapped = _snap_sl_to_rules(side, price_now, desired_sl, bc)
-            if snapped is None:
-                break
-            request['sl'] = round(snapped, bc.digits)
-        return (False, None, f'fail: {last_err}')
+        # inflight: A) symbol-only で ENTRY と SLTP を同一 inflight 扱いにする（最も安全）
+        _inflight_key = None
+        try:
+            from app.core.symbol_map import resolve_symbol as _rs
+            _inflight_key = str(_rs(symbol))
+        except Exception:
+            _inflight_key = str(symbol or "UNKNOWN")
+        try:
+            from app.services import trade_service as _ts
+            _ts.mark_order_inflight(_inflight_key)
+        except Exception:
+            pass
+        ok = False
+        try:
+            for i in range(self.max_retries + 1):
+                res = mt5.order_send(_resolve_order_send_request(request))
+                if res is None:
+                    last_err = f'order_send None: {mt5.last_error()}'
+                else:
+                    if res.retcode == mt5.TRADE_RETCODE_DONE or res.retcode == mt5.TRADE_RETCODE_DONE_PARTIAL:
+                        ok = True
+                        return (True, request['sl'], f'OK retcode={res.retcode}')
+                    last_err = f"retcode={res.retcode}, comment={getattr(res, 'comment', '')}"
+                time.sleep(self.backoff_sec)
+                tick = _current_tick(symbol)
+                price_now = _price_for_side(tick, side)
+                snapped = _snap_sl_to_rules(side, price_now, desired_sl, bc)
+                if snapped is None:
+                    break
+                request['sl'] = round(snapped, bc.digits)
+            return (False, None, f'fail: {last_err}')
+        finally:
+            # NOTE: 例外でも inflight が残り続けないように必ず clear（観測のみ・ロジック不変）
+            try:
+                from app.services import trade_service as _ts
+                _ts.on_order_result(order_id=str(_inflight_key), ok=bool(ok), symbol=str(symbol))
+            except Exception:
+                pass
 

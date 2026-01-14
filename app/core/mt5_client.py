@@ -18,6 +18,42 @@ def _resolve_order_send_request(req):
     except Exception:
         pass
     return req
+
+
+def _make_inflight_key(symbol: str) -> str:
+    """inflight key (A: symbol-only).
+
+    ENTRY と SLTP（および close）を同じ inflight 扱いにして競合を防ぐ（最も保守的）。
+    """
+    try:
+        return str(resolve_symbol(symbol))
+    except Exception:
+        return str(symbol or "UNKNOWN")
+
+
+def _mark_inflight(key: str) -> None:
+    # avoid circular import at module import time (trade_service imports mt5_client)
+    try:
+        from app.services import trade_service as _ts
+        _ts.mark_order_inflight(key)
+    except Exception:
+        pass
+
+
+def _finish_inflight(*, key: str, ok: bool, symbol: str) -> None:
+    try:
+        from app.services import trade_service as _ts
+        _ts.on_order_result(order_id=key, ok=bool(ok), symbol=str(symbol))
+    except Exception:
+        pass
+
+
+def _notify_order_success(*, ticket: Optional[int], side: str, symbol: str, price: Optional[float] = None) -> None:
+    try:
+        from app.services import trade_service as _ts
+        _ts.on_order_success(ticket=ticket, side=str(side), symbol=str(symbol), price=price)
+    except Exception:
+        pass
 class TickSpec(NamedTuple):
     tick_size: float
     tick_value: float
@@ -62,7 +98,7 @@ class MT5Client:
         MT5.shutdown()
         self.connected = False
 
-    def order_send(self, symbol: str, order_type: str, lot: float, sl: Optional[float]=None, tp: Optional[float]=None, retries: int=3) -> Optional[int]:
+    def order_send(self, symbol: str, order_type: str, lot: float, sl: Optional[float]=None, tp: Optional[float]=None, retries: int=3, comment: str = "") -> Optional[int]:
         """
         成行発注（BUY / SELL）
 
@@ -101,29 +137,41 @@ class MT5Client:
         else:
             mt_type = MT5.ORDER_TYPE_SELL
             price = tick.bid
-        request: Dict[str, Any] = {'action': MT5.TRADE_ACTION_DEAL, 'symbol': symbol, 'volume': float(lot), 'type': mt_type, 'price': float(price), 'sl': float(sl) if sl is not None else 0.0, 'tp': float(tp) if tp is not None else 0.0, 'magic': 123456, 'comment': 'fxbot_test_order', 'type_time': MT5.ORDER_TIME_GTC, 'type_filling': MT5.ORDER_FILLING_FOK}
+        _comment = str(comment or '') or 'intent=ORDER'
+        request: Dict[str, Any] = {'action': MT5.TRADE_ACTION_DEAL, 'symbol': symbol, 'volume': float(lot), 'type': mt_type, 'price': float(price), 'sl': float(sl) if sl is not None else 0.0, 'tp': float(tp) if tp is not None else 0.0, 'magic': 123456, 'comment': _comment[:28], 'type_time': MT5.ORDER_TIME_GTC, 'type_filling': MT5.ORDER_FILLING_FOK}
         last_error: Optional[tuple[int, str]] = None
-        for attempt in range(1, retries + 1):
-            logger.info(f'[order_send] Try {attempt}/{retries}: {order_type} {lot} lot @ {price} {symbol}')
-            result = MT5.order_send(_resolve_order_send_request(request))
-            if result is None:
-                last_error = MT5.last_error()
-                logger.error(f'[order_send] result is None, last_error={last_error}')
-            else:
-                logger.info('[order_send] retcode=%s, order=%s, deal=%s, comment=%s', getattr(result, 'retcode', None), getattr(result, 'order', None), getattr(result, 'deal', None), getattr(result, 'comment', None))
-                if result.retcode == MT5.TRADE_RETCODE_DONE:
-                    ticket = int(result.order or result.deal or 0)
-                    if ticket > 0:
-                        logger.info(f'[order_send] 成功: ticket={ticket}')
-                        return ticket
-                    else:
-                        logger.warning(f'[order_send] DONE だが ticket が取得できない: {result}')
+        inflight_key = _make_inflight_key(symbol)
+        _mark_inflight(inflight_key)
+        ok = False
+        ticket_out: Optional[int] = None
+        try:
+            for attempt in range(1, retries + 1):
+                logger.info(f'[order_send] Try {attempt}/{retries}: {order_type} {lot} lot @ {price} {symbol}')
+                result = MT5.order_send(_resolve_order_send_request(request))
+                if result is None:
+                    last_error = MT5.last_error()
+                    logger.error(f'[order_send] result is None, last_error={last_error}')
                 else:
-                    logger.warning(f'[order_send] 失敗 retcode={result.retcode}。再試行する場合があります')
-            if attempt < retries:
-                time.sleep(1.0)
-        logger.error(f'[order_send] 全 {retries} 回リトライしても失敗。last_error={last_error}')
-        return None
+                    logger.info('[order_send] retcode=%s, order=%s, deal=%s, comment=%s', getattr(result, 'retcode', None), getattr(result, 'order', None), getattr(result, 'deal', None), getattr(result, 'comment', None))
+                    if result.retcode == MT5.TRADE_RETCODE_DONE:
+                        ticket = int(result.order or result.deal or 0)
+                        if ticket > 0:
+                            ok = True
+                            ticket_out = ticket
+                            logger.info(f'[order_send] 成功: ticket={ticket}')
+                            # success hook（best-effort）
+                            _notify_order_success(ticket=ticket_out, side=order_type, symbol=symbol, price=float(price))
+                            return ticket
+                        else:
+                            logger.warning(f'[order_send] DONE だが ticket が取得できない: {result}')
+                    else:
+                        logger.warning(f'[order_send] 失敗 retcode={result.retcode}。再試行する場合があります')
+                if attempt < retries:
+                    time.sleep(1.0)
+            logger.error(f'[order_send] 全 {retries} 回リトライしても失敗。last_error={last_error}')
+            return None
+        finally:
+            _finish_inflight(key=inflight_key, ok=ok, symbol=symbol)
 
     def close_position(self, ticket: int, symbol: str, retries: int=3) -> bool:
         """指定チケットの成行クローズ"""
@@ -140,16 +188,23 @@ class MT5Client:
             return False
         price = t.bid if order_type == MT5.ORDER_TYPE_SELL else t.ask
         request = {'action': MT5.TRADE_ACTION_DEAL, 'symbol': symbol, 'volume': lot, 'type': order_type, 'position': ticket, 'price': price, 'magic': 123456, 'comment': 'fxbot_test_close', 'type_time': MT5.ORDER_TIME_GTC, 'type_filling': MT5.ORDER_FILLING_FOK}
-        for attempt in range(1, retries + 1):
-            logger.info(f'[close_position] Try {attempt}: ticket={ticket}')
-            result = MT5.order_send(_resolve_order_send_request(request))
-            if result and result.retcode == MT5.TRADE_RETCODE_DONE:
-                logger.info(f'クローズ成功: ticket={ticket}')
-                return True
-            logger.error(f'retcode={(result.retcode if result else None)}, err={MT5.last_error()}')
-            time.sleep(1.0)
-        logger.error('[close_position] 全リトライ失敗')
-        return False
+        inflight_key = _make_inflight_key(symbol)
+        _mark_inflight(inflight_key)
+        ok = False
+        try:
+            for attempt in range(1, retries + 1):
+                logger.info(f'[close_position] Try {attempt}: ticket={ticket}')
+                result = MT5.order_send(_resolve_order_send_request(request))
+                if result and result.retcode == MT5.TRADE_RETCODE_DONE:
+                    ok = True
+                    logger.info(f'クローズ成功: ticket={ticket}')
+                    return True
+                logger.error(f'retcode={(result.retcode if result else None)}, err={MT5.last_error()}')
+                time.sleep(1.0)
+            logger.error('[close_position] 全リトライ失敗')
+            return False
+        finally:
+            _finish_inflight(key=inflight_key, ok=ok, symbol=symbol)
 
     def get_positions(self):
         try:
