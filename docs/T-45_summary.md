@@ -43,3 +43,117 @@ python -X utf8 -m compileall app/services → OK
 
 
 T-45-4
+目的
+
+ENTRY / SLTP / CLOSE が同一 inflight 水準で管理されているか
+
+例外や失敗があっても inflight が残留しないか
+
+自動売買が止まる原因を“犯人特定できるログ”で可視化する
+
+この3点を ロジック不変・観測のみで確定させる。
+
+1. inflight の単位を symbol に統一（設計確定）
+
+inflight key を symbol-only（例: USDJPY-） に統一
+
+ENTRY / SLTP / CLOSE を 同一 inflight として扱う設計を採用
+
+これにより「同一シンボルでの競合・二重発注・決済衝突」を最も保守的に防止
+
+👉 設計判断として A案（symbol 1本化）を確定
+
+2. ENTRY 経路（order_send）の観測配線
+対象
+
+app/core/mt5_client.py
+
+実施内容
+
+order_send() の 直前で inflight mark
+
+finally で必ず inflight clear
+
+trade_service 呼び出しは try/except 維持（挙動不変）
+
+loguru.logger による inflight ログを必ず出力
+
+観測ログ
+[inflight][mark] key=USDJPY-
+[inflight][clear] key=USDJPY- ok=True symbol=USDJPY
+
+3. SLTP 更新経路の観測配線
+対象
+
+app/services/mt5_service.py
+
+safe_order_modify_sl()
+
+実施内容
+
+ENTRY と同じ symbol inflight を使用
+
+mark_order_inflight() → finally clear を保証
+
+trade_service 依存とは独立して app.log に必ずログを残す
+
+MT5 comment に intent=SLTP / ticket を明示（28文字制限内）
+
+観測ログ
+[inflight][mark] key=USDJPY- intent=SLTP ticket=6903036
+[inflight][clear] key=USDJPY- intent=SLTP ok=True symbol=USDJPY ticket=6903036
+
+4. CLOSE（決済）経路の観測配線
+対象
+
+app/core/mt5_client.py
+
+close_position()
+
+実施内容
+
+MT5 request comment に intent=CLOSE t=<ticket> を明示
+
+CLOSE 専用で inflight ログに intent=CLOSE / ticket を付与
+
+inflight mark → finally clear を必ず通す（例外でも）
+
+観測ログ
+[inflight][mark] key=USDJPY- intent=CLOSE ticket=6903072
+[inflight][clear] key=USDJPY- intent=CLOSE ok=True symbol=USDJPY ticket=6903072
+
+5. inflight 残留ゼロの実証
+実測結果
+
+inflight mark / clear 件数一致
+
+inflight diff = 0
+
+PositionGuard 内 inflight_orders は常に空
+
+marks=7 clears=7 diff=0
+n= 0
+[]
+
+
+👉 「詰まり続ける inflight」は存在しないことを観測で確定。
+
+6. deny ログが出ないことの確認
+
+[guard][entry] denied reason=inflight_orders
+
+inflight_keys=[...]
+
+👉 いずれも未発生
+＝ inflight が自動売買を止めている可能性は排除。
+
+T-45-4 の結論（重要）
+
+inflight 周りは 設計・実装・観測すべて正常
+
+ENTRY / SLTP / CLOSE の 犯人特定ログが完全に揃った
+
+自動売買が動かない原因は inflight ではないと断定可能
+
+👉 次に疑うべきは
+「戦略がエントリー条件を出していない / スケジューラが起動していない / dry_run / ガード条件」 側。

@@ -1,0 +1,5 @@
+$env:MT5_LOGIN    = "22004581"
+$env:MT5_PASSWORD = "eXSIDTUCV4&"
+$env:MT5_SERVER   = "GaitameFinest-Demo"
+
+python -c "from app.core import mt5_client; mt5_client.initialize(); mt5_client.login(); mt5_client._get_client().order_send(symbol='USDJPY', order_type='BUY', lot=0.01, sl=None, tp=None, retries=1, comment='intent=DEMO')"

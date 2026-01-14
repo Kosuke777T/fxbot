@@ -31,21 +31,36 @@ def _make_inflight_key(symbol: str) -> str:
         return str(symbol or "UNKNOWN")
 
 
-def _mark_inflight(key: str) -> None:
+def _mark_inflight(key: str, *, intent: Optional[str] = None, ticket: Optional[int] = None) -> None:
     # avoid circular import at module import time (trade_service imports mt5_client)
     try:
         from app.services import trade_service as _ts
         _ts.mark_order_inflight(key)
     except Exception:
         pass
+    # ログだけは trade_service に依存させない（欠落防止）
+    if intent == "CLOSE":
+        logger.info("[inflight][mark] key={} intent=CLOSE ticket={}", key, ticket)
+    else:
+        logger.info("[inflight][mark] key={}", key)
 
 
-def _finish_inflight(*, key: str, ok: bool, symbol: str) -> None:
+def _finish_inflight(*, key: str, ok: bool, symbol: str, intent: Optional[str] = None, ticket: Optional[int] = None) -> None:
     try:
         from app.services import trade_service as _ts
         _ts.on_order_result(order_id=key, ok=bool(ok), symbol=str(symbol))
     except Exception:
         pass
+    if intent == "CLOSE":
+        logger.info(
+            "[inflight][clear] key={} intent=CLOSE ok={} symbol={} ticket={}",
+            key,
+            bool(ok),
+            symbol,
+            ticket,
+        )
+    else:
+        logger.info("[inflight][clear] key={} ok={} symbol={}", key, bool(ok), symbol)
 
 
 def _notify_order_success(*, ticket: Optional[int], side: str, symbol: str, price: Optional[float] = None) -> None:
@@ -187,9 +202,11 @@ class MT5Client:
             logger.error(f'[close_position] symbol_info_tick({symbol}) が None')
             return False
         price = t.bid if order_type == MT5.ORDER_TYPE_SELL else t.ask
-        request = {'action': MT5.TRADE_ACTION_DEAL, 'symbol': symbol, 'volume': lot, 'type': order_type, 'position': ticket, 'price': price, 'magic': 123456, 'comment': 'fxbot_test_close', 'type_time': MT5.ORDER_TIME_GTC, 'type_filling': MT5.ORDER_FILLING_FOK}
+        # MT5 comment 制限（≒28文字）内に intent を明示（観測のみ・ロジック不変）
+        _comment = f"intent=CLOSE t={ticket}"[:28]
+        request = {'action': MT5.TRADE_ACTION_DEAL, 'symbol': symbol, 'volume': lot, 'type': order_type, 'position': ticket, 'price': price, 'magic': 123456, 'comment': _comment, 'type_time': MT5.ORDER_TIME_GTC, 'type_filling': MT5.ORDER_FILLING_FOK}
         inflight_key = _make_inflight_key(symbol)
-        _mark_inflight(inflight_key)
+        _mark_inflight(inflight_key, intent="CLOSE", ticket=ticket)
         ok = False
         try:
             for attempt in range(1, retries + 1):
@@ -204,7 +221,7 @@ class MT5Client:
             logger.error('[close_position] 全リトライ失敗')
             return False
         finally:
-            _finish_inflight(key=inflight_key, ok=ok, symbol=symbol)
+            _finish_inflight(key=inflight_key, ok=ok, symbol=symbol, intent="CLOSE", ticket=ticket)
 
     def get_positions(self):
         try:

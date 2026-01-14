@@ -3,6 +3,7 @@ import time
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple
 import MetaTrader5 as mt5
+from loguru import logger
 from app.core.symbol_map import resolve_symbol
 
 def _resolve_order_send_request(req):
@@ -134,6 +135,8 @@ class MT5Service:
             _ts.mark_order_inflight(_inflight_key)
         except Exception:
             pass
+        # ログだけは trade_service に依存させない（欠落防止）
+        logger.info("[inflight][mark] key={} intent=SLTP ticket={}", _inflight_key, ticket)
         ok = False
         try:
             for i in range(self.max_retries + 1):
@@ -160,4 +163,12 @@ class MT5Service:
                 _ts.on_order_result(order_id=str(_inflight_key), ok=bool(ok), symbol=str(symbol))
             except Exception:
                 pass
+            # ログだけは trade_service に依存させない（欠落防止）
+            logger.info(
+                "[inflight][clear] key={} intent=SLTP ok={} symbol={} ticket={}",
+                _inflight_key,
+                bool(ok),
+                str(symbol),
+                ticket,
+            )
 
