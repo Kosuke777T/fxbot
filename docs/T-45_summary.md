@@ -1,3 +1,85 @@
+T-45-1
+目的
+
+GUI の取引スイッチで dry_run / live_run を安全に切り替えられる状態を作る
+
+既存ロジックを壊さず、実発注の最終ゲートを1点に集約する
+
+■ 実施内容（事実）
+
+MT5発注直前の1点で trading_enabled を参照し、dry_run を最終確定
+
+trading_enabled=False の場合のみ 強制 dry_run
+
+trading_enabled=True の場合は 呼び出し側の dry_run 引数を尊重
+
+ログに effective_dry_run を出力し、挙動を観測可能にした
+
+GUI / 判断ロジック / 分岐構造は 一切変更なし
+
+■ 触ったレイヤ
+
+services のみ
+
+gui / core：変更なし
+
+■ 新規関数
+
+なし（既存コードへの最小差分）
+
+■ 変更ファイル
+
+app/services/execution_service.py
+
+MT5発注直前の dry_run 分岐ブロック（1箇所のみ）
+
+■ 守った制約
+
+最小差分
+
+既存APIのみ使用
+
+責務境界（gui / services / core）厳守
+
+推測で直さず、ログ観測で挙動を確定
+
+PowerShell 7 前提の確認
+
+■ 挙動の変化
+
+変わった点
+
+GUI の取引ON/OFFが「実発注するかどうか」に実際に効くようになった
+
+OFF時は必ず実取引に到達しない（dry_run強制）
+
+変わっていない点（重要）
+
+売買判断ロジック
+
+ログ構造（add-only）
+
+GUI の操作方法
+
+dry_run 引数の意味（ON時は従来どおり）
+
+■ 確認方法
+
+python -X utf8 -m py_compile app/services/execution_service.py
+
+ログ観測：
+
+Select-String -Path .\logs\app.log -Pattern "\[exec\] trading_enabled=.* effective_dry_run=.*"
+
+
+ON/OFF 切替で effective_dry_run が期待どおり変化することを確認
+
+■ 結論
+
+T-45-1 は設計どおり完了
+
+自動売買に入るための「電源スイッチ」が、安全・説明可能な形で確定した
+
 T-45-3｜自動サイズ反映
 ■ 目的
 

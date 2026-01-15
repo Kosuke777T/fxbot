@@ -1057,6 +1057,10 @@ class ExecutionService:
         # --- /T-43-4 Step1 (cont) ---
 
         # --- 5) dry_run モードの場合、MT5発注の直前で分岐 ---
+        settings = trade_state.get_settings()
+        trading_enabled = bool(getattr(settings, "trading_enabled", False))
+        dry_run = bool(dry_run) or (not trading_enabled)
+        logging.getLogger(__name__).info("[exec] trading_enabled=%s effective_dry_run=%s", trading_enabled, dry_run)
         if dry_run:
             # decision_detail を更新
             decision_detail["action"] = "ENTRY_SIMULATED"
