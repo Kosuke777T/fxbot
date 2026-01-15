@@ -19,6 +19,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from app.services.job_scheduler import JobScheduler
+from app.services.execution_service import ExecutionService
 
 
 def main(poll_sec: float = 1.0) -> int:
@@ -45,6 +46,7 @@ def main(poll_sec: float = 1.0) -> int:
         # JobScheduler を初期化（configs/scheduler.yaml を使用）
         scheduler = JobScheduler()
         logger.info("[SchedulerDaemon] JobScheduler initialized (jobs={})", len(scheduler.get_jobs()))
+        exec_service = ExecutionService()
 
         # メインループ
         while True:
@@ -60,6 +62,14 @@ def main(poll_sec: float = 1.0) -> int:
                         rc = res.get("rc")
                         err = res.get("error")
                         logger.info("[SchedulerDaemon] job '{}' result: ok={} rc={} error={}", job_id, ok, rc, err)
+
+                # T-45-2: 自動EXITを定期実行に接続（gateは execute_exit 内部に委譲）
+                logger.debug("[SchedulerDaemon] tick: calling execute_exit(symbol=None, dry_run=False)")
+                ret = exec_service.execute_exit(symbol=None, dry_run=False)
+                logger.debug(
+                    "[SchedulerDaemon] tick: execute_exit done keys={}",
+                    (list(ret.keys()) if isinstance(ret, dict) else type(ret).__name__),
+                )
 
             except KeyboardInterrupt:
                 logger.info("[SchedulerDaemon] Received KeyboardInterrupt, shutting down")

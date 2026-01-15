@@ -20,7 +20,7 @@ from app.core.strategy_profile import get_profile
 from app.services.edition_guard import filter_level, EditionGuard
 from app.services import trade_state
 from core.utils.timeutil import now_jst_iso
-from app.core import market
+from app.core import market, mt5_client
 
 # プロジェクトルート = app/services/ から 2 つ上
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -1326,57 +1326,184 @@ class ExecutionService:
 
         logger = logging.getLogger(__name__)
 
-        # dry_run モードの場合、擬似ポジションをクリア
-        if dry_run and self._sim_pos:
-            sim_pos = self._sim_pos
-            self._sim_pos = None
+        # --- T-45-2: trading_enabled が EXIT 実行可否の単一点 ---
+        settings = trade_state.get_settings()
+        trading_enabled = bool(getattr(settings, "trading_enabled", False))
+        effective_dry_run = bool(dry_run) or (not trading_enabled)
+        dry_run = effective_dry_run
+        logger.info("[exec] trading_enabled=%s effective_dry_run=%s", trading_enabled, effective_dry_run)
 
-            ts_str = now_jst_iso()
+        # dry_run モードの場合は実決済に到達しない（trading_enabled=False もここに合流）
+        # - 擬似ポジションがある場合のみ "EXIT_SIMULATED" として処理
+        # - 擬似ポジションが無い場合は "EXIT_SIMULATED" をログに残して縮退
+        if dry_run:
+            if self._sim_pos:
+                sim_pos = self._sim_pos
+                self._sim_pos = None
 
-            logger.info(
-                "[dry_run] Simulated EXIT: symbol=%s, side=%s",
-                sim_pos.get("symbol"),
-                sim_pos.get("side"),
-            )
+                ts_str = now_jst_iso()
 
-            # decisions.jsonl に出力（EXIT_SIMULATED として）
-            decision_detail = {
-                "action": "EXIT_SIMULATED",
-                "side": sim_pos.get("side"),
-                "prob_buy": sim_pos.get("prob_buy"),
-                "prob_sell": sim_pos.get("prob_sell"),
-                "threshold": None,
-                "ai_margin": None,
-                "cooldown_sec": None,
-                "blocked_reason": None,
-                "signal": {
+                logger.info(
+                    "[dry_run] Simulated EXIT: symbol=%s, side=%s",
+                    sim_pos.get("symbol"),
+                    sim_pos.get("side"),
+                )
+
+                # decisions.jsonl に出力（EXIT_SIMULATED として）
+                decision_detail = {
+                    "action": "EXIT_SIMULATED",
                     "side": sim_pos.get("side"),
-                    "confidence": sim_pos.get("prob_buy") if sim_pos.get("side") == "BUY" else sim_pos.get("prob_sell"),
-                },
-                "filter_pass": True,
-                "filter_reasons": [],
-            }
+                    "prob_buy": sim_pos.get("prob_buy"),
+                    "prob_sell": sim_pos.get("prob_sell"),
+                    "threshold": None,
+                    "ai_margin": None,
+                    "cooldown_sec": None,
+                    "blocked_reason": None,
+                    "signal": {
+                        "side": sim_pos.get("side"),
+                        "confidence": sim_pos.get("prob_buy") if sim_pos.get("side") == "BUY" else sim_pos.get("prob_sell"),
+                    },
+                    "filter_pass": True,
+                    "filter_reasons": [],
+                }
+                decision_detail = _ensure_decision_detail_minimum(
+                    decision_detail,
+                    decision="EXIT_SIMULATED",
+                    signal=None,
+                    ai_margin=0.03,
+                )
+                # T-44-3: Exit as Decision (label-only / add-only)
+                # Simulated exit is treated as DEFENSE (forced close in dry_run).
+                if isinstance(decision_detail, dict):
+                    decision_detail.setdefault("exit_type", "DEFENSE")
+                    decision_detail.setdefault("exit_reason", "exit_simulated")
+
+                # decision_context を構築
+                decision_context = _build_decision_context(
+                    prob_buy=sim_pos.get("prob_buy"),
+                    prob_sell=sim_pos.get("prob_sell"),
+                    strategy_name="unknown",
+                    best_threshold=0.52,  # フォールバック値
+                    filters_dict={},
+                    decision_detail=decision_detail,
+                    meta={},
+                )
+
+                record = {
+                    "timestamp": ts_str,
+                    "ts_jst": ts_str,
+                    "type": "decision",
+                    "symbol": symbol,
+                    "strategy": "unknown",  # 後方互換のため残す
+                    "prob_buy": sim_pos.get("prob_buy"),  # 後方互換のため残す
+                    "prob_sell": sim_pos.get("prob_sell"),  # 後方互換のため残す
+                    # 入力特徴量のハッシュ（EXITの場合は空）
+                    "features_hash": "",
+                    "filter_pass": True,  # 後方互換のため残す
+                    "filter_reasons": [],  # 後方互換のため残す
+                    "decision": "EXIT_SIMULATED",  # 後方互換のため残す
+                    "side": sim_pos.get("side"),  # 後方互換のため残す
+                    "filters": {},  # 後方互換のため残す
+                    "meta": {},  # 後方互換のため残す
+                    "decision_detail": decision_detail,  # 後方互換のため残す
+                    "decision_context": decision_context,  # 新規追加：判断材料を分離
+                }
+                # ---- runtime normalization (decision log) ----
+                _prev_rt = record.get("runtime")
+                runtime = trade_state.build_runtime(
+                    symbol,
+                    market=market,
+                    ts_str=ts_str,  # JST ISO形式に正規化済み
+                    mode="live",  # ExecutionService は live モード
+                    source="mt5",  # ExecutionService は mt5 ソース
+                )
+                record["runtime"] = runtime
+                if _prev_rt and isinstance(_prev_rt, dict):
+                    record["runtime_detail"] = _prev_rt
+                # ---------------------------------------------
+                DecisionsLogger.log(record)
+
+                return {
+                    "ok": True,
+                    "dry_run": True,
+                    "simulated": True,
+                    "exited": True,
+                }
+
+            # dry_run だが擬似ポジション無し → 実決済には行かず、ログだけ残して縮退
+            ts_str = now_jst_iso()
+            decision_detail = {"action": "EXIT_SIMULATED", "side": None}
             decision_detail = _ensure_decision_detail_minimum(
                 decision_detail,
                 decision="EXIT_SIMULATED",
                 signal=None,
                 ai_margin=0.03,
             )
-            # T-44-3: Exit as Decision (label-only / add-only)
-            # Simulated exit is treated as DEFENSE (forced close in dry_run).
             if isinstance(decision_detail, dict):
                 decision_detail.setdefault("exit_type", "DEFENSE")
-                decision_detail.setdefault("exit_reason", "exit_simulated")
+                decision_detail.setdefault("exit_reason", "exit_suppressed")
+            DecisionsLogger.log(
+                {
+                    "timestamp": ts_str,
+                    "ts_jst": ts_str,
+                    "type": "decision",
+                    "symbol": symbol,
+                    "strategy": "unknown",
+                    "prob_buy": None,
+                    "prob_sell": None,
+                    "features_hash": "",
+                    "filter_pass": True,
+                    "filter_reasons": [],
+                    "decision": "EXIT_SIMULATED",
+                    "side": None,
+                    "filters": {},
+                    "meta": {},
+                    "decision_detail": decision_detail,
+                }
+            )
+            return {"ok": True, "dry_run": True, "simulated": True, "exited": False}
 
-            # decision_context を構築
-            decision_context = _build_decision_context(
-                prob_buy=sim_pos.get("prob_buy"),
-                prob_sell=sim_pos.get("prob_sell"),
-                strategy_name="unknown",
-                best_threshold=0.52,  # フォールバック値
-                filters_dict={},
-                decision_detail=decision_detail,
-                meta={},
+        # 通常モードの場合、実際のMT5決済処理
+        # （TradeService / mt5_client 経由で close を実行）
+        positions = []
+        try:
+            positions = mt5_client.get_positions()
+        except Exception:
+            positions = []
+
+        close_targets = [p for p in positions if getattr(p, "symbol", None) == symbol]
+        if not close_targets:
+            return {
+                "ok": True,
+                "exited": False,
+            }
+
+        from app.services import trade_service
+
+        ts_str = now_jst_iso()
+        for p in close_targets:
+            # MT5 position.type: 0=BUY, 1=SELL
+            side = "BUY" if getattr(p, "type", None) == 0 else "SELL"
+            profit_jpy = float(getattr(p, "profit", 0.0) or 0.0)
+
+            # T-45-2: exit_type/exit_reason の元データが無い場合の最小ラベル（ロジック改変なし）
+            # - TP/SL 等の確定コードが upstream から渡される場合は setdefault により上書きしない
+            computed_exit_type = "PROFIT" if profit_jpy > 0 else "DEFENSE"
+            computed_exit_reason = "close_in_profit" if profit_jpy > 0 else "close_in_loss_or_flat"
+
+            decision_detail = {
+                "action": "EXIT",
+                "side": side,
+            }
+            # T-44-3: Exit as Decision (label-only / add-only)
+            decision_detail.setdefault("exit_type", computed_exit_type)
+            decision_detail.setdefault("exit_reason", computed_exit_reason)
+
+            decision_detail = _ensure_decision_detail_minimum(
+                decision_detail,
+                decision="EXIT",
+                signal=None,
+                ai_margin=0.03,
             )
 
             record = {
@@ -1384,46 +1511,41 @@ class ExecutionService:
                 "ts_jst": ts_str,
                 "type": "decision",
                 "symbol": symbol,
-                "strategy": "unknown",  # 後方互換のため残す
-                "prob_buy": sim_pos.get("prob_buy"),  # 後方互換のため残す
-                "prob_sell": sim_pos.get("prob_sell"),  # 後方互換のため残す
-                # 入力特徴量のハッシュ（EXITの場合は空）
+                "strategy": "unknown",
+                "prob_buy": None,
+                "prob_sell": None,
                 "features_hash": "",
-                "filter_pass": True,  # 後方互換のため残す
-                "filter_reasons": [],  # 後方互換のため残す
-                "decision": "EXIT_SIMULATED",  # 後方互換のため残す
-                "side": sim_pos.get("side"),  # 後方互換のため残す
-                "filters": {},  # 後方互換のため残す
-                "meta": {},  # 後方互換のため残す
-                "decision_detail": decision_detail,  # 後方互換のため残す
-                "decision_context": decision_context,  # 新規追加：判断材料を分離
+                "filter_pass": True,
+                "filter_reasons": [],
+                "decision": "EXIT",
+                "side": side,
+                "filters": {},
+                "meta": {},
+                "decision_detail": decision_detail,
             }
-            # ---- runtime normalization (decision log) ----
-            # build_runtime() を使用して live/demo で統一（v2）
-            # 既存 runtime があれば runtime_detail に退避
-            _prev_rt = record.get("runtime")
-            runtime = trade_state.build_runtime(
-                symbol,
-                market=market,
-                ts_str=ts_str,  # JST ISO形式に正規化済み
-                mode="live",  # ExecutionService は live モード
-                source="mt5",  # ExecutionService は mt5 ソース
-            )
-            record["runtime"] = runtime
-            if _prev_rt and isinstance(_prev_rt, dict):
-                record["runtime_detail"] = _prev_rt
-            # ---------------------------------------------
             DecisionsLogger.log(record)
 
-            return {
-                "ok": True,
-                "dry_run": True,
-                "simulated": True,
-                "exited": True,
-            }
+            ok = False
+            try:
+                ok = bool(mt5_client.close_position(ticket=int(getattr(p, "ticket")), symbol=symbol))
+            except Exception:
+                ok = False
 
-        # 通常モードの場合、実際のMT5決済処理
-        # （TradeService などを呼び出す想定）
+            if ok:
+                # EXIT結果を ui_events / ops_history に渡す（add-only）
+                try:
+                    info = {
+                        "exit_type": decision_detail.get("exit_type"),
+                        "exit_reason": decision_detail.get("exit_reason"),
+                    }
+                    trade_service.record_trade_result(
+                        symbol=symbol,
+                        side=side,
+                        profit_jpy=profit_jpy,
+                        info=info,
+                    )
+                except Exception:
+                    pass
 
         return {
             "ok": True,
