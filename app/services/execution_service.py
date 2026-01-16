@@ -1333,6 +1333,15 @@ class ExecutionService:
         dry_run = effective_dry_run
         logger.info("[exec] trading_enabled=%s effective_dry_run=%s", trading_enabled, effective_dry_run)
 
+        # --- T-45-2 observe: execute_exit progress snapshot (add-only) ---
+        # scheduler_daemon.log だけで「どこまで進んだか」「MT5を呼んだか」を確定できるようにする。
+        # 呼び出し側では判断しない（gateはここに集約）。
+        ret: dict[str, Any] = {}
+        ret.setdefault("stage", "start")
+        ret.setdefault("mt5_called", False)
+        ret.setdefault("symbol", symbol)
+        ret.setdefault("effective_dry_run", bool(dry_run))
+
         # dry_run モードの場合は実決済に到達しない（trading_enabled=False もここに合流）
         # - 擬似ポジションがある場合のみ "EXIT_SIMULATED" として処理
         # - 擬似ポジションが無い場合は "EXIT_SIMULATED" をログに残して縮退
@@ -1423,12 +1432,17 @@ class ExecutionService:
                 # ---------------------------------------------
                 DecisionsLogger.log(record)
 
-                return {
-                    "ok": True,
-                    "dry_run": True,
-                    "simulated": True,
-                    "exited": True,
-                }
+                ret.setdefault("exit_action", "EXIT_SIMULATED")
+                ret["stage"] = "simulated"
+                ret.setdefault("mt5_called", False)
+                ret2 = {"ok": True, "dry_run": True, "simulated": True, "exited": True}
+                # add-only enrich
+                ret2.setdefault("stage", ret.get("stage"))
+                ret2.setdefault("mt5_called", ret.get("mt5_called"))
+                ret2.setdefault("symbol", ret.get("symbol"))
+                ret2.setdefault("exit_action", ret.get("exit_action"))
+                ret2.setdefault("effective_dry_run", ret.get("effective_dry_run"))
+                return ret2
 
             # dry_run だが擬似ポジション無し → 実決済には行かず、ログだけ残して縮退
             ts_str = now_jst_iso()
@@ -1461,22 +1475,43 @@ class ExecutionService:
                     "decision_detail": decision_detail,
                 }
             )
-            return {"ok": True, "dry_run": True, "simulated": True, "exited": False}
+            ret.setdefault("exit_action", "EXIT_SIMULATED")
+            ret["stage"] = "suppressed"
+            ret.setdefault("mt5_called", False)
+            ret2 = {"ok": True, "dry_run": True, "simulated": True, "exited": False}
+            ret2.setdefault("suppressed_reason", "exit_suppressed")
+            # add-only enrich
+            ret2.setdefault("stage", ret.get("stage"))
+            ret2.setdefault("mt5_called", ret.get("mt5_called"))
+            ret2.setdefault("symbol", ret.get("symbol"))
+            ret2.setdefault("exit_action", ret.get("exit_action"))
+            ret2.setdefault("effective_dry_run", ret.get("effective_dry_run"))
+            return ret2
 
         # 通常モードの場合、実際のMT5決済処理
         # （TradeService / mt5_client 経由で close を実行）
+        ret.setdefault("exit_action", "EXIT")
+        ret["mt5_called"] = True
+        ret["stage"] = "mt5_calling"
         positions = []
         try:
             positions = mt5_client.get_positions()
         except Exception:
             positions = []
 
+        ret["stage"] = "positions_checked"
+        ret.setdefault("positions_found", int(len(positions)))
         close_targets = [p for p in positions if getattr(p, "symbol", None) == symbol]
         if not close_targets:
-            return {
-                "ok": True,
-                "exited": False,
-            }
+            ret2 = {"ok": True, "exited": False}
+            # add-only enrich
+            ret2.setdefault("stage", ret.get("stage"))
+            ret2.setdefault("mt5_called", ret.get("mt5_called"))
+            ret2.setdefault("symbol", ret.get("symbol"))
+            ret2.setdefault("exit_action", ret.get("exit_action"))
+            ret2.setdefault("effective_dry_run", ret.get("effective_dry_run"))
+            ret2.setdefault("positions_found", ret.get("positions_found"))
+            return ret2
 
         from app.services import trade_service
 
@@ -1525,6 +1560,7 @@ class ExecutionService:
             }
             DecisionsLogger.log(record)
 
+            ret["stage"] = "close_attempted"
             ok = False
             try:
                 ok = bool(mt5_client.close_position(ticket=int(getattr(p, "ticket")), symbol=symbol))
@@ -1532,6 +1568,7 @@ class ExecutionService:
                 ok = False
 
             if ok:
+                ret["stage"] = "closed"
                 # EXIT結果を ui_events / ops_history に渡す（add-only）
                 try:
                     info = {
@@ -1547,8 +1584,13 @@ class ExecutionService:
                 except Exception:
                     pass
 
-        return {
-            "ok": True,
-            "exited": True,
-        }
+        ret2 = {"ok": True, "exited": True}
+        # add-only enrich
+        ret2.setdefault("stage", ret.get("stage"))
+        ret2.setdefault("mt5_called", ret.get("mt5_called"))
+        ret2.setdefault("symbol", ret.get("symbol"))
+        ret2.setdefault("exit_action", ret.get("exit_action"))
+        ret2.setdefault("effective_dry_run", ret.get("effective_dry_run"))
+        ret2.setdefault("positions_found", ret.get("positions_found"))
+        return ret2
 

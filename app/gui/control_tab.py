@@ -1,4 +1,7 @@
 from typing import Optional
+from pathlib import Path
+import json
+from datetime import datetime, timezone
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QGroupBox,
@@ -15,6 +18,26 @@ from PyQt6.QtWidgets import (
 from app.core.config_loader import load_config
 from app.services import circuit_breaker, trade_state
 from app.services.orderbook_stub import orderbook
+
+
+_RUNTIME_FLAGS_PATH = Path("config/runtime_flags.json")
+
+
+def _write_runtime_flags(trading_enabled: bool) -> None:
+    """
+    GUI→daemon の最小同期（ファイル永続）。
+    daemon 側は trading_enabled だけを参照する（他キーは観測用）。
+    """
+    _RUNTIME_FLAGS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "trading_enabled": bool(trading_enabled),
+        "updated_at": datetime.now(timezone.utc).astimezone().isoformat(),
+        "source": "gui",
+    }
+    _RUNTIME_FLAGS_PATH.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
 
 
 class ControlTab(QWidget):
@@ -119,6 +142,7 @@ class ControlTab(QWidget):
         try:
             enabled = self.btn_toggle.isChecked()
             trade_state.update(trading_enabled=enabled)
+            _write_runtime_flags(trading_enabled=enabled)
             self.btn_toggle.setText(
                 "取引：稼働中（クリックで停止）" if enabled else "取引：停止中（クリックで開始）"
             )
