@@ -25,6 +25,7 @@ from app.gui.kpi_tab import KPITab
 from app.gui.settings_tab import SettingsTab
 from app.gui.ops_tab import OpsTab
 from app.gui.scheduler_tab import SchedulerTab
+from app.gui.visualize_tab import VisualizeTab
 from app.services.kpi_service import KPIService
 
 
@@ -61,6 +62,7 @@ QTabBar::tab:hover {
         self.tabs.addTab(DashboardTab(), "Dashboard")
         self.tabs.addTab(ControlTab(), "Control")
         self.tabs.addTab(HistoryTab(), "History")
+        self.tabs.addTab(VisualizeTab(), "Visualize")
 
         # --- AIタブはプレースホルダを入れておき、実体は後で生成 ---
         # プレースホルダ用ウィジェット
