@@ -46,11 +46,19 @@ def get_default_symbol_timeframe() -> dict[str, Any]:
     return {"symbol": symbol, "timeframe": timeframe}
 
 
-def get_recent_ohlcv(*, symbol: str, timeframe: str, count: int = 120) -> dict[str, Any]:
+def get_recent_ohlcv(
+    *,
+    symbol: str,
+    timeframe: str,
+    count: int = 120,
+    until: datetime | None = None,
+) -> dict[str, Any]:
     """
-    表示用の OHLCV（直近 N 本）を返す。
+    表示用の OHLCV を返す。
     - 取得/整形は services 層で実施（GUI は描画だけ）
     - 現段階は既存資産（data/.../ohlcv CSV）を優先（新規依存追加なし）
+    - until が None の場合: 直近 N 本
+    - until が指定された場合: until より過去（time < until）の中から末尾 N 本
     """
     symbol_tag = str(symbol or "USDJPY").rstrip("-").upper().strip()
     tf = str(timeframe or "M5").upper().strip()
@@ -86,6 +94,8 @@ def get_recent_ohlcv(*, symbol: str, timeframe: str, count: int = 120) -> dict[s
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors="coerce")
         df = df.sort_values("time")
+        if isinstance(until, datetime):
+            df = df[df["time"] < pd.Timestamp(until)]
         tail = df.tail(n)
         out = {
             "ok": True,

@@ -117,6 +117,18 @@ class VisualizeTab(QWidget):
         self._drag_pan_x0: float | None = None
         self._drag_pan_xlim0: tuple[float, float] | None = None
         self._user_xlim: tuple[float, float] | None = None
+        # 軽量描画モード用
+        self._candle_bodies: list = []
+        self._candle_wicks: list = []
+        self._drag_light_mode: bool = False
+        # OHLC cache (infinite scroll: prepend older bars on pan-left)
+        self._ohlc_cache: dict | None = None
+        self._ohlc_cache_key: tuple[str, str] | None = None
+        self._ohlc_cache_n: int | None = None
+        # throttle state for smooth pan
+        self._drag_pan_last_x: float | None = None
+        self._pan_tick_pending: bool = False
+        self._pan_interval_ms: int = 16  # 60fps目安（重ければ33）
 
         # ---- status ----
         self.lbl_status = QLabel("")
@@ -175,6 +187,45 @@ class VisualizeTab(QWidget):
             blocker = QtCore.QSignalBlocker(self.spn_n)
             self.spn_n.setValue(int(new_n))
             del blocker
+            # 現在の表示位置を維持したまま N を変更する（中心固定で表示幅をスケール）
+            try:
+                ax = getattr(self, "_ax_price", None)
+                if ax is not None:
+                    cur_left, cur_right = ax.get_xlim()
+                elif isinstance(getattr(self, "_user_xlim", None), tuple) and len(self._user_xlim) == 2:
+                    cur_left, cur_right = self._user_xlim
+                else:
+                    cur_left, cur_right = 0.0, 0.0
+
+                width = float(cur_right) - float(cur_left)
+                if width > 0 and cur > 0:
+                    center = (float(cur_left) + float(cur_right)) * 0.5
+                    scale = float(new_n) / float(cur)
+                    new_width = width * scale
+                    self._user_xlim = (center - new_width * 0.5, center + new_width * 0.5)
+                else:
+                    self._user_xlim = None
+            except Exception:
+                self._user_xlim = None
+
+            # cache が十分にあるなら維持（N変更で過去表示が飛ぶのを避ける）
+            try:
+                sym = (self.ed_symbol.text() or "USDJPY-").strip()
+                tf = (self.cmb_tf.currentText() or "M5").strip()
+                key = (str(sym), str(tf))
+                cache = getattr(self, "_ohlc_cache", None)
+                if (
+                    isinstance(cache, dict)
+                    and bool(cache.get("ok"))
+                    and getattr(self, "_ohlc_cache_key", None) == key
+                    and int(cache.get("rows") or 0) >= int(new_n)
+                ):
+                    self._ohlc_cache_n = int(new_n)
+                else:
+                    # 不足する場合は refresh() 側で取り直す
+                    self._ohlc_cache = None
+            except Exception:
+                pass
             self.refresh()
         except Exception as e:
             logger.error(f"[viz] scroll handler failed: {e}")
@@ -208,7 +259,21 @@ class VisualizeTab(QWidget):
         thr = self._threshold()
 
         # services: get data (GUI does not import core)
-        ohlc = get_recent_ohlcv(symbol=sym, timeframe=tf, count=n)
+        # ohlc: cache を優先（pan-left 時は prepend して伸ばす）
+        key = (str(sym), str(tf))
+        need_fetch = (
+            self._ohlc_cache is None
+            or self._ohlc_cache_key != key
+            or int(self._ohlc_cache_n or 0) != int(n)
+            or (not bool(self._ohlc_cache.get("ok")) if isinstance(self._ohlc_cache, dict) else True)
+        )
+        if need_fetch:
+            ohlc = get_recent_ohlcv(symbol=sym, timeframe=tf, count=n)
+            self._ohlc_cache = ohlc if isinstance(ohlc, dict) else None
+            self._ohlc_cache_key = key
+            self._ohlc_cache_n = int(n)
+        else:
+            ohlc = self._ohlc_cache or {"ok": False, "reason": "ohlc_cache_missing"}
         lgbm = get_recent_lgbm_series(symbol=sym, count=n, keys=("prob_buy",))
 
         try:
@@ -217,8 +282,93 @@ class VisualizeTab(QWidget):
             logger.error(f"[viz] render failed: {e}")
             self.lbl_status.setText(f"render failed: {e}")
 
+    def _prepend_older_ohlc_if_needed(self) -> None:
+        """
+        user_xlim の左端が、保持OHLCの最古より左に出た場合のみ、過去分を services から取得して prepend する。
+        - release 時だけ呼ぶ（motion中は取得しない）
+        """
+        try:
+            if not (isinstance(getattr(self, "_user_xlim", None), tuple) and len(self._user_xlim) == 2):
+                return
+            left_xlim = float(self._user_xlim[0])  # float(date2num)
+
+            cache = getattr(self, "_ohlc_cache", None)
+            if not (isinstance(cache, dict) and bool(cache.get("ok"))):
+                return
+            times = cache.get("time")
+            if not (isinstance(times, list) and len(times) >= 2 and isinstance(times[0], datetime)):
+                return
+
+            xs = date2num(times)
+            try:
+                min_x = float(xs[0])
+                bar_w = float(xs[1] - xs[0])
+            except Exception:
+                return
+            if not (bar_w > 0):
+                return
+
+            if left_xlim >= min_x:
+                return
+
+            sym, tf, _n = self._get_inputs()
+            min_time = times[0]
+            # どれだけ左に出たかから必要本数を見積もる（取りすぎ防止）
+            margin = 20
+            bars_needed = int((min_x - left_xlim) / bar_w) + margin
+            bars_needed = max(10, min(int(bars_needed), 2000))
+
+            older = get_recent_ohlcv(symbol=sym, timeframe=tf, count=bars_needed, until=min_time)
+            if not (isinstance(older, dict) and bool(older.get("ok"))):
+                return
+
+            ot = older.get("time")
+            if not (isinstance(ot, list) and ot):
+                return
+
+            # 重複（境界）を避けて strictly older のみ prepend
+            keep_idx = [i for i, t in enumerate(ot) if isinstance(t, datetime) and t < min_time]
+            if not keep_idx:
+                return
+
+            def pick(col: str) -> list[float]:
+                arr = older.get(col)
+                if not isinstance(arr, list):
+                    return []
+                out: list[float] = []
+                for i in keep_idx:
+                    try:
+                        out.append(float(arr[i]))
+                    except Exception:
+                        out.append(0.0)
+                return out
+
+            older_times = [ot[i] for i in keep_idx]
+            new_cache = dict(cache)
+            new_cache["time"] = older_times + list(times)
+            for col in ["open", "high", "low", "close"]:
+                base = cache.get(col)
+                base_list = list(base) if isinstance(base, list) else []
+                new_cache[col] = pick(col) + base_list
+            try:
+                new_cache["rows"] = int(len(new_cache["time"]))
+            except Exception:
+                pass
+
+            self._ohlc_cache = new_cache
+            logger.info(
+                "[viz] ohlc prepend: added={} total_rows={} until={}",
+                len(older_times),
+                int(new_cache.get("rows") or 0),
+                str(min_time),
+            )
+        except Exception as e:
+            logger.error(f"[viz] ohlc prepend failed: {e}")
+
     def _render(self, *, ohlc: dict, lgbm: dict, threshold: float) -> None:
         self.fig.clear()
+        self._candle_bodies = []  # 軽量モード用にクリア
+        self._candle_wicks = []
         gs = self.fig.add_gridspec(2, 1, height_ratios=[2.2, 1.0], hspace=0.05)
         ax_price = self.fig.add_subplot(gs[0, 0])
         ax_prob = self.fig.add_subplot(gs[1, 0], sharex=ax_price)
@@ -249,23 +399,24 @@ class VisualizeTab(QWidget):
                 up = c >= o
                 col = "#26a69a" if up else "#ef5350"
                 # wick
-                ax_price.vlines(x, l, h, color=col, linewidth=1.0, alpha=0.9)
+                lc = ax_price.vlines(x, l, h, color=col, linewidth=1.0, alpha=0.9)
+                self._candle_wicks.append(lc)
                 # body
                 y0 = min(o, c)
                 hh = abs(c - o)
                 if hh <= 0:
                     ax_price.hlines(o, x - width / 2, x + width / 2, color=col, linewidth=1.2)
                 else:
-                    ax_price.add_patch(
-                        Rectangle(
-                            (x - width / 2, y0),
-                            width,
-                            hh,
-                            facecolor=col,
-                            edgecolor=col,
-                            alpha=0.85,
-                        )
+                    rect = Rectangle(
+                        (x - width / 2, y0),
+                        width,
+                        hh,
+                        facecolor=col,
+                        edgecolor=col,
+                        alpha=0.85,
                     )
+                    ax_price.add_patch(rect)
+                    self._candle_bodies.append(rect)
 
             ax_price.set_ylabel("Price")
             ax_price.grid(True, alpha=0.25)
@@ -372,6 +523,22 @@ class VisualizeTab(QWidget):
         except Exception:
             return False
 
+    def _x_to_num(self, x: object) -> float | None:
+        """xdata を float（date2num 正規化済み）に変換。変換不可なら None。"""
+        if x is None:
+            return None
+        try:
+            # datetime 系なら date2num
+            if isinstance(x, datetime):
+                return float(date2num(x))
+            # numpy datetime64 などは date2num が対応
+            if hasattr(x, "dtype") and "datetime" in str(getattr(x, "dtype", "")):
+                return float(date2num(x))
+            # 通常の数値
+            return float(x)
+        except Exception:
+            return None
+
     def _event_in_price_x(self, event: object) -> bool:
         """
         event.inaxes が price と同じx軸グループなら True。
@@ -401,44 +568,89 @@ class VisualizeTab(QWidget):
                 return
             if not self._event_in_price_x(event):
                 return
-            x = getattr(event, "xdata", None)
+            raw_x = getattr(event, "xdata", None)
+            x = self._x_to_num(raw_x)
             if x is None:
+                logger.info(f"[viz] drag start skipped: xdata={raw_x!r} not convertible to float")
                 return
             ax = getattr(self, "_ax_price", None)
             if ax is None:
                 return
             self._drag_pan_active = True
-            self._drag_pan_x0 = float(x)
+            self._drag_pan_x0 = x
             self._drag_pan_xlim0 = tuple(ax.get_xlim())
+            # 軽量モードON: body+wick非表示
+            self._drag_light_mode = True
+            for r in self._candle_bodies:
+                r.set_visible(False)
+            for w in self._candle_wicks:
+                w.set_visible(False)
+            self.canvas.draw_idle()
         except Exception:
             self._drag_pan_active = False
 
     def _on_mpl_motion(self, event: object) -> None:
-        try:
-            if not self._drag_pan_active:
-                return
-            ax = getattr(self, "_ax_price", None)
-            if ax is None:
-                return
-            x = getattr(event, "xdata", None)
-            if x is None or self._drag_pan_x0 is None or self._drag_pan_xlim0 is None:
-                return
-            dx = float(x) - float(self._drag_pan_x0)
-            x0, x1 = self._drag_pan_xlim0
-            new_xlim = (float(x0) - dx, float(x1) - dx)
-            ax.set_xlim(new_xlim[0], new_xlim[1])
-            self.canvas.draw_idle()
-        except Exception:
-            pass
+        # ドラッグ中は最軽量化のため何もしない（release時にxdataで確定する）
+        if self._drag_pan_active:
+            return
 
     def _on_mpl_release(self, event: object) -> None:
+        do_refresh = False
         try:
             if self._drag_pan_active:
+                # release時点のxdataを拾って最後の位置を確定（motionは無処理）
+                raw_x = getattr(event, "xdata", None)
+                x = self._x_to_num(raw_x)
+                if x is not None:
+                    self._drag_pan_last_x = x
+
+                # xlim確定（light_mode中はdrawしない）
+                self._apply_pan_tick()
+
                 ax = getattr(self, "_ax_price", None)
                 if ax is not None:
                     self._user_xlim = tuple(ax.get_xlim())
-        except Exception:
-            pass
+
+                # 軽量モードOFF → フル描画に戻す（drag解除後に実施）
+                self._drag_light_mode = False
+                do_refresh = True
+        except Exception as e:
+            logger.error(f"[viz] drag release failed: {e}")
         self._drag_pan_active = False
         self._drag_pan_x0 = None
         self._drag_pan_xlim0 = None
+        self._drag_pan_last_x = None
+        if do_refresh:
+            # 左端が足りなければ過去OHLCを prepend（release時のみ）
+            self._prepend_older_ohlc_if_needed()
+            self.refresh()
+
+    def _schedule_pan_tick(self) -> None:
+        try:
+            if self._pan_tick_pending:
+                return
+            self._pan_tick_pending = True
+            QtCore.QTimer.singleShot(int(self._pan_interval_ms), self._apply_pan_tick)
+        except Exception as e:
+            self._pan_tick_pending = False
+            logger.error(f'[viz] pan schedule failed: {e}')
+
+    def _apply_pan_tick(self) -> None:
+        try:
+            self._pan_tick_pending = False
+            if not self._drag_pan_active:
+                return
+            ax = getattr(self, '_ax_price', None)
+            if ax is None or self._drag_pan_x0 is None or self._drag_pan_xlim0 is None:
+                return
+            x = self._drag_pan_last_x
+            if x is None:
+                return
+            dx = float(x) - float(self._drag_pan_x0)
+            x0, x1 = self._drag_pan_xlim0
+            ax.set_xlim(float(x0) - dx, float(x1) - dx)
+            # 軽量モード中は描画しない（release後のrefreshでフル描画する）
+            if not bool(getattr(self, "_drag_light_mode", False)):
+                self.canvas.draw_idle()
+        except Exception as e:
+            logger.error(f'[viz] pan apply failed: {e}')
