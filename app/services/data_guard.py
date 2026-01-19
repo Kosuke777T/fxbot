@@ -35,7 +35,9 @@ def ensure_data(symbol_tag: str, timeframe: str, start_date: str, end_date: str,
             df = pd.read_csv(out_csv, parse_dates=["time"])
             if not df.empty:
                 has_start = (df["time"].min() <= pd.Timestamp(start_date))
-                has_end   = (df["time"].max() >= pd.Timestamp(end_date))
+                # end_date は当日23:59:59基準で比較（日付00:00基準の誤判定を回避）
+                end_ts = pd.Timestamp(end_date) + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)
+                has_end   = (df["time"].max() >= end_ts)
                 need_fetch = not (has_start and has_end)
         except Exception:
             need_fetch = True
@@ -77,11 +79,14 @@ def ensure_data(symbol_tag: str, timeframe: str, start_date: str, end_date: str,
             raise RuntimeError(msg)
         else:
             # 成功時も観測ログ（symbol not found 等のケースを潰す）
-            out_tail = (proc.stdout or "").strip()[-500:]
-            err_tail = (proc.stderr or "").strip()[-500:]
+            # 末尾 N行表示（例: 80行）で df_new.time dtype(before) 等を確実に観測できるようにする
+            stdout_lines = (proc.stdout or "").strip().splitlines()
+            stderr_lines = (proc.stderr or "").strip().splitlines()
+            out_tail = "\n".join(stdout_lines[-80:]) if len(stdout_lines) > 80 else "\n".join(stdout_lines)
+            err_tail = "\n".join(stderr_lines[-80:]) if len(stderr_lines) > 80 else "\n".join(stderr_lines)
             from loguru import logger
             logger.info(
-                "[data_guard] make_csv_from_mt5 success: stdout_tail={} stderr_tail={}",
+                "[data_guard] make_csv_from_mt5 success: stdout_tail (last 80 lines)=\n{} stderr_tail (last 80 lines)=\n{}",
                 out_tail,
                 err_tail,
             )

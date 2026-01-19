@@ -1,0 +1,20 @@
+手動実行
+$py=@'
+from app.services.ohlcv_update_service import ensure_ohlcv_uptodate
+print(ensure_ohlcv_uptodate(symbol="USDJPY-", timeframe="M5"))
+'@
+python -X utf8 -c $py
+
+
+
+CSV末尾確認
+$py=@'
+from pathlib import Path
+import pandas as pd
+p=Path(r"D:\fxbot\data\USDJPY\ohlcv\USDJPY_M5.csv")
+df=pd.read_csv(p)
+df["time"]=pd.to_datetime(df["time"], errors="coerce")
+print("time.max:", df["time"].max())
+print("rows:", len(df))
+'@
+python -X utf8 -c $py

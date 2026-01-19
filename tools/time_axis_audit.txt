@@ -1,0 +1,704 @@
+D:\fxbot\scripts\make_csv_from_mt5.py:131:return s.tz_convert("Asia/Tokyo").tz_localize(None)
+D:\fxbot\scripts\make_csv_from_mt5.py:133:return s.dt.tz_convert("Asia/Tokyo").dt.tz_localize(None)
+D:\fxbot\scripts\make_csv_from_mt5.py:159:ts = ts.tz_localize(JST)
+D:\fxbot\scripts\make_csv_from_mt5.py:172:ts_jst.tz_localize("Asia/Tokyo")
+D:\fxbot\scripts\make_csv_from_mt5.py:257:rates_last_utc = pd.Timestamp(rates_last_jst).tz_localize("Asia/Tokyo").tz_convert("UTC")
+D:\fxbot\scripts\make_csv_from_mt5.py:329:rates_last_utc = pd.Timestamp(rates_last_jst).tz_localize("Asia/Tokyo").tz_convert("UTC")
+D:\fxbot\scripts\make_csv_from_mt5.py:379:end_ts = pd.Timestamp.now(tz="Asia/Tokyo").tz_localize(None)
+D:\fxbot\scripts\make_csv_from_mt5.py:403:fetch_from_jst = fetch_from.tz_localize("Asia/Tokyo") if fetch_from.tz is None else fetch_from.tz_convert("Asia/Tokyo")
+D:\fxbot\scripts\make_csv_from_mt5.py:404:end_ts_jst = end_ts.tz_localize("Asia/Tokyo") if end_ts.tz is None else end_ts.tz_convert("Asia/Tokyo")
+D:\fxbot\app\services\kpi_service.py:646:df_dec["timestamp"] = df_dec["timestamp"].dt.tz_localize(None)
+D:\fxbot\app\services\ohlcv_update_service.py:27:return s.tz_convert("Asia/Tokyo").tz_localize(None)
+D:\fxbot\app\services\ohlcv_update_service.py:29:return s.dt.tz_convert("Asia/Tokyo").dt.tz_localize(None)
+D:\fxbot\app\services\ohlcv_update_service.py:77:now_jst = pd.Timestamp.now(tz="Asia/Tokyo").tz_localize(None)
+D:\fxbot\scripts\export_val_probs.py:139:df["ts"] = pd.to_datetime(df["time"], unit="s", utc=True).dt.tz_convert("Asia/Tokyo")
+D:\fxbot\scripts\make_csv_from_mt5.py:131:return s.tz_convert("Asia/Tokyo").tz_localize(None)
+D:\fxbot\scripts\make_csv_from_mt5.py:133:return s.dt.tz_convert("Asia/Tokyo").dt.tz_localize(None)
+D:\fxbot\scripts\make_csv_from_mt5.py:160:ts_utc = ts.tz_convert("UTC")
+D:\fxbot\scripts\make_csv_from_mt5.py:173:.tz_convert("UTC")
+D:\fxbot\scripts\make_csv_from_mt5.py:257:rates_last_utc = pd.Timestamp(rates_last_jst).tz_localize("Asia/Tokyo").tz_convert("UTC")
+D:\fxbot\scripts\make_csv_from_mt5.py:329:rates_last_utc = pd.Timestamp(rates_last_jst).tz_localize("Asia/Tokyo").tz_convert("UTC")
+D:\fxbot\scripts\make_csv_from_mt5.py:403:fetch_from_jst = fetch_from.tz_localize("Asia/Tokyo") if fetch_from.tz is None else fetch_from.tz_convert("Asia/Tokyo")
+D:\fxbot\scripts\make_csv_from_mt5.py:404:end_ts_jst = end_ts.tz_localize("Asia/Tokyo") if end_ts.tz is None else end_ts.tz_convert("Asia/Tokyo")
+D:\fxbot\scripts\make_csv_from_mt5.py:405:fetch_from_utc = fetch_from_jst.tz_convert("UTC")
+D:\fxbot\scripts\make_csv_from_mt5.py:406:end_ts_utc = end_ts_jst.tz_convert("UTC")
+D:\fxbot\app\services\ohlcv_update_service.py:27:return s.tz_convert("Asia/Tokyo").tz_localize(None)
+D:\fxbot\app\services\ohlcv_update_service.py:29:return s.dt.tz_convert("Asia/Tokyo").dt.tz_localize(None)
+D:\fxbot\scripts\make_csv_from_mt5.py:25:from zoneinfo import ZoneInfo
+D:\fxbot\scripts\make_csv_from_mt5.py:28:JST = ZoneInfo("Asia/Tokyo")
+D:\fxbot\scripts\make_csv_from_mt5.py:245:tick_jst = tick_utc.astimezone(ZoneInfo("Asia/Tokyo"))
+D:\fxbot\app\services\execution_stub.py:52:from zoneinfo import ZoneInfo
+D:\fxbot\app\services\execution_stub.py:1188:JST = ZoneInfo("Asia/Tokyo")
+D:\fxbot\scripts\export_val_probs.py:7:from datetime import datetime, timezone, timedelta
+D:\fxbot\scripts\export_val_probs.py:53:jst = datetime.strptime(jst_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone(timedelta(hours=9)))
+D:\fxbot\scripts\export_val_probs.py:54:return jst.astimezone(timezone.utc)
+D:\fxbot\scripts\make_csv_from_mt5.py:170:"""JST naive -> UTC aware（timezone.utc）"""
+D:\fxbot\scripts\make_csv_from_mt5.py:245:tick_jst = tick_utc.astimezone(ZoneInfo("Asia/Tokyo"))
+D:\fxbot\scripts\make_csv_from_mt5.py:291:raw_max_jst = raw_max_utc.astimezone(JST)
+D:\fxbot\scripts\mt5_export_csv.py:5:from datetime import datetime, timedelta, timezone
+D:\fxbot\scripts\mt5_export_csv.py:29:utc_to = datetime.now(timezone.utc)
+D:\fxbot\scripts\walkforward_retrain.py:231:return datetime.now(UTC).astimezone().isoformat(timespec="seconds")
+D:\fxbot\scripts\walkforward_train.py:4:from datetime import datetime, timedelta, timezone
+D:\fxbot\scripts\walkforward_train.py:24:return datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+D:\fxbot\app\gui\control_tab.py:4:from datetime import datetime, timezone
+D:\fxbot\app\gui\control_tab.py:34:"updated_at": datetime.now(timezone.utc).astimezone().isoformat(),
+D:\fxbot\app\services\circuit_breaker.py:4:from datetime import datetime, timedelta, timezone
+D:\fxbot\app\services\circuit_breaker.py:8:JST = timezone(timedelta(hours=9))
+D:\fxbot\app\services\circuit_breaker.py:63:elapsed = datetime.now(tz=timezone.utc).timestamp() - self.state.last_trip_ts
+D:\fxbot\app\services\circuit_breaker.py:93:self.state.last_trip_ts = datetime.now(tz=timezone.utc).timestamp()
+D:\fxbot\app\services\condition_mining_data.py:3:from datetime import datetime, timezone, timedelta
+D:\fxbot\app\services\condition_mining_data.py:14:"""Parse ISO-ish datetime and normalize to timezone-aware UTC.
+D:\fxbot\app\services\condition_mining_data.py:33:return dt.replace(tzinfo=timezone.utc)
+D:\fxbot\app\services\condition_mining_data.py:35:return dt.astimezone(timezone.utc)
+D:\fxbot\app\services\condition_mining_data.py:111:now_dt = now or datetime.now(timezone.utc)
+D:\fxbot\app\services\condition_mining_data.py:188:now_dt = datetime.now(timezone.utc)
+D:\fxbot\app\services\condition_mining_data.py:818:now_utc = datetime.now(timezone.utc)
+D:\fxbot\app\services\condition_mining_data.py:896:bullets.append("ただし recent/past ウィンドウに該当する行が 0 件です（期間・時刻・timezone の可能性）")
+D:\fxbot\app\services\condition_mining_facade.py:4:from datetime import datetime, timezone
+D:\fxbot\app\services\condition_mining_facade.py:225:from datetime import datetime, timezone
+D:\fxbot\app\services\condition_mining_facade.py:271:latest_mtime_iso = datetime.fromtimestamp(latest_mtime, tz=timezone.utc).isoformat()
+D:\fxbot\app\services\event_store.py:8:from datetime import datetime, timezone
+D:\fxbot\app\services\event_store.py:44:return datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+D:\fxbot\app\services\execution_stub.py:49:from datetime import datetime, timezone
+D:\fxbot\app\services\execution_stub.py:382:jst = pytz.timezone("Asia/Tokyo")
+D:\fxbot\app\services\execution_stub.py:461:d = datetime.now(timezone.utc).date().isoformat()
+D:\fxbot\app\services\execution_stub.py:1207:dt = dt.replace(tzinfo=timezone.utc)
+D:\fxbot\app\services\execution_stub.py:1210:return dt.astimezone(JST).isoformat()
+D:\fxbot\app\services\job_scheduler.py:7:from datetime import datetime, timezone
+D:\fxbot\app\services\job_scheduler.py:126:現在時刻（timezone aware 推奨）
+D:\fxbot\app\services\job_scheduler.py:295:now = datetime.now(timezone.utc)
+D:\fxbot\app\services\ops_history_service.py:14:from datetime import datetime, timezone, timedelta
+D:\fxbot\app\services\ops_history_service.py:423:now = datetime.now(timezone.utc)
+D:\fxbot\app\services\ops_history_service.py:936:# 1) ISO 8601（T + timezone、7桁小数もOK）
+D:\fxbot\app\services\ops_history_service.py:965:s: started_at/ts 文字列（ISO形式、timezone付き/無し対応）またはNone
+D:\fxbot\app\services\ops_history_service.py:981:# timezone付きはそのままtimestamp()、timezone無しは既存ロジックに合わせる（ローカル扱い）
+D:\fxbot\app\services\ops_history_service.py:982:# timestamp()はUTC epochを返す（timezone awareな場合は自動変換、naiveな場合はローカル時刻として扱う）
+D:\fxbot\app\services\ops_history_service.py:1720:promoted_at = datetime.now(timezone.utc).isoformat()
+D:\fxbot\app\services\ops_history_service.py:1724:"started_at": datetime.now(timezone.utc).isoformat(),
+D:\fxbot\app\services\ops_overview_facade.py:5:from datetime import datetime, timezone
+D:\fxbot\app\services\ops_overview_facade.py:14:return datetime.now(timezone.utc).isoformat()
+D:\fxbot\app\services\ops_service.py:11:from datetime import datetime, timezone
+D:\fxbot\app\services\ops_service.py:135:self._started_at = datetime.now(timezone.utc).isoformat()
+D:\fxbot\app\services\ops_service.py:269:"started_at": self._started_at or datetime.now(timezone.utc).isoformat(),
+D:\fxbot\app\services\orderbook_stub.py:4:from datetime import datetime, timezone, timedelta
+D:\fxbot\app\services\orderbook_stub.py:8:JST = timezone(timedelta(hours=9))
+D:\fxbot\app\services\profile_stats_service.py:9:from datetime import datetime, timezone, timedelta
+D:\fxbot\app\services\profile_stats_service.py:220:timezone(timedelta(hours=9))
+D:\fxbot\app\services\profile_stats_service.py:236:timezone(timedelta(hours=9))
+D:\fxbot\app\services\scheduler_facade.py:9:from datetime import datetime, timezone, timedelta
+D:\fxbot\app\services\scheduler_facade.py:93:"generated_at": datetime.now(timezone.utc).isoformat(),
+D:\fxbot\app\services\scheduler_facade.py:132:now = datetime.now(timezone.utc)
+D:\fxbot\app\services\scheduler_facade.py:256:now = datetime.now(timezone.utc)
+D:\fxbot\app\services\scheduler_facade.py:310:"started_at": datetime.now(timezone.utc).isoformat(),
+D:\fxbot\scripts\export_val_probs.py:139:df["ts"] = pd.to_datetime(df["time"], unit="s", utc=True).dt.tz_convert("Asia/Tokyo")
+D:\fxbot\scripts\make_csv_from_mt5.py:129:s = pd.to_datetime(series, unit="s", utc=True)
+D:\fxbot\app\services\ohlcv_update_service.py:25:s = pd.to_datetime(series, unit="s", utc=True)
+D:\fxbot\scripts\export_mt5_history.py:84:df["Date"] = pd.to_datetime(df["time"], unit="s")
+D:\fxbot\scripts\export_val_probs.py:139:df["ts"] = pd.to_datetime(df["time"], unit="s", utc=True).dt.tz_convert("Asia/Tokyo")
+D:\fxbot\scripts\lot_info_debug.py:104:df["ts"] = pd.to_datetime(df["ts"], errors="coerce")
+D:\fxbot\scripts\make_csv_from_mt5.py:129:s = pd.to_datetime(series, unit="s", utc=True)
+D:\fxbot\scripts\make_csv_from_mt5.py:425:# ここで再 to_datetime すると NaT 化するケースがあるため、dtype が object の時だけ矯正する。
+D:\fxbot\scripts\make_csv_from_mt5.py:427:df_new["time"] = pd.to_datetime(df_new["time"], errors="coerce")
+D:\fxbot\scripts\mt5_export_csv.py:39:df["time"] = pd.to_datetime(df["time"], unit="s")
+D:\fxbot\scripts\walkforward_retrain.py:373:df["time"] = pd.to_datetime(df["time"])
+D:\fxbot\scripts\walkforward_train.py:54:dt = pd.to_datetime(df["time"])
+D:\fxbot\scripts\weekly_retrain.py:189:df["time"] = pd.to_datetime(df["time"])
+D:\fxbot\app\gui\backtest_tab copy.py:64:df["time"] = pd.to_datetime(df["time"], errors="coerce")
+D:\fxbot\app\gui\backtest_tab copy.py:66:df["time"] = pd.to_datetime(df["timestamp"], errors="coerce")
+D:\fxbot\app\gui\backtest_tab copy.py:99:start_dt = pd.to_datetime(start, errors="coerce")
+D:\fxbot\app\gui\backtest_tab copy.py:100:end_dt = pd.to_datetime(end, errors="coerce")
+D:\fxbot\app\gui\backtest_tab copy.py:405:t = pd.to_datetime(df['time'], errors='coerce').dropna()
+D:\fxbot\app\gui\backtest_tab copy.py:571:df["time"] = pd.to_datetime(df["time"], errors="coerce")
+D:\fxbot\app\gui\backtest_tab copy.py:768:t = pd.to_datetime(df["time"], errors="coerce").dropna()
+D:\fxbot\app\gui\backtest_tab copy.py:811:t = pd.to_datetime(df["time"], errors="coerce").dropna()
+D:\fxbot\app\gui\backtest_tab.py:63:df["time"] = pd.to_datetime(df["time"], errors="coerce")
+D:\fxbot\app\gui\backtest_tab.py:65:df["time"] = pd.to_datetime(df["timestamp"], errors="coerce")
+D:\fxbot\app\gui\backtest_tab.py:98:start_dt = pd.to_datetime(start, errors="coerce")
+D:\fxbot\app\gui\backtest_tab.py:99:end_dt = pd.to_datetime(end, errors="coerce")
+D:\fxbot\app\gui\backtest_tab.py:412:df["time"] = pd.to_datetime(df["time"], errors="coerce")
+D:\fxbot\app\gui\backtest_tab.py:415:start_dt = pd.to_datetime(sd)
+D:\fxbot\app\gui\backtest_tab.py:416:end_dt = pd.to_datetime(ed) + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)
+D:\fxbot\app\gui\backtest_tab.py:448:last_dt = pd.to_datetime(df["time"].max(), errors="coerce")
+D:\fxbot\app\gui\backtest_tab.py:567:t = pd.to_datetime(df['time'], errors='coerce').dropna()
+D:\fxbot\app\gui\backtest_tab.py:836:df["time"] = pd.to_datetime(df["time"], errors="coerce")
+D:\fxbot\app\gui\backtest_tab.py:943:df["time"] = pd.to_datetime(df["time"], errors="coerce")
+D:\fxbot\app\gui\backtest_tab.py:1086:t = pd.to_datetime(df["time"], errors="coerce").dropna()
+D:\fxbot\app\gui\backtest_tab.py:1129:t = pd.to_datetime(df["time"], errors="coerce").dropna()
+D:\fxbot\app\services\kpi_service.py:38:ts = pd.to_datetime(equity_times, errors='coerce')
+D:\fxbot\app\services\kpi_service.py:53:return pd.to_datetime(x, errors='coerce')
+D:\fxbot\app\services\kpi_service.py:565:df_eq["timestamp"] = pd.to_datetime(df_eq["timestamp"], errors="coerce")
+D:\fxbot\app\services\kpi_service.py:603:d = pd.to_datetime(ds, errors="coerce")
+D:\fxbot\app\services\kpi_service.py:643:df_dec["timestamp"] = pd.to_datetime(df_dec["timestamp"], errors="coerce")
+D:\fxbot\app\services\kpi_service.py:671:df_dec["timestamp"] = pd.to_datetime(df_dec["timestamp"], errors="coerce")
+D:\fxbot\app\services\ohlcv_update_service.py:25:s = pd.to_datetime(series, unit="s", utc=True)
+D:\fxbot\app\services\visualization_service.py:93:df["time"] = pd.to_datetime(df["time"], errors="coerce")
+D:\fxbot\scripts\make_csv_from_mt5.py:244:tick_utc = pdt.fromtimestamp(tick_epoch, tz=UTC)
+D:\fxbot\scripts\make_csv_from_mt5.py:290:raw_max_utc = pdt.fromtimestamp(raw_max_epoch, tz=UTC)
+D:\fxbot\scripts\make_csv_from_mt5.py:307:dt_to = pdt.fromtimestamp(oldest_utc_epoch - 1, tz=UTC).replace(tzinfo=None)
+D:\fxbot\scripts\make_project_snapshot.py:121:mtime = datetime.fromtimestamp(p.stat().st_mtime)
+D:\fxbot\scripts\make_project_snapshot2.py:112:mtime = datetime.fromtimestamp(p.stat().st_mtime)
+D:\fxbot\app\services\condition_mining_facade.py:271:latest_mtime_iso = datetime.fromtimestamp(latest_mtime, tz=timezone.utc).isoformat()
+D:\fxbot\app\services\visualization_service.py:250:return datetime.fromtimestamp(vv)
+D:\fxbot\scripts\export_val_probs.py:140:df = df[ (df["ts"] >= pd.Timestamp(START, tz="Asia/Tokyo")) & (df["ts"] < pd.Timestamp(END, tz="Asia/Tokyo")) ].copy()
+D:\fxbot\scripts\lot_info_debug.py:65:or rec.get("timestamp")
+D:\fxbot\scripts\make_csv_from_mt5.py:153:def _to_utc_naive(ts: pd.Timestamp) -> pdt:
+D:\fxbot\scripts\make_csv_from_mt5.py:164:def _to_local_naive(ts_jst: pd.Timestamp) -> pdt:
+D:\fxbot\scripts\make_csv_from_mt5.py:169:def _to_utc_aware(ts_jst: pd.Timestamp) -> pdt:
+D:\fxbot\scripts\make_csv_from_mt5.py:180:symbol: str, tf: int, start_ts: pd.Timestamp, end_ts: pd.Timestamp
+D:\fxbot\scripts\make_csv_from_mt5.py:227:symbol: str, tf: int, start_ts: pd.Timestamp, end_ts: pd.Timestamp
+D:\fxbot\scripts\make_csv_from_mt5.py:233:if not isinstance(start_ts, pd.Timestamp):
+D:\fxbot\scripts\make_csv_from_mt5.py:234:start_ts = pd.Timestamp(start_ts)
+D:\fxbot\scripts\make_csv_from_mt5.py:235:if not isinstance(end_ts, pd.Timestamp):
+D:\fxbot\scripts\make_csv_from_mt5.py:236:end_ts = pd.Timestamp(end_ts)
+D:\fxbot\scripts\make_csv_from_mt5.py:244:tick_utc = pdt.fromtimestamp(tick_epoch, tz=UTC)
+D:\fxbot\scripts\make_csv_from_mt5.py:257:rates_last_utc = pd.Timestamp(rates_last_jst).tz_localize("Asia/Tokyo").tz_convert("UTC")
+D:\fxbot\scripts\make_csv_from_mt5.py:258:rates_last_epoch = int(rates_last_utc.timestamp())
+D:\fxbot\scripts\make_csv_from_mt5.py:290:raw_max_utc = pdt.fromtimestamp(raw_max_epoch, tz=UTC)
+D:\fxbot\scripts\make_csv_from_mt5.py:307:dt_to = pdt.fromtimestamp(oldest_utc_epoch - 1, tz=UTC).replace(tzinfo=None)
+D:\fxbot\scripts\make_csv_from_mt5.py:329:rates_last_utc = pd.Timestamp(rates_last_jst).tz_localize("Asia/Tokyo").tz_convert("UTC")
+D:\fxbot\scripts\make_csv_from_mt5.py:330:rates_last_epoch = int(rates_last_utc.timestamp())
+D:\fxbot\scripts\make_csv_from_mt5.py:374:start_ts = pd.Timestamp(start_date)  # JST naive
+D:\fxbot\scripts\make_csv_from_mt5.py:377:end_ts = pd.Timestamp(end_date)
+D:\fxbot\scripts\make_csv_from_mt5.py:379:end_ts = pd.Timestamp.now(tz="Asia/Tokyo").tz_localize(None)
+D:\fxbot\scripts\make_project_snapshot.py:121:mtime = datetime.fromtimestamp(p.stat().st_mtime)
+D:\fxbot\scripts\make_project_snapshot2.py:112:mtime = datetime.fromtimestamp(p.stat().st_mtime)
+D:\fxbot\scripts\weekly_retrain.py:546:run_id = str(int(ts.timestamp()))
+D:\fxbot\scripts\weekly_retrain.py:743:version = ts.timestamp()
+D:\fxbot\app\gui\backtest_tab copy.py:65:elif "timestamp" in df.columns:
+D:\fxbot\app\gui\backtest_tab copy.py:66:df["time"] = pd.to_datetime(df["timestamp"], errors="coerce")
+D:\fxbot\app\gui\backtest_tab.py:64:elif "timestamp" in df.columns:
+D:\fxbot\app\gui\backtest_tab.py:65:df["time"] = pd.to_datetime(df["timestamp"], errors="coerce")
+D:\fxbot\app\gui\backtest_tab.py:903:ts0 = pd.Timestamp(start_date)
+D:\fxbot\app\services\circuit_breaker.py:63:elapsed = datetime.now(tz=timezone.utc).timestamp() - self.state.last_trip_ts
+D:\fxbot\app\services\circuit_breaker.py:93:self.state.last_trip_ts = datetime.now(tz=timezone.utc).timestamp()
+D:\fxbot\app\services\condition_mining_candidates.py:38:ts = rec.get("timestamp")
+D:\fxbot\app\services\condition_mining_data.py:256:or _parse_iso_dt(j.get("timestamp"))
+D:\fxbot\app\services\condition_mining_data.py:270:or _parse_iso_dt((fts or {}).get("timestamp"))
+D:\fxbot\app\services\condition_mining_data.py:324:if not ((row.get("timestamp") or row.get("ts_jst")) or row.get("ts") or row.get("time")):
+D:\fxbot\app\services\condition_mining_data.py:325:row["timestamp"] = ts.isoformat()
+D:\fxbot\app\services\condition_mining_data.py:931:# timestamp 抽出（ISO文字列 or datetime を想定）
+D:\fxbot\app\services\condition_mining_data.py:936:v = (d.get("timestamp") or d.get("ts_jst")) or d.get("time") or d.get("ts")
+D:\fxbot\app\services\condition_mining_facade.py:181:skip = {"timestamp", "profile_stats", "filter_reasons"}
+D:\fxbot\app\services\condition_mining_facade.py:271:latest_mtime_iso = datetime.fromtimestamp(latest_mtime, tz=timezone.utc).isoformat()
+D:\fxbot\app\services\data_guard.py:37:has_start = (df["time"].min() <= pd.Timestamp(start_date))
+D:\fxbot\app\services\data_guard.py:39:end_ts = pd.Timestamp(end_date) + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)
+D:\fxbot\app\services\decision_log.py:50:# schema normalize (ts_jst -> timestamp)
+D:\fxbot\app\services\decision_log.py:51:if isinstance(obj, dict) and ('timestamp' not in obj) and ('ts_jst' in obj):
+D:\fxbot\app\services\decision_log.py:52:obj['timestamp'] = obj.get('ts_jst')
+D:\fxbot\app\services\decision_log.py:230:elif "timestamp" in df.columns:
+D:\fxbot\app\services\decision_log.py:231:df = df.sort_values("timestamp", ascending=False)
+D:\fxbot\app\services\diagnosis_service.py:122:ts_str = entry.get("ts_jst") or entry.get("ts") or entry.get("timestamp")
+D:\fxbot\app\services\diagnosis_service.py:153:# レコードに timestamp と pl を追加
+D:\fxbot\app\services\diagnosis_service.py:155:record["timestamp"] = ts
+D:\fxbot\app\services\diagnosis_service.py:178:ts = r.get("timestamp")
+D:\fxbot\app\services\diagnosis_service.py:346:ts = d.get("timestamp")
+D:\fxbot\app\services\execution_service.py:309:"timestamp": "...",            # EntryContext.timestamp
+D:\fxbot\app\services\execution_service.py:379:timestamp: Optional[datetime] = None,
+D:\fxbot\app\services\execution_service.py:390:timestamp : datetime, optional
+D:\fxbot\app\services\execution_service.py:408:if timestamp is None:
+D:\fxbot\app\services\execution_service.py:409:timestamp = datetime.now()
+D:\fxbot\app\services\execution_service.py:413:"timestamp": timestamp,  # datetime オブジェクトとして保持（フィルタで使用）
+D:\fxbot\app\services\execution_service.py:435:timestamp: datetime,
+D:\fxbot\app\services\execution_service.py:451:timestamp : datetime
+D:\fxbot\app\services\execution_service.py:533:timestamp: Optional[datetime] = None,
+D:\fxbot\app\services\execution_service.py:627:"timestamp": ts_str,
+D:\fxbot\app\services\execution_service.py:680:if timestamp is None:
+D:\fxbot\app\services\execution_service.py:681:timestamp = datetime.now()
+D:\fxbot\app\services\execution_service.py:682:entry_context = self._build_entry_context(symbol, features, timestamp=timestamp)
+D:\fxbot\app\services\execution_service.py:718:# timestamp は datetime オブジェクトの可能性があるため、ISO形式に変換
+D:\fxbot\app\services\execution_service.py:719:ts_val = ctx.get("timestamp")
+D:\fxbot\app\services\execution_service.py:721:filters_dict["timestamp"] = ts_val.isoformat()
+D:\fxbot\app\services\execution_service.py:723:filters_dict["timestamp"] = ts_val
+D:\fxbot\app\services\execution_service.py:788:# logging 用のタイムスタンプ（ts_jst と timestamp は同じ値）
+D:\fxbot\app\services\execution_service.py:815:"timestamp": ts_str,
+D:\fxbot\app\services\execution_service.py:1076:"timestamp": ts_str,
+D:\fxbot\app\services\execution_service.py:1109:"timestamp": ts_str,
+D:\fxbot\app\services\execution_service.py:1182:"timestamp": ts_str,
+D:\fxbot\app\services\execution_service.py:1402:"timestamp": ts_str,
+D:\fxbot\app\services\execution_service.py:1461:"timestamp": ts_str,
+D:\fxbot\app\services\execution_service.py:1545:"timestamp": ts_str,
+D:\fxbot\app\services\execution_stub.py:963:if "timestamp" not in filters_ctx or filters_ctx.get("timestamp") is None:
+D:\fxbot\app\services\execution_stub.py:964:filters_ctx["timestamp"] = ts_jst
+D:\fxbot\app\services\execution_stub.py:997:filters_ctx["timestamp"] = ctx.get("timestamp")
+D:\fxbot\app\services\execution_stub.py:1286:# timestamp, atr, volatility, trend_strength, consecutive_losses, profile_stats
+D:\fxbot\app\services\execution_stub.py:1287:base_filters["timestamp"] = ts  # ISO 文字列形式
+D:\fxbot\app\services\execution_stub.py:1334:# 標準フィールド: timestamp, atr, volatility, trend_strength, consecutive_losses, profile_stats
+D:\fxbot\app\services\execution_stub.py:1338:"timestamp": ts,  # datetime または ISO 文字列
+D:\fxbot\app\services\execution_stub.py:2239:"timestamp": ts_debug,
+D:\fxbot\app\services\filter_service.py:37:"timestamp": datetime,
+D:\fxbot\app\services\kpi_service.py:63:rows.sort(key=lambda r: (_to_dt(r['time']) if _to_dt(r['time']) is not None else pd.Timestamp.min))
+D:\fxbot\app\services\kpi_service.py:558:# time/timestamp 揺れ吸収（仕様書: time）
+D:\fxbot\app\services\kpi_service.py:559:if "timestamp" not in df_eq.columns and "time" in df_eq.columns:
+D:\fxbot\app\services\kpi_service.py:560:df_eq = df_eq.rename(columns={"time": "timestamp"})
+D:\fxbot\app\services\kpi_service.py:561:if "timestamp" not in df_eq.columns or "equity" not in df_eq.columns:
+D:\fxbot\app\services\kpi_service.py:565:df_eq["timestamp"] = pd.to_datetime(df_eq["timestamp"], errors="coerce")
+D:\fxbot\app\services\kpi_service.py:566:df_eq = df_eq.dropna(subset=["timestamp"]).sort_values("timestamp")
+D:\fxbot\app\services\kpi_service.py:576:bands = _bands_from_timeline(timeline_data, df_eq['timestamp'])
+D:\fxbot\app\services\kpi_service.py:593:eq_end = df_eq["timestamp"].max()
+D:\fxbot\app\services\kpi_service.py:638:# v5.2 decisions は timestamp/reason ではなく ts_jst / filter_reasons の場合がある
+D:\fxbot\app\services\kpi_service.py:639:if "timestamp" not in df_dec.columns and "ts_jst" in df_dec.columns:
+D:\fxbot\app\services\kpi_service.py:640:df_dec = df_dec.rename(columns={"ts_jst": "timestamp"})
+D:\fxbot\app\services\kpi_service.py:641:# timestamp カラムのタイムゾーンを削除（equity と型を合わせる）
+D:\fxbot\app\services\kpi_service.py:642:if "timestamp" in df_dec.columns:
+D:\fxbot\app\services\kpi_service.py:643:df_dec["timestamp"] = pd.to_datetime(df_dec["timestamp"], errors="coerce")
+D:\fxbot\app\services\kpi_service.py:645:if df_dec["timestamp"].dtype.tz is not None:
+D:\fxbot\app\services\kpi_service.py:646:df_dec["timestamp"] = df_dec["timestamp"].dt.tz_localize(None)
+D:\fxbot\app\services\kpi_service.py:667:# timestampキーの揺れ吸収
+D:\fxbot\app\services\kpi_service.py:668:if "timestamp" not in df_dec.columns and "time" in df_dec.columns:
+D:\fxbot\app\services\kpi_service.py:669:df_dec = df_dec.rename(columns={"time": "timestamp"})
+D:\fxbot\app\services\kpi_service.py:670:if "timestamp" in df_dec.columns:
+D:\fxbot\app\services\kpi_service.py:671:df_dec["timestamp"] = pd.to_datetime(df_dec["timestamp"], errors="coerce")
+D:\fxbot\app\services\kpi_service.py:672:df_dec = df_dec.dropna(subset=["timestamp"]).sort_values("timestamp")
+D:\fxbot\app\services\kpi_service.py:674:# equityの各timestampに直近のdecisionをasof結合
+D:\fxbot\app\services\kpi_service.py:676:df_eq[["timestamp"]].copy(),
+D:\fxbot\app\services\kpi_service.py:677:df_dec[["timestamp", "filter_pass", "reason"]].copy(),
+D:\fxbot\app\services\kpi_service.py:678:on="timestamp",
+D:\fxbot\app\services\kpi_service.py:703:ts_list = df_eq["timestamp"].tolist()
+D:\fxbot\app\services\kpi_service.py:730:equity = [{"time": t.isoformat(), "equity": float(v)} for t, v in zip(df_eq["timestamp"], df_eq["equity"])]
+D:\fxbot\app\services\ohlcv_update_service.py:77:now_jst = pd.Timestamp.now(tz="Asia/Tokyo").tz_localize(None)
+D:\fxbot\app\services\ohlcv_update_service.py:88:csv_tail_before: Optional[pd.Timestamp] = None
+D:\fxbot\app\services\ohlcv_update_service.py:99:mt5_latest: Optional[pd.Timestamp] = None
+D:\fxbot\app\services\ohlcv_update_service.py:127:end_date_str = (pd.Timestamp(mt5_latest_date) + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
+D:\fxbot\app\services\ohlcv_update_service.py:158:csv_tail_after: Optional[pd.Timestamp] = None
+D:\fxbot\app\services\ohlcv_update_service.py:243:if isinstance(ts_jst, pd.Timestamp):
+D:\fxbot\app\services\ohlcv_update_service.py:257:"timestamp": ts_jst_str,
+D:\fxbot\app\services\ops_history_service.py:981:# timezone付きはそのままtimestamp()、timezone無しは既存ロジックに合わせる（ローカル扱い）
+D:\fxbot\app\services\ops_history_service.py:982:# timestamp()はUTC epochを返す（timezone awareな場合は自動変換、naiveな場合はローカル時刻として扱う）
+D:\fxbot\app\services\ops_history_service.py:984:return dt.timestamp()
+D:\fxbot\app\services\trade_service.py:562:"timestamp": datetime.now(),
+D:\fxbot\app\services\trade_service.py:1115:"""Record the timestamp of the latest successful fill."""
+D:\fxbot\app\services\visualization_service.py:101:df = df[df["time"] < pd.Timestamp(until)]
+D:\fxbot\app\services\visualization_service.py:238:for k in ("ts_jst", "ts", "time", "datetime", "timestamp", "ts_utc"):
+D:\fxbot\app\services\visualization_service.py:243:for k in ("ts_epoch", "ts_ms", "timestamp_ms", "epoch_ms", "epoch"):
+D:\fxbot\app\services\visualization_service.py:250:return datetime.fromtimestamp(vv)
+D:\fxbot\app\services\visualization_service.py:351:"timestamp",
+D:\fxbot\app\services\visualization_service.py:355:"timestamp_ms",
+D:\fxbot\app\services\wfo_stability_service.py:259:resolved_run_id = f"wfo_{int(datetime.now().timestamp())}"
+D:\fxbot\app\strategies\ai_strategy.py:504:"holding_days": (pd.Timestamp(t) - pd.Timestamp(entry_time)).days,
+D:\fxbot\app\strategies\ai_strategy.py:533:"holding_days": (pd.Timestamp(t) - pd.Timestamp(entry_time)).days,
+D:\fxbot\scripts\selftest_order_flow.py:33:deadline = time.time() + timeout_sec
+D:\fxbot\scripts\selftest_order_flow.py:34:while time.time() < deadline:
+D:\fxbot\scripts\swap_model.py:116:backup = models_dir / f"backup_{int(time.time())}.pkl"
+D:\fxbot\scripts\swap_model.py:128:"version": str(time.time()),
+D:\fxbot\app\services\ai_service.py:560:now = time.time()
+D:\fxbot\app\services\ai_service.py:701:now = time.time()
+D:\fxbot\app\services\execution_stub.py:853:raise TypeError(f"runtime.timeframe must be str or None, got {type(runtime['timeframe']).__name__}")
+D:\fxbot\app\services\execution_stub.py:854:warnings.append(f"runtime.timeframe is {type(runtime['timeframe']).__name__} (should be str or None)")
+D:\fxbot\app\services\kpi_service.py:558:# time/timestamp 揺れ吸収（仕様書: time）
+D:\fxbot\app\services\metrics.py:56:data.setdefault("ts", int(time.time()))
+D:\fxbot\app\services\mt5_selftest.py:415:deadline = time.time() + 10.0
+D:\fxbot\app\services\mt5_selftest.py:417:while time.time() < deadline:
+D:\fxbot\app\services\ops_history_service.py:1037:now = time.time()
+D:\fxbot\app\services\trade_service.py:94:now = time.time()
+D:\fxbot\app\services\trade_service.py:262:now = time.time()
+D:\fxbot\app\services\trade_service.py:433:_now_ts = time.time()
+D:\fxbot\app\services\visualization_service.py:43:- timeframe: configs/config*.yaml の runtime.timeframe を優先し、無ければ M5
+D:\fxbot\scripts\export_mt5_history.py:57:to = datetime.now()
+D:\fxbot\scripts\make_project_snapshot.py:181:now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+D:\fxbot\scripts\make_project_snapshot2.py:172:now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+D:\fxbot\scripts\mt5_export_csv.py:29:utc_to = datetime.now(timezone.utc)
+D:\fxbot\scripts\promote_model.py:27:ts = __import__("datetime").datetime.now().strftime("%Y%m%d_%H%M%S")
+D:\fxbot\scripts\walkforward_retrain.py:231:return datetime.now(UTC).astimezone().isoformat(timespec="seconds")
+D:\fxbot\scripts\walkforward_retrain.py:861:model_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+D:\fxbot\scripts\walkforward_retrain.py:1020:model_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+D:\fxbot\scripts\walkforward_train.py:24:return datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+D:\fxbot\scripts\walkforward_train.py:178:tag = args.tag or datetime.now().strftime("lgb_%Y%m%d_%H%M%S")
+D:\fxbot\scripts\weekly_retrain.py:545:ts = datetime.now(tz=UTC)
+D:\fxbot\scripts\weekly_retrain.py:741:ts = datetime.now(tz=UTC)
+D:\fxbot\scripts\weekly_retrain.py:811:paths.logs_dir / f"weekly_retrain_{datetime.now().strftime('%Y%m%d')}.log"
+D:\fxbot\app\gui\control_tab.py:34:"updated_at": datetime.now(timezone.utc).astimezone().isoformat(),
+D:\fxbot\app\gui\visualize_tab.py:534:now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+D:\fxbot\app\services\circuit_breaker.py:63:elapsed = datetime.now(tz=timezone.utc).timestamp() - self.state.last_trip_ts
+D:\fxbot\app\services\circuit_breaker.py:93:self.state.last_trip_ts = datetime.now(tz=timezone.utc).timestamp()
+D:\fxbot\app\services\circuit_breaker.py:96:now = datetime.now(JST)
+D:\fxbot\app\services\condition_mining_data.py:111:now_dt = now or datetime.now(timezone.utc)
+D:\fxbot\app\services\condition_mining_data.py:188:now_dt = datetime.now(timezone.utc)
+D:\fxbot\app\services\condition_mining_data.py:818:now_utc = datetime.now(timezone.utc)
+D:\fxbot\app\services\event_store.py:44:return datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+D:\fxbot\app\services\execution_service.py:409:timestamp = datetime.now()
+D:\fxbot\app\services\execution_service.py:681:timestamp = datetime.now()
+D:\fxbot\app\services\execution_stub.py:383:hour = datetime.now(jst).hour
+D:\fxbot\app\services\execution_stub.py:461:d = datetime.now(timezone.utc).date().isoformat()
+D:\fxbot\app\services\job_scheduler.py:295:now = datetime.now(timezone.utc)
+D:\fxbot\app\services\kpi_service.py:275:now = datetime.now()
+D:\fxbot\app\services\loss_streak_service.py:46:now = datetime.now()
+D:\fxbot\app\services\ops_history_service.py:423:now = datetime.now(timezone.utc)
+D:\fxbot\app\services\ops_history_service.py:1087:now_date = datetime.now().date()
+D:\fxbot\app\services\ops_history_service.py:1089:month_start_date = datetime(now_date.year, now_date.month, 1).date()
+D:\fxbot\app\services\ops_history_service.py:1720:promoted_at = datetime.now(timezone.utc).isoformat()
+D:\fxbot\app\services\ops_history_service.py:1724:"started_at": datetime.now(timezone.utc).isoformat(),
+D:\fxbot\app\services\ops_overview_facade.py:14:return datetime.now(timezone.utc).isoformat()
+D:\fxbot\app\services\ops_service.py:135:self._started_at = datetime.now(timezone.utc).isoformat()
+D:\fxbot\app\services\ops_service.py:269:"started_at": self._started_at or datetime.now(timezone.utc).isoformat(),
+D:\fxbot\app\services\orderbook_stub.py:20:open_time: datetime = field(default_factory=lambda: datetime.now(JST))
+D:\fxbot\app\services\orderbook_stub.py:50:p.close_time = datetime.now(JST)
+D:\fxbot\app\services\orderbook_stub.py:85:else datetime.now(JST).isoformat(timespec="seconds")
+D:\fxbot\app\services\orderbook_stub.py:123:if TIMEOUT_SECONDS and (datetime.now(JST) - p.open_time).total_seconds() >= TIMEOUT_SECONDS:
+D:\fxbot\app\services\profile_stats_service.py:219:stats["updated_at"] = datetime.now(
+D:\fxbot\app\services\profile_stats_service.py:235:stats["updated_at"] = datetime.now(
+D:\fxbot\app\services\profiles_store.py:95:"updated_at": datetime.now().isoformat(),
+D:\fxbot\app\services\recent_kpi.py:283:now = datetime.now()
+D:\fxbot\app\services\scheduler_facade.py:93:"generated_at": datetime.now(timezone.utc).isoformat(),
+D:\fxbot\app\services\scheduler_facade.py:132:now = datetime.now(timezone.utc)
+D:\fxbot\app\services\scheduler_facade.py:256:now = datetime.now(timezone.utc)
+D:\fxbot\app\services\scheduler_facade.py:310:"started_at": datetime.now(timezone.utc).isoformat(),
+D:\fxbot\app\services\trade_service.py:562:"timestamp": datetime.now(),
+D:\fxbot\app\services\wfo_stability_service.py:259:resolved_run_id = f"wfo_{int(datetime.now().timestamp())}"
+D:\fxbot\scripts\diagnose_symbol.py:2:import MetaTrader5 as mt5
+D:\fxbot\scripts\discover_symbols.py:10:import MetaTrader5 as mt5
+D:\fxbot\scripts\export_mt5_history.py:8:import MetaTrader5 as mt5
+D:\fxbot\scripts\export_val_probs.py:12:import MetaTrader5 as mt5
+D:\fxbot\scripts\make_csv_from_mt5.py:34:import MetaTrader5 as mt5
+D:\fxbot\scripts\make_csv_from_mt5.py:37:"[fatal] MetaTrader5 パッケージが見つかりません。仮想環境で `pip install MetaTrader5 pandas` を実行してください。"
+D:\fxbot\scripts\mt5_export_csv.py:17:import MetaTrader5 as mt5  # pip install MetaTrader5
+D:\fxbot\scripts\mt5_smoke.py:4:#   - MetaTrader5 の初期化が成功するか
+D:\fxbot\scripts\mt5_smoke.py:8:import MetaTrader5 as mt5
+D:\fxbot\scripts\selftest_order_flow.py:8:import MetaTrader5 as MT5  # type: ignore[import]
+D:\fxbot\app\core\mt5_client.py:3:import MetaTrader5 as MT5
+D:\fxbot\app\core\mt5_client.py:331:とりあえず MetaTrader5 の account_info をそのまま返す。
+D:\fxbot\app\services\mt5_selftest.py:418:import MetaTrader5 as MT5  # type: ignore[import]
+D:\fxbot\app\services\mt5_service.py:5:import MetaTrader5 as mt5
+D:\fxbot\app\services\ohlcv_update_service.py:13:import MetaTrader5 as mt5
+D:\fxbot\scripts\export_mt5_history.py:71:rates = mt5.copy_rates_range(resolve_symbol(symbol), timeframe, cursor_from, cursor_to)
+D:\fxbot\scripts\export_val_probs.py:134:rates = mt5.copy_rates_range(resolve_symbol(symbol), TIMEFRAME, utc_from, utc_to)
+D:\fxbot\scripts\make_csv_from_mt5.py:10:- GaitameFinest 等で copy_rates_range() が失敗する環境に対して
+D:\fxbot\scripts\make_csv_from_mt5.py:183:copy_rates_range() を 3 方式（UTC-naive / local-naive / UTC-aware）で試す。
+D:\fxbot\scripts\make_csv_from_mt5.py:205:rates = mt5.copy_rates_range(resolve_symbol(symbol), tf, dfrom, dto)
+D:\fxbot\scripts\make_csv_from_mt5.py:208:log(f"[try:{tag}] copy_rates_range returned None: {code} {details}")
+D:\fxbot\scripts\make_csv_from_mt5.py:231:まず copy_rates_range() を試し、全滅したら copy_rates_from() のバックページングで補う。
+D:\fxbot\scripts\mt5_export_csv.py:32:rates = mt5.copy_rates_range(resolve_symbol(args.symbol), tf, utc_from, utc_to)
+D:\fxbot\scripts\export_mt5_history.py:51:rates = mt5.copy_rates_from_pos(resolve_symbol(symbol), timeframe, 0, count)
+D:\fxbot\scripts\export_mt5_history.py:62:print(f"diagnostic: copy_rates_from_pos count={small}")
+D:\fxbot\scripts\make_csv_from_mt5.py:11:copy_rates_from() の「現在→過去へページング」フォールバックを搭載
+D:\fxbot\scripts\make_csv_from_mt5.py:231:まず copy_rates_range() を試し、全滅したら copy_rates_from() のバックページングで補う。
+D:\fxbot\scripts\make_csv_from_mt5.py:267:log("[fallback] using copy_rates_from() paging backward")
+D:\fxbot\scripts\make_csv_from_mt5.py:275:rates = mt5.copy_rates_from(resolve_symbol(symbol), tf, dt_to, PAGE)
+D:\fxbot\scripts\make_csv_from_mt5.py:278:log(f"[fallback] copy_rates_from returned None: {code} {details}")
+D:\fxbot\app\services\ohlcv_update_service.py:107:# 修正: copy_rates_from_pos を使用（最新取得の正規ルート）
+D:\fxbot\app\services\ohlcv_update_service.py:108:rates = mt5.copy_rates_from_pos(resolved, tf_const, 0, 1)
+D:\fxbot\scripts\export_mt5_history.py:51:rates = mt5.copy_rates_from_pos(resolve_symbol(symbol), timeframe, 0, count)
+D:\fxbot\scripts\export_mt5_history.py:62:print(f"diagnostic: copy_rates_from_pos count={small}")
+D:\fxbot\app\services\ohlcv_update_service.py:107:# 修正: copy_rates_from_pos を使用（最新取得の正規ルート）
+D:\fxbot\app\services\ohlcv_update_service.py:108:rates = mt5.copy_rates_from_pos(resolved, tf_const, 0, 1)
+D:\fxbot\scripts\export_mt5_history.py:47:_ = mt5.symbol_info_tick(resolve_symbol(symbol))
+D:\fxbot\scripts\make_csv_from_mt5.py:241:tick = mt5.symbol_info_tick(resolve_symbol(symbol))
+D:\fxbot\app\core\mt5_client.py:145:tick = MT5.symbol_info_tick(resolve_symbol(symbol))
+D:\fxbot\app\core\mt5_client.py:147:logger.error(f'[order_send] symbol_info_tick({symbol}) が None。ティックが取得できない')
+D:\fxbot\app\core\mt5_client.py:200:t = MT5.symbol_info_tick(resolve_symbol(symbol))
+D:\fxbot\app\core\mt5_client.py:202:logger.error(f'[close_position] symbol_info_tick({symbol}) が None')
+D:\fxbot\app\services\mt5_service.py:89:t = mt5.symbol_info_tick(resolve_symbol(symbol))
+D:\fxbot\app\services\mt5_service.py:91:raise RuntimeError(f'symbol_info_tick({symbol}) failed: {mt5.last_error()}')
+D:\fxbot\scripts\dryrun_smoke.py:24:from core.utils.timeutil import now_jst_iso
+D:\fxbot\scripts\dryrun_smoke.py:145:now_jst_iso(),
+D:\fxbot\scripts\export_val_probs.py:22:START = "2025-08-01 00:00:00"     # 検証開始（JST）
+D:\fxbot\scripts\export_val_probs.py:23:END   = "2025-10-01 00:00:00"     # 検証終了（JST）
+D:\fxbot\scripts\export_val_probs.py:52:def _to_utc(jst_str: str) -> datetime:
+D:\fxbot\scripts\export_val_probs.py:53:jst = datetime.strptime(jst_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone(timedelta(hours=9)))
+D:\fxbot\scripts\export_val_probs.py:54:return jst.astimezone(timezone.utc)
+D:\fxbot\scripts\lot_sizing_viewer.py:40:# ts_jst があればそれを使い、なければ ts を使う
+D:\fxbot\scripts\lot_sizing_viewer.py:41:"ts": rec.get("ts_jst") or rec.get("ts"),
+D:\fxbot\scripts\make_csv_from_mt5.py:7:- タイムゾーン: JST（Asia/Tokyo）で time 列を naive datetime64[ns] として保存
+D:\fxbot\scripts\make_csv_from_mt5.py:27:# ミチビキ内部の naive datetime は JST とみなす
+D:\fxbot\scripts\make_csv_from_mt5.py:28:JST = ZoneInfo("Asia/Tokyo")
+D:\fxbot\scripts\make_csv_from_mt5.py:124:def jst_from_mt5_epoch(series):
+D:\fxbot\scripts\make_csv_from_mt5.py:126:MT5の 'time' (Unix秒, UTC) を JST の naive datetime64[ns] に変換。
+D:\fxbot\scripts\make_csv_from_mt5.py:155:ミチビキ内の naive datetime は JST とみなす。
+D:\fxbot\scripts\make_csv_from_mt5.py:159:ts = ts.tz_localize(JST)
+D:\fxbot\scripts\make_csv_from_mt5.py:164:def _to_local_naive(ts_jst: pd.Timestamp) -> pdt:
+D:\fxbot\scripts\make_csv_from_mt5.py:165:"""JST naive -> JST naive（ローカルnaiveを要求する環境向け）"""
+D:\fxbot\scripts\make_csv_from_mt5.py:166:return ts_jst.to_pydatetime().replace(tzinfo=None)
+D:\fxbot\scripts\make_csv_from_mt5.py:169:def _to_utc_aware(ts_jst: pd.Timestamp) -> pdt:
+D:\fxbot\scripts\make_csv_from_mt5.py:170:"""JST naive -> UTC aware（timezone.utc）"""
+D:\fxbot\scripts\make_csv_from_mt5.py:172:ts_jst.tz_localize("Asia/Tokyo")
+D:\fxbot\scripts\make_csv_from_mt5.py:214:df["time"] = jst_from_mt5_epoch(df["time"])
+D:\fxbot\scripts\make_csv_from_mt5.py:230:指定期間のレートを取得して DataFrame で返す（JSTに変換）。
+D:\fxbot\scripts\make_csv_from_mt5.py:245:tick_jst = tick_utc.astimezone(ZoneInfo("Asia/Tokyo"))
+D:\fxbot\scripts\make_csv_from_mt5.py:249:tick_jst = None
+D:\fxbot\scripts\make_csv_from_mt5.py:256:rates_last_jst = df_range["time"].max()
+D:\fxbot\scripts\make_csv_from_mt5.py:257:rates_last_utc = pd.Timestamp(rates_last_jst).tz_localize("Asia/Tokyo").tz_convert("UTC")
+D:\fxbot\scripts\make_csv_from_mt5.py:262:rates_last_jst = None
+D:\fxbot\scripts\make_csv_from_mt5.py:263:log(f"tick_epoch={tick_epoch} tick_utc={tick_utc} tick_jst={tick_jst} rates_last_epoch={rates_last_epoch} rates_last_utc={rates_last_utc} rates_last_jst={rates_last_jst}")
+D:\fxbot\scripts\make_csv_from_mt5.py:287:# 観測ログ：df_raw["time"].max() を UTC/JST 両方で表示
+D:\fxbot\scripts\make_csv_from_mt5.py:291:raw_max_jst = raw_max_utc.astimezone(JST)
+D:\fxbot\scripts\make_csv_from_mt5.py:292:log(f"[fallback] df_raw.time.max epoch={raw_max_epoch} utc={raw_max_utc} jst={raw_max_jst} start_ts={start_ts} end_ts={end_ts}")
+D:\fxbot\scripts\make_csv_from_mt5.py:294:# まずはJSTへ
+D:\fxbot\scripts\make_csv_from_mt5.py:296:df["time"] = jst_from_mt5_epoch(df["time"])
+D:\fxbot\scripts\make_csv_from_mt5.py:299:# 目標期間に重なる分だけ保持（JST基準でフィルタ）
+D:\fxbot\scripts\make_csv_from_mt5.py:328:rates_last_jst = out["time"].max()
+D:\fxbot\scripts\make_csv_from_mt5.py:329:rates_last_utc = pd.Timestamp(rates_last_jst).tz_localize("Asia/Tokyo").tz_convert("UTC")
+D:\fxbot\scripts\make_csv_from_mt5.py:334:rates_last_jst = None
+D:\fxbot\scripts\make_csv_from_mt5.py:335:log(f"tick_epoch={tick_epoch} tick_utc={tick_utc} tick_jst={tick_jst} rates_last_epoch={rates_last_epoch} rates_last_utc={rates_last_utc} rates_last_jst={rates_last_jst}")
+D:\fxbot\scripts\make_csv_from_mt5.py:374:start_ts = pd.Timestamp(start_date)  # JST naive
+D:\fxbot\scripts\make_csv_from_mt5.py:399:# 観測ログ：fetch_from と end_ts を raw/UTC/JST で表示
+D:\fxbot\scripts\make_csv_from_mt5.py:402:# fetch_from と end_ts は JST naive として扱われている
+D:\fxbot\scripts\make_csv_from_mt5.py:403:fetch_from_jst = fetch_from.tz_localize("Asia/Tokyo") if fetch_from.tz is None else fetch_from.tz_convert("Asia/Tokyo")
+D:\fxbot\scripts\make_csv_from_mt5.py:404:end_ts_jst = end_ts.tz_localize("Asia/Tokyo") if end_ts.tz is None else end_ts.tz_convert("Asia/Tokyo")
+D:\fxbot\scripts\make_csv_from_mt5.py:405:fetch_from_utc = fetch_from_jst.tz_convert("UTC")
+D:\fxbot\scripts\make_csv_from_mt5.py:406:end_ts_utc = end_ts_jst.tz_convert("UTC")
+D:\fxbot\scripts\make_csv_from_mt5.py:407:log(f"fetch_from_raw={fetch_from_raw} end_ts_raw={end_ts_raw} fetch_from_utc={fetch_from_utc} end_ts_utc={end_ts_utc} fetch_from_jst={fetch_from_jst} end_ts_jst={end_ts_jst}")
+D:\fxbot\scripts\make_csv_from_mt5.py:424:# fetch_rates() は time を JST naive datetime64[ns] で返す設計。
+D:\fxbot\scripts\swap_model.py:123:"activated_at_jst": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
+D:\fxbot\scripts\walkforward_retrain.py:166:"updated_at": jst_now_str(),
+D:\fxbot\scripts\walkforward_retrain.py:230:def jst_now_str() -> str:
+D:\fxbot\scripts\walkforward_retrain.py:235:ts = jst_now_str()
+D:\fxbot\scripts\walkforward_retrain.py:760:started_at = jst_now_str()
+D:\fxbot\scripts\walkforward_retrain.py:1107:ended_at = jst_now_str()
+D:\fxbot\scripts\walkforward_retrain.py:1137:ended_at = jst_now_str()
+D:\fxbot\scripts\walkforward_retrain.py:1164:started_at = jst_now_str()
+D:\fxbot\scripts\walkforward_retrain.py:1182:"started_at": jst_now_str(),
+D:\fxbot\scripts\walkforward_retrain.py:1183:"ended_at": jst_now_str(),
+D:\fxbot\scripts\walkforward_retrain.py:1210:ended_at = jst_now_str()
+D:\fxbot\scripts\weekly_retrain.py:83:JST = UTC  # 後で必要なら Asia/Tokyo に変更してもOK
+D:\fxbot\app\services\ai_service.py:170:trained_at = active.get("trained_at") or active.get("trained_at_jst") or active.get("updated_at")
+D:\fxbot\app\services\circuit_breaker.py:8:JST = timezone(timedelta(hours=9))
+D:\fxbot\app\services\circuit_breaker.py:96:now = datetime.now(JST)
+D:\fxbot\app\services\condition_mining_data.py:255:or _parse_iso_dt(j.get("ts_jst"))
+D:\fxbot\app\services\condition_mining_data.py:260:or _parse_iso_dt(j.get("time_jst"))
+D:\fxbot\app\services\condition_mining_data.py:269:or _parse_iso_dt((fts or {}).get("ts_jst"))
+D:\fxbot\app\services\condition_mining_data.py:274:or _parse_iso_dt((fts or {}).get("time_jst"))
+D:\fxbot\app\services\condition_mining_data.py:324:if not ((row.get("timestamp") or row.get("ts_jst")) or row.get("ts") or row.get("time")):
+D:\fxbot\app\services\condition_mining_data.py:936:v = (d.get("timestamp") or d.get("ts_jst")) or d.get("time") or d.get("ts")
+D:\fxbot\app\services\decision_log.py:23:ts_jst: str
+D:\fxbot\app\services\decision_log.py:50:# schema normalize (ts_jst -> timestamp)
+D:\fxbot\app\services\decision_log.py:51:if isinstance(obj, dict) and ('timestamp' not in obj) and ('ts_jst' in obj):
+D:\fxbot\app\services\decision_log.py:52:obj['timestamp'] = obj.get('ts_jst')
+D:\fxbot\app\services\decision_log.py:74:ts = str(j.get("ts_jst") or j.get("ts") or "")
+D:\fxbot\app\services\decision_log.py:120:ts_jst=ts,
+D:\fxbot\app\services\decision_log.py:228:if "ts_jst" in df.columns:
+D:\fxbot\app\services\decision_log.py:229:df = df.sort_values("ts_jst", ascending=False)
+D:\fxbot\app\services\diagnosis_service.py:122:ts_str = entry.get("ts_jst") or entry.get("ts") or entry.get("timestamp")
+D:\fxbot\app\services\execution_service.py:22:from core.utils.timeutil import now_jst_iso
+D:\fxbot\app\services\execution_service.py:291:→ logs/decisions_2025-12-29.jsonl  # 例（JST日付）
+D:\fxbot\app\services\execution_service.py:297:"ts_jst": "2025-12-11T19:59:32+09:00",
+D:\fxbot\app\services\execution_service.py:586:ts_str = now_jst_iso()
+D:\fxbot\app\services\execution_service.py:628:"ts_jst": ts_str,
+D:\fxbot\app\services\execution_service.py:652:ts_str=ts_str,  # JST ISO形式に正規化済み
+D:\fxbot\app\services\execution_service.py:788:# logging 用のタイムスタンプ（ts_jst と timestamp は同じ値）
+D:\fxbot\app\services\execution_service.py:789:ts_str = now_jst_iso()
+D:\fxbot\app\services\execution_service.py:816:"ts_jst": ts_str,
+D:\fxbot\app\services\execution_service.py:846:ts_str=ts_str,  # JST ISO形式に正規化済み
+D:\fxbot\app\services\execution_service.py:1110:"ts_jst": ts_str,
+D:\fxbot\app\services\execution_service.py:1183:"ts_jst": ts_str,
+D:\fxbot\app\services\execution_service.py:1212:ts_str=ts_str,  # JST ISO形式に正規化済み
+D:\fxbot\app\services\execution_service.py:1353:ts_str = now_jst_iso()
+D:\fxbot\app\services\execution_service.py:1403:"ts_jst": ts_str,
+D:\fxbot\app\services\execution_service.py:1425:ts_str=ts_str,  # JST ISO形式に正規化済み
+D:\fxbot\app\services\execution_service.py:1448:ts_str = now_jst_iso()
+D:\fxbot\app\services\execution_service.py:1462:"ts_jst": ts_str,
+D:\fxbot\app\services\execution_service.py:1518:ts_str = now_jst_iso()
+D:\fxbot\app\services\execution_service.py:1546:"ts_jst": ts_str,
+D:\fxbot\app\services\execution_stub.py:74:from core.utils.timeutil import now_jst_iso
+D:\fxbot\app\services\execution_stub.py:362:config.session.allow_hours_jst ??????????????????????
+D:\fxbot\app\services\execution_stub.py:375:allow = session_cfg.get("allow_hours_jst", [])
+D:\fxbot\app\services\execution_stub.py:382:jst = pytz.timezone("Asia/Tokyo")
+D:\fxbot\app\services\execution_stub.py:383:hour = datetime.now(jst).hour
+D:\fxbot\app\services\execution_stub.py:895:ts_jst: str,
+D:\fxbot\app\services\execution_stub.py:922:- runtime_detail.ts: str（JST ISO形式に正規化済み）
+D:\fxbot\app\services\execution_stub.py:964:filters_ctx["timestamp"] = ts_jst
+D:\fxbot\app\services\execution_stub.py:1044:"ts_jst": ts_jst,
+D:\fxbot\app\services\execution_stub.py:1174:def _to_jst_iso(ts_val) -> str:
+D:\fxbot\app\services\execution_stub.py:1176:ts_val を JST の ISO 形式文字列に正規化する。
+D:\fxbot\app\services\execution_stub.py:1186:JST の ISO 形式文字列
+D:\fxbot\app\services\execution_stub.py:1188:JST = ZoneInfo("Asia/Tokyo")
+D:\fxbot\app\services\execution_stub.py:1191:# 既存の now_jst_iso() があるならそれを使う
+D:\fxbot\app\services\execution_stub.py:1192:return now_jst_iso()
+D:\fxbot\app\services\execution_stub.py:1201:return now_jst_iso()
+D:\fxbot\app\services\execution_stub.py:1203:return now_jst_iso()
+D:\fxbot\app\services\execution_stub.py:1209:# JSTへ変換して ISO
+D:\fxbot\app\services\execution_stub.py:1210:return dt.astimezone(JST).isoformat()
+D:\fxbot\app\services\execution_stub.py:1218:# ts を runtime_cfg から取得して JST に正規化（cooldown測定のため）
+D:\fxbot\app\services\execution_stub.py:1219:ts = self._to_jst_iso(runtime_cfg.get("ts"))
+D:\fxbot\app\services\execution_stub.py:1504:ts_jst=ts,
+D:\fxbot\app\services\execution_stub.py:1521:ts_str=ts,  # JST ISO形式に正規化済み
+D:\fxbot\app\services\execution_stub.py:2065:logger.bind(event="dryrun", ts=now_jst_iso()).info(
+D:\fxbot\app\services\execution_stub.py:2078:logger.bind(event="dryrun", ts=now_jst_iso()).warning(
+D:\fxbot\app\services\execution_stub.py:2237:ts_debug = now_jst_iso()  # テスト用関数なので now_jst_iso() を使用
+D:\fxbot\app\services\execution_stub.py:2272:ts_jst=ts_debug,  # テスト用関数なので統一された ts を使用
+D:\fxbot\app\services\execution_stub.py:2301:print(f"  -> decisions.jsonl に出力しました: {trace.get('ts_jst')}")
+D:\fxbot\app\services\kpi_service.py:638:# v5.2 decisions は timestamp/reason ではなく ts_jst / filter_reasons の場合がある
+D:\fxbot\app\services\kpi_service.py:639:if "timestamp" not in df_dec.columns and "ts_jst" in df_dec.columns:
+D:\fxbot\app\services\kpi_service.py:640:df_dec = df_dec.rename(columns={"ts_jst": "timestamp"})
+D:\fxbot\app\services\ohlcv_update_service.py:23:def _jst_from_mt5_epoch(series) -> pd.Series:
+D:\fxbot\app\services\ohlcv_update_service.py:24:"""MT5の 'time' (Unix秒, UTC) を JST の naive datetime に変換"""
+D:\fxbot\app\services\ohlcv_update_service.py:50:"csv_tail_before": Optional[str],  # JST naive datetime文字列
+D:\fxbot\app\services\ohlcv_update_service.py:77:now_jst = pd.Timestamp.now(tz="Asia/Tokyo").tz_localize(None)
+D:\fxbot\app\services\ohlcv_update_service.py:111:df_mt5["time"] = _jst_from_mt5_epoch(df_mt5["time"])
+D:\fxbot\app\services\ohlcv_update_service.py:242:ts_jst = row_ohlc["time"]
+D:\fxbot\app\services\ohlcv_update_service.py:243:if isinstance(ts_jst, pd.Timestamp):
+D:\fxbot\app\services\ohlcv_update_service.py:244:ts_jst_str = ts_jst.strftime("%Y-%m-%dT%H:%M:%S+09:00")
+D:\fxbot\app\services\ohlcv_update_service.py:246:ts_jst_str = str(ts_jst)
+D:\fxbot\app\services\ohlcv_update_service.py:249:first_ts = ts_jst_str
+D:\fxbot\app\services\ohlcv_update_service.py:250:last_ts = ts_jst_str
+D:\fxbot\app\services\ohlcv_update_service.py:256:"ts_jst": ts_jst_str,
+D:\fxbot\app\services\ohlcv_update_service.py:257:"timestamp": ts_jst_str,
+D:\fxbot\app\services\orderbook_stub.py:8:JST = timezone(timedelta(hours=9))
+D:\fxbot\app\services\orderbook_stub.py:20:open_time: datetime = field(default_factory=lambda: datetime.now(JST))
+D:\fxbot\app\services\orderbook_stub.py:50:p.close_time = datetime.now(JST)
+D:\fxbot\app\services\orderbook_stub.py:85:else datetime.now(JST).isoformat(timespec="seconds")
+D:\fxbot\app\services\orderbook_stub.py:88:"ts_jst": ts_str,
+D:\fxbot\app\services\orderbook_stub.py:123:if TIMEOUT_SECONDS and (datetime.now(JST) - p.open_time).total_seconds() >= TIMEOUT_SECONDS:
+D:\fxbot\app\services\profile_stats_service.py:231:- updated_at を JST 現在時刻で更新
+D:\fxbot\app\services\recent_kpi.py:362:if "ts_jst" in trades.columns:
+D:\fxbot\app\services\recent_kpi.py:363:trades = trades.sort_values("ts_jst")
+D:\fxbot\app\services\trade_service.py:20:from core.utils.clock import now_jst
+D:\fxbot\app\services\trade_service.py:1117:_trade_last_fill_ts = now_jst()
+D:\fxbot\app\services\trade_service.py:1131:return (now_jst() - _trade_last_fill_ts) <= timedelta(seconds=grace_sec)
+D:\fxbot\app\services\trade_state.py:143:タイムスタンプ（JST ISO形式）。None の場合は現在時刻を生成
+D:\fxbot\app\services\trade_state.py:167:from core.utils.timeutil import now_jst_iso
+D:\fxbot\app\services\trade_state.py:176:ts_str = now_jst_iso()
+D:\fxbot\app\services\visualization_service.py:238:for k in ("ts_jst", "ts", "time", "datetime", "timestamp", "ts_utc"):
+D:\fxbot\app\services\visualization_service.py:347:"ts_jst",
+D:\fxbot\app\services\wfo_stability_service.py:17:from core.utils.timeutil import now_jst_iso
+D:\fxbot\app\services\wfo_stability_service.py:127:out.setdefault("created_at", now_jst_iso())
+D:\fxbot\scripts\export_val_probs.py:52:def _to_utc(jst_str: str) -> datetime:
+D:\fxbot\scripts\export_val_probs.py:54:return jst.astimezone(timezone.utc)
+D:\fxbot\scripts\export_val_probs.py:132:utc_from = _to_utc(START) - timedelta(days=7)
+D:\fxbot\scripts\export_val_probs.py:133:utc_to   = _to_utc(END)
+D:\fxbot\scripts\export_val_probs.py:134:rates = mt5.copy_rates_range(resolve_symbol(symbol), TIMEFRAME, utc_from, utc_to)
+D:\fxbot\scripts\export_val_probs.py:139:df["ts"] = pd.to_datetime(df["time"], unit="s", utc=True).dt.tz_convert("Asia/Tokyo")
+D:\fxbot\scripts\make_csv_from_mt5.py:23:from datetime import UTC
+D:\fxbot\scripts\make_csv_from_mt5.py:126:MT5の 'time' (Unix秒, UTC) を JST の naive datetime64[ns] に変換。
+D:\fxbot\scripts\make_csv_from_mt5.py:129:s = pd.to_datetime(series, unit="s", utc=True)
+D:\fxbot\scripts\make_csv_from_mt5.py:153:def _to_utc_naive(ts: pd.Timestamp) -> pdt:
+D:\fxbot\scripts\make_csv_from_mt5.py:156:MT5 API には UTC naive を渡す。
+D:\fxbot\scripts\make_csv_from_mt5.py:160:ts_utc = ts.tz_convert("UTC")
+D:\fxbot\scripts\make_csv_from_mt5.py:161:return ts_utc.to_pydatetime().replace(tzinfo=None)
+D:\fxbot\scripts\make_csv_from_mt5.py:169:def _to_utc_aware(ts_jst: pd.Timestamp) -> pdt:
+D:\fxbot\scripts\make_csv_from_mt5.py:170:"""JST naive -> UTC aware（timezone.utc）"""
+D:\fxbot\scripts\make_csv_from_mt5.py:173:.tz_convert("UTC")
+D:\fxbot\scripts\make_csv_from_mt5.py:175:.replace(tzinfo=UTC)
+D:\fxbot\scripts\make_csv_from_mt5.py:183:copy_rates_range() を 3 方式（UTC-naive / local-naive / UTC-aware）で試す。
+D:\fxbot\scripts\make_csv_from_mt5.py:200:("utc_naive", _to_utc_naive(start_ts), _to_utc_naive(end_ts)),
+D:\fxbot\scripts\make_csv_from_mt5.py:202:("utc_aware", _to_utc_aware(start_ts), _to_utc_aware(end_ts)),
+D:\fxbot\scripts\make_csv_from_mt5.py:244:tick_utc = pdt.fromtimestamp(tick_epoch, tz=UTC)
+D:\fxbot\scripts\make_csv_from_mt5.py:245:tick_jst = tick_utc.astimezone(ZoneInfo("Asia/Tokyo"))
+D:\fxbot\scripts\make_csv_from_mt5.py:248:tick_utc = None
+D:\fxbot\scripts\make_csv_from_mt5.py:257:rates_last_utc = pd.Timestamp(rates_last_jst).tz_localize("Asia/Tokyo").tz_convert("UTC")
+D:\fxbot\scripts\make_csv_from_mt5.py:258:rates_last_epoch = int(rates_last_utc.timestamp())
+D:\fxbot\scripts\make_csv_from_mt5.py:261:rates_last_utc = None
+D:\fxbot\scripts\make_csv_from_mt5.py:263:log(f"tick_epoch={tick_epoch} tick_utc={tick_utc} tick_jst={tick_jst} rates_last_epoch={rates_last_epoch} rates_last_utc={rates_last_utc} rates_last_jst={rates_last_jst}")
+D:\fxbot\scripts\make_csv_from_mt5.py:268:dt_to = _to_utc_naive(end_ts)  # MT5は tzinfo なしの UTC を好む
+D:\fxbot\scripts\make_csv_from_mt5.py:284:# 生のDataFrame（UTC epoch秒）
+D:\fxbot\scripts\make_csv_from_mt5.py:287:# 観測ログ：df_raw["time"].max() を UTC/JST 両方で表示
+D:\fxbot\scripts\make_csv_from_mt5.py:290:raw_max_utc = pdt.fromtimestamp(raw_max_epoch, tz=UTC)
+D:\fxbot\scripts\make_csv_from_mt5.py:291:raw_max_jst = raw_max_utc.astimezone(JST)
+D:\fxbot\scripts\make_csv_from_mt5.py:292:log(f"[fallback] df_raw.time.max epoch={raw_max_epoch} utc={raw_max_utc} jst={raw_max_jst} start_ts={start_ts} end_ts={end_ts}")
+D:\fxbot\scripts\make_csv_from_mt5.py:305:oldest_utc_epoch = int(df_raw["time"].min())  # epoch秒
+D:\fxbot\scripts\make_csv_from_mt5.py:306:# DeprecationWarning 回避：UTC aware で作ってから tzinfo=None で naive UTC へ
+D:\fxbot\scripts\make_csv_from_mt5.py:307:dt_to = pdt.fromtimestamp(oldest_utc_epoch - 1, tz=UTC).replace(tzinfo=None)
+D:\fxbot\scripts\make_csv_from_mt5.py:329:rates_last_utc = pd.Timestamp(rates_last_jst).tz_localize("Asia/Tokyo").tz_convert("UTC")
+D:\fxbot\scripts\make_csv_from_mt5.py:330:rates_last_epoch = int(rates_last_utc.timestamp())
+D:\fxbot\scripts\make_csv_from_mt5.py:333:rates_last_utc = None
+D:\fxbot\scripts\make_csv_from_mt5.py:335:log(f"tick_epoch={tick_epoch} tick_utc={tick_utc} tick_jst={tick_jst} rates_last_epoch={rates_last_epoch} rates_last_utc={rates_last_utc} rates_last_jst={rates_last_jst}")
+D:\fxbot\scripts\make_csv_from_mt5.py:399:# 観測ログ：fetch_from と end_ts を raw/UTC/JST で表示
+D:\fxbot\scripts\make_csv_from_mt5.py:405:fetch_from_utc = fetch_from_jst.tz_convert("UTC")
+D:\fxbot\scripts\make_csv_from_mt5.py:406:end_ts_utc = end_ts_jst.tz_convert("UTC")
+D:\fxbot\scripts\make_csv_from_mt5.py:407:log(f"fetch_from_raw={fetch_from_raw} end_ts_raw={end_ts_raw} fetch_from_utc={fetch_from_utc} end_ts_utc={end_ts_utc} fetch_from_jst={fetch_from_jst} end_ts_jst={end_ts_jst}")
+D:\fxbot\scripts\mt5_export_csv.py:29:utc_to = datetime.now(timezone.utc)
+D:\fxbot\scripts\mt5_export_csv.py:30:utc_from = utc_to - timedelta(days=args.days)
+D:\fxbot\scripts\mt5_export_csv.py:32:rates = mt5.copy_rates_range(resolve_symbol(args.symbol), tf, utc_from, utc_to)
+D:\fxbot\scripts\walkforward_retrain.py:49:from datetime import UTC, datetime
+D:\fxbot\scripts\walkforward_retrain.py:231:return datetime.now(UTC).astimezone().isoformat(timespec="seconds")
+D:\fxbot\scripts\walkforward_train.py:24:return datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+D:\fxbot\scripts\weekly_retrain.py:66:from datetime import UTC, datetime
+D:\fxbot\scripts\weekly_retrain.py:83:JST = UTC  # 後で必要なら Asia/Tokyo に変更してもOK
+D:\fxbot\scripts\weekly_retrain.py:545:ts = datetime.now(tz=UTC)
+D:\fxbot\scripts\weekly_retrain.py:634:"created_at_utc": ts.isoformat(),
+D:\fxbot\scripts\weekly_retrain.py:741:ts = datetime.now(tz=UTC)
+D:\fxbot\scripts\weekly_retrain.py:755:"created_at_utc": ts.isoformat(),
+D:\fxbot\app\gui\control_tab.py:34:"updated_at": datetime.now(timezone.utc).astimezone().isoformat(),
+D:\fxbot\app\services\circuit_breaker.py:63:elapsed = datetime.now(tz=timezone.utc).timestamp() - self.state.last_trip_ts
+D:\fxbot\app\services\circuit_breaker.py:93:self.state.last_trip_ts = datetime.now(tz=timezone.utc).timestamp()
+D:\fxbot\app\services\condition_mining_candidates.py:101:# support と filter_pass_rate だけは必ず返す（outcome無くても根拠になる）
+D:\fxbot\app\services\condition_mining_data.py:14:"""Parse ISO-ish datetime and normalize to timezone-aware UTC.
+D:\fxbot\app\services\condition_mining_data.py:16:- If tzinfo is missing (naive), assume UTC.
+D:\fxbot\app\services\condition_mining_data.py:17:- If tzinfo exists, convert to UTC.
+D:\fxbot\app\services\condition_mining_data.py:31:# normalize to UTC-aware
+D:\fxbot\app\services\condition_mining_data.py:33:return dt.replace(tzinfo=timezone.utc)
+D:\fxbot\app\services\condition_mining_data.py:35:return dt.astimezone(timezone.utc)
+D:\fxbot\app\services\condition_mining_data.py:111:now_dt = now or datetime.now(timezone.utc)
+D:\fxbot\app\services\condition_mining_data.py:188:now_dt = datetime.now(timezone.utc)
+D:\fxbot\app\services\condition_mining_data.py:254:_parse_iso_dt(j.get("ts_utc"))
+D:\fxbot\app\services\condition_mining_data.py:259:or _parse_iso_dt(j.get("time_utc"))
+D:\fxbot\app\services\condition_mining_data.py:268:_parse_iso_dt((fts or {}).get("ts_utc"))
+D:\fxbot\app\services\condition_mining_data.py:273:or _parse_iso_dt((fts or {}).get("time_utc"))
+D:\fxbot\app\services\condition_mining_data.py:687:now_utc=None,
+D:\fxbot\app\services\condition_mining_data.py:811:now_utc: datetime | None = None,
+D:\fxbot\app\services\condition_mining_data.py:816:"""recent/past の window をUTCで返すフォールバック"""
+D:\fxbot\app\services\condition_mining_data.py:817:if now_utc is None:
+D:\fxbot\app\services\condition_mining_data.py:818:now_utc = datetime.now(timezone.utc)
+D:\fxbot\app\services\condition_mining_data.py:820:end_recent = now_utc
+D:\fxbot\app\services\condition_mining_data.py:823:end_past = now_utc - timedelta(minutes=int(past_offset_minutes))
+D:\fxbot\app\services\condition_mining_facade.py:271:latest_mtime_iso = datetime.fromtimestamp(latest_mtime, tz=timezone.utc).isoformat()
+D:\fxbot\app\services\event_store.py:44:return datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+D:\fxbot\app\services\execution_stub.py:461:d = datetime.now(timezone.utc).date().isoformat()
+D:\fxbot\app\services\execution_stub.py:1205:# tzinfo 無しは UTC 扱い（内部の一貫性重視）
+D:\fxbot\app\services\execution_stub.py:1207:dt = dt.replace(tzinfo=timezone.utc)
+D:\fxbot\app\services\job_scheduler.py:295:now = datetime.now(timezone.utc)
+D:\fxbot\app\services\ohlcv_update_service.py:24:"""MT5の 'time' (Unix秒, UTC) を JST の naive datetime に変換"""
+D:\fxbot\app\services\ohlcv_update_service.py:25:s = pd.to_datetime(series, unit="s", utc=True)
+D:\fxbot\app\services\ops_history_service.py:423:now = datetime.now(timezone.utc)
+D:\fxbot\app\services\ops_history_service.py:962:ISO文字列またはNoneをUTC epoch秒（浮動小数）に変換する（ソート用）。
+D:\fxbot\app\services\ops_history_service.py:982:# timestamp()はUTC epochを返す（timezone awareな場合は自動変換、naiveな場合はローカル時刻として扱う）
+D:\fxbot\app\services\ops_history_service.py:1286:# itemsをソート（priority降順、started_at降順（UTC epoch）、record_idで安定化）
+D:\fxbot\app\services\ops_history_service.py:1288:"""itemsのソートキー（降順、UTC epoch比較）"""
+D:\fxbot\app\services\ops_history_service.py:1293:# 2) started_at（desc、UTC epoch比較、None/空/parse失敗ならts、tsも無ければrecord_id）
+D:\fxbot\app\services\ops_history_service.py:1720:promoted_at = datetime.now(timezone.utc).isoformat()
+D:\fxbot\app\services\ops_history_service.py:1724:"started_at": datetime.now(timezone.utc).isoformat(),
+D:\fxbot\app\services\ops_overview_facade.py:13:def _now_iso_utc() -> str:
+D:\fxbot\app\services\ops_overview_facade.py:14:return datetime.now(timezone.utc).isoformat()
+D:\fxbot\app\services\ops_overview_facade.py:47:"generated_at": _now_iso_utc(),
+D:\fxbot\app\services\ops_service.py:135:self._started_at = datetime.now(timezone.utc).isoformat()
+D:\fxbot\app\services\ops_service.py:269:"started_at": self._started_at or datetime.now(timezone.utc).isoformat(),
+D:\fxbot\app\services\scheduler_facade.py:49:"generated_at": str (ISO, UTC)
+D:\fxbot\app\services\scheduler_facade.py:82:"next_run_at": _calc_next_run_utc(job.get("weekday"), job.get("hour"), job.get("minute")),
+D:\fxbot\app\services\scheduler_facade.py:93:"generated_at": datetime.now(timezone.utc).isoformat(),
+D:\fxbot\app\services\scheduler_facade.py:124:def _calc_next_run_utc(weekday: Any, hour: Any, minute: Any) -> str | None:
+D:\fxbot\app\services\scheduler_facade.py:125:"""weekday/hour/minute の単純スケジュールから次回実行(UTC ISO)を計算する。
+D:\fxbot\app\services\scheduler_facade.py:132:now = datetime.now(timezone.utc)
+D:\fxbot\app\services\scheduler_facade.py:256:now = datetime.now(timezone.utc)
+D:\fxbot\app\services\scheduler_facade.py:310:"started_at": datetime.now(timezone.utc).isoformat(),
+D:\fxbot\app\services\visualization_service.py:238:for k in ("ts_jst", "ts", "time", "datetime", "timestamp", "ts_utc"):
+D:\fxbot\app\services\visualization_service.py:352:"ts_utc",
+D:\fxbot\scripts\make_csv_from_mt5.py:124:def jst_from_mt5_epoch(series):
+D:\fxbot\scripts\make_csv_from_mt5.py:214:df["time"] = jst_from_mt5_epoch(df["time"])
+D:\fxbot\scripts\make_csv_from_mt5.py:243:tick_epoch = int(tick.time)
+D:\fxbot\scripts\make_csv_from_mt5.py:244:tick_utc = pdt.fromtimestamp(tick_epoch, tz=UTC)
+D:\fxbot\scripts\make_csv_from_mt5.py:247:tick_epoch = None
+D:\fxbot\scripts\make_csv_from_mt5.py:258:rates_last_epoch = int(rates_last_utc.timestamp())
+D:\fxbot\scripts\make_csv_from_mt5.py:260:rates_last_epoch = None
+D:\fxbot\scripts\make_csv_from_mt5.py:263:log(f"tick_epoch={tick_epoch} tick_utc={tick_utc} tick_jst={tick_jst} rates_last_epoch={rates_last_epoch} rates_last_utc={rates_last_utc} rates_last_jst={rates_last_jst}")
+D:\fxbot\scripts\make_csv_from_mt5.py:284:# 生のDataFrame（UTC epoch秒）
+D:\fxbot\scripts\make_csv_from_mt5.py:289:raw_max_epoch = int(df_raw["time"].max())
+D:\fxbot\scripts\make_csv_from_mt5.py:290:raw_max_utc = pdt.fromtimestamp(raw_max_epoch, tz=UTC)
+D:\fxbot\scripts\make_csv_from_mt5.py:292:log(f"[fallback] df_raw.time.max epoch={raw_max_epoch} utc={raw_max_utc} jst={raw_max_jst} start_ts={start_ts} end_ts={end_ts}")
+D:\fxbot\scripts\make_csv_from_mt5.py:296:df["time"] = jst_from_mt5_epoch(df["time"])
+D:\fxbot\scripts\make_csv_from_mt5.py:305:oldest_utc_epoch = int(df_raw["time"].min())  # epoch秒
+D:\fxbot\scripts\make_csv_from_mt5.py:307:dt_to = pdt.fromtimestamp(oldest_utc_epoch - 1, tz=UTC).replace(tzinfo=None)
+D:\fxbot\scripts\make_csv_from_mt5.py:330:rates_last_epoch = int(rates_last_utc.timestamp())
+D:\fxbot\scripts\make_csv_from_mt5.py:332:rates_last_epoch = None
+D:\fxbot\scripts\make_csv_from_mt5.py:335:log(f"tick_epoch={tick_epoch} tick_utc={tick_utc} tick_jst={tick_jst} rates_last_epoch={rates_last_epoch} rates_last_utc={rates_last_utc} rates_last_jst={rates_last_jst}")
+D:\fxbot\app\services\ohlcv_update_service.py:23:def _jst_from_mt5_epoch(series) -> pd.Series:
+D:\fxbot\app\services\ohlcv_update_service.py:111:df_mt5["time"] = _jst_from_mt5_epoch(df_mt5["time"])
+D:\fxbot\app\services\ops_history_service.py:960:def _to_epoch(self, s: Optional[str]) -> Optional[float]:
+D:\fxbot\app\services\ops_history_service.py:962:ISO文字列またはNoneをUTC epoch秒（浮動小数）に変換する（ソート用）。
+D:\fxbot\app\services\ops_history_service.py:968:epoch秒（float）またはNone（パース失敗時）
+D:\fxbot\app\services\ops_history_service.py:982:# timestamp()はUTC epochを返す（timezone awareな場合は自動変換、naiveな場合はローカル時刻として扱う）
+D:\fxbot\app\services\ops_history_service.py:1286:# itemsをソート（priority降順、started_at降順（UTC epoch）、record_idで安定化）
+D:\fxbot\app\services\ops_history_service.py:1288:"""itemsのソートキー（降順、UTC epoch比較）"""
+D:\fxbot\app\services\ops_history_service.py:1293:# 2) started_at（desc、UTC epoch比較、None/空/parse失敗ならts、tsも無ければrecord_id）
+D:\fxbot\app\services\ops_history_service.py:1295:started_epoch = None  # デフォルト（降順で最後に来るようにNone）
+D:\fxbot\app\services\ops_history_service.py:1297:# started_atをepochに変換
+D:\fxbot\app\services\ops_history_service.py:1299:started_epoch = self._to_epoch(started_at)
+D:\fxbot\app\services\ops_history_service.py:1302:if started_epoch is None:
+D:\fxbot\app\services\ops_history_service.py:1305:started_epoch = self._to_epoch(ts)
+D:\fxbot\app\services\ops_history_service.py:1308:if started_epoch is None:
+D:\fxbot\app\services\ops_history_service.py:1309:started_epoch = float("-inf")  # 降順で最後に来る（None相当）
+D:\fxbot\app\services\ops_history_service.py:1314:# 降順ソートのため、priorityとstarted_epochは負数
+D:\fxbot\app\services\ops_history_service.py:1315:# started_epochが-infの場合は+infになる（降順で最後）
+D:\fxbot\app\services\ops_history_service.py:1316:started_key = -started_epoch  # 降順のため負数（-infは+infになる）
+D:\fxbot\app\services\visualization_service.py:242:# epoch候補（秒/ミリ秒）
+D:\fxbot\app\services\visualization_service.py:243:for k in ("ts_epoch", "ts_ms", "timestamp_ms", "epoch_ms", "epoch"):
+D:\fxbot\app\services\visualization_service.py:353:"ts_epoch",
+D:\fxbot\app\services\visualization_service.py:356:"epoch_ms",
+D:\fxbot\app\services\visualization_service.py:357:"epoch",

@@ -20,8 +20,13 @@ import argparse
 import os
 import socket
 import sys
+import time
 from datetime import UTC
 from datetime import datetime as pdt
+from zoneinfo import ZoneInfo
+
+# ミチビキ内部の naive datetime は JST とみなす
+JST = ZoneInfo("Asia/Tokyo")
 from pathlib import Path
 
 import pandas as pd
@@ -83,8 +88,12 @@ CSV_COLS = [
 PAGE = 20000
 MAX_LOOPS = 300
 
-# CSVファイル名で使う “接尾辞なしタグ” を main() 内で設定
+# CSVファイル名で使う "接尾辞なしタグ" を main() 内で設定
 FILE_TAG: str | None = None
+
+# MT5が返すepochがUTCからズレている分（秒）。+なら「MT5 epochが未来」に見える
+# main() の [time_audit] で観測した delta_hours_round * 3600 をセット
+SERVER_OFFSET_SEC: int = 0
 
 
 # =========================
@@ -119,10 +128,14 @@ def ensure_mt5_initialized(terminal_path: str | None = None):
 
 def jst_from_mt5_epoch(series):
     """
-    MT5の 'time' (Unix秒, UTC) を JST の naive datetime64[ns] に変換。
+    MT5の 'time' (Unix秒) を JST の naive datetime64[ns] に変換。
+    MT5が返すepochがUTCからズレている場合、SERVER_OFFSET_SECで補正する。
     series は pandas Series でも DatetimeIndex でも両対応。
     """
     s = pd.to_datetime(series, unit="s", utc=True)
+    # MT5 epochがserver_offset分だけ「UTCとして誤って」進んでいる場合の補正
+    if SERVER_OFFSET_SEC != 0:
+        s = s - pd.Timedelta(seconds=SERVER_OFFSET_SEC)
     if isinstance(s, pd.DatetimeIndex):
         return s.tz_convert("Asia/Tokyo").tz_localize(None)
     else:
@@ -146,14 +159,15 @@ def merge_and_dedup(old: pd.DataFrame | None, new: pd.DataFrame) -> pd.DataFrame
 # =========================
 
 
-def _to_utc_naive(ts_jst: pd.Timestamp) -> pdt:
-    """JST naive -> UTC naive（tzinfoなし）"""
-    return (
-        ts_jst.tz_localize("Asia/Tokyo")
-        .tz_convert("UTC")
-        .to_pydatetime()
-        .replace(tzinfo=None)
-    )
+def _to_utc_naive(ts: pd.Timestamp) -> pdt:
+    """
+    ミチビキ内の naive datetime は JST とみなす。
+    MT5 API には UTC naive を渡す。
+    """
+    if ts.tzinfo is None:
+        ts = ts.tz_localize(JST)
+    ts_utc = ts.tz_convert("UTC")
+    return ts_utc.to_pydatetime().replace(tzinfo=None)
 
 
 def _to_local_naive(ts_jst: pd.Timestamp) -> pdt:
@@ -171,13 +185,41 @@ def _to_utc_aware(ts_jst: pd.Timestamp) -> pdt:
     )
 
 
+def _to_server_naive(ts_jst: pd.Timestamp) -> pdt:
+    """
+    JST naive -> server時刻 naive（MT5 API用）
+    ts_jst は「JST naive（ミチビキ内部標準）」前提。
+    server_offset(+2h等) を足して「サーバ時刻」に寄せる。
+    MT5側が naive datetime をUTCではなく「サーバローカル」として解釈している場合に使用。
+    """
+    if ts_jst.tzinfo is None:
+        ts_jst = ts_jst.tz_localize(JST)
+    # 「壁時計」として扱うため tzを落とした値に offset を足す（最小差分）
+    naive = ts_jst.tz_localize(None)
+    naive_server = naive + pd.Timedelta(seconds=SERVER_OFFSET_SEC)
+    return naive_server.to_pydatetime().replace(tzinfo=None)
+
+
 def _range_attempts(
     symbol: str, tf: int, start_ts: pd.Timestamp, end_ts: pd.Timestamp
 ) -> tuple[pd.DataFrame | None, str]:
     """
     copy_rates_range() を 3 方式（UTC-naive / local-naive / UTC-aware）で試す。
     成功時は (DataFrame, "ok:<tag>")、全滅なら (None, "fail")
+    成功判定：rows>0 かつ df.time.max が end_ts 近傍（1バー分以内）
     """
+    # tf（定数）→分 のマッピング
+    tf_to_min = {
+        mt5.TIMEFRAME_M1: 1,
+        mt5.TIMEFRAME_M5: 5,
+        mt5.TIMEFRAME_M15: 15,
+        mt5.TIMEFRAME_M30: 30,
+        mt5.TIMEFRAME_H1: 60,
+        mt5.TIMEFRAME_H4: 240,
+        mt5.TIMEFRAME_D1: 1440,
+    }
+    tol = pd.Timedelta(minutes=tf_to_min.get(tf, 5))
+    
     variants = [
         ("utc_naive", _to_utc_naive(start_ts), _to_utc_naive(end_ts)),
         ("local_naive", _to_local_naive(start_ts), _to_local_naive(end_ts)),
@@ -195,6 +237,11 @@ def _range_attempts(
             return pd.DataFrame(columns=CSV_COLS), f"ok:{tag}"
         df["time"] = jst_from_mt5_epoch(df["time"])
         df = df.sort_values("time").reset_index(drop=True)
+        # 成功判定強化：df.time.max が end_ts 近傍（1バー分以内）かチェック
+        max_time = df["time"].max()
+        if max_time < (end_ts - tol):
+            log(f"[range_insufficient:{tag}] max={max_time} end={end_ts} tol={tol} -> fallback")
+            continue  # 次のvariantへ（全部ダメなら fail で fallback）
         log(f"[ok:{tag}] fetched rows={len(df)}")
         return df[CSV_COLS], f"ok:{tag}"
     return None, "fail"
@@ -214,14 +261,35 @@ def fetch_rates(
     if end_ts <= start_ts:
         raise ValueError(f"start >= end: {start_ts} .. {end_ts}")
 
+    # 観測ログ：tick 情報を取得
+    tick = mt5.symbol_info_tick(resolve_symbol(symbol))
+    if tick and tick.time:
+        tick_epoch = int(tick.time)
+        tick_utc = pdt.fromtimestamp(tick_epoch, tz=UTC)
+        tick_jst = tick_utc.astimezone(ZoneInfo("Asia/Tokyo"))
+    else:
+        tick_epoch = None
+        tick_utc = None
+        tick_jst = None
+
     # 1) range 試行
     df_range, status = _range_attempts(symbol, tf, start_ts, end_ts)
     if status.startswith("ok"):
+        # 観測ログ：1行で出力（range成功時）
+        if len(df_range) > 0:
+            rates_last_jst = df_range["time"].max()
+            rates_last_utc = pd.Timestamp(rates_last_jst).tz_localize("Asia/Tokyo").tz_convert("UTC")
+            rates_last_epoch = int(rates_last_utc.timestamp())
+        else:
+            rates_last_epoch = None
+            rates_last_utc = None
+            rates_last_jst = None
+        log(f"tick_epoch={tick_epoch} tick_utc={tick_utc} tick_jst={tick_jst} rates_last_epoch={rates_last_epoch} rates_last_utc={rates_last_utc} rates_last_jst={rates_last_jst}")
         return df_range
 
     # 2) フォールバック: from で過去にページング
     log("[fallback] using copy_rates_from() paging backward")
-    dt_to = _to_utc_naive(end_ts)  # MT5は tzinfo なしの UTC を好む
+    dt_to = _to_server_naive(end_ts)  # MT5がserver時刻として解釈するnaive datetime
 
     frames = []
     safety_loops = 0
@@ -239,6 +307,13 @@ def fetch_rates(
 
         # 生のDataFrame（UTC epoch秒）
         df_raw = pd.DataFrame(rates)
+        
+        # 観測ログ：df_raw["time"].max() を UTC/JST 両方で表示
+        if len(df_raw) > 0:
+            raw_max_epoch = int(df_raw["time"].max())
+            raw_max_utc = pdt.fromtimestamp(raw_max_epoch, tz=UTC)
+            raw_max_jst = raw_max_utc.astimezone(JST)
+            log(f"[fallback] df_raw.time.max epoch={raw_max_epoch} utc={raw_max_utc} jst={raw_max_jst} start_ts={start_ts} end_ts={end_ts}")
 
         # まずはJSTへ
         df = df_raw.copy()
@@ -272,6 +347,16 @@ def fetch_rates(
     log(
         f"[fallback] fetched rows={len(out)} (min={out['time'].min()} .. max={out['time'].max()})"
     )
+    # 観測ログ：1行で出力（fallback成功時）
+    if len(out) > 0:
+        rates_last_jst = out["time"].max()
+        rates_last_utc = pd.Timestamp(rates_last_jst).tz_localize("Asia/Tokyo").tz_convert("UTC")
+        rates_last_epoch = int(rates_last_utc.timestamp())
+    else:
+        rates_last_epoch = None
+        rates_last_utc = None
+        rates_last_jst = None
+    log(f"tick_epoch={tick_epoch} tick_utc={tick_utc} tick_jst={tick_jst} rates_last_epoch={rates_last_epoch} rates_last_utc={rates_last_utc} rates_last_jst={rates_last_jst}")
     return out[CSV_COLS]
 
 
@@ -335,6 +420,16 @@ def ensure_csv_for_timeframe(
         fetch_from = start_ts
         log(f"{csv_path.name}: not found -> fresh export from {fetch_from}")
 
+    # 観測ログ：fetch_from と end_ts を raw/UTC/JST で表示
+    fetch_from_raw = fetch_from
+    end_ts_raw = end_ts
+    # fetch_from と end_ts は JST naive として扱われている
+    fetch_from_jst = fetch_from.tz_localize("Asia/Tokyo") if fetch_from.tz is None else fetch_from.tz_convert("Asia/Tokyo")
+    end_ts_jst = end_ts.tz_localize("Asia/Tokyo") if end_ts.tz is None else end_ts.tz_convert("Asia/Tokyo")
+    fetch_from_utc = fetch_from_jst.tz_convert("UTC")
+    end_ts_utc = end_ts_jst.tz_convert("UTC")
+    log(f"fetch_from_raw={fetch_from_raw} end_ts_raw={end_ts_raw} fetch_from_utc={fetch_from_utc} end_ts_utc={end_ts_utc} fetch_from_jst={fetch_from_jst} end_ts_jst={end_ts_jst}")
+    
     # end_ts より進んでいたら、新規取得は行わない
     if end_ts <= fetch_from:
         log(
@@ -346,8 +441,23 @@ def ensure_csv_for_timeframe(
         df_new = fetch_rates(symbol, tf_const, fetch_from, end_ts)
         log(f"{csv_path.name}: fetched rows={len(df_new)} [{fetch_from} .. {end_ts}]")
 
+        # 観測：df_new.time の型とサンプル
+        if "time" in df_new.columns:
+            log(f"{csv_path.name}: df_new.time dtype(before)={df_new['time'].dtype} head={df_new['time'].head(1).tolist()} tail={df_new['time'].tail(1).tolist()}")
+
+        # fetch_rates() は time を JST naive datetime64[ns] で返す設計。
+        # ここで再 to_datetime すると NaT 化するケースがあるため、dtype が object の時だけ矯正する。
+        if "time" in df_new.columns and str(df_new["time"].dtype) == "object":
+            df_new["time"] = pd.to_datetime(df_new["time"], errors="coerce")
+            log(f"{csv_path.name}: df_new.time dtype(after)={df_new['time'].dtype} max={df_new['time'].max()}")
+
         # マージ＆重複除去
         merged = merge_and_dedup(old, df_new)
+        
+        # 観測ログ（max時刻とdtype確認）
+        log(f"{csv_path.name}: old.max={old['time'].max() if old is not None and len(old) else None}")
+        log(f"{csv_path.name}: new.max={df_new['time'].max() if df_new is not None and len(df_new) else None} new.dtypes.time={df_new['time'].dtype if df_new is not None and 'time' in df_new.columns else None}")
+        log(f"{csv_path.name}: merged.max={merged['time'].max() if merged is not None and len(merged) else None} merged.dtypes.time={merged['time'].dtype if merged is not None and 'time' in merged.columns else None}")
 
     # 型最適化（省メモリ）
     if not merged.empty:
@@ -465,6 +575,31 @@ def main():
         log(f"symbol resolved: {symbol} -> {resolved_symbol}")
     symbol = resolved_symbol
     mt5.symbol_select(resolve_symbol(symbol), True)
+    
+    # 観測ログ：MT5時刻とローカル時刻の差分（server_offset候補を確定）
+    # シンボル解決後なので正確なシンボルでtickを取得
+    now_epoch = int(time.time())
+    terminal_info = mt5.terminal_info()
+    if terminal_info:
+        terminal_time = terminal_info.time if hasattr(terminal_info, 'time') else None
+        terminal_build = terminal_info.build if hasattr(terminal_info, 'build') else None
+        terminal_codepage = terminal_info.codepage if hasattr(terminal_info, 'codepage') else None
+    else:
+        terminal_time = None
+        terminal_build = None
+        terminal_codepage = None
+    
+    tick = mt5.symbol_info_tick(resolve_symbol(symbol))
+    global SERVER_OFFSET_SEC
+    if tick and tick.time:
+        tick_epoch = int(tick.time)
+        delta_sec = tick_epoch - now_epoch
+        delta_hours_round = round(delta_sec / 3600)
+        SERVER_OFFSET_SEC = delta_hours_round * 3600
+        log(f"[time_audit] now_epoch={now_epoch} tick_epoch={tick_epoch} delta_sec={delta_sec} delta_hours={delta_hours_round} (server_offset_candidate={delta_hours_round}) SERVER_OFFSET_SEC={SERVER_OFFSET_SEC} terminal_time={terminal_time} build={terminal_build} codepage={terminal_codepage}")
+    else:
+        SERVER_OFFSET_SEC = 0
+        log(f"[time_audit] now_epoch={now_epoch} tick_epoch=None (symbol not available) SERVER_OFFSET_SEC={SERVER_OFFSET_SEC} terminal_time={terminal_time} build={terminal_build} codepage={terminal_codepage}")
 
     # CSV 用の “接尾辞なしタグ” を作成（英字のみ抽出）
     global FILE_TAG
