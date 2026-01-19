@@ -113,6 +113,7 @@ class VisualizeTab(QWidget):
 
         # drag-pan state (refresh() で axes が作り直される前提のため、参照は都度更新する)
         self._ax_price = None
+        self._ax_prob = None
         self._drag_pan_active: bool = False
         self._drag_pan_x0: float | None = None
         self._drag_pan_xlim0: tuple[float, float] | None = None
@@ -276,6 +277,16 @@ class VisualizeTab(QWidget):
             ohlc = self._ohlc_cache or {"ok": False, "reason": "ohlc_cache_missing"}
         lgbm = get_recent_lgbm_series(symbol=sym, count=n, keys=("prob_buy",))
 
+        # 観測用（1回/refresh 程度に抑える）
+        try:
+            keys = list(lgbm.get("keys") or []) if isinstance(lgbm, dict) else []
+            series = lgbm.get("series") if isinstance(lgbm, dict) else None
+            prob = (series.get("prob_buy") if isinstance(series, dict) else None) if isinstance(lgbm, dict) else None
+            len_prob = int(len(prob)) if isinstance(prob, list) else 0
+            logger.info("[viz] lgbm keys={} len_prob={}", keys, len_prob)
+        except Exception:
+            pass
+
         try:
             self._render(ohlc=ohlc, lgbm=lgbm, threshold=thr)
         except Exception as e:
@@ -374,6 +385,7 @@ class VisualizeTab(QWidget):
         ax_prob = self.fig.add_subplot(gs[1, 0], sharex=ax_price)
         # refresh() 毎に axes が作り直されるため、最新参照を保持
         self._ax_price = ax_price
+        self._ax_prob = ax_prob
 
         # --- upper: candlestick (best-effort) ---
         ohlc_ok = bool(ohlc.get("ok"))
@@ -383,15 +395,16 @@ class VisualizeTab(QWidget):
         lows = ohlc.get("low") if ohlc_ok else None
         closes = ohlc.get("close") if ohlc_ok else None
 
+        xs_ohlc: list[float] = []
         if ohlc_ok and isinstance(t, list) and len(t) >= 2 and isinstance(opens, list) and isinstance(closes, list):
-            xs = date2num(t)
+            xs_ohlc = list(date2num(t))
             try:
-                width = float(xs[1] - xs[0]) * 0.6
+                width = float(xs_ohlc[1] - xs_ohlc[0]) * 0.6
             except Exception:
                 width = 0.0005
 
-            for i in range(min(len(xs), len(opens), len(closes), len(highs or []), len(lows or []))):
-                x = xs[i]
+            for i in range(min(len(xs_ohlc), len(opens), len(closes), len(highs or []), len(lows or []))):
+                x = xs_ohlc[i]
                 o = float(opens[i])
                 c = float(closes[i])
                 h = float(highs[i])
@@ -435,45 +448,61 @@ class VisualizeTab(QWidget):
 
         # --- lower: prob + threshold + crossing ---
         lgbm_ok = bool(lgbm.get("ok"))
-        times = lgbm.get("time") if lgbm_ok else None
         series = lgbm.get("series") if lgbm_ok else None
-        y = None
+        probs_raw = None
         if isinstance(series, dict):
-            y = series.get("prob_buy")
+            probs_raw = series.get("prob_buy")
+
+        # threshold 線は常に表示（データ無しでも「下段が存在」することを担保）
+        ax_prob.axhline(float(threshold), color="#ff9800", linewidth=1.2, linestyle="--", label="threshold")
 
         markers = 0
-        if lgbm_ok and isinstance(times, list) and isinstance(y, list) and len(times) >= 2 and len(times) == len(y):
-            ax_prob.plot(times, y, label="prob_buy", linewidth=1.4, color="#3366cc")
-            ax_prob.axhline(float(threshold), color="#ff9800", linewidth=1.2, linestyle="--", label="threshold")
+        xs = list(xs_ohlc or [])
+        probs: list[float] = []
+        if lgbm_ok and isinstance(probs_raw, list):
+            try:
+                probs = [float(v) for v in probs_raw]
+            except Exception:
+                probs = []
 
-            # crossing: below -> above
-            xs_m: list[datetime] = []
-            ys_m: list[float] = []
-            for i in range(1, len(y)):
-                try:
-                    if float(y[i - 1]) < threshold <= float(y[i]):
-                        xs_m.append(times[i])
-                        ys_m.append(float(y[i]))
-                except Exception:
-                    continue
-            if xs_m:
-                ax_prob.scatter(xs_m, ys_m, s=24, marker="^", color="#e91e63", label="cross_up")
-                markers = len(xs_m)
+        if xs and probs:
+            # OHLC と同一の x 軸で表示する（末尾を合わせる）
+            probs = probs[-len(xs) :] if len(probs) >= len(xs) else probs
+            if len(probs) == len(xs):
+                ax_prob.plot(xs, probs, label="prob_buy", linewidth=1.4, color="#3366cc")
 
-            ax_prob.set_ylim(0.0, 1.0)
-            ax_prob.set_ylabel("Prob")
-            ax_prob.grid(True, alpha=0.25)
-            ax_prob.legend(loc="upper left", fontsize=8)
+                # crossing: below -> above
+                xs_m: list[float] = []
+                ys_m: list[float] = []
+                for i in range(1, len(probs)):
+                    try:
+                        if float(probs[i - 1]) < threshold <= float(probs[i]):
+                            xs_m.append(float(xs[i]))
+                            ys_m.append(float(probs[i]))
+                    except Exception:
+                        continue
+                if xs_m:
+                    ax_prob.scatter(xs_m, ys_m, s=24, marker="^", color="#e91e63", label="cross_up")
+                    markers = len(xs_m)
+
+                ax_prob.set_ylim(0.0, 1.0)
+                ax_prob.set_ylabel("Prob")
+                ax_prob.grid(True, alpha=0.25)
+                ax_prob.legend(loc="upper left", fontsize=8)
+            else:
+                ax_prob.text(0.5, 0.5, "prob_len_mismatch", transform=ax_prob.transAxes, ha="center", va="center")
+                ax_prob.set_ylim(0.0, 1.0)
+                ax_prob.set_ylabel("Prob")
+                ax_prob.grid(True, alpha=0.15)
         else:
-            reason = lgbm.get("reason") if isinstance(lgbm, dict) else "unknown"
-            ax_prob.text(
-                0.02,
-                0.8,
-                f"LGBM series unavailable: {reason}",
-                transform=ax_prob.transAxes,
-                fontsize=9,
-                color="#888",
-            )
+            if not xs:
+                msg = "no_ohlc_x"
+            elif not probs:
+                msg = "no_prob_data"
+            else:
+                reason = lgbm.get("reason") if isinstance(lgbm, dict) else "unknown"
+                msg = f"lgbm_unavailable: {reason}"
+            ax_prob.text(0.5, 0.5, msg, transform=ax_prob.transAxes, ha="center", va="center", fontsize=9, color="#888")
             ax_prob.set_ylim(0.0, 1.0)
             ax_prob.set_ylabel("Prob")
             ax_prob.grid(True, alpha=0.15)
