@@ -1,91 +1,99 @@
 scheduler_level: 3
 jobs:
-- id: smoke_job
-  enabled: true
-  scheduler_level: 1
-  weekday: 0
-  hour: 16
-  minute: 21
-  command: echo smoke
-- id: ui_add_test2
-  enabled: true
-  command: echo hello2
-  weekday: null
-  hour: 0
-  minute: 0
-  scheduler_level: 3
-- id: ui_smoke2
-  enabled: true
-  command: echo hi
-  weekday: null
-  hour: 0
-  minute: 0
-  scheduler_level: 3
-- id: valid_job_1
-  enabled: true
-  command: echo hi
-  weekday: null
-  hour: 0
-  minute: 0
-- id: none_time_ok
-  enabled: true
-  command: echo hi
-  weekday: null
-  hour: null
-  minute: null
-- id: ok_normal
-  enabled: true
-  command: echo hi
-  weekday: null
-  hour: 0
-  minute: 0
-- id: ok_none_time
-  enabled: true
-  command: echo hi
-  weekday: null
-  hour: null
-  minute: null
-- id: log_test
-  enabled: true
-  command: python -c "print('OUT'); import sys; print('ERR', file=sys.stderr)"
-  weekday: 2
-  hour: 6
-  minute: 17
-- id: none_time_job
-  enabled: true
-  command: python -c "print(123)"
-  weekday: null
-  hour: null
-  minute: null
-- id: always_job
-  enabled: true
-  command: python -c "print(\"ALWAYS\")"
-  weekday: null
-  hour: null
-  minute: null
-  run_always: true
-- id: always_job2
-  enabled: true
-  command: python -c "print(\"ALWAYS2\")"
-  weekday: null
-  hour: null
-  minute: null
-  run_always: true
-- id: always_test
-  enabled: true
-  command: python -c "print('ALWAYS_OUT'); import sys; print('ALWAYS_ERR', file=sys.stderr)"
-  weekday: null
-  hour: null
-  minute: null
-  run_always: true
-- id: te2
-  enabled: true
-  command: te2
-  weekday: null
-  hour: 0
-  minute: 0
-  schedule:
+  - id: smoke_job
+    enabled: true
+    scheduler_level: 1
+    weekday: 0
+    hour: 16
+    minute: 21
+    command: echo smoke
+  - id: ui_add_test2
+    enabled: true
+    command: echo hello2
     weekday: null
     hour: 0
     minute: 0
-  scheduler_level: 3
+    scheduler_level: 3
+  - id: ui_smoke2
+    enabled: true
+    command: echo hi
+    weekday: null
+    hour: 0
+    minute: 0
+    scheduler_level: 3
+  - id: valid_job_1
+    enabled: true
+    command: echo hi
+    weekday: null
+    hour: 0
+    minute: 0
+  - id: none_time_ok
+    enabled: true
+    command: echo hi
+    weekday: null
+    hour: null
+    minute: null
+  - id: ok_normal
+    enabled: true
+    command: echo hi
+    weekday: null
+    hour: 0
+    minute: 0
+  - id: ok_none_time
+    enabled: true
+    command: echo hi
+    weekday: null
+    hour: null
+    minute: null
+  - id: log_test
+    enabled: true
+    command: python -c "print('OUT'); import sys; print('ERR', file=sys.stderr)"
+    weekday: 2
+    hour: 6
+    minute: 17
+  - id: none_time_job
+    enabled: true
+    command: python -c "print(123)"
+    weekday: null
+    hour: null
+    minute: null
+  - id: always_job
+    enabled: true
+    command: python -c "print(\"ALWAYS\")"
+    weekday: null
+    hour: null
+    minute: null
+    run_always: true
+  - id: always_job2
+    enabled: true
+    command: python -c "print(\"ALWAYS2\")"
+    weekday: null
+    hour: null
+    minute: null
+    run_always: true
+  - id: always_test
+    enabled: true
+    command: python -c "print('ALWAYS_OUT'); import sys; print('ALWAYS_ERR', file=sys.stderr)"
+    weekday: null
+    hour: null
+    minute: null
+    run_always: true
+  - id: te2
+    enabled: true
+    command: te2
+    weekday: null
+    hour: 0
+    minute: 0
+    schedule:
+      weekday: null
+      hour: 0
+      minute: 0
+    scheduler_level: 3
+  - id: ohlcv_m5_auto_update
+    enabled: true
+    command: python -c "from app.services.ohlcv_update_service import ensure_ohlcv_uptodate; ensure_ohlcv_uptodate(symbol='USDJPY-', timeframe='M5')"
+    weekday: null
+    hour: null
+    minute: null
+    run_always: true
+    scheduler_level: 3

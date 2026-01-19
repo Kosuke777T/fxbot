@@ -62,7 +62,11 @@ class JobScheduler:
                 self.jobs = []
                 return
             self.jobs = jobs_raw
-            logger.info(f"[JobScheduler] loaded {len(self.jobs)} jobs from {self.config_path} (scheduler_level={self._scheduler_level_cfg})")
+            job_ids = [str(j.get("id") or j.get("name") or "?") for j in self.jobs]
+            logger.info(
+                f"[JobScheduler] loaded {len(self.jobs)} jobs from {self.config_path} (scheduler_level={self._scheduler_level_cfg})"
+            )
+            logger.info(f"[JobScheduler] job_ids={job_ids}")
         except Exception as e:
             logger.error(f"[JobScheduler] failed to load jobs from {self.config_path}: {e}")
             self.jobs = []
@@ -153,6 +157,7 @@ class JobScheduler:
                 return False
 
             # run_always=True の場合：高頻度実行（最低1分刻み）
+            logger.debug(f"[JobScheduler] job {job_id} run_always=True, checking next_run_at")
             # jobs_state に next_run_at を保存して、1分以上経過していれば実行可能
             next_run_at_str = self.jobs_state[job_id].get("next_run_at")
             if next_run_at_str:
@@ -229,7 +234,7 @@ class JobScheduler:
                 "error": {"code": "NO_COMMAND", "message": "job has no command"},
             }
 
-        logger.info(f"[JobScheduler] running job {job_id}: {command}")
+        logger.info(f"[JobScheduler][run] mode=subprocess job={job_id} cmd={command}")
 
         try:
             # コマンドを実行（シェル経由）
@@ -298,8 +303,11 @@ class JobScheduler:
             job_id = str(job.get("id") or job.get("name") or "?")
             self._initialize_job_state(job_id)
 
-            if not self._should_run(job, now):
+            should_run = self._should_run(job, now)
+            if not should_run:
+                logger.debug(f"[JobScheduler] job {job_id} _should_run=False, skip")
                 continue
+            logger.debug(f"[JobScheduler] job {job_id} _should_run=True, executing")
 
             # 実行する直前に state を RUNNING に更新し、last_run_at を設定（最重要）
             st = self.jobs_state[job_id]
@@ -316,6 +324,10 @@ class JobScheduler:
                 st["state"] = "SUCCESS"
             else:
                 st["state"] = "FAILED"
+                # 失敗時はstderrもログに出す（観測用）
+                stderr = result.get("stderr", "")
+                if stderr:
+                    logger.warning(f"[JobScheduler] job {job_id} stderr: {stderr[:500]}")
 
             # 結果を保存（stdout/stderr/errorが無い場合に補完）
             last_result = {

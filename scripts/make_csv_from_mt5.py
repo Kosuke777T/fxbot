@@ -322,9 +322,13 @@ def ensure_csv_for_timeframe(
         old = pd.read_csv(csv_path, parse_dates=["time"])
         old = old[CSV_COLS]
         last_time = old["time"].max()
-        fetch_from = max(start_ts, last_time)
+        # 既存の最終時刻の次のバーから取得（重複回避）
+        # M5の場合は5分、M15の場合は15分、H1の場合は1時間を加算
+        bar_interval_map = {"M1": 1, "M5": 5, "M15": 15, "M30": 30, "H1": 60, "H4": 240, "D1": 1440}
+        interval_min = bar_interval_map.get(tf_name, 5)
+        fetch_from = max(start_ts, last_time + pd.Timedelta(minutes=interval_min))
         log(
-            f"{csv_path.name}: existing rows={len(old)} last={last_time} -> fetch_from={fetch_from}"
+            f"{csv_path.name}: existing rows={len(old)} last={last_time} -> fetch_from={fetch_from} (last+{interval_min}min)"
         )
     else:
         old = None

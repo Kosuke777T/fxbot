@@ -24,9 +24,10 @@ def ensure_data(symbol_tag: str, timeframe: str, start_date: str, end_date: str,
     指定の [start_date, end_date] を満たすCSVが存在するか確認し、足りなければ scripts.make_csv_from_mt5 を呼んで追記する。
     戻り値: CSVのフルパス
     """
-    # MT5用シンボル（USDJPY-）をCSV用シンボル（USDJPY）に正規化
-    symbol_tag = symbol_tag.rstrip("-")
-    out_csv = csv_path(symbol_tag, timeframe, layout)
+    # MT5用シンボル（USDJPY-）とCSV用シンボル（USDJPY）を分離
+    mt5_symbol = symbol_tag  # 例: USDJPY-
+    csv_symbol_tag = symbol_tag.rstrip("-")  # 例: USDJPY
+    out_csv = csv_path(csv_symbol_tag, timeframe, layout)
     need_fetch = True
 
     if out_csv.exists():
@@ -41,9 +42,10 @@ def ensure_data(symbol_tag: str, timeframe: str, start_date: str, end_date: str,
 
     if need_fetch:
         # make_csv_from_mt5 を呼ぶ（不足分は自動追記）
+        # --symbol には MT5用シンボル（元の symbol_tag）を渡す（内部で resolve_symbol される）
         cmd = [
             str((PROJECT_ROOT / "scripts" / "make_csv_from_mt5.py").resolve()),
-            "--symbol", symbol_tag,
+            "--symbol", mt5_symbol,
             "--timeframes", timeframe,
             "--start", start_date,
             "--end", end_date,
@@ -60,6 +62,8 @@ def ensure_data(symbol_tag: str, timeframe: str, start_date: str, end_date: str,
             env=run_env,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",  # cp932混入耐性（Windows/MT5出力対応）
         )
         if proc.returncode != 0:
             out = (proc.stdout or "").strip()
@@ -71,6 +75,16 @@ def ensure_data(symbol_tag: str, timeframe: str, start_date: str, end_date: str,
                 f"stderr=\n{err[-4000:]}\n"
             )
             raise RuntimeError(msg)
+        else:
+            # 成功時も観測ログ（symbol not found 等のケースを潰す）
+            out_tail = (proc.stdout or "").strip()[-500:]
+            err_tail = (proc.stderr or "").strip()[-500:]
+            from loguru import logger
+            logger.info(
+                "[data_guard] make_csv_from_mt5 success: stdout_tail={} stderr_tail={}",
+                out_tail,
+                err_tail,
+            )
 
     # 最終チェック
     if not out_csv.exists():
