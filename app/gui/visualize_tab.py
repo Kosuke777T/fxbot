@@ -31,6 +31,7 @@ from app.services.visualization_service import (
     get_recent_ohlcv,
     log_viz_info,
 )
+from app.services.ohlcv_update_service import ensure_lgbm_proba_uptodate
 
 
 class VisualizeTab(QWidget):
@@ -275,7 +276,27 @@ class VisualizeTab(QWidget):
             self._ohlc_cache_n = int(n)
         else:
             ohlc = self._ohlc_cache or {"ok": False, "reason": "ohlc_cache_missing"}
-        lgbm = get_recent_lgbm_series(symbol=sym, count=n, keys=("prob_buy",))
+
+        # OHLCの時間範囲を確定してからprobaを埋める
+        t_min: datetime | None = None
+        t_max: datetime | None = None
+        if isinstance(ohlc, dict) and ohlc.get("ok") and isinstance(ohlc.get("time"), list):
+            times = ohlc["time"]
+            if times:
+                t_min = min(times)
+                t_max = max(times)
+
+        # proba CSVの自動更新（M5のみ、表示範囲を埋める）
+        if tf == "M5" and t_min is not None and t_max is not None:
+            try:
+                ensure_lgbm_proba_uptodate(symbol=sym, timeframe=tf, start_time=t_min, end_time=t_max)
+            except Exception as e:
+                logger.warning(f"[viz] ensure_lgbm_proba_uptodate failed: {e}")
+
+        # 同じ範囲でprobaを取得
+        lgbm = get_recent_lgbm_series(
+            symbol=sym, count=n, keys=("prob_buy",), start_time=t_min, end_time=t_max
+        )
 
         # 観測用（1回/refresh 程度に抑える）
         try:
@@ -457,52 +478,66 @@ class VisualizeTab(QWidget):
         ax_prob.axhline(float(threshold), color="#ff9800", linewidth=1.2, linestyle="--", label="threshold")
 
         markers = 0
-        xs = list(xs_ohlc or [])
+        # lgbmのtimeを使用（OHLCのxsと同長である必要はない）
+        lgbm_times = lgbm.get("time") if lgbm_ok and isinstance(lgbm.get("time"), list) else None
+        xs_lgbm: list[float] = []
         probs: list[float] = []
-        if lgbm_ok and isinstance(probs_raw, list):
+        if lgbm_ok and isinstance(probs_raw, list) and lgbm_times:
             try:
                 probs = [float(v) for v in probs_raw]
+                xs_lgbm = [date2num(ts) for ts in lgbm_times]
             except Exception:
                 probs = []
+                xs_lgbm = []
 
-        if xs and probs:
-            # OHLC と同一の x 軸で表示する（末尾を合わせる）
-            probs = probs[-len(xs) :] if len(probs) >= len(xs) else probs
-            if len(probs) == len(xs):
-                ax_prob.plot(xs, probs, label="prob_buy", linewidth=1.4, color="#3366cc")
+        if xs_lgbm and probs and len(xs_lgbm) == len(probs):
+            # crossing: below -> above（lgbmのtimeで判定）
+            for i in range(1, len(probs)):
+                if probs[i - 1] < threshold and probs[i] >= threshold:
+                    ax_prob.plot(
+                        xs_lgbm[i],
+                        threshold,
+                        marker="^",
+                        markersize=8,
+                        color="#4caf50",
+                        label="cross_up" if i == 1 else "",
+                    )
+                    markers += 1
+                elif probs[i - 1] > threshold and probs[i] <= threshold:
+                    ax_prob.plot(
+                        xs_lgbm[i],
+                        threshold,
+                        marker="v",
+                        markersize=8,
+                        color="#f44336",
+                        label="cross_down" if i == 1 else "",
+                    )
+                    markers += 1
 
-                # crossing: below -> above
-                xs_m: list[float] = []
-                ys_m: list[float] = []
-                for i in range(1, len(probs)):
-                    try:
-                        if float(probs[i - 1]) < threshold <= float(probs[i]):
-                            xs_m.append(float(xs[i]))
-                            ys_m.append(float(probs[i]))
-                    except Exception:
-                        continue
-                if xs_m:
-                    ax_prob.scatter(xs_m, ys_m, s=24, marker="^", color="#e91e63", label="cross_up")
-                    markers = len(xs_m)
-
-                ax_prob.set_ylim(0.0, 1.0)
-                ax_prob.set_ylabel("Prob")
-                ax_prob.grid(True, alpha=0.25)
-                ax_prob.legend(loc="upper left", fontsize=8)
-            else:
-                ax_prob.text(0.5, 0.5, "prob_len_mismatch", transform=ax_prob.transAxes, ha="center", va="center")
-                ax_prob.set_ylim(0.0, 1.0)
-                ax_prob.set_ylabel("Prob")
-                ax_prob.grid(True, alpha=0.15)
+            ax_prob.plot(xs_lgbm, probs, color="#2196f3", linewidth=1.5, label="prob_buy", alpha=0.8)
+            ax_prob.set_ylabel("Prob")
+            ax_prob.set_ylim(0.0, 1.0)
+            ax_prob.grid(True, alpha=0.25)
         else:
-            if not xs:
-                msg = "no_ohlc_x"
-            elif not probs:
-                msg = "no_prob_data"
+            if lgbm_ok:
+                ax_prob.text(
+                    0.5,
+                    0.5,
+                    f"prob_unavailable (len_xs={len(xs_lgbm)} len_probs={len(probs)})",
+                    transform=ax_prob.transAxes,
+                    ha="center",
+                    va="center",
+                )
             else:
                 reason = lgbm.get("reason") if isinstance(lgbm, dict) else "unknown"
-                msg = f"lgbm_unavailable: {reason}"
-            ax_prob.text(0.5, 0.5, msg, transform=ax_prob.transAxes, ha="center", va="center", fontsize=9, color="#888")
+                ax_prob.text(
+                    0.5,
+                    0.5,
+                    f"lgbm_unavailable: {reason}",
+                    transform=ax_prob.transAxes,
+                    ha="center",
+                    va="center",
+                )
             ax_prob.set_ylim(0.0, 1.0)
             ax_prob.set_ylabel("Prob")
             ax_prob.grid(True, alpha=0.15)
