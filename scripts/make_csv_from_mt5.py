@@ -94,6 +94,7 @@ FILE_TAG: str | None = None
 # === MT5 server time offset (seconds) =========================
 # MT5のepochがPC時刻とズレている場合の補正値（秒）
 SERVER_OFFSET_SEC: int = 0
+_PREV_OFFSET_SEC: int = 0  # 前回値（監視用）
 
 # ジャンプ抑制の閾値（必要なら調整）
 _MAX_JUMP_SEC = 3600  # 1時間以上変わるなら採用しない
@@ -106,13 +107,16 @@ def update_server_offset(symbol: str) -> int:
     - 推定値は「時間単位」に丸める
     - 前回値から1時間以上ジャンプする場合は採用しない（ログのみ）
     """
-    global SERVER_OFFSET_SEC
+    global SERVER_OFFSET_SEC, _PREV_OFFSET_SEC
     try:
         import time
         now_epoch = int(time.time())
         tick = mt5.symbol_info_tick(resolve_symbol(symbol))
         if not tick or not tick.time:
-            log("[time_audit] tick is None -> keep SERVER_OFFSET_SEC={}".format(SERVER_OFFSET_SEC))
+            # 監視ログ：毎回 offset を出力
+            log("[time_audit] tick is None -> keep SERVER_OFFSET_SEC={} prev={} delta=0".format(
+                SERVER_OFFSET_SEC, _PREV_OFFSET_SEC
+            ))
             return SERVER_OFFSET_SEC
 
         tick_epoch = int(tick.time)
@@ -120,8 +124,9 @@ def update_server_offset(symbol: str) -> int:
 
         # ノイズ除去（小さい差は無視）
         if abs(delta_sec) < _MIN_ADOPT_SEC:
-            log("[time_audit] small delta_sec={} (<{}), keep SERVER_OFFSET_SEC={}".format(
-                delta_sec, _MIN_ADOPT_SEC, SERVER_OFFSET_SEC
+            # 監視ログ：毎回 offset を出力
+            log("[time_audit] small delta_sec={} (<{}), keep SERVER_OFFSET_SEC={} prev={} delta=0".format(
+                delta_sec, _MIN_ADOPT_SEC, SERVER_OFFSET_SEC, _PREV_OFFSET_SEC
             ))
             return SERVER_OFFSET_SEC
 
@@ -131,15 +136,27 @@ def update_server_offset(symbol: str) -> int:
 
         # ジャンプ抑制
         if SERVER_OFFSET_SEC != 0 and abs(candidate - SERVER_OFFSET_SEC) >= _MAX_JUMP_SEC:
-            log("[time_audit] candidate jump too large: candidate={} prev={} -> ignore".format(
-                candidate, SERVER_OFFSET_SEC
+            # 監視ログ：閾値超えの場合は WARNING
+            offset_delta = candidate - SERVER_OFFSET_SEC
+            log("[time_audit][WARNING] candidate jump too large: candidate={} prev={} delta={} (>= {}) -> ignore".format(
+                candidate, SERVER_OFFSET_SEC, offset_delta, _MAX_JUMP_SEC
             ))
             return SERVER_OFFSET_SEC
 
+        # 監視ログ：更新前の値を保存
+        _PREV_OFFSET_SEC = SERVER_OFFSET_SEC
+        offset_delta = candidate - SERVER_OFFSET_SEC
         SERVER_OFFSET_SEC = candidate
-        log("[time_audit] updated SERVER_OFFSET_SEC={} (delta_sec={} hours~{})".format(
-            SERVER_OFFSET_SEC, delta_sec, delta_hours_round
-        ))
+
+        # 監視ログ：毎回 offset を出力（更新時）
+        if abs(offset_delta) >= 3600:
+            log("[time_audit][WARNING] updated SERVER_OFFSET_SEC={} prev={} delta={} (>= 3600) (delta_sec={} hours~{})".format(
+                SERVER_OFFSET_SEC, _PREV_OFFSET_SEC, offset_delta, delta_sec, delta_hours_round
+            ))
+        else:
+            log("[time_audit] updated SERVER_OFFSET_SEC={} prev={} delta={} (delta_sec={} hours~{})".format(
+                SERVER_OFFSET_SEC, _PREV_OFFSET_SEC, offset_delta, delta_sec, delta_hours_round
+            ))
         return SERVER_OFFSET_SEC
     except Exception as e:
         log(f"[time_audit][warn] failed to update server offset: {e}")
@@ -515,6 +532,34 @@ def ensure_csv_for_timeframe(
             merged[c] = merged[c].astype("float32")
         for c in ["tick_volume", "spread", "real_volume"]:
             merged[c] = merged[c].astype("int32")
+
+    # CSV保存前ガード：単調増加チェック
+    if not merged.empty and "time" in merged.columns:
+        # time列が単調増加かチェック（直接チェック）
+        is_monotonic = merged["time"].is_monotonic_increasing
+
+        if not is_monotonic:
+            # 単調増加が崩れている場合
+            # tail_time より古い行が混ざった数をカウント
+            if old is not None and len(old) > 0:
+                tail_time = old["time"].max()
+                older_rows = len(merged[merged["time"] < tail_time])
+            else:
+                tail_time = None
+                older_rows = 0
+
+            # 最小限の観測：head(3) と tail(3) をログ出力
+            time_head = merged["time"].head(3).tolist()
+            time_tail = merged["time"].tail(3).tolist()
+
+            log(f"[time_audit][WARNING] {csv_path.name}: time column is not monotonic increasing! "
+                f"tail_time={tail_time} older_rows={older_rows} total_rows={len(merged)} -> skip save")
+            log(f"[time_audit][WARNING] {csv_path.name}: time range: min={merged['time'].min()} max={merged['time'].max()}")
+            log(f"[time_audit][WARNING] {csv_path.name}: time head(3)={time_head} tail(3)={time_tail}")
+            # 保存しない（return）
+            log(f"{csv_path.name}: skipped save due to non-monotonic time column")
+            log(f"=== end timeframe={tf_name} ===")
+            return csv_path
 
     merged.to_csv(csv_path, index=False)
     log(f"{csv_path.name}: wrote rows={len(merged)}")

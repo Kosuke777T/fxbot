@@ -27,6 +27,20 @@ def _get_scheduler() -> JobScheduler:
     return _scheduler
 
 
+def get_scheduler() -> JobScheduler:
+    """
+    JobScheduler のシングルトンインスタンスを取得する（Public API）。
+    GUI起動時の二重生成を防ぐために使用する。
+    """
+    scheduler = _get_scheduler()
+    # 観測用：シングルトンが正しく動作しているか確認（初回のみログ出力）
+    if not hasattr(get_scheduler, "_logged"):
+        scheduler_id = id(scheduler)
+        logger.info(f"[scheduler_facade] get_scheduler() returned scheduler_id={scheduler_id} (singleton check)")
+        get_scheduler._logged = True
+    return scheduler
+
+
 def get_scheduler_snapshot() -> Dict[str, Any]:
     """
     GUI 用の Scheduler 状態スナップショット（readonly）

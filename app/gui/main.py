@@ -28,7 +28,7 @@ from app.gui.ops_tab import OpsTab
 from app.gui.scheduler_tab import SchedulerTab
 from app.gui.visualize_tab import VisualizeTab
 from app.services.kpi_service import KPIService
-from app.services.job_scheduler import JobScheduler
+from app.services.scheduler_facade import get_scheduler
 from loguru import logger
 
 
@@ -37,13 +37,14 @@ class SchedulerTickRunner(QObject):
 
     def __init__(self, parent=None, interval_ms: int = 10_000):
         super().__init__(parent)
-        self._scheduler = JobScheduler()  # configs/scheduler.yaml を読む
+        # scheduler_facade のシングルトンを使用（二重生成を防止）
+        self._scheduler = get_scheduler()
         self._lock = threading.Lock()
         self._timer = QTimer(self)
         self._timer.setInterval(interval_ms)
         self._timer.timeout.connect(self._on_tick)
         self._timer.start()
-        logger.info("[GUI][scheduler] tick runner started interval_ms={}", interval_ms)
+        logger.info("[GUI][scheduler] tick runner started interval_ms={} (using singleton scheduler)", interval_ms)
 
     def _on_tick(self):
         # 連続起動を防ぐ（run_pendingが重い可能性があるため）

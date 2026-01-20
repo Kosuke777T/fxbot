@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
+import threading
 import time
 import datetime as _dt
 from datetime import datetime, timezone
@@ -32,13 +34,22 @@ class JobScheduler:
         self.jobs: List[Dict[str, Any]] = []
         self.jobs_state: Dict[str, Dict[str, Any]] = {}
         self._scheduler_level_cfg: int | None = None
+        self._jobs_loaded: bool = False  # 冪等化用フラグ
         self._load_jobs()
 
     def _load_jobs(self) -> None:
         """ジョブ設定を読み込む（YAML または JSON）。"""
+        # 冪等化：既にロード済みの場合は早期リターン
+        if self._jobs_loaded:
+            pid = os.getpid()
+            scheduler_id = id(self)
+            logger.info(f"[JobScheduler] _load_jobs ignored already_loaded=True pid={pid} scheduler_id={scheduler_id}")
+            return
+
         if not self.config_path.exists():
             logger.warning(f"[JobScheduler] config not found: {self.config_path}, using empty jobs")
             self.jobs = []
+            # ファイルが存在しない場合は _jobs_loaded を True にしない（再試行可能）
             return
 
         try:
@@ -62,16 +73,25 @@ class JobScheduler:
             if not isinstance(jobs_raw, list):
                 logger.warning(f"[JobScheduler] jobs is not list in {self.config_path}")
                 self.jobs = []
+                # jobs is not list の場合は _jobs_loaded を True にしない（再試行可能）
                 return
             self.jobs = jobs_raw
             job_ids = [str(j.get("id") or j.get("name") or "?") for j in self.jobs]
+            # 観測用：pid, scheduler_id, thread_id を出力（二重生成 vs ログ多重の切り分け用）
+            pid = os.getpid()
+            scheduler_id = id(self)
+            thread_id = threading.get_ident()
             logger.info(
-                f"[JobScheduler] loaded {len(self.jobs)} jobs from {self.config_path} (scheduler_level={self._scheduler_level_cfg})"
+                f"[JobScheduler] loaded {len(self.jobs)} jobs from {self.config_path} (scheduler_level={self._scheduler_level_cfg}) "
+                f"pid={pid} scheduler_id={scheduler_id} thread_id={thread_id}"
             )
             logger.info(f"[JobScheduler] job_ids={job_ids}")
+            # ロード成功時にフラグをセット（冪等化）
+            self._jobs_loaded = True
         except Exception as e:
             logger.error(f"[JobScheduler] failed to load jobs from {self.config_path}: {e}")
             self.jobs = []
+            # 例外でロード失敗した場合は _jobs_loaded を True にしない（再試行可能）
 
         # 読み込んだ jobs に対して jobs_state を初期化
         self.jobs_state = self.jobs_state or {}
@@ -449,6 +469,8 @@ class JobScheduler:
         """
         ジョブ設定を再読み込みする（Public API）。
         """
+        # 冪等化フラグをリセットして再読込を可能にする
+        self._jobs_loaded = False
         self._load_jobs()
         logger.info(f"[JobScheduler] reloaded {len(self.jobs)} jobs")
 
