@@ -1,8 +1,9 @@
 import sys
 import traceback
+import threading
 from typing import Optional
 
-from PyQt6.QtCore import QTimer
+from PyQt6.QtCore import QTimer, QObject
 from PyQt6.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -27,6 +28,36 @@ from app.gui.ops_tab import OpsTab
 from app.gui.scheduler_tab import SchedulerTab
 from app.gui.visualize_tab import VisualizeTab
 from app.services.kpi_service import KPIService
+from app.services.job_scheduler import JobScheduler
+from loguru import logger
+
+
+class SchedulerTickRunner(QObject):
+    """GUI起動中に JobScheduler.run_pending() を定期実行するランナー"""
+
+    def __init__(self, parent=None, interval_ms: int = 10_000):
+        super().__init__(parent)
+        self._scheduler = JobScheduler()  # configs/scheduler.yaml を読む
+        self._lock = threading.Lock()
+        self._timer = QTimer(self)
+        self._timer.setInterval(interval_ms)
+        self._timer.timeout.connect(self._on_tick)
+        self._timer.start()
+        logger.info("[GUI][scheduler] tick runner started interval_ms={}", interval_ms)
+
+    def _on_tick(self):
+        # 連続起動を防ぐ（run_pendingが重い可能性があるため）
+        if self._lock.locked():
+            return
+        t = threading.Thread(target=self._run, daemon=True)
+        t.start()
+
+    def _run(self):
+        with self._lock:
+            try:
+                self._scheduler.run_pending()
+            except Exception as e:
+                logger.exception("[GUI][scheduler] run_pending failed: {}", e)
 
 
 class MainWindow(QMainWindow):
@@ -109,6 +140,9 @@ QTabBar::tab:hover {
         self.tabs.currentChanged.connect(self._on_tab_changed)
 
         app_logger.setup()
+
+        # --- スケジューラTick起動（GUI起動中に run_pending() を定期実行） ---
+        self._scheduler_tick = SchedulerTickRunner(self, interval_ms=10_000)
 
         # --- ★GUI軽量化：ドライランタイマーはデフォルト無効 ---
         ENABLE_DRYRUN_TIMER = False  # 必要になったら True に変更

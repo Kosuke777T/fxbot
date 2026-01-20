@@ -91,9 +91,59 @@ MAX_LOOPS = 300
 # CSVファイル名で使う "接尾辞なしタグ" を main() 内で設定
 FILE_TAG: str | None = None
 
-# MT5が返すepochがUTCからズレている分（秒）。+なら「MT5 epochが未来」に見える
-# main() の [time_audit] で観測した delta_hours_round * 3600 をセット
+# === MT5 server time offset (seconds) =========================
+# MT5のepochがPC時刻とズレている場合の補正値（秒）
 SERVER_OFFSET_SEC: int = 0
+
+# ジャンプ抑制の閾値（必要なら調整）
+_MAX_JUMP_SEC = 3600  # 1時間以上変わるなら採用しない
+_MIN_ADOPT_SEC = 15 * 60  # 15分未満の差はノイズとして無視
+
+def update_server_offset(symbol: str) -> int:
+    """
+    tick.time(=MT5 epoch) と PC epoch を比較し、SERVER_OFFSET_SEC を推定する。
+    - 15分未満のズレは無視（ノイズ）
+    - 推定値は「時間単位」に丸める
+    - 前回値から1時間以上ジャンプする場合は採用しない（ログのみ）
+    """
+    global SERVER_OFFSET_SEC
+    try:
+        import time
+        now_epoch = int(time.time())
+        tick = mt5.symbol_info_tick(resolve_symbol(symbol))
+        if not tick or not tick.time:
+            log("[time_audit] tick is None -> keep SERVER_OFFSET_SEC={}".format(SERVER_OFFSET_SEC))
+            return SERVER_OFFSET_SEC
+
+        tick_epoch = int(tick.time)
+        delta_sec = tick_epoch - now_epoch
+
+        # ノイズ除去（小さい差は無視）
+        if abs(delta_sec) < _MIN_ADOPT_SEC:
+            log("[time_audit] small delta_sec={} (<{}), keep SERVER_OFFSET_SEC={}".format(
+                delta_sec, _MIN_ADOPT_SEC, SERVER_OFFSET_SEC
+            ))
+            return SERVER_OFFSET_SEC
+
+        # 時間単位に丸め
+        delta_hours_round = int(round(delta_sec / 3600))
+        candidate = delta_hours_round * 3600
+
+        # ジャンプ抑制
+        if SERVER_OFFSET_SEC != 0 and abs(candidate - SERVER_OFFSET_SEC) >= _MAX_JUMP_SEC:
+            log("[time_audit] candidate jump too large: candidate={} prev={} -> ignore".format(
+                candidate, SERVER_OFFSET_SEC
+            ))
+            return SERVER_OFFSET_SEC
+
+        SERVER_OFFSET_SEC = candidate
+        log("[time_audit] updated SERVER_OFFSET_SEC={} (delta_sec={} hours~{})".format(
+            SERVER_OFFSET_SEC, delta_sec, delta_hours_round
+        ))
+        return SERVER_OFFSET_SEC
+    except Exception as e:
+        log(f"[time_audit][warn] failed to update server offset: {e}")
+        return SERVER_OFFSET_SEC
 
 
 # =========================
@@ -219,7 +269,7 @@ def _range_attempts(
         mt5.TIMEFRAME_D1: 1440,
     }
     tol = pd.Timedelta(minutes=tf_to_min.get(tf, 5))
-    
+
     variants = [
         ("utc_naive", _to_utc_naive(start_ts), _to_utc_naive(end_ts)),
         ("local_naive", _to_local_naive(start_ts), _to_local_naive(end_ts)),
@@ -307,7 +357,7 @@ def fetch_rates(
 
         # 生のDataFrame（UTC epoch秒）
         df_raw = pd.DataFrame(rates)
-        
+
         # 観測ログ：df_raw["time"].max() を UTC/JST 両方で表示
         if len(df_raw) > 0:
             raw_max_epoch = int(df_raw["time"].max())
@@ -429,7 +479,7 @@ def ensure_csv_for_timeframe(
     fetch_from_utc = fetch_from_jst.tz_convert("UTC")
     end_ts_utc = end_ts_jst.tz_convert("UTC")
     log(f"fetch_from_raw={fetch_from_raw} end_ts_raw={end_ts_raw} fetch_from_utc={fetch_from_utc} end_ts_utc={end_ts_utc} fetch_from_jst={fetch_from_jst} end_ts_jst={end_ts_jst}")
-    
+
     # end_ts より進んでいたら、新規取得は行わない
     if end_ts <= fetch_from:
         log(
@@ -453,7 +503,7 @@ def ensure_csv_for_timeframe(
 
         # マージ＆重複除去
         merged = merge_and_dedup(old, df_new)
-        
+
         # 観測ログ（max時刻とdtype確認）
         log(f"{csv_path.name}: old.max={old['time'].max() if old is not None and len(old) else None}")
         log(f"{csv_path.name}: new.max={df_new['time'].max() if df_new is not None and len(df_new) else None} new.dtypes.time={df_new['time'].dtype if df_new is not None and 'time' in df_new.columns else None}")
@@ -575,31 +625,9 @@ def main():
         log(f"symbol resolved: {symbol} -> {resolved_symbol}")
     symbol = resolved_symbol
     mt5.symbol_select(resolve_symbol(symbol), True)
-    
-    # 観測ログ：MT5時刻とローカル時刻の差分（server_offset候補を確定）
-    # シンボル解決後なので正確なシンボルでtickを取得
-    now_epoch = int(time.time())
-    terminal_info = mt5.terminal_info()
-    if terminal_info:
-        terminal_time = terminal_info.time if hasattr(terminal_info, 'time') else None
-        terminal_build = terminal_info.build if hasattr(terminal_info, 'build') else None
-        terminal_codepage = terminal_info.codepage if hasattr(terminal_info, 'codepage') else None
-    else:
-        terminal_time = None
-        terminal_build = None
-        terminal_codepage = None
-    
-    tick = mt5.symbol_info_tick(resolve_symbol(symbol))
-    global SERVER_OFFSET_SEC
-    if tick and tick.time:
-        tick_epoch = int(tick.time)
-        delta_sec = tick_epoch - now_epoch
-        delta_hours_round = round(delta_sec / 3600)
-        SERVER_OFFSET_SEC = delta_hours_round * 3600
-        log(f"[time_audit] now_epoch={now_epoch} tick_epoch={tick_epoch} delta_sec={delta_sec} delta_hours={delta_hours_round} (server_offset_candidate={delta_hours_round}) SERVER_OFFSET_SEC={SERVER_OFFSET_SEC} terminal_time={terminal_time} build={terminal_build} codepage={terminal_codepage}")
-    else:
-        SERVER_OFFSET_SEC = 0
-        log(f"[time_audit] now_epoch={now_epoch} tick_epoch=None (symbol not available) SERVER_OFFSET_SEC={SERVER_OFFSET_SEC} terminal_time={terminal_time} build={terminal_build} codepage={terminal_codepage}")
+
+    # symbol resolved の直後
+    update_server_offset(symbol)
 
     # CSV 用の “接尾辞なしタグ” を作成（英字のみ抽出）
     global FILE_TAG

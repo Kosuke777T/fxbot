@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import subprocess
+import time
+import datetime as _dt
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -292,6 +294,7 @@ class JobScheduler:
         list[dict]
             実行結果のリスト（各要素は {"job_id": str, "result": dict}）
         """
+        logger.info("[JobScheduler][tick] run_pending called now_epoch={} now_local={}", int(time.time()), _dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         now = datetime.now(timezone.utc)
 
         # Edition 制御でフィルタリング（T-41: scheduler_guard を統合済み）
