@@ -415,7 +415,10 @@ def ensure_lgbm_proba_uptodate(
             try:
                 df_proba = pd.read_csv(proba_csv_path, parse_dates=["time"])
                 if not df_proba.empty and "time" in df_proba.columns:
-                    # 現在のmodel_idの行だけから t_proba_last を取得
+                    # ★ 読み取り直後に必ずtimeで昇順ソート（mergesort: 安定ソート）
+                    df_proba = df_proba.sort_values("time", kind="mergesort").reset_index(drop=True)
+
+                    # 現在のmodel_idの行だけから t_proba_last を取得（max(time)で最新判定）
                     if "model_id" in df_proba.columns:
                         df_current_model = df_proba[df_proba["model_id"] == model_id]
                         if not df_current_model.empty:
@@ -424,7 +427,7 @@ def ensure_lgbm_proba_uptodate(
                         # model_id列がない場合は全体から取得（後方互換）
                         t_proba_last = df_proba["time"].max()
 
-                    # 既存の (time, model_id) の組み合わせを記録
+                    # 既存の (time, model_id) の組み合わせを記録（ソート済みdfから）
                     if "model_id" in df_proba.columns:
                         for _, row in df_proba.iterrows():
                             existing_keys.add((row["time"], str(row["model_id"])))

@@ -242,7 +242,10 @@ def get_recent_lgbm_series(
         if df_proba.empty or "time" not in df_proba.columns:
             return {"ok": False, "reason": "proba_csv_empty", "symbol": sym, "path": str(proba_csv_path)}
 
-        # model_idを取得（active_model.jsonから、または最新行から）
+        # ★ 読み取り直後に必ずtimeで昇順ソート（mergesort: 安定ソート）
+        df_proba = df_proba.sort_values("time", kind="mergesort").reset_index(drop=True)
+
+        # model_idを取得（active_model.jsonから、または最新時刻の行から）
         current_model_id: str | None = None
         try:
             from app.services.ai_service import load_active_model_meta
@@ -263,25 +266,41 @@ def get_recent_lgbm_series(
         except Exception:
             pass
 
-        # current_model_idが取得できない場合は、最新行のmodel_idを使用
-        if current_model_id is None and "model_id" in df_proba.columns:
-            current_model_id = str(df_proba["model_id"].iloc[-1]) if len(df_proba) > 0 else None
+        # current_model_idが取得できない場合は、最新時刻（max(time)）の行のmodel_idを使用
+        if current_model_id is None and "model_id" in df_proba.columns and not df_proba.empty:
+            t_max = df_proba["time"].max()
+            df_latest = df_proba[df_proba["time"] == t_max]
+            if not df_latest.empty:
+                current_model_id = str(df_latest["model_id"].iloc[-1])
 
-        # 現在のmodel_idの行だけを抽出（世代管理）
+        # 現在のmodel_idの行だけを抽出（世代管理、ソート済みdfで実行）
         if current_model_id and "model_id" in df_proba.columns:
             df_proba = df_proba[df_proba["model_id"] == current_model_id].copy()
 
-        # start_time/end_timeで範囲を絞る
+        # start_time/end_timeで範囲を絞る（ソート済みdfで実行）
         if start_time is not None:
             df_proba = df_proba[df_proba["time"] >= pd.Timestamp(start_time)].copy()
         if end_time is not None:
             df_proba = df_proba[df_proba["time"] <= pd.Timestamp(end_time)].copy()
 
-        # count指定時は末尾n件
+        # count指定時は末尾n件（ソート済みdfなので正しく動作）
         if start_time is None and end_time is None:
             df_proba = df_proba.tail(n).copy()
 
-        df_proba = df_proba.sort_values("time").reset_index(drop=True)
+        # 念のため再ソート（フィルタ後もtime昇順を保証）
+        df_proba = df_proba.sort_values("time", kind="mergesort").reset_index(drop=True)
+
+        # 観測ログ（任意だが推奨）
+        if not df_proba.empty:
+            t_min = df_proba["time"].min()
+            t_max = df_proba["time"].max()
+            logger.debug(
+                "[viz] lgbm loaded: symbol={} rows={} time_range=[{}..{}] sorted=True",
+                sym,
+                len(df_proba),
+                t_min,
+                t_max,
+            )
 
         # proba CSVからデータを抽出
         times: list[datetime] = []
