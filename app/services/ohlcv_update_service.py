@@ -382,7 +382,7 @@ def ensure_lgbm_proba_uptodate(
         proba_dir.mkdir(parents=True, exist_ok=True)
         proba_csv_path = proba_dir / f"{symbol_tag}_{tf}_proba.csv"
 
-        # 4) model_idを先に確定（active_model.jsonから）
+        # 4) model_idを関数冒頭で1回だけ確定（active_model.jsonから）
         model_id: Optional[str] = None
         try:
             meta = load_active_model_meta()
@@ -438,31 +438,7 @@ def ensure_lgbm_proba_uptodate(
             except Exception as e:
                 logger.warning(f"[lgbm] failed to read proba CSV: {e}")
 
-        # 6) 未推論のM5行を抽出
-            try:
-                meta = load_active_model_meta()
-                model_path = meta.get("model_path")
-                if not model_path:
-                    file = meta.get("file")
-                    if file:
-                        model_path = f"models/{file}"
-                if model_path:
-                    # ファイル名からmodel_idを生成（拡張子を除く）
-                    from pathlib import Path
-                    model_id = Path(model_path).stem
-                else:
-                    # フォールバック: active_model.jsonのfileフィールド
-                    file = meta.get("file")
-                    if file:
-                        from pathlib import Path
-                        model_id = Path(file).stem
-                    else:
-                        model_id = "unknown"
-            except Exception as e:
-                logger.warning(f"[lgbm] failed to get model_id: {e}")
-                model_id = "unknown"
-
-        # 6) 未推論のM5行を抽出
+        # 6) 未推論のM5行を抽出（model_idは関数冒頭で確定済み）
         if start_time is not None and end_time is not None:
             # 範囲指定時: start_time から end_time の範囲で、既存の (time, model_id) が存在しない行
             range_mask = (df_ohlc["time"] >= pd.Timestamp(start_time)) & (df_ohlc["time"] <= pd.Timestamp(end_time))

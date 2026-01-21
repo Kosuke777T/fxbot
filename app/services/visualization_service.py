@@ -290,16 +290,25 @@ def get_recent_lgbm_series(
         # 念のため再ソート（フィルタ後もtime昇順を保証）
         df_proba = df_proba.sort_values("time", kind="mergesort").reset_index(drop=True)
 
-        # 観測ログ（任意だが推奨）
+        # 観測ログ（DEBUGで出力、昇順確認用にhead/tailも表示）
         if not df_proba.empty:
             t_min = df_proba["time"].min()
             t_max = df_proba["time"].max()
+            time_head = df_proba["time"].head(3).tolist()
+            time_tail = df_proba["time"].tail(3).tolist()
+            model_id_str = f" model_id={current_model_id}" if current_model_id else ""
             logger.debug(
-                "[viz] lgbm loaded: symbol={} rows={} time_range=[{}..{}] sorted=True",
+                "[viz] lgbm loaded symbol={} rows={}{} sorted=True time_range=[{}..{}]",
                 sym,
                 len(df_proba),
+                model_id_str,
                 t_min,
                 t_max,
+            )
+            logger.debug(
+                "[viz] lgbm time head={} tail={}",
+                time_head,
+                time_tail,
             )
 
         # proba CSVからデータを抽出
