@@ -94,6 +94,14 @@ class VisualizeTab(QWidget):
         lay.addWidget(self.lbl_thr)
         lay.addWidget(self.sld_thr)
 
+        lay.addSpacing(12)
+
+        # デバッグ切替：prob_buy/prob_sell を2本表示
+        self.chk_debug_both = QtWidgets.QCheckBox("Debug: show buy/sell")
+        self.chk_debug_both.setChecked(False)
+        self.chk_debug_both.stateChanged.connect(self.refresh)
+        lay.addWidget(self.chk_debug_both)
+
         self.btn_refresh = QPushButton("Refresh")
         self.btn_refresh.clicked.connect(self.refresh)
         lay.addWidget(self.btn_refresh)
@@ -293,9 +301,9 @@ class VisualizeTab(QWidget):
             except Exception as e:
                 logger.warning(f"[viz] ensure_lgbm_proba_uptodate failed: {e}")
 
-        # 同じ範囲でprobaを取得
+        # 同じ範囲でprobaを取得（prob_sellも取得可能にする）
         lgbm = get_recent_lgbm_series(
-            symbol=sym, count=n, keys=("prob_buy",), start_time=t_min, end_time=t_max
+            symbol=sym, count=n, keys=("prob_buy", "prob_sell"), start_time=t_min, end_time=t_max
         )
 
         # 観測用（1回/refresh 程度に抑える）
@@ -470,77 +478,171 @@ class VisualizeTab(QWidget):
         # --- lower: prob + threshold + crossing ---
         lgbm_ok = bool(lgbm.get("ok"))
         series = lgbm.get("series") if lgbm_ok else None
-        probs_raw = None
+        prob_buy_raw = None
+        prob_sell_raw = None
         if isinstance(series, dict):
-            probs_raw = series.get("prob_buy")
+            prob_buy_raw = series.get("prob_buy")
+            prob_sell_raw = series.get("prob_sell")
 
-        # threshold 線は常に表示（データ無しでも「下段が存在」することを担保）
-        ax_prob.axhline(float(threshold), color="#ff9800", linewidth=1.2, linestyle="--", label="threshold")
+        # デバッグ切替フラグ
+        show_both = bool(getattr(self, "chk_debug_both", None) and self.chk_debug_both.isChecked())
+
+        # threshold 線は diffモードでは非表示（混乱防止）
+        if not show_both:
+            # diffモードでは threshold 線を出さない
+            pass
+        else:
+            # デバッグモード（both表示）では threshold 線を表示
+            ax_prob.axhline(float(threshold), color="#ff9800", linewidth=1.2, linestyle="--", label="threshold")
 
         markers = 0
         # lgbmのtimeを使用（OHLCのxsと同長である必要はない）
         lgbm_times = lgbm.get("time") if lgbm_ok and isinstance(lgbm.get("time"), list) else None
         xs_lgbm: list[float] = []
-        probs: list[float] = []
-        if lgbm_ok and isinstance(probs_raw, list) and lgbm_times:
+        prob_buy: list[float] = []
+        prob_sell: list[float] = []
+        if lgbm_ok and lgbm_times:
             try:
-                probs = [float(v) for v in probs_raw]
                 xs_lgbm = [date2num(ts) for ts in lgbm_times]
+                if isinstance(prob_buy_raw, list):
+                    prob_buy = [float(v) for v in prob_buy_raw]
+                if isinstance(prob_sell_raw, list):
+                    prob_sell = [float(v) for v in prob_sell_raw]
             except Exception:
-                probs = []
                 xs_lgbm = []
+                prob_buy = []
+                prob_sell = []
 
-        if xs_lgbm and probs and len(xs_lgbm) == len(probs):
-            # crossing: below -> above（lgbmのtimeで判定）
-            for i in range(1, len(probs)):
-                if probs[i - 1] < threshold and probs[i] >= threshold:
-                    ax_prob.plot(
-                        xs_lgbm[i],
-                        threshold,
-                        marker="^",
-                        markersize=8,
-                        color="#4caf50",
-                        label="cross_up" if i == 1 else "",
-                    )
-                    markers += 1
-                elif probs[i - 1] > threshold and probs[i] <= threshold:
-                    ax_prob.plot(
-                        xs_lgbm[i],
-                        threshold,
-                        marker="v",
-                        markersize=8,
-                        color="#f44336",
-                        label="cross_down" if i == 1 else "",
-                    )
-                    markers += 1
+        # 統計計算（prob_buy/prob_sell/diffが確定した後）
+        mean_buy = None
+        mean_sell = None
+        mean_diff = None
+        mean_abs_diff = None
+        pct_pos = None
+        pct_neg = None
+        
+        if prob_buy and len(prob_buy) > 0:
+            mean_buy = sum(prob_buy) / len(prob_buy)
+        if prob_sell and len(prob_sell) > 0:
+            mean_sell = sum(prob_sell) / len(prob_sell)
+        
+        # diff が計算できる場合（両方が揃っている場合）
+        diff: list[float] = []
+        if prob_buy and prob_sell and len(prob_buy) == len(prob_sell) and len(prob_buy) > 0:
+            diff = [float(prob_buy[i] - prob_sell[i]) for i in range(len(prob_buy))]
+            if len(diff) > 0:
+                mean_diff = sum(diff) / len(diff)
+                mean_abs_diff = sum(abs(d) for d in diff) / len(diff)
+                pos_count = sum(1 for d in diff if d > 0)
+                neg_count = sum(1 for d in diff if d < 0)
+                pct_pos = pos_count / len(diff)
+                pct_neg = neg_count / len(diff)
+        
+        # 統計表示文字列を生成（短縮版）
+        def fmt_val(v: float | None) -> str:
+            if v is None:
+                return "NA"
+            return f"{v:.3f}"
+        
+        stats_text = (
+            f"buy={fmt_val(mean_buy)}  sell={fmt_val(mean_sell)}  "
+            f"diff={fmt_val(mean_diff)}  |diff|={fmt_val(mean_abs_diff)}  "
+            f"+={fmt_val(pct_pos)}  -={fmt_val(pct_neg)}"
+        )
+        
+        # 統計表示（上段のタイトル領域へ移動：上下グラフの干渉を避ける）
+        try:
+            ax_price.set_title(stats_text, loc="left", fontsize=9, pad=8)
+        except Exception:
+            pass
 
-            ax_prob.plot(xs_lgbm, probs, color="#2196f3", linewidth=1.5, label="prob_buy", alpha=0.8)
+        if show_both:
+            # デバッグモード：prob_buy と prob_sell を2本表示
+            if xs_lgbm and prob_buy and len(xs_lgbm) == len(prob_buy):
+                ax_prob.plot(xs_lgbm, prob_buy, color="#2196f3", linewidth=1.5, label="prob_buy", alpha=0.8)
+            if xs_lgbm and prob_sell and len(xs_lgbm) == len(prob_sell):
+                ax_prob.plot(xs_lgbm, prob_sell, color="#f44336", linewidth=1.5, label="prob_sell", alpha=0.8)
             ax_prob.set_ylabel("Prob")
             ax_prob.set_ylim(0.0, 1.0)
             ax_prob.grid(True, alpha=0.25)
+            if not prob_buy and not prob_sell:
+                ax_prob.text(
+                    0.5,
+                    0.5,
+                    "prob_buy/prob_sell unavailable",
+                    transform=ax_prob.transAxes,
+                    ha="center",
+                    va="center",
+                )
         else:
-            if lgbm_ok:
+            # デフォルトモード：diff = prob_buy - prob_sell を1本表示
+            if xs_lgbm and diff and len(xs_lgbm) == len(diff):
+                # crossing: below -> above（diffで判定、threshold=0.0を基準）
+                for i in range(1, len(diff)):
+                    if diff[i - 1] < 0.0 and diff[i] >= 0.0:
+                        ax_prob.plot(
+                            xs_lgbm[i],
+                            0.0,
+                            marker="^",
+                            markersize=8,
+                            color="#4caf50",
+                            label="cross_up" if i == 1 else "",
+                        )
+                        markers += 1
+                    elif diff[i - 1] > 0.0 and diff[i] <= 0.0:
+                        ax_prob.plot(
+                            xs_lgbm[i],
+                            0.0,
+                            marker="v",
+                            markersize=8,
+                            color="#f44336",
+                            label="cross_down" if i == 1 else "",
+                        )
+                        markers += 1
+                ax_prob.plot(xs_lgbm, diff, color="#2196f3", linewidth=1.5, label="diff (buy-sell)", alpha=0.8)
+                ax_prob.axhline(0.0, color="#888", linewidth=0.8, linestyle=":", alpha=0.5)
+                ax_prob.set_ylabel("Diff (buy-sell)")
+                ax_prob.set_ylim(-1.0, 1.0)
+                ax_prob.grid(True, alpha=0.25)
+            elif xs_lgbm and prob_buy and len(xs_lgbm) == len(prob_buy):
+                # prob_sell が無い場合は注記のみ
+                logger.warning("[viz] prob_sell missing, diff display suppressed")
                 ax_prob.text(
                     0.5,
                     0.5,
-                    f"prob_unavailable (len_xs={len(xs_lgbm)} len_probs={len(probs)})",
+                    "prob_sell missing (diff unavailable)",
                     transform=ax_prob.transAxes,
                     ha="center",
                     va="center",
+                    fontsize=9,
+                    color="#888",
                 )
+                ax_prob.set_ylabel("Diff (buy-sell)")
+                ax_prob.set_ylim(-1.0, 1.0)
+                ax_prob.grid(True, alpha=0.15)
             else:
-                reason = lgbm.get("reason") if isinstance(lgbm, dict) else "unknown"
-                ax_prob.text(
-                    0.5,
-                    0.5,
-                    f"lgbm_unavailable: {reason}",
-                    transform=ax_prob.transAxes,
-                    ha="center",
-                    va="center",
-                )
-            ax_prob.set_ylim(0.0, 1.0)
-            ax_prob.set_ylabel("Prob")
-            ax_prob.grid(True, alpha=0.15)
+                if lgbm_ok:
+                    ax_prob.text(
+                        0.5,
+                        0.5,
+                        f"prob_unavailable (len_xs={len(xs_lgbm)} len_buy={len(prob_buy)} len_sell={len(prob_sell)})",
+                        transform=ax_prob.transAxes,
+                        ha="center",
+                        va="center",
+                    )
+                else:
+                    reason = lgbm.get("reason") if isinstance(lgbm, dict) else "unknown"
+                    ax_prob.text(
+                        0.5,
+                        0.5,
+                        f"lgbm_unavailable: {reason}",
+                        transform=ax_prob.transAxes,
+                        ha="center",
+                        va="center",
+                    )
+                ax_prob.set_ylim(-1.0, 1.0)
+                ax_prob.set_ylabel("Diff (buy-sell)")
+                ax_prob.grid(True, alpha=0.15)
 
         # x-axis formatting
         try:
@@ -575,7 +677,7 @@ class VisualizeTab(QWidget):
         try:
             # tight_layout は Canvas/Toolbar 組み合わせによって警告が出ることがあるため、
             # ここでは静的な余白調整に留める（表示のみ・ロジック影響なし）。
-            self.fig.subplots_adjust(left=0.06, right=0.985, top=0.97, bottom=0.08, hspace=0.06)
+            self.fig.subplots_adjust(left=0.06, right=0.985, top=0.93, bottom=0.08, hspace=0.06)
         except Exception:
             pass
         self.canvas.draw_idle()

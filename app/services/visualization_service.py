@@ -311,9 +311,9 @@ def get_recent_lgbm_series(
                 time_tail,
             )
 
-        # proba CSVからデータを抽出
+        # proba CSVからデータを抽出（列があれば返す、なければ返さない）
         times: list[datetime] = []
-        series: dict[str, list[float]] = {k: [] for k in want_keys}
+        series: dict[str, list[float]] = {}
 
         for _, row in df_proba.iterrows():
             ts = row["time"]
@@ -323,11 +323,11 @@ def get_recent_lgbm_series(
 
             for k in want_keys:
                 if k in df_proba.columns:
+                    if k not in series:
+                        series[k] = []
                     v = row[k]
                     series[k].append(float(v) if pd.notna(v) else 0.0)
-                else:
-                    # 欠損は0で埋める
-                    series[k].append(0.0)
+                # 列が無い場合は series に追加しない（欠損として扱わない）
 
         if not times:
             logger.info(
@@ -338,7 +338,15 @@ def get_recent_lgbm_series(
                 end_time,
             )
 
+        # 観測ログ：CSVに存在する列を確認
         keys_seen = sorted([k for k in want_keys if k in df_proba.columns])
+        keys_available = sorted([k for k in df_proba.columns if k in ["prob_buy", "prob_sell"]])
+        logger.debug(
+            "[viz] lgbm keys requested={} keys_seen={} keys_available={}",
+            want_keys,
+            keys_seen,
+            keys_available,
+        )
         return {
             "ok": True,
             "symbol": sym,
