@@ -81,6 +81,8 @@ ai:
     - vol_chg
   retrain:
     schedule_cron: sat 03:00
+    min_pips: 0.6
+    label_horizon_bars: 10
 filters:
   adx_min: 15.0
   adx_disable: false

@@ -22,6 +22,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
+import time
 
 
 def _enrich_active_model_meta(meta: dict, model_obj=None) -> dict:
@@ -65,6 +67,7 @@ def _enrich_active_model_meta(meta: dict, model_obj=None) -> dict:
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Optional
 
 import lightgbm as lgb
 import numpy as np
@@ -263,12 +266,16 @@ def build_labels(
     df: pd.DataFrame,
     horizon: int = 10,
     min_pips: float = 1.0,
-) -> pd.Series:
+) -> tuple[pd.Series, dict[str, int]]:
     """
     horizon 足後の方向ラベルを作る。
     - USDJPY 前提で 1pips = 0.01 として計算。
     - 上昇(min_pips超) = 1, 下降(min_pips超) = 0
       それ以外（変化が小さい）は NaN にして除外。
+    
+    Returns:
+        y: ラベルSeries (1=buy, 0=sell, NaN=skip)
+        skip_reasons: skip理由の内訳カウント
     """
 
     future = df["close"].shift(-horizon)
@@ -277,7 +284,14 @@ def build_labels(
     y = pd.Series(index=df.index, dtype="float32")
     y[pips >= min_pips] = 1.0
     y[pips <= -min_pips] = 0.0
-    return y
+    
+    # skip理由のカウント
+    skip_reasons: dict[str, int] = {
+        "horizon_insufficient": int(future.isna().sum()),  # horizonが足りない（未来データなし）
+        "small_change": int(((y.isna()) & (~future.isna())).sum()),  # 変化が小さい（-min_pips < pips < min_pips）
+    }
+    
+    return y, skip_reasons
 
 
 def align_features_and_labels(
@@ -476,48 +490,193 @@ def train_lightgbm_wfo(
 def optimize_threshold(
     y: pd.Series,
     oof_pred: npt.NDArray[np.float_],
-    threshold_grid: list[float],
+    grid: list[float],
+    wfo_result: Optional["WFOResult"] = None,
+    run_id: int | None = None,
+    min_trades: int = 500,
 ) -> dict[str, float]:
     """
-    非常にシンプルな「1トレード +1 / -1」の疑似損益で最適なしきい値を決める。
+    proba >= thr でロング、proba <= (1-thr) でショートの両建て意思決定。
+    - total: 勝ち=+1 負け=-1 の合計（疑似equity）
+    - win_rate: 勝率
+    - n_trades: 意思決定数（ロング+ショート）
     """
+    # 注意: 極端なthrは「意思決定がほぼ発生しない」のでノイズになりやすい。
+    # min_trades 未満は best/top3 の候補から除外（ただしCSVには残す）。
+
+    if not grid:
+        grid = [0.45, 0.50, 0.55, 0.60, 0.65]
 
     valid_mask = ~np.isnan(oof_pred)
-    y_valid_arr: npt.NDArray[np.int_] = y[valid_mask].to_numpy()
+    y_valid: pd.Series = y.iloc[valid_mask]
     p_valid: npt.NDArray[np.float_] = oof_pred[valid_mask]
 
-    best_thr = DEFAULT_CLASS_THRESHOLD
-    best_score = -1e9
-    results: list[tuple[float, float, float]] = []
+    # wfo_result がある場合は fold ごとに val 期間で評価
+    thr_rows: list[dict] = []  # fold×thr の詳細をCSVに保存する
+    prefix = f"[THR][run_id={run_id}]" if run_id is not None else "[THR]"
 
-    for thr in threshold_grid:
-        trade_mask = p_valid >= thr
-        if trade_mask.sum() == 0:
-            continue
+    def eval_one(y_true: pd.Series, proba: npt.NDArray[np.float_], thr: float) -> tuple[float, float, int]:
+        # long: proba >= thr, short: proba <= 1-thr
+        go_long = proba >= thr
+        go_short = proba <= (1.0 - thr)
+        take = go_long | go_short
+        n_trades = int(take.sum())
+        if n_trades == 0:
+            return float("nan"), 0.0, 0
 
-        y_tr = y_valid_arr[trade_mask]
-        pnl = np.where(y_tr == 1, 1.0, -1.0)
-        equity = pnl.cumsum()
-        total = float(equity[-1])
-        winrate = float((pnl > 0).sum() / len(pnl))
-        results.append((thr, total, winrate))
+        y_true_arr = y_true.values.astype(int)
+        y_pred = np.where(go_long, 1, 0).astype(int)
+        y_pred = y_pred[take]
+        y_t = y_true_arr[take]
 
-        if total > best_score:
-            best_score = total
-            best_thr = thr
+        wins = int((y_pred == y_t).sum())
+        total = float(wins - (n_trades - wins))  # +1 for win, -1 for loss
+        win_rate = float(wins / n_trades) if n_trades > 0 else 0.0
+        return float(total), float(win_rate), int(n_trades)
 
-    logger.info(
-        "[THR] grid_results="
-        + ", ".join(
-            f"thr={thr:.3f} total={total:.1f} win={win:.3f}"
-            for thr, total, win in results
+    def log_grid_results(tag: str, results: list[tuple[float, float, float, int]]) -> None:
+        # results: [(thr, total, win, n_trades), ...]
+        parts = []
+        for thr, total, win, n_trades in results:
+            if np.isnan(total):
+                parts.append(f"thr={thr:.3f} total=NaN win={win:.3f} n={n_trades}")
+            else:
+                parts.append(f"thr={thr:.3f} total={total:.1f} win={win:.3f} n={n_trades}")
+        logger.info(f"{tag} grid_results=" + ", ".join(parts))
+
+    # -------------------------
+    # fold別評価（WFOがあれば）
+    # -------------------------
+    if wfo_result is not None and getattr(wfo_result, "folds", None):
+        fold_results: list[tuple[float, float, float, int]] = []
+
+        for fold_i, f in enumerate(wfo_result.folds):
+            try:
+                val_start = int(getattr(f, "val_start"))
+                val_end = int(getattr(f, "val_end"))
+            except Exception:
+                continue
+
+            if val_end <= val_start:
+                continue
+
+            y_val = y.iloc[val_start:val_end]
+            p_val = oof_pred[val_start:val_end]
+
+            results_all: list[tuple[float, float, float, int, bool]] = []  # +eligible
+            for thr in grid:
+                total, win, n_trades = eval_one(y_val, p_val, thr)
+                eligible = (n_trades >= min_trades)
+                # n_trades==0 の時は total を NaN にしてログを綺麗にする（順位付けは eligible で制御）
+                if n_trades == 0:
+                    total = float("nan")
+
+                thr_rows.append(
+                    {
+                        "run_id": run_id,
+                        "fold": fold_i,
+                        "thr": float(thr),
+                        "total": float(total),
+                        "win_rate": float(win),
+                        "n_trades": int(n_trades),
+                        "eligible": bool(eligible),
+                    }
+                )
+                results_all.append((thr, total, win, n_trades, eligible))
+
+            # best/top3 は eligible のみで選ぶ（なければ全体から）
+            eligible_only = [(thr, total, win, n) for (thr, total, win, n, ok) in results_all if ok and (not np.isnan(total))]
+            any_eligible = (len(eligible_only) > 0)
+
+            if any_eligible:
+                results_sorted = sorted(eligible_only, key=lambda x: x[1], reverse=True)
+            else:
+                # eligible が一件も無い = このfoldは意思決定が薄すぎる/条件がおかしい
+                # 仕方ないので「n_trades最大→total最大」の順で救済
+                fallback = [(thr, total, win, n) for (thr, total, win, n, _) in results_all if (not np.isnan(total))]
+                results_sorted = sorted(fallback, key=lambda x: (x[3], x[1]), reverse=True) if fallback else []
+
+            if results_sorted:
+                best_thr, best_total, best_win, best_n = results_sorted[0]
+            else:
+                # 完全に取引ゼロしかない場合
+                best_thr, best_total, best_win, best_n = (grid[0], float("nan"), 0.0, 0)
+
+            # top3候補表示（best_thrがなぜ勝ったか見るため）
+            top3 = results_sorted[:3] if results_sorted else []
+            top3_str = ", ".join([f"thr={t:.3f} total={tot:.1f} win={w:.3f} n={n}" for t, tot, w, n in top3])
+
+            excluded = sum(1 for (_, _, _, n, ok) in results_all if (not ok))
+            tag = f"{prefix}[fold={fold_i}]"
+            if np.isnan(best_total):
+                logger.info(
+                    f"{tag} best_thr={best_thr:.3f} equity=NaN total=NaN win={best_win:.3f} n={best_n} "
+                    f"(min_trades={min_trades} excluded={excluded}) top3: {top3_str}"
+                )
+            else:
+                logger.info(
+                    f"{tag} best_thr={best_thr:.3f} equity={best_total:.1f} total={best_total:.1f} win={best_win:.3f} n={best_n} "
+                    f"(min_trades={min_trades} excluded={excluded}) top3: {top3_str}"
+                )
+
+            fold_results.append((best_thr, best_total, best_win, best_n))
+
+    # -------------------------
+    # 全体評価（OOF全体）
+    # -------------------------
+    results_all2: list[tuple[float, float, float, int, bool]] = []
+    for thr in grid:
+        total, win, n_trades = eval_one(y_valid, p_valid, thr)
+        eligible = (n_trades >= min_trades)
+        if n_trades == 0:
+            total = float("nan")
+
+        thr_rows.append(
+            {
+                "run_id": run_id,
+                "fold": -1,
+                "thr": float(thr),
+                "total": float(total),
+                "win_rate": float(win),
+                "n_trades": int(n_trades),
+                "eligible": bool(eligible),
+            }
         )
-    )
-    logger.info(f"[THR] best_thr={best_thr:.3f} equity={best_score:.1f}")
+        results_all2.append((thr, total, win, n_trades, eligible))
+
+    eligible_only2 = [(thr, total, win, n) for (thr, total, win, n, ok) in results_all2 if ok and (not np.isnan(total))]
+    if eligible_only2:
+        results_sorted2 = sorted(eligible_only2, key=lambda x: x[1], reverse=True)
+    else:
+        fallback2 = [(thr, total, win, n) for (thr, total, win, n, _) in results_all2 if (not np.isnan(total))]
+        results_sorted2 = sorted(fallback2, key=lambda x: (x[3], x[1]), reverse=True) if fallback2 else []
+
+    if results_sorted2:
+        best_thr, best_total, best_win, best_n = results_sorted2[0]
+    else:
+        best_thr, best_total, best_win, best_n = (grid[0], float("nan"), 0.0, 0)
+
+    # grid_results は「全候補」をログに出す（ただし NaN 表示）
+    log_grid_results(prefix, [(thr, total, win, n) for (thr, total, win, n, _) in results_all2])
+    excluded2 = sum(1 for (_, _, _, _, ok) in results_all2 if (not ok))
+    if np.isnan(best_total):
+        logger.info(f"{prefix} best_thr={best_thr:.3f} equity=NaN n={best_n} (min_trades={min_trades} excluded={excluded2})")
+    else:
+        logger.info(f"{prefix} best_thr={best_thr:.3f} equity={best_total:.1f} n={best_n} (min_trades={min_trades} excluded={excluded2})")
+
+    # CSV保存（C案）
+    if run_id is not None and thr_rows:
+        out_dir = Path("logs") / "retrain"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_csv = out_dir / f"thr_grid_{run_id}.csv"
+        pd.DataFrame(thr_rows).to_csv(out_csv, index=False, encoding="utf-8")
+        logger.info(f"{prefix} thr_grid_csv saved: {out_csv}")
 
     return {
-        "best_threshold": float(best_thr),
-        "best_equity": float(best_score),
+        "best_thr": float(best_thr),
+        "equity": float(best_total) if (not np.isnan(best_total)) else float("nan"),
+        "win_rate": float(best_win),
+        "n_trades": int(best_n),
     }
 
 
@@ -529,6 +688,8 @@ def save_wfo_report_and_equity(
     oof_pred: npt.NDArray[np.float_],
     wfo_result: WFOResult,
     thr_info: dict[str, float],
+    dry_run: bool = False,
+    run_id: int | None = None,
 ) -> str:
     """
     Walk-Forward の結果サマリ (report_*.json) と
@@ -543,7 +704,9 @@ def save_wfo_report_and_equity(
 
     # 一意なIDをタイムスタンプから作る
     ts = datetime.now(tz=UTC)
-    run_id = str(int(ts.timestamp()))
+    if run_id is None:
+        run_id = int(ts.timestamp())
+    run_id_str = str(run_id)
 
     # ---- エクイティ用の下ごしらえ ---------------------------------
     # X と y は df_prices の一部なので、その time を合わせる
@@ -557,7 +720,7 @@ def save_wfo_report_and_equity(
     ).reset_index(drop=True)
 
     # NaN は「トレードしない」とみなす
-    best_thr = float(thr_info.get("best_threshold", DEFAULT_CLASS_THRESHOLD))
+    best_thr = float(thr_info.get("best_thr", DEFAULT_CLASS_THRESHOLD))
 
     def make_equity_curve(df: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, float]]:
         """
@@ -619,8 +782,8 @@ def save_wfo_report_and_equity(
     eq_test_df, stats_test = make_equity_curve(df_test)
 
     # ---- CSV 出力 ----------------------------------------------------
-    equity_train_path = base_dir / f"equity_train_{run_id}.csv"
-    equity_test_path = base_dir / f"equity_test_{run_id}.csv"
+    equity_train_path = base_dir / f"equity_train_{run_id_str}.csv"
+    equity_test_path = base_dir / f"equity_test_{run_id_str}.csv"
 
     eq_train_df.to_csv(equity_train_path, index=False)
     eq_test_df.to_csv(equity_test_path, index=False)
@@ -630,7 +793,7 @@ def save_wfo_report_and_equity(
 
     # ---- JSON レポート出力 -------------------------------------------
     report = {
-        "run_id": run_id,
+        "run_id": run_id_str,
         "created_at_utc": ts.isoformat(),
         "symbol": cfg.retrain.symbol,
         "timeframe": cfg.retrain.timeframe,
@@ -651,66 +814,72 @@ def save_wfo_report_and_equity(
         },
     }
 
-    report_path = base_dir / f"report_{run_id}.json"
+    report_path = base_dir / f"report_{run_id_str}.json"
     with report_path.open("w", encoding="utf-8") as f:
         json.dump(report, f, ensure_ascii=False, indent=2)
 
     logger.info(f"[WFO] report saved: {report_path}")
 
     # ---- WFO stability評価（report保存直後） ----
-    try:
-        from app.services.wfo_stability_service import evaluate_wfo_stability
+    if dry_run:
+        logger.info("[WFO] stability evaluation skipped (dry-run mode)")
+    else:
+        try:
+            from app.services.wfo_stability_service import evaluate_wfo_stability
 
-        # max_drawdown をエクイティカーブから計算
-        def calc_max_drawdown(equity_series: pd.Series) -> float:
-            """エクイティカーブから最大ドローダウンを計算"""
-            if len(equity_series) == 0:
-                return 0.0
-            cummax = equity_series.cummax()
-            drawdown = (equity_series - cummax) / cummax.clip(lower=1e-10)
-            return float(abs(drawdown.min()))
+            # max_drawdown をエクイティカーブから計算
+            def calc_max_drawdown(equity_series: pd.Series) -> float:
+                """エクイティカーブから最大ドローダウンを計算"""
+                if len(equity_series) == 0:
+                    return 0.0
+                cummax = equity_series.cummax()
+                drawdown = (equity_series - cummax) / cummax.clip(lower=1e-10)
+                return float(abs(drawdown.min()))
 
-        max_dd_train = calc_max_drawdown(eq_train_df["equity"])
-        max_dd_test = calc_max_drawdown(eq_test_df["equity"])
+            max_dd_train = calc_max_drawdown(eq_train_df["equity"])
+            max_dd_test = calc_max_drawdown(eq_test_df["equity"])
 
-        # equity_train_stats / equity_test_stats から metrics_wfo 形式を構築
-        # evaluate_wfo_stability が期待する形式:
-        # {
-        #   "train": {"trades": int, "total_return": float, "max_drawdown": float, "profit_factor": float, ...},
-        #   "test": {"trades": int, "total_return": float, "max_drawdown": float, "profit_factor": float, ...}
-        # }
-        metrics_wfo = {
-            "train": {
-                "trades": int(stats_train.get("n_trades", 0)),
-                "total_return": float(stats_train.get("total_pnl", 0.0)),
-                "max_drawdown": max_dd_train,
-                "profit_factor": float(stats_train.get("profit_factor", 0.0)),
-            },
-            "test": {
-                "trades": int(stats_test.get("n_trades", 0)),
-                "total_return": float(stats_test.get("total_pnl", 0.0)),
-                "max_drawdown": max_dd_test,
-                "profit_factor": float(stats_test.get("profit_factor", 0.0)),
-            },
-        }
+            # equity_train_stats / equity_test_stats から metrics_wfo 形式を構築
+            # evaluate_wfo_stability が期待する形式:
+            # {
+            #   "train": {"trades": int, "total_return": float, "max_drawdown": float, "profit_factor": float, ...},
+            #   "test": {"trades": int, "total_return": float, "max_drawdown": float, "profit_factor": float, ...}
+            # }
+            metrics_wfo = {
+                "train": {
+                    "trades": int(stats_train.get("n_trades", 0)),
+                    "total_return": float(stats_train.get("total_pnl", 0.0)),
+                    "max_drawdown": max_dd_train,
+                    "profit_factor": float(stats_train.get("profit_factor", 0.0)),
+                },
+                "test": {
+                    "trades": int(stats_test.get("n_trades", 0)),
+                    "total_return": float(stats_test.get("total_pnl", 0.0)),
+                    "max_drawdown": max_dd_test,
+                    "profit_factor": float(stats_test.get("profit_factor", 0.0)),
+                },
+            }
 
-        # metrics_path は存在しない場合もあるため None を許容
-        metrics_path = None
+            # metrics_path は存在しない場合もあるため None を許容
+            metrics_path = None
 
-        # evaluate_wfo_stability を呼び出し（内部で save_stability_result が呼ばれる）
-        stability_result = evaluate_wfo_stability(
-            metrics_wfo,
-            report_path=str(report_path),
-            metrics_path=metrics_path,
-            run_id=run_id,
-        )
-        logger.info(
-            f"[WFO] stability evaluated: stable={stability_result.get('stable')} "
-            f"score={stability_result.get('score')} run_id={run_id}"
-        )
-    except Exception as e:
-        # retrain本体を落とさない。ログで追えるようにする。
-        logger.exception(f"[WFO] stability evaluation failed: {e}")
+            # evaluate_wfo_stability を呼び出し（内部で save_stability_result が呼ばれる）
+            stability_result = evaluate_wfo_stability(
+                metrics_wfo,
+                report_path=str(report_path),
+                metrics_path=metrics_path,
+                run_id=run_id_str,
+            )
+            logger.info(
+                f"[WFO] stability evaluated: stable={stability_result.get('stable')} "
+                f"score={stability_result.get('score')} run_id={run_id}"
+            )
+        except ImportError as e:
+            # app モジュールが無い環境（dry-run等）では INFO 1行でスキップ
+            logger.info(f"[WFO] stability evaluation skipped: {e}")
+        except Exception as e:
+            # retrain本体を落とさない。ログで追えるようにする。
+            logger.exception(f"[WFO] stability evaluation failed: {e}")
 
     return run_id
 
@@ -785,7 +954,7 @@ def save_model_and_meta(  # noqa: PLR0913  (引数多めでもここはOKとす�
         "file": model_name,
         "meta_file": meta_path.name,
         "version": version,
-        "best_threshold": threshold_info.get("best_threshold"),
+        "best_threshold": threshold_info.get("best_thr"),
         "feature_order": list(feature_cols),
         "features": list(feature_cols),
     }
@@ -807,13 +976,13 @@ def run_weekly_retrain(cfg: WeeklyRetrainConfig, dry_run: bool = False) -> None:
     rt = cfg.retrain
 
     paths.logs_dir.mkdir(parents=True, exist_ok=True)
-    log_file = (
-        paths.logs_dir / f"weekly_retrain_{datetime.now().strftime('%Y%m%d')}.log"
-    )
+    # 同日複数回実行でログが混ざるのを防ぐため、時刻まで含める
+    dt_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_file = paths.logs_dir / f"weekly_retrain_{dt_str}.log"
     logger.add(log_file, encoding="utf-8")
 
     logger.info(
-        f"[CFG] symbol={rt.symbol} tf={rt.timeframe} label_horizon={rt.label_horizon}"
+        f"[CFG] symbol={rt.symbol} tf={rt.timeframe} label_horizon={rt.label_horizon} min_pips={rt.min_pips}"
     )
 
     # config の symbol が "USDJPY-" でも、
@@ -837,7 +1006,7 @@ def run_weekly_retrain(cfg: WeeklyRetrainConfig, dry_run: bool = False) -> None:
     logger.info(f"[STEP] features shape={feats.shape}")
 
     logger.info("[STEP] build_labels")
-    labels = build_labels(
+    labels, skip_reasons = build_labels(
         df_prices,
         horizon=rt.label_horizon,
         min_pips=rt.min_pips,
@@ -854,19 +1023,26 @@ def run_weekly_retrain(cfg: WeeklyRetrainConfig, dry_run: bool = False) -> None:
     sell_raw_pct = (sell_raw / total_raw * 100.0) if total_raw > 0 else 0.0
     skip_raw_pct = (skip_raw / total_raw * 100.0) if total_raw > 0 else 0.0
     
+    skip_horizon = skip_reasons.get("horizon_insufficient", 0)
+    skip_small = skip_reasons.get("small_change", 0)
+    skip_horizon_pct = (skip_horizon / total_raw * 100.0) if total_raw > 0 else 0.0
+    skip_small_pct = (skip_small / total_raw * 100.0) if total_raw > 0 else 0.0
+    
     logger.info(
         "[DATA BALANCE][RAW]\n"
         f"  total_samples: {total_raw}\n"
         f"  buy:  {buy_raw:6d} ({buy_raw_pct:5.1f}%)\n"
         f"  sell: {sell_raw:6d} ({sell_raw_pct:5.1f}%)\n"
         f"  skip: {skip_raw:6d} ({skip_raw_pct:5.1f}%)\n"
+        f"    skip_reason_horizon_insufficient: {skip_horizon:6d} ({skip_horizon_pct:5.1f}%)\n"
+        f"    skip_reason_small_change: {skip_small:6d} ({skip_small_pct:5.1f}%)\n"
         f"  label_definition:\n"
         f"    buy  = 1 (pips >= min_pips, 上昇)\n"
         f"    sell = 0 (pips <= -min_pips, 下降)\n"
-        f"    skip = NaN (変化が小さい)\n"
+        f"    skip = NaN (horizon不足 or 変化が小さい)\n"
         f"  source:\n"
         f"    file: scripts/weekly_retrain.py\n"
-        f"    around: L840 (build_labels直後)\n"
+        f"    around: L850 (build_labels直後)\n"
         f"    label_gen: L262-L280 (build_labels関数)"
     )
 
@@ -916,11 +1092,21 @@ def run_weekly_retrain(cfg: WeeklyRetrainConfig, dry_run: bool = False) -> None:
         f"mean_acc={wfo_result.mean_accuracy:.4f}"
     )
 
+    # run_id は epoch 秒（既存の実装に合わせる）
+    run_id = int(time.time())
+
     logger.info("[STEP] optimize_threshold")
-    thr_info = optimize_threshold(y, oof_pred, rt.threshold_grid or [])
+    thr_info = optimize_threshold(
+        y,
+        oof_pred,
+        rt.threshold_grid or [],
+        wfo_result=wfo_result,
+        run_id=run_id,
+    )
 
     logger.info("[STEP] save_wfo_report_and_equity")
-    run_id = save_wfo_report_and_equity(
+    # 以降で report 保存などに run_id を使う（既存）
+    run_id_str = save_wfo_report_and_equity(
         cfg=cfg,
         df_prices=df_prices,
         X=X,
@@ -928,8 +1114,10 @@ def run_weekly_retrain(cfg: WeeklyRetrainConfig, dry_run: bool = False) -> None:
         oof_pred=oof_pred,
         wfo_result=wfo_result,
         thr_info=thr_info,
+        dry_run=dry_run,
+        run_id=run_id,
     )
-    logger.info(f"[WFO] artifacts saved with run_id={run_id}")
+    logger.info(f"[WFO] artifacts saved with run_id={run_id_str}")
 
     if dry_run:
         logger.info(
@@ -993,6 +1181,18 @@ def main() -> None:
         action="store_true",
         help="学習だけ行い、モデル保存や active_model 更新は行わない",
     )
+    parser.add_argument(
+        "--label-horizon",
+        type=int,
+        default=None,
+        help="ラベル生成のhorizon（設定ファイルの値を上書き）",
+    )
+    parser.add_argument(
+        "--min-pips",
+        type=float,
+        default=None,
+        help="ラベル生成のmin_pips（設定ファイルの値を上書き）",
+    )
     args = parser.parse_args()
 
     # デフォルト候補: configs/config.yaml
@@ -1000,6 +1200,15 @@ def main() -> None:
     config_path = Path(args.config) if args.config else default_config
 
     cfg = load_config(config_path)
+    
+    # CLI引数で上書き（感度観測用）
+    if args.label_horizon is not None:
+        cfg.retrain.label_horizon = args.label_horizon
+        logger.info(f"[CLI] label_horizon overridden to {args.label_horizon}")
+    if args.min_pips is not None:
+        cfg.retrain.min_pips = args.min_pips
+        logger.info(f"[CLI] min_pips overridden to {args.min_pips}")
+    
     run_weekly_retrain(cfg, dry_run=args.dry_run)
 
 
