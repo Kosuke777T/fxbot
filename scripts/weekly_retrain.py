@@ -842,11 +842,65 @@ def run_weekly_retrain(cfg: WeeklyRetrainConfig, dry_run: bool = False) -> None:
         horizon=rt.label_horizon,
         min_pips=rt.min_pips,
     )
+    
+    # ===== ラベル比率の観測（DATA BALANCE）[RAW] =====
+    # build_labels() 直後：skip含む全データ
+    total_raw = len(labels)
+    buy_raw = int((labels == 1).sum())
+    sell_raw = int((labels == 0).sum())
+    skip_raw = int(labels.isna().sum())
+    
+    buy_raw_pct = (buy_raw / total_raw * 100.0) if total_raw > 0 else 0.0
+    sell_raw_pct = (sell_raw / total_raw * 100.0) if total_raw > 0 else 0.0
+    skip_raw_pct = (skip_raw / total_raw * 100.0) if total_raw > 0 else 0.0
+    
+    logger.info(
+        "[DATA BALANCE][RAW]\n"
+        f"  total_samples: {total_raw}\n"
+        f"  buy:  {buy_raw:6d} ({buy_raw_pct:5.1f}%)\n"
+        f"  sell: {sell_raw:6d} ({sell_raw_pct:5.1f}%)\n"
+        f"  skip: {skip_raw:6d} ({skip_raw_pct:5.1f}%)\n"
+        f"  label_definition:\n"
+        f"    buy  = 1 (pips >= min_pips, 上昇)\n"
+        f"    sell = 0 (pips <= -min_pips, 下降)\n"
+        f"    skip = NaN (変化が小さい)\n"
+        f"  source:\n"
+        f"    file: scripts/weekly_retrain.py\n"
+        f"    around: L840 (build_labels直後)\n"
+        f"    label_gen: L262-L280 (build_labels関数)"
+    )
 
     logger.info("[STEP] align_features_and_labels")
     X, y = align_features_and_labels(feats, labels)
+    
+    # ===== ラベル比率の観測（DATA BALANCE）[TRAIN] =====
+    # align_features_and_labels() 直後：skip除外済み（dropna後）
+    total_train = len(y)
+    buy_train = int((y == 1).sum())
+    sell_train = int((y == 0).sum())
+    # skip は dropna() で除外済みのため常に0
+    
+    buy_train_pct = (buy_train / total_train * 100.0) if total_train > 0 else 0.0
+    sell_train_pct = (sell_train / total_train * 100.0) if total_train > 0 else 0.0
+    
     logger.info(
-        f"[DATA] X={X.shape} y_pos={int((y == 1).sum())} y_neg={int((y == 0).sum())}"
+        "[DATA BALANCE][TRAIN]\n"
+        f"  total_samples: {total_train}\n"
+        f"  buy:  {buy_train:6d} ({buy_train_pct:5.1f}%)\n"
+        f"  sell: {sell_train:6d} ({sell_train_pct:5.1f}%)\n"
+        f"  skip: 0 (dropna()で除外済み)\n"
+        f"  label_definition:\n"
+        f"    buy  = 1 (pips >= min_pips, 上昇)\n"
+        f"    sell = 0 (pips <= -min_pips, 下降)\n"
+        f"    skip = NaN (変化が小さい、除外済み)\n"
+        f"  source:\n"
+        f"    file: scripts/weekly_retrain.py\n"
+        f"    around: L870 (align_features_and_labels直後)\n"
+        f"    label_gen: L262-L280 (build_labels関数)"
+    )
+    
+    logger.info(
+        f"[DATA] X={X.shape} y_pos={buy_train} y_neg={sell_train}"
     )
 
     if len(X) < 1000:

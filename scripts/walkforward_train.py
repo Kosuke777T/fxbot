@@ -78,6 +78,32 @@ def split_walkforward(df: pd.DataFrame, weeks_train: int, weeks_valid: int, step
 def _train_one(tr: pd.DataFrame, va: pd.DataFrame, features: List[str]) -> Tuple[Any, Any, Dict[str, float]]:
     Xtr, ytr = tr[features].values, tr["label"].values
     Xva, yva = va[features].values, va["label"].values
+    
+    # ===== ラベル比率の観測（DATA BALANCE） =====
+    total_samples = len(ytr)
+    buy_count = int((ytr == 1).sum())
+    sell_count = int((ytr == 0).sum())
+    skip_count = int((~np.isin(ytr, [0, 1])).sum()) if isinstance(ytr, np.ndarray) else 0
+    
+    buy_pct = (buy_count / total_samples * 100.0) if total_samples > 0 else 0.0
+    sell_pct = (sell_count / total_samples * 100.0) if total_samples > 0 else 0.0
+    skip_pct = (skip_count / total_samples * 100.0) if total_samples > 0 else 0.0
+    
+    print(
+        "[DATA BALANCE]\n"
+        f"  total_samples: {total_samples}\n"
+        f"  buy:  {buy_count:6d} ({buy_pct:5.1f}%)\n"
+        f"  sell: {sell_count:6d} ({sell_pct:5.1f}%)\n"
+        f"  skip: {skip_count:6d} ({skip_pct:5.1f}%)\n"
+        f"  label_definition:\n"
+        f"    buy  = 1 (BUY)\n"
+        f"    sell = 0 (SELL)\n"
+        f"    skip = その他（存在すれば）\n"
+        f"  source:\n"
+        f"    file: scripts/walkforward_train.py\n"
+        f"    around: L79 (_train_one関数内、ytr確定直後)\n"
+        f"    label_source: CSVの'label'列（0/1）"
+    )
 
     if HAVE_LGB:
         clf = lgb.LGBMClassifier(
