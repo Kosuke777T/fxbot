@@ -7,6 +7,8 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, Iterable, Optional
 import logging
 
+from loguru import logger as loguru_logger
+
 from app.core import mt5_client
 from app.core.config_loader import load_config
 from app.services import trade_state
@@ -23,6 +25,69 @@ from app.core.mt5_client import MT5Client, TickSpec
 from app.core.strategy_profile import StrategyProfile, get_profile
 from core.risk import LotSizingResult, compute_lot_scaler_from_backtest
 #from app.core.risk import LotSizingResult
+
+def mt5_diag_snapshot(symbol: str) -> dict[str, Any]:
+    """
+    T-4: MT5接続・取引可能状態の診断スナップショット（観測のみ）。
+
+    制約:
+    - initialize/login/symbol_select 等の副作用操作は呼ばない（読み取りのみ）。
+    - 取得できない場合は None/unknown を返す（raise しない）。
+    """
+    out: dict[str, Any] = {
+        "symbol": symbol,
+        "resolved_symbol": None,
+        "connected": None,
+        "terminal_trade_allowed": None,
+        "account_trade_allowed": None,
+        "symbol_visible": None,
+        "symbol_trade_mode": None,
+        "mt5_last_error": None,
+    }
+
+    # symbol解決（読み取りのみ）
+    try:
+        from app.core.symbol_map import resolve_symbol
+
+        out["resolved_symbol"] = resolve_symbol(symbol)
+    except Exception:
+        out["resolved_symbol"] = symbol
+
+    # MetaTrader5 API（読み取りのみ）
+    try:
+        import MetaTrader5 as mt5  # type: ignore
+    except Exception as e:
+        out["mt5_last_error"] = f"import_failed:{type(e).__name__}:{e}"
+        return out
+
+    try:
+        ti = mt5.terminal_info()
+        out["connected"] = bool(ti)
+        out["terminal_trade_allowed"] = getattr(ti, "trade_allowed", None) if ti is not None else None
+    except Exception as e:
+        out["mt5_last_error"] = f"terminal_info_failed:{type(e).__name__}:{e}"
+
+    try:
+        ai = mt5.account_info()
+        out["account_trade_allowed"] = getattr(ai, "trade_allowed", None) if ai is not None else None
+    except Exception as e:
+        out["mt5_last_error"] = f"account_info_failed:{type(e).__name__}:{e}"
+
+    try:
+        rs = out.get("resolved_symbol") or symbol
+        si = mt5.symbol_info(rs)
+        out["symbol_visible"] = getattr(si, "visible", None) if si is not None else None
+        out["symbol_trade_mode"] = getattr(si, "trade_mode", None) if si is not None else None
+    except Exception as e:
+        out["mt5_last_error"] = f"symbol_info_failed:{type(e).__name__}:{e}"
+
+    try:
+        le = mt5.last_error()
+        out["mt5_last_error"] = str(le)
+    except Exception:
+        pass
+
+    return out
 
 
 @dataclass
@@ -704,6 +769,18 @@ class TradeService:
             self._last_lot_result = lot_result
             self.last_lot_result = lot_result
 
+            # --- T-3 observe: order_send prepared (single point) ---
+            # NOTE: trade logic is unchanged; this is observation-only logging.
+            loguru_logger.info(
+                "[ORDER] prepared symbol={} side={} lot={} sl={} tp={} dry_run={}",
+                symbol,
+                side_up,
+                float(lot_val),
+                sl,
+                tp,
+                bool(dry_run),
+            )
+
             if dry_run:
                 # dry_run=True のときは発注せず、ENTRYイベントだけ残す（観測用）
                 # - ガード/倍率/クランプは同一ロジックで通る
@@ -713,6 +790,8 @@ class TradeService:
                     side_up,
                     float(lot_val),
                 )
+                # --- T-3 observe: dry_run skip (must be visible in app.log) ---
+                loguru_logger.info("[ORDER] skipped reason=dry_run")
                 try:
                     EVENT_STORE.add(
                         kind="ENTRY",
@@ -730,13 +809,21 @@ class TradeService:
                     pass
             else:
                 # live: MT5へ実際に送る
-                self._mt5.order_send(
+                ticket = self._mt5.order_send(
                     symbol=symbol,
                     order_type=side_up,
                     lot=float(lot_val),
                     sl=sl,
                     tp=tp,
                     comment=comment,
+                )
+                # --- T-3 observe: order_send result (best-effort) ---
+                loguru_logger.info(
+                    "[ORDER] sent ok={} retcode={} order_id={} message={}",
+                    bool(ticket),
+                    None,
+                    ticket,
+                    None,
                 )
         finally:
             # entry_inflight を解除（例外で止めない）

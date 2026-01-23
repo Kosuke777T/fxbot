@@ -6,8 +6,9 @@ account:
   login_env_key: MT5_LOGIN
   password_env_key: MT5_PASSWORD
 runtime:
-  mode: "dryrun"   # "live" にすると実売買（MT5 OrderModify）が有効になる
-  enabled: true     #trueで本番
+  #mode: "dryrun"   # "live" にすると実売買（MT5 OrderModify）が有効になる
+  mode: "live"
+  enabled: true #trueで本番
   timezone: Asia/Tokyo
   symbol: USDJPY-
   timeframe_exec: M5
@@ -36,7 +37,7 @@ risk:
   dd_stop: 0.1
   max_consecutive_losses: 2
 entry:
-  prob_threshold: 0.52     # step back to production range gradually
+  prob_threshold: 0.52 # step back to production range gradually
   threshold_buy: 0.6
   threshold_sell: 0.6
   side_bias: "auto"
@@ -46,7 +47,7 @@ exit:
   tp_pips: 15
   sl_pips: 10
 exits:
-  mode: "fixed"        # fixed | atr | none
+  mode: "fixed" # fixed | atr | none
   fixed:
     tp_pips: 12
     sl_pips: 10
@@ -64,21 +65,21 @@ exits:
       max_layers: 20
       price_source: "mid"
 ai:
-  recent_kpi_trades: 100   # 直近何トレードでKPI計算するか（デフォルト）
+  recent_kpi_trades: 100 # 直近何トレードでKPI計算するか（デフォルト）
   stacking: false
   models:
-  - name: lgbm_cls
+    - name: lgbm_cls
   features:
     base:
-    - ret_1
-    - ret_5
-    - ema_5
-    - ema_20
-    - ema_ratio
-    - rsi_14
-    - atr_14
-    - range
-    - vol_chg
+      - ret_1
+      - ret_5
+      - ema_5
+      - ema_20
+      - ema_ratio
+      - rsi_14
+      - atr_14
+      - range
+      - vol_chg
   retrain:
     schedule_cron: sat 03:00
     min_pips: 0.6
@@ -86,7 +87,7 @@ ai:
 filters:
   adx_min: 15.0
   adx_disable: false
-  min_atr_pct: 0.0002      # ATR floor 0.05%
+  min_atr_pct: 0.0002 # ATR floor 0.05%
   atr_hysteresis:
     enable_min_pct: 0.00025
     disable_min_pct: 0.00020
@@ -95,27 +96,27 @@ session:
   allow_hours_jst: []
 
 training:
-  data_dir: "data/usdjpy"         # 学習データCSV置き場（例）
-  file_glob: "USDJPY_M5_*.csv"    # 取り込むCSVのパターン
-  model_out_dir: "models"         # 本番モデル置き場
-  staging_dir: "models/_staging"  # ステージング置き場（昇格待ち）
-  reports_dir: "logs/retrain"     # 学習レポートの出力先
-  algo: "lightgbm"                # "lightgbm" / "logreg"
+  data_dir: "data/usdjpy" # 学習データCSV置き場（例）
+  file_glob: "USDJPY_M5_*.csv" # 取り込むCSVのパターン
+  model_out_dir: "models" # 本番モデル置き場
+  staging_dir: "models/_staging" # ステージング置き場（昇格待ち）
+  reports_dir: "logs/retrain" # 学習レポートの出力先
+  algo: "lightgbm" # "lightgbm" / "logreg"
   wf:
-    train_days: 5*365             # 学習窓：過去5年
-    test_days: 30                 # 直近30日のホールドアウト
-    step_days: 7                  # 1週間ごとに繰り返す（今回は固定で1回分）
+    train_days: 5*365 # 学習窓：過去5年
+    test_days: 30 # 直近30日のホールドアウト
+    step_days: 7 # 1週間ごとに繰り返す（今回は固定で1回分）
   metrics:
-    min_auc: 0.54                 # 昇格の最低条件（例）
-    min_f1: 0.50                  # 〃
+    min_auc: 0.54 # 昇格の最低条件（例）
+    min_f1: 0.50 # 〃
   calibrators: ["platt", "isotonic"]
   random_seed: 42
 
 data:
   # 複数PCで違うフォルダでもOK：上から順に探します（環境変数も展開）
   search_paths:
-    - "${FXBOT_DATA}"                      # 環境変数で指定（推奨）
-    - "data"                               # プロジェクト内CSV
+    - "${FXBOT_DATA}" # 環境変数で指定（推奨）
+    - "data" # プロジェクト内CSV
     # 代表例：MT5のヒストリ格納（端末ハッシュ・サーバ名は * でワイルドカード）
     - "%APPDATA%/MetaQuotes/Terminal/*/bases/*/history"
     - "%LOCALAPPDATA%/Programs/MetaTrader 5/bases/*/history"

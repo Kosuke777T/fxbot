@@ -29,6 +29,11 @@ from app.gui.scheduler_tab import SchedulerTab
 from app.gui.visualize_tab import VisualizeTab
 from app.services.kpi_service import KPIService
 from app.services.scheduler_facade import get_scheduler
+from app.services.execution_service import ExecutionService
+from app.services import trade_state
+from app.core.config_loader import load_config
+from app.core import market
+from app.services.orderbook_stub import orderbook
 from loguru import logger
 
 
@@ -59,6 +64,330 @@ class SchedulerTickRunner(QObject):
                 self._scheduler.run_pending()
             except Exception as e:
                 logger.exception("[GUI][scheduler] run_pending failed: {}", e)
+
+
+class TradeLoopRunner(QObject):
+    """GUIから直接取引ループを実行するランナー"""
+
+    def __init__(self, parent=None, interval_ms: int = 3000):
+        super().__init__(parent)
+        self._exec_service = ExecutionService()
+        self._lock = threading.Lock()
+        self._is_running = False
+        self._timer = QTimer(self)
+        self._timer.setInterval(interval_ms)
+        self._timer.timeout.connect(self._on_tick)
+        self._cfg = None
+        self._symbol = "USDJPY-"
+        self._mt5_diag_logged = False
+        self._test_entry_used = False
+
+    def _emit_mt5_diag_once(self, *, dry_run: bool) -> None:
+        """T-4: trade_loop開始直後のMT5診断ログ（重複防止）。"""
+        if self._mt5_diag_logged:
+            return
+        self._mt5_diag_logged = True
+        try:
+            from app.services import trade_service as trade_service_mod
+
+            diag = trade_service_mod.mt5_diag_snapshot(self._symbol)
+        except Exception as e:
+            diag = {"symbol": self._symbol, "mt5_last_error": f"diag_failed:{type(e).__name__}:{e}"}
+
+        logger.info(
+            "[MT5_DIAG] connected={} terminal_trade_allowed={} account_trade_allowed={} symbol={} resolved_symbol={} symbol_visible={} symbol_trade_mode={} dry_run={} mt5_last_error={}",
+            diag.get("connected"),
+            diag.get("terminal_trade_allowed"),
+            diag.get("account_trade_allowed"),
+            diag.get("symbol", self._symbol),
+            diag.get("resolved_symbol"),
+            diag.get("symbol_visible"),
+            diag.get("symbol_trade_mode"),
+            bool(dry_run),
+            diag.get("mt5_last_error"),
+        )
+
+    def start(self) -> bool:
+        """ループを開始する。既に実行中の場合は False を返す。"""
+        if self._is_running:
+            logger.warning("[trade_loop] start denied reason=already_running")
+            return False
+
+        try:
+            self._mt5_diag_logged = False
+            self._test_entry_used = False
+            # 設定を読み込む
+            self._cfg = load_config()
+            runtime_cfg = self._cfg.get("runtime", {})
+            self._symbol = runtime_cfg.get("symbol", "USDJPY-")
+
+            # モードとdry_runを取得
+            requested_mode = runtime_cfg.get("mode")
+            mode = runtime_cfg.get("mode", "dryrun")
+            settings = trade_state.get_settings()
+            trading_enabled = bool(getattr(settings, "trading_enabled", False))
+            effective_dry_run = (mode == "dryrun") or (not trading_enabled)
+
+            # 開始ログを出力
+            logger.info(
+                "[trade_loop] started mode={} requested_mode={} trading_enabled={} effective_dry_run={} symbol={}",
+                mode,
+                requested_mode,
+                trading_enabled,
+                effective_dry_run,
+                self._symbol,
+            )
+            # T-4: started直後に1回だけ診断ログ（dry_run/liveどちらでも出す）
+            self._emit_mt5_diag_once(dry_run=effective_dry_run)
+
+            self._is_running = True
+            self._timer.start()
+            return True
+        except Exception as e:
+            logger.exception("[trade_loop] start failed: {}", e)
+            self._is_running = False
+            return False
+
+    def stop(self, reason: str = "unknown") -> None:
+        """ループを停止する。"""
+        if not self._is_running:
+            return
+
+        logger.info("[trade_loop] stopping reason={} symbol={}", reason, self._symbol)
+        self._timer.stop()
+        self._is_running = False
+
+        # 停止ログを出力
+        logger.info("[trade_loop] stopped symbol={}", self._symbol)
+
+    def is_running(self) -> bool:
+        """ループが実行中かどうかを返す。"""
+        return self._is_running
+
+    def test_entry_with_sl_tp(self) -> None:
+        """
+        1回だけのテストエントリー（SL/TP付き）。
+        - dry_run/live は既存判定を尊重（runtime.mode != "live" は必ず dry_run）
+        - trading_enabled=True のときのみ有効
+        - MT5未接続の場合、live送信せず理由ログだけ
+        """
+        # 連打防止（1回だけ）
+        if bool(getattr(self, "_test_entry_used", False)):
+            logger.info("[TEST_ORDER] skipped reason=already_used")
+            return
+
+        # trading_enabled のみ許可
+        settings = trade_state.get_settings()
+        trading_enabled = bool(getattr(settings, "trading_enabled", False))
+        if not trading_enabled:
+            logger.info("[TEST_ORDER] skipped reason=trading_disabled")
+            return
+
+        # runtime.mode に従って dry_run を決定（既存判定）
+        cfg = self._cfg if isinstance(self._cfg, dict) else load_config()
+        runtime_cfg = cfg.get("runtime", {}) if isinstance(cfg, dict) else {}
+        mode = runtime_cfg.get("mode", "dryrun")
+        effective_dry_run = (mode != "live") or (not trading_enabled)
+
+        symbol = self._symbol
+        side = "BUY"
+        lot = 0.01
+        sl_pips = int(getattr(settings, "sl_pips", 10) or 10)
+        tp_pips = int(getattr(settings, "tp_pips", 10) or 10)
+
+        logger.info(
+            "[TEST_ORDER] requested symbol={} side={} lot={} sl_pips={} tp_pips={} mode={} dry_run={}",
+            symbol,
+            side,
+            float(lot),
+            sl_pips,
+            tp_pips,
+            mode,
+            bool(effective_dry_run),
+        )
+
+        # live の場合のみ、MT5接続/ティックを前提に SL/TP を価格へ変換（read-only）
+        sl_price = None
+        tp_price = None
+        if not effective_dry_run:
+            try:
+                import MetaTrader5 as mt5  # type: ignore
+                from app.core.symbol_map import resolve_symbol
+
+                rs = resolve_symbol(symbol)
+
+                # Settingsタブのテスト発注が動いているので、ここは svc._mt5 ではなく
+                # MetaTrader5 側の initialize 可否で判定する（最小の副作用でIPC確立）。
+                ok_init = bool(mt5.initialize())
+                if not ok_init:
+                    logger.info(
+                        "[TEST_ORDER] skipped reason=mt5_init_failed last_error={}",
+                        mt5.last_error(),
+                    )
+                    return
+
+                # シンボルが未選択だと tick が取れない環境があるので best-effort で select
+                try:
+                    mt5.symbol_select(rs, True)
+                except Exception:
+                    pass
+
+                t = mt5.symbol_info_tick(rs)
+                if t is None:
+                    logger.info(
+                        "[TEST_ORDER] skipped reason=mt5_tick_unavailable last_error={}",
+                        mt5.last_error(),
+                    )
+                    return
+                price = float(getattr(t, "ask", 0.0) or 0.0)  # BUY は ask 基準
+                sym_norm = str(rs).replace("-", "")
+                pip_size = 0.01 if sym_norm.endswith("JPY") else 0.0001
+                sl_price = price - float(sl_pips) * float(pip_size)
+                tp_price = price + float(tp_pips) * float(pip_size)
+            except Exception:
+                try:
+                    import MetaTrader5 as mt5  # type: ignore
+                    err = mt5.last_error()
+                except Exception:
+                    err = None
+                logger.info("[TEST_ORDER] skipped reason=mt5_tick_unavailable last_error={}", err)
+                return
+        else:
+            # dry_run は必ずスキップ理由を出す（既存挙動は open_position 側が尊重）
+            logger.info("[TEST_ORDER] skipped reason=dry_run")
+
+        # TradeService の既存 open_position を使用（新規発注経路は作らない）
+        try:
+            from app.services import trade_service as trade_service_mod
+
+            svc = trade_service_mod.get_default_trade_service()
+            rt = trade_state.get_runtime()
+            prev_ticket = getattr(rt, "last_ticket", None)
+
+            svc.open_position(
+                symbol=symbol,
+                side=side,
+                lot=float(lot),
+                sl=sl_price,
+                tp=tp_price,
+                comment="intent=TEST source=test_button",
+                features={"source": "test_button", "sl_pips": sl_pips, "tp_pips": tp_pips},
+                dry_run=bool(effective_dry_run),
+            )
+
+            # live の場合のみ、結果を best-effort で観測ログ化
+            if not effective_dry_run:
+                rt2 = trade_state.get_runtime()
+                new_ticket = getattr(rt2, "last_ticket", None)
+                ok = bool(new_ticket) and (new_ticket != prev_ticket)
+                logger.info("[TEST_ORDER] sent ok={} order_id={}", ok, new_ticket if ok else None)
+                if ok:
+                    self._test_entry_used = True
+        except Exception as e:
+            logger.info("[TEST_ORDER] skipped reason=exception error={}", e)
+            return
+
+    def _on_tick(self):
+        """タイマーイベントハンドラ"""
+        # 連続起動を防ぐ
+        if self._lock.locked():
+            return
+
+        # trading_enabled をチェック
+        settings = trade_state.get_settings()
+        trading_enabled = bool(getattr(settings, "trading_enabled", False))
+        if not trading_enabled:
+            # trading_enabled が False になったら停止
+            logger.info("[trade_loop] auto-stop trading_enabled={} symbol={}", trading_enabled, self._symbol)
+            self.stop(reason="auto_stop_trading_disabled")
+            return
+
+        t = threading.Thread(target=self._run, daemon=True)
+        t.start()
+
+    def _run(self):
+        """実際のループ処理（別スレッドで実行）"""
+        with self._lock:
+            try:
+                if not self._is_running:
+                    return
+
+                # 設定を再読み込み（必要に応じて）
+                if self._cfg is None:
+                    self._cfg = load_config()
+                runtime_cfg = self._cfg.get("runtime", {})
+                symbol = runtime_cfg.get("symbol", "USDJPY-")
+                ai_cfg = self._cfg.get("ai", {}) if isinstance(self._cfg, dict) else {}
+
+                # モードとdry_runを取得
+                mode = runtime_cfg.get("mode", "dryrun")
+                settings = trade_state.get_settings()
+                trading_enabled = bool(getattr(settings, "trading_enabled", False))
+                effective_dry_run = (mode == "dryrun") or (not trading_enabled)
+
+                # 既存の特徴量生成ルートを使用（execution_stub._collect_features）
+                try:
+                    from app.services.execution_stub import _collect_features
+
+                    # base_features を取得
+                    base_features = tuple(ai_cfg.get("features", {}).get("base", []))
+
+                    # spread_pips を取得（market から取得を試みるが、失敗しても続行）
+                    spread_pips = 0.0
+                    try:
+                        spr_callable = getattr(market, "spread_pips", None)
+                        if callable(spr_callable):
+                            spread_pips = spr_callable(symbol)
+                        elif hasattr(market, "spread"):
+                            spr_callable2 = getattr(market, "spread", None)
+                            if callable(spr_callable2):
+                                spread_pips = spr_callable2(symbol)
+                    except Exception:
+                        spread_pips = 0.0
+
+                    # オープンポジション数を取得
+                    open_positions = 0
+                    try:
+                        ob_obj = orderbook() if callable(orderbook) else orderbook
+                        get_maybe = getattr(ob_obj, "get", None)
+                        ob = get_maybe(symbol) if callable(get_maybe) else None
+                        if ob is not None:
+                            cnt_getter = getattr(ob, "count_open", None)
+                            if callable(cnt_getter):
+                                open_positions = int(cnt_getter(symbol))
+                    except Exception:
+                        open_positions = 0
+
+                    # tick は None で渡す（market.tick が存在しないため）
+                    # _collect_features は tick=None でも動作する（デフォルト値で埋める）
+                    tick = None
+
+                    # 既存の正規ルートで特徴量を生成
+                    features = _collect_features(
+                        symbol=symbol,
+                        base_features=base_features,
+                        tick=tick,
+                        spread_pips=spread_pips,
+                        open_positions=open_positions,
+                    )
+
+                    # ExecutionService.execute_entry を呼び出す
+                    logger.info(
+                        "[trade_loop][tick] calling execute_entry symbol={} dry_run={}",
+                        symbol,
+                        effective_dry_run,
+                    )
+                    res = self._exec_service.execute_entry(
+                        features=features,
+                        symbol=symbol,
+                        dry_run=effective_dry_run,
+                    )
+                    ok = bool(res.get("ok")) if isinstance(res, dict) else False
+                    logger.info("[trade_loop][tick] execute_entry returned ok={}", ok)
+                except Exception as e:
+                    logger.exception("[trade_loop] tick failed: {}", e)
+            except Exception as e:
+                logger.exception("[trade_loop] run failed: {}", e)
 
 
 class MainWindow(QMainWindow):
@@ -92,7 +421,7 @@ QTabBar::tab:hover {
 
         # まずは軽いタブだけ即座に生成
         self.tabs.addTab(DashboardTab(), "Dashboard")
-        self.tabs.addTab(ControlTab(), "Control")
+        self.tabs.addTab(ControlTab(main_window=self), "Control")
         self.tabs.addTab(HistoryTab(), "History")
         self.tabs.addTab(VisualizeTab(), "Visualize")
 
@@ -145,6 +474,9 @@ QTabBar::tab:hover {
         # --- スケジューラTick起動（GUI起動中に run_pending() を定期実行） ---
         self._scheduler_tick = SchedulerTickRunner(self, interval_ms=10_000)
 
+        # --- 取引ループランナー（取引ボタンで開始/停止） ---
+        self._trade_loop = TradeLoopRunner(self, interval_ms=3000)
+
         # --- ★GUI軽量化：ドライランタイマーはデフォルト無効 ---
         ENABLE_DRYRUN_TIMER = False  # 必要になったら True に変更
 
@@ -160,6 +492,19 @@ QTabBar::tab:hover {
             self.timer.timeout.connect(_tick_safe)
             self.timer.start(3000)
             _tick_safe()
+
+    def request_test_entry(self) -> None:
+        """ControlTab のテストエントリーボタンからの橋渡し（UI層は判断しない）。"""
+        try:
+            if not hasattr(self, "_trade_loop") or self._trade_loop is None:
+                logger.info("[TEST_ORDER] skipped reason=trade_loop_not_ready")
+                return
+            if not self._trade_loop.is_running():
+                logger.info("[TEST_ORDER] skipped reason=trade_loop_not_running")
+                return
+            self._trade_loop.test_entry_with_sl_tp()
+        except Exception as e:
+            logger.info("[TEST_ORDER] skipped reason=exception error={}", e)
 
     def _on_tab_changed(self, index: int) -> None:
         """

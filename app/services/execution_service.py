@@ -8,6 +8,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from loguru import logger as loguru_logger
+
 # 注意: 将来 decision_logic が肥大化した場合、
 # services/decision_service.py 的な薄いラッパを挟む余地あり
 from app.core.trade.decision_logic import decide_signal
@@ -566,6 +568,31 @@ class ExecutionService:
             except Exception:
                 symbol = "USDJPY-"
 
+        # --- T-2: 実効決定点を1点に固定（冒頭で決定） ---
+        logger = logging.getLogger(__name__)
+        requested_dry_run = bool(dry_run)
+        settings = trade_state.get_settings()
+        trading_enabled = bool(getattr(settings, "trading_enabled", False))
+        effective_dry_run = bool(requested_dry_run) or (not trading_enabled)
+        # 上書き理由を決定
+        if not trading_enabled:
+            reason = "trading_disabled"
+        elif requested_dry_run:
+            reason = "requested_dry_run"
+        else:
+            reason = "live_mode"
+        # 実効決定ログ（毎tick観測可能）
+        loguru_logger.info(
+            "[exec_gate] symbol={} trading_enabled={} requested_dry_run={} effective_dry_run={} source=settings reason={}",
+            symbol,
+            trading_enabled,
+            requested_dry_run,
+            effective_dry_run,
+            reason,
+        )
+        # 以降は effective_dry_run を使用（dry_run パラメータは上書き）
+        dry_run = effective_dry_run
+
         # --- 1) モデル予測 ---
         pred = self.ai_service.predict(features)
 
@@ -1057,10 +1084,7 @@ class ExecutionService:
         # --- /T-43-4 Step1 (cont) ---
 
         # --- 5) dry_run モードの場合、MT5発注の直前で分岐 ---
-        settings = trade_state.get_settings()
-        trading_enabled = bool(getattr(settings, "trading_enabled", False))
-        dry_run = bool(dry_run) or (not trading_enabled)
-        logging.getLogger(__name__).info("[exec] trading_enabled=%s effective_dry_run=%s", trading_enabled, dry_run)
+        # 注意: dry_run は既に冒頭で実効決定済み（effective_dry_run が設定されている）
         if dry_run:
             # decision_detail を更新
             decision_detail["action"] = "ENTRY_SIMULATED"
@@ -1326,12 +1350,29 @@ class ExecutionService:
 
         logger = logging.getLogger(__name__)
 
-        # --- T-45-2: trading_enabled が EXIT 実行可否の単一点 ---
+        # --- T-2: 実効決定点を1点に固定（冒頭で決定） ---
+        requested_dry_run = bool(dry_run)
         settings = trade_state.get_settings()
         trading_enabled = bool(getattr(settings, "trading_enabled", False))
-        effective_dry_run = bool(dry_run) or (not trading_enabled)
+        effective_dry_run = bool(requested_dry_run) or (not trading_enabled)
+        # 上書き理由を決定
+        if not trading_enabled:
+            reason = "trading_disabled"
+        elif requested_dry_run:
+            reason = "requested_dry_run"
+        else:
+            reason = "live_mode"
+        # 実効決定ログ（毎tick観測可能）
+        loguru_logger.info(
+            "[exec_gate] symbol={} trading_enabled={} requested_dry_run={} effective_dry_run={} source=settings reason={}",
+            symbol,
+            trading_enabled,
+            requested_dry_run,
+            effective_dry_run,
+            reason,
+        )
+        # 以降は effective_dry_run を使用（dry_run パラメータは上書き）
         dry_run = effective_dry_run
-        logger.info("[exec] trading_enabled=%s effective_dry_run=%s", trading_enabled, effective_dry_run)
 
         # --- T-45-2 observe: execute_exit progress snapshot (add-only) ---
         # scheduler_daemon.log だけで「どこまで進んだか」「MT5を呼んだか」を確定できるようにする。

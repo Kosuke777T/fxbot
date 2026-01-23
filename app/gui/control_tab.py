@@ -41,8 +41,9 @@ def _write_runtime_flags(trading_enabled: bool) -> None:
 
 
 class ControlTab(QWidget):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, main_window=None):
         super().__init__(parent)
+        self._main_window = main_window
         self.setLayout(QVBoxLayout())
         root_layout: Optional[QVBoxLayout] = self.layout()  # guard for static analyzers
         if root_layout is None:
@@ -62,7 +63,12 @@ class ControlTab(QWidget):
         self.btn_cb_reset = QPushButton("サーキット解除")
         self.btn_cb_reset.clicked.connect(self._cb_reset)
 
+        self.btn_test_entry = QPushButton("テストエントリー（SL/TP）")
+        if self._main_window is not None and hasattr(self._main_window, "request_test_entry"):
+            self.btn_test_entry.clicked.connect(self._main_window.request_test_entry)
+
         lay_run.addWidget(self.btn_toggle)
+        lay_run.addWidget(self.btn_test_entry)
         lay_run.addWidget(self.btn_close_all)
         lay_run.addWidget(self.btn_cb_reset)
         box_run.setLayout(lay_run)
@@ -147,6 +153,19 @@ class ControlTab(QWidget):
                 "取引：稼働中（クリックで停止）" if enabled else "取引：停止中（クリックで開始）"
             )
             self._refresh_status()
+
+            # ループを開始/停止
+            if self._main_window is not None and hasattr(self._main_window, "_trade_loop"):
+                if enabled:
+                    if not self._main_window._trade_loop.start():
+                        # 既に実行中の場合はボタンの状態を戻す
+                        self.btn_toggle.setChecked(False)
+                        trade_state.update(trading_enabled=False)
+                        _write_runtime_flags(trading_enabled=False)
+                        self.btn_toggle.setText("取引：停止中（クリックで開始）")
+                        self._refresh_status()
+                else:
+                    self._main_window._trade_loop.stop(reason="ui_toggle_off")
         except Exception as e:
             self.btn_toggle.setChecked(not self.btn_toggle.isChecked())
             QMessageBox.critical(self, "Trading switch error", str(e))
