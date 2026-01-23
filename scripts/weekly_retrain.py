@@ -272,7 +272,7 @@ def build_labels(
     - USDJPY 前提で 1pips = 0.01 として計算。
     - 上昇(min_pips超) = 1, 下降(min_pips超) = 0
       それ以外（変化が小さい）は NaN にして除外。
-    
+
     Returns:
         y: ラベルSeries (1=buy, 0=sell, NaN=skip)
         skip_reasons: skip理由の内訳カウント
@@ -284,13 +284,13 @@ def build_labels(
     y = pd.Series(index=df.index, dtype="float32")
     y[pips >= min_pips] = 1.0
     y[pips <= -min_pips] = 0.0
-    
+
     # skip理由のカウント
     skip_reasons: dict[str, int] = {
         "horizon_insufficient": int(future.isna().sum()),  # horizonが足りない（未来データなし）
         "small_change": int(((y.isna()) & (~future.isna())).sum()),  # 変化が小さい（-min_pips < pips < min_pips）
     }
-    
+
     return y, skip_reasons
 
 
@@ -669,7 +669,9 @@ def optimize_threshold(
         out_dir = Path("logs") / "retrain"
         out_dir.mkdir(parents=True, exist_ok=True)
         out_csv = out_dir / f"thr_grid_{run_id}.csv"
-        pd.DataFrame(thr_rows).to_csv(out_csv, index=False, encoding="utf-8")
+        df_thr = pd.DataFrame(thr_rows)
+        df_thr["min_trades"] = min_trades  # min_trades情報を追加
+        df_thr.to_csv(out_csv, index=False, encoding="utf-8")
         logger.info(f"{prefix} thr_grid_csv saved: {out_csv}")
 
     return {
@@ -678,6 +680,393 @@ def optimize_threshold(
         "win_rate": float(best_win),
         "n_trades": int(best_n),
     }
+
+
+def _evaluate_threshold_stability(
+    cfg: WeeklyRetrainConfig,
+    run_id: int,
+    run_id_str: str,
+    thr_info: dict[str, float],
+    y: pd.Series,
+    oof_pred: npt.NDArray[np.float_],
+    wfo_result: Optional["WFOResult"],
+    min_pips: float,
+) -> None:
+    """
+    threshold安定性評価: run_id横断の集約と固定vs最適化の比較を生成。
+
+    Step 1: run_id横断の時系列集約CSV生成
+    Step 2: 固定(0.45) vs 毎回最適化の比較CSV生成
+    Step 3: min_tradesを200/500/1000で振った結果を記録
+    """
+    base_dir = cfg.paths.logs_dir / "retrain"
+    stability_dir = cfg.paths.data_dir / cfg.retrain.symbol.replace("-", "") / "lgbm" / "stability"
+    stability_dir.mkdir(parents=True, exist_ok=True)
+
+    # Step 1: 既存のthr_grid_*.csvとreport_*.jsonを読み込んで集約
+    _aggregate_threshold_runs(base_dir, stability_dir, cfg)
+
+    # Step 2: 現在のrun_idについて、固定(0.45) vs 最適化の比較
+    _compare_fixed_vs_optimized(
+        cfg=cfg,
+        run_id=run_id,
+        run_id_str=run_id_str,
+        thr_info=thr_info,
+        y=y,
+        oof_pred=oof_pred,
+        wfo_result=wfo_result,
+        min_pips=min_pips,
+        stability_dir=stability_dir,
+    )
+
+    # Step 3: min_tradesを200/500/1000で振った結果をCSVに永続化
+    _evaluate_multiple_min_trades(
+        cfg=cfg,
+        run_id=run_id,
+        run_id_str=run_id_str,
+        stability_dir=stability_dir,
+        min_trades_values=[200, 500, 1000],
+    )
+
+
+def _aggregate_threshold_runs(
+    base_dir: Path,
+    stability_dir: Path,
+    cfg: WeeklyRetrainConfig,
+) -> None:
+    """
+    Step 1: 既存のthr_grid_*.csvとreport_*.jsonを読み込んで、
+    run_id横断の時系列集約CSVを生成する。
+    """
+    summary_rows: list[dict] = []
+
+    # logs/retrain/ 配下のthr_grid_*.csvを全て読み込む
+    thr_grid_files = sorted(base_dir.glob("thr_grid_*.csv"))
+
+    for thr_grid_file in thr_grid_files:
+        try:
+            # run_idをファイル名から抽出
+            run_id_str = thr_grid_file.stem.replace("thr_grid_", "")
+            try:
+                run_id = int(run_id_str)
+            except ValueError:
+                # ファイル名が変な形式の場合はスキップ
+                continue
+
+            # thr_grid CSVを読み込み（fold=-1が全体評価）
+            df_thr = pd.read_csv(thr_grid_file)
+            df_all = df_thr[df_thr["fold"] == -1].copy()
+
+            if len(df_all) == 0:
+                continue
+
+            # best_thrを取得（totalが最大のもの、eligible=Trueのみ）
+            df_eligible = df_all[df_all["eligible"] == True].copy()
+            if len(df_eligible) == 0:
+                # eligibleが無い場合は全体から
+                df_eligible = df_all[df_all["n_trades"] > 0].copy()
+
+            if len(df_eligible) == 0:
+                continue
+
+            # totalが最大のものをbest_thrとする
+            df_eligible = df_eligible.dropna(subset=["total"])
+            if len(df_eligible) == 0:
+                continue
+
+            best_row = df_eligible.loc[df_eligible["total"].idxmax()]
+            best_thr = float(best_row["thr"])
+            best_total = float(best_row["total"])
+            best_n_trades = int(best_row["n_trades"])
+            best_win_rate = float(best_row["win_rate"])
+
+            # top3を取得（total降順）
+            top3_rows = df_eligible.nlargest(3, "total")
+            top3_str = ", ".join([
+                f"thr={r['thr']:.3f}(total={r['total']:.1f})"
+                for _, r in top3_rows.iterrows()
+            ])
+
+            # report JSONから実行時刻とその他メタを取得
+            report_file = base_dir / f"report_{run_id_str}.json"
+            ts_source = "mtime"
+            ts_iso = None
+            if report_file.exists():
+                try:
+                    with report_file.open("r", encoding="utf-8") as f:
+                        report = json.load(f)
+                    ts_iso = report.get("created_at_utc")
+                    if ts_iso:
+                        ts_source = "report_json"
+                except Exception:
+                    pass
+
+            # mtimeフォールバック
+            if ts_iso is None:
+                try:
+                    ts_iso = datetime.fromtimestamp(thr_grid_file.stat().st_mtime, tz=UTC).isoformat()
+                except Exception:
+                    ts_iso = datetime.now(tz=UTC).isoformat()
+
+            # profile/pair情報
+            profile = "default"  # 既存の実装に合わせる
+            pair = cfg.retrain.symbol.replace("-", "")
+
+            # min_tradesをthr_grid CSVから取得（列があれば）
+            min_trades_val = None
+            if "min_trades" in df_all.columns:
+                min_trades_val = int(df_all["min_trades"].iloc[0])
+            else:
+                # 既存CSVにはmin_trades情報がない場合、eligible=Trueの最小n_tradesを推定値とする
+                df_eligible_check = df_all[df_all["eligible"] == True]
+                if len(df_eligible_check) > 0:
+                    min_trades_val = int(df_eligible_check["n_trades"].min())
+
+            summary_rows.append({
+                "run_id": run_id,
+                "ts": ts_iso,
+                "ts_source": ts_source,
+                "profile": profile,
+                "pair": pair,
+                "min_pips": cfg.retrain.min_pips,
+                "min_trades": min_trades_val,
+                "best_thr": best_thr,
+                "total": best_total,
+                "n_trades": best_n_trades,
+                "win_rate": best_win_rate,
+                "top3": top3_str,
+            })
+        except Exception as e:
+            logger.warning(f"[THR_STABILITY] failed to process {thr_grid_file}: {e}")
+            continue
+
+    if summary_rows:
+        df_summary = pd.DataFrame(summary_rows)
+        df_summary = df_summary.sort_values("run_id")
+        summary_path = stability_dir / "thr_runs_summary.csv"
+        df_summary.to_csv(summary_path, index=False, encoding="utf-8")
+        logger.info(f"[THR_STABILITY] summary saved: {summary_path} (rows={len(df_summary)})")
+
+
+def _evaluate_multiple_min_trades(
+    cfg: WeeklyRetrainConfig,
+    run_id: int,
+    run_id_str: str,
+    stability_dir: Path,
+    min_trades_values: list[int],
+) -> None:
+    """
+    Step 3: min_tradesを200/500/1000で振った結果を記録（実験設計のみ）。
+    既存のthr_grid_{run_id}.csvを読み込んで、min_trades条件で再評価し、CSVに永続化。
+    """
+    base_dir = cfg.paths.logs_dir / "retrain"
+    thr_grid_file = base_dir / f"thr_grid_{run_id}.csv"
+
+    if not thr_grid_file.exists():
+        logger.warning(f"[THR_STABILITY] thr_grid file not found: {thr_grid_file}")
+        return
+
+    # report JSONから実行時刻を取得
+    report_file = base_dir / f"report_{run_id_str}.json"
+    ts_iso = datetime.now(tz=UTC).isoformat()
+    if report_file.exists():
+        try:
+            with report_file.open("r", encoding="utf-8") as f:
+                report = json.load(f)
+            ts_iso = report.get("created_at_utc", ts_iso)
+        except Exception:
+            # mtimeフォールバック
+            try:
+                ts_iso = datetime.fromtimestamp(thr_grid_file.stat().st_mtime, tz=UTC).isoformat()
+            except Exception:
+                pass
+
+    eval_rows: list[dict] = []
+
+    try:
+        df_thr = pd.read_csv(thr_grid_file)
+        df_all = df_thr[df_thr["fold"] == -1].copy()
+
+        for min_trades in min_trades_values:
+            try:
+                # min_trades条件でeligibleを再計算
+                df_all["eligible"] = df_all["n_trades"] >= min_trades
+
+                # best_thrを取得（eligible=True、total最大）
+                df_eligible = df_all[df_all["eligible"] == True].copy()
+                if len(df_eligible) == 0:
+                    df_eligible = df_all[df_all["n_trades"] > 0].copy()
+
+                if len(df_eligible) == 0:
+                    continue
+
+                df_eligible = df_eligible.dropna(subset=["total"])
+                if len(df_eligible) == 0:
+                    continue
+
+                best_row = df_eligible.loc[df_eligible["total"].idxmax()]
+                best_thr = float(best_row["thr"])
+                best_total = float(best_row["total"])
+                best_n_trades = int(best_row["n_trades"])
+                best_win_rate = float(best_row["win_rate"])
+
+                # top3を取得
+                top3_rows = df_eligible.nlargest(3, "total")
+                top3_str = ", ".join([
+                    f"thr={r['thr']:.3f}(total={r['total']:.1f})"
+                    for _, r in top3_rows.iterrows()
+                ])
+
+                eval_rows.append({
+                    "run_id": run_id,
+                    "ts": ts_iso,
+                    "min_pips": cfg.retrain.min_pips,
+                    "min_trades": min_trades,
+                    "best_thr": best_thr,
+                    "total": best_total,
+                    "n_trades": best_n_trades,
+                    "win_rate": best_win_rate,
+                    "top3": top3_str,
+                })
+
+                logger.info(
+                    f"[THR_STABILITY][min_trades={min_trades}] "
+                    f"best_thr={best_thr:.3f} total={best_total:.1f} "
+                    f"n_trades={best_n_trades} win_rate={best_win_rate:.3f} "
+                    f"top3: {top3_str}"
+                )
+            except Exception as e:
+                logger.warning(f"[THR_STABILITY] failed to evaluate min_trades={min_trades}: {e}")
+
+        # CSVに追記保存
+        if eval_rows:
+            eval_path = stability_dir / "thr_min_trades_eval.csv"
+            df_new = pd.DataFrame(eval_rows)
+
+            if eval_path.exists():
+                try:
+                    df_existing = pd.read_csv(eval_path)
+                    df_out = pd.concat([df_existing, df_new], ignore_index=True)
+                except Exception:
+                    df_out = df_new
+            else:
+                df_out = df_new
+
+            df_out = df_out.sort_values(["run_id", "min_trades"])
+            df_out.to_csv(eval_path, index=False, encoding="utf-8")
+            logger.info(f"[THR_STABILITY] min_trades eval saved: {eval_path} (rows={len(df_out)})")
+    except Exception as e:
+        logger.warning(f"[THR_STABILITY] failed to process thr_grid file: {e}")
+
+
+def _compare_fixed_vs_optimized(
+    cfg: WeeklyRetrainConfig,
+    run_id: int,
+    run_id_str: str,
+    thr_info: dict[str, float],
+    y: pd.Series,
+    oof_pred: npt.NDArray[np.float_],
+    wfo_result: Optional["WFOResult"],
+    min_pips: float,
+    stability_dir: Path,
+) -> None:
+    """
+    Step 2: 固定(0.45) vs 最適化の比較を記録。
+    """
+    FIXED_THR = 0.45
+
+    valid_mask = ~np.isnan(oof_pred)
+    y_valid: pd.Series = y.iloc[valid_mask]
+    p_valid: npt.NDArray[np.float_] = oof_pred[valid_mask]
+
+    # eval_one関数を再利用（optimize_threshold内と同じロジック）
+    def eval_one(y_true: pd.Series, proba: npt.NDArray[np.float_], thr: float) -> tuple[float, float, int]:
+        go_long = proba >= thr
+        go_short = proba <= (1.0 - thr)
+        take = go_long | go_short
+        n_trades = int(take.sum())
+        if n_trades == 0:
+            return float("nan"), 0.0, 0
+
+        y_true_arr = y_true.values.astype(int)
+        y_pred = np.where(go_long, 1, 0).astype(int)
+        y_pred = y_pred[take]
+        y_t = y_true_arr[take]
+
+        wins = int((y_pred == y_t).sum())
+        total = float(wins - (n_trades - wins))
+        win_rate = float(wins / n_trades) if n_trades > 0 else 0.0
+        return float(total), float(win_rate), int(n_trades)
+
+    compare_rows: list[dict] = []
+
+    # 現在のrun_idのbest_thrを取得
+    best_thr_opt = float(thr_info.get("best_thr", FIXED_THR))
+
+    # 固定thr=0.45で評価
+    total_fixed, win_rate_fixed, n_trades_fixed = eval_one(y_valid, p_valid, FIXED_THR)
+
+    # 最適化thrで評価（既存のthr_infoから取得）
+    total_opt, win_rate_opt, n_trades_opt = eval_one(y_valid, p_valid, best_thr_opt)
+
+    # report JSONから実行時刻を取得
+    report_file = cfg.paths.logs_dir / "retrain" / f"report_{run_id_str}.json"
+    ts_iso = datetime.now(tz=UTC).isoformat()
+    if report_file.exists():
+        try:
+            with report_file.open("r", encoding="utf-8") as f:
+                report = json.load(f)
+            ts_iso = report.get("created_at_utc", ts_iso)
+        except Exception:
+            pass
+
+    # min_tradesは既存のthr_infoから取得（optimize_thresholdのデフォルト=500）
+    # thr_grid CSVから取得を試みる
+    min_trades_used = 500  # デフォルト
+    thr_grid_file = cfg.paths.logs_dir / "retrain" / f"thr_grid_{run_id}.csv"
+    if thr_grid_file.exists():
+        try:
+            df_thr = pd.read_csv(thr_grid_file)
+            # min_trades列があればそれを使う
+            if "min_trades" in df_thr.columns:
+                min_trades_used = int(df_thr["min_trades"].iloc[0])
+        except Exception:
+            pass
+
+    compare_rows.append({
+        "run_id": run_id,
+        "ts": ts_iso,
+        "profile": "default",
+        "pair": cfg.retrain.symbol.replace("-", ""),
+        "min_pips": min_pips,
+        "min_trades": min_trades_used,
+        "thr_fixed": FIXED_THR,
+        "total_fixed": total_fixed if not np.isnan(total_fixed) else None,
+        "n_trades_fixed": n_trades_fixed,
+        "win_rate_fixed": win_rate_fixed,
+        "thr_opt": best_thr_opt,
+        "total_opt": total_opt if not np.isnan(total_opt) else None,
+        "n_trades_opt": n_trades_opt,
+        "win_rate_opt": win_rate_opt,
+        "total_diff": (total_opt - total_fixed) if (not np.isnan(total_opt) and not np.isnan(total_fixed)) else None,
+    })
+
+    if compare_rows:
+        # 既存のCSVがあれば読み込んで追記
+        compare_path = stability_dir / "thr_compare_fixed_vs_opt.csv"
+        if compare_path.exists():
+            try:
+                df_existing = pd.read_csv(compare_path)
+                df_new = pd.DataFrame(compare_rows)
+                df_compare = pd.concat([df_existing, df_new], ignore_index=True)
+            except Exception:
+                df_compare = pd.DataFrame(compare_rows)
+        else:
+            df_compare = pd.DataFrame(compare_rows)
+
+        df_compare = df_compare.sort_values("run_id")
+        df_compare.to_csv(compare_path, index=False, encoding="utf-8")
+        logger.info(f"[THR_STABILITY] comparison saved: {compare_path} (rows={len(df_compare)})")
 
 
 def save_wfo_report_and_equity(
@@ -819,6 +1208,23 @@ def save_wfo_report_and_equity(
         json.dump(report, f, ensure_ascii=False, indent=2)
 
     logger.info(f"[WFO] report saved: {report_path}")
+
+    # ---- Threshold stability評価（report保存直後） ----
+    if not dry_run:
+        try:
+            _evaluate_threshold_stability(
+                cfg=cfg,
+                run_id=run_id,
+                run_id_str=run_id_str,
+                thr_info=thr_info,
+                y=y,
+                oof_pred=oof_pred,
+                wfo_result=wfo_result,
+                min_pips=cfg.retrain.min_pips,
+            )
+        except Exception as e:
+            # retrain本体を落とさない。ログで追えるようにする。
+            logger.exception(f"[THR_STABILITY] evaluation failed: {e}")
 
     # ---- WFO stability評価（report保存直後） ----
     if dry_run:
@@ -1011,23 +1417,23 @@ def run_weekly_retrain(cfg: WeeklyRetrainConfig, dry_run: bool = False) -> None:
         horizon=rt.label_horizon,
         min_pips=rt.min_pips,
     )
-    
+
     # ===== ラベル比率の観測（DATA BALANCE）[RAW] =====
     # build_labels() 直後：skip含む全データ
     total_raw = len(labels)
     buy_raw = int((labels == 1).sum())
     sell_raw = int((labels == 0).sum())
     skip_raw = int(labels.isna().sum())
-    
+
     buy_raw_pct = (buy_raw / total_raw * 100.0) if total_raw > 0 else 0.0
     sell_raw_pct = (sell_raw / total_raw * 100.0) if total_raw > 0 else 0.0
     skip_raw_pct = (skip_raw / total_raw * 100.0) if total_raw > 0 else 0.0
-    
+
     skip_horizon = skip_reasons.get("horizon_insufficient", 0)
     skip_small = skip_reasons.get("small_change", 0)
     skip_horizon_pct = (skip_horizon / total_raw * 100.0) if total_raw > 0 else 0.0
     skip_small_pct = (skip_small / total_raw * 100.0) if total_raw > 0 else 0.0
-    
+
     logger.info(
         "[DATA BALANCE][RAW]\n"
         f"  total_samples: {total_raw}\n"
@@ -1048,17 +1454,17 @@ def run_weekly_retrain(cfg: WeeklyRetrainConfig, dry_run: bool = False) -> None:
 
     logger.info("[STEP] align_features_and_labels")
     X, y = align_features_and_labels(feats, labels)
-    
+
     # ===== ラベル比率の観測（DATA BALANCE）[TRAIN] =====
     # align_features_and_labels() 直後：skip除外済み（dropna後）
     total_train = len(y)
     buy_train = int((y == 1).sum())
     sell_train = int((y == 0).sum())
     # skip は dropna() で除外済みのため常に0
-    
+
     buy_train_pct = (buy_train / total_train * 100.0) if total_train > 0 else 0.0
     sell_train_pct = (sell_train / total_train * 100.0) if total_train > 0 else 0.0
-    
+
     logger.info(
         "[DATA BALANCE][TRAIN]\n"
         f"  total_samples: {total_train}\n"
@@ -1074,7 +1480,7 @@ def run_weekly_retrain(cfg: WeeklyRetrainConfig, dry_run: bool = False) -> None:
         f"    around: L870 (align_features_and_labels直後)\n"
         f"    label_gen: L262-L280 (build_labels関数)"
     )
-    
+
     logger.info(
         f"[DATA] X={X.shape} y_pos={buy_train} y_neg={sell_train}"
     )
@@ -1096,12 +1502,14 @@ def run_weekly_retrain(cfg: WeeklyRetrainConfig, dry_run: bool = False) -> None:
     run_id = int(time.time())
 
     logger.info("[STEP] optimize_threshold")
+    # 既存の動作: min_trades=500（デフォルト）で最適化
     thr_info = optimize_threshold(
         y,
         oof_pred,
         rt.threshold_grid or [],
         wfo_result=wfo_result,
         run_id=run_id,
+        min_trades=500,  # 明示的に指定（既存動作維持）
     )
 
     logger.info("[STEP] save_wfo_report_and_equity")
@@ -1200,7 +1608,7 @@ def main() -> None:
     config_path = Path(args.config) if args.config else default_config
 
     cfg = load_config(config_path)
-    
+
     # CLI引数で上書き（感度観測用）
     if args.label_horizon is not None:
         cfg.retrain.label_horizon = args.label_horizon
@@ -1208,7 +1616,7 @@ def main() -> None:
     if args.min_pips is not None:
         cfg.retrain.min_pips = args.min_pips
         logger.info(f"[CLI] min_pips overridden to {args.min_pips}")
-    
+
     run_weekly_retrain(cfg, dry_run=args.dry_run)
 
 

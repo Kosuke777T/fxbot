@@ -1,0 +1,131 @@
+自動売買が実行できるまでのToDoリスト（最短ルート）
+T-0 ゴールの定義（観測でOK/NG判定できる形に固定）
+
+目的: 「実運用で回せる」の定義をログで判定可能にする
+成功条件（全部ログで確認）
+
+[trade_loop] started ...（開始）
+
+[signal] ...（シグナル評価が走ってる）
+
+[ORDER] prepared ...（発注直前に到達）
+
+order_send result=...（dry_run=False時のみ）
+
+[position] opened/closed ...（建玉/決済が追跡される）
+
+T-1 取引ボタン → 自動売買ループ開始の“配線”を確定（最優先）
+
+狙い: 「押しても始まらない」をゼロにする
+やること
+
+GUIボタン押下ハンドラ → TradeService/Runner 起動までの経路を観測で確定
+
+起動点に INFOログを1本入れる（最小差分）
+成功条件
+
+ボタン押下で毎回 [trade_loop] started mode=live|paper dry_run=... symbol=USDJPY- が出る
+
+停止で [trade_loop] stopped が出る
+
+二重起動が起きない（2回押しても started が増殖しない）
+
+T-2 dry_run / trading_enabled の整合を固定（事故防止の生命線）
+
+狙い: “ライブのつもりが紙” “紙のつもりがライブ” を潰す
+やること
+
+実効 dry_run の決定点を 1点に固定し、必ずログ出力
+
+設定優先順位（安全側）を固定
+成功条件
+
+起動時ログに [exec] trading_enabled=... effective_dry_run=... が毎回出る
+
+trading_enabled=False → 必ず effective_dry_run=True（送信しない）
+
+T-3 発注の最終一点（order_send相当）を“観測で確定”して到達させる
+
+狙い: 戦略が良くても注文が出ない問題を潰す
+やること
+
+order_send / OrderSend / mt5.order_send 相当の呼び出し箇所を検索し、最終一点を確定
+
+直前に [ORDER] prepared ... を追加（1点のみ）
+
+dry_run=True の時は「送らない」ログを必ず出す
+成功条件
+
+シグナル成立 → [ORDER] prepared ... が出る
+
+dry_run=True → [ORDER] skipped reason=dry_run が出る
+
+dry_run=False → order_send result=OK|FAIL reason=... が出る（失敗理由もログ）
+
+T-4 MT5接続・口座状態の事前診断（“開始時点で”分かるようにする）
+
+狙い: 注文出してから気づく、をやめる
+やること
+
+trade_loop started 時に1回だけ「接続/取引可能」診断ログ
+成功条件
+
+[mt5] connected=True account=... trade_allowed=True が出る
+
+NGなら開始直後にわかり、送信処理へ進まない（安全側）
+
+T-5 建玉状態の整合（open_position嘘問題・二重エントリー防止）
+
+狙い: 実運用で最も死にやすい“状態不整合”を潰す
+やること
+
+3分ごとに positions を再確認し、整合しなければフラグをリセット
+
+inflight_orders / guard のログを観測可能に維持
+成功条件
+
+「ポジション無しなのに open=True」で固まらない
+
+「ポジションあるのに open=False」で二重発注しない
+
+[guard] denied reason=... が観測できる
+
+T-6 決済・結果記録の一本化（PnL/exit_reason が必ず残る）
+
+狙い: “勝った/負けた” が確実にログ/履歴に残る
+やること
+
+CLOSEイベント（profit_jpy / exit_reason）を OpsHistory に必ず流す
+
+既存の record_trade_result(info) 契約（docstring）を遵守
+成功条件
+
+決済ごとに profit_jpy が履歴に残る（ui_events / ops_history）
+
+exit_reason が記録される（TP/SL/timeout等）
+
+T-7 実運用の最小プロトコル（運用ルールだけ。ロジック追加しない）
+
+狙い: 回しながら壊さない
+やること（運用）
+
+最初は極小ロット、時間限定、監視あり
+
+例外時の停止手順（ボタン停止/プロセス停止）を確定
+成功条件
+
+“止めたい時に確実に止まる”
+
+ログと履歴が残り、再現できる
+
+禁止事項（再掲：このToDo全体に適用）
+
+fold別threshold運用
+
+win_rate最大化ルールへの変更
+
+thresholdを特徴量に入れる
+
+売買ロジック条件の追加
+
+推測で修正（観測で確定せよ
