@@ -29,6 +29,106 @@ def _jst_from_mt5_epoch(series) -> pd.Series:
         return s.dt.tz_convert("Asia/Tokyo").dt.tz_localize(None)
 
 
+def _obs_prob_df(
+    tag: str,
+    df: pd.DataFrame | None,
+    *,
+    time_col: str = "time",
+    prob_col: str = "prob_buy",
+    n: int = 2000,
+) -> None:
+    """
+    観測ログ専用（挙動変更なし）。
+    - df を変更しない（必要ならコピーして集計）
+    - 空/列なし/型不正でも落とさない
+    """
+    try:
+        import math
+
+        if df is None:
+            logger.info("[lgbm_proba][{}] df=None", tag)
+            return
+
+        if not isinstance(df, pd.DataFrame) or df.empty:
+            cols = list(df.columns) if isinstance(df, pd.DataFrame) else None
+            logger.info("[lgbm_proba][{}] empty_or_not_df columns={}", tag, cols)
+            return
+
+        cols = list(df.columns)
+        if time_col not in cols or prob_col not in cols:
+            logger.info(
+                "[lgbm_proba][{}] missing_cols time_col={} prob_col={} columns={}",
+                tag,
+                time_col,
+                prob_col,
+                cols,
+            )
+            return
+
+        n2 = int(max(10, min(int(n), 5000)))
+        sub = df[[time_col, prob_col]].tail(n2).copy()
+
+        # time/prob を安全に整形（失敗は握る）
+        try:
+            sub[time_col] = pd.to_datetime(sub[time_col], errors="coerce")
+            sub = sub.dropna(subset=[time_col])
+        except Exception:
+            pass
+        try:
+            sub[prob_col] = pd.to_numeric(sub[prob_col], errors="coerce")
+        except Exception:
+            pass
+
+        # Δt top
+        dt_top = None
+        try:
+            dt = sub[time_col].sort_values().diff()
+            dt_sec = dt.dt.total_seconds()
+            vc = dt_sec.value_counts().head(10)
+            dt_top = {str(k): int(v) for k, v in vc.items()}
+        except Exception:
+            dt_top = None
+
+        # run_max（連続同値の最長）
+        run_max = None
+        try:
+            ss = pd.Series(
+                [
+                    float(x) if (x is not None and math.isfinite(float(x))) else None
+                    for x in sub[prob_col].tolist()
+                ]
+            )
+            grp = (ss != ss.shift()).cumsum()
+            run_max = int(grp.value_counts().max()) if len(grp) > 0 else None
+        except Exception:
+            run_max = None
+
+        # 文字列表現のユニーク数（保存時丸め疑いの切り分け）
+        nunique_str6 = None
+        try:
+            nunique_str6 = int(sub[prob_col].map(lambda x: f"{float(x):.6f}" if pd.notna(x) else "NA").nunique())
+        except Exception:
+            nunique_str6 = None
+
+        head = list(zip(sub[time_col].head(3).tolist(), sub[prob_col].head(3).tolist()))
+        tail = list(zip(sub[time_col].tail(3).tolist(), sub[prob_col].tail(3).tolist()))
+
+        logger.info(
+            "[lgbm_proba][{}] len={} nunique_prob={} nunique_time={} run_max={} nunique_prob_str6={} head={} tail={} dt_top={}",
+            tag,
+            int(len(sub)),
+            int(sub[prob_col].nunique(dropna=True)),
+            int(sub[time_col].nunique(dropna=True)),
+            run_max,
+            nunique_str6,
+            head,
+            tail,
+            dt_top,
+        )
+    except Exception as e:
+        logger.warning("[lgbm_proba][{}] obs_failed: {}", tag, e)
+
+
 def ensure_ohlcv_uptodate(symbol: str = "USDJPY-", timeframe: str = "M5") -> Dict[str, Any]:
     """
     OHLCV CSVをMT5最新まで更新し、新規行に対して推論を実行してdecisions.jsonlに保存する。
@@ -490,7 +590,13 @@ def ensure_lgbm_proba_uptodate(
         # 7) 特徴量生成（過去データを含む範囲で計算）
         from app.strategies.ai_strategy import build_features
 
+        # active_model.json の expected_features に vol_chg があるため、
+        # tick_volume / real_volume が存在する場合は特徴量生成へ渡す（無ければ従来通り）
         required_cols = ["time", "open", "high", "low", "close"]
+        for opt in ["tick_volume", "real_volume"]:
+            if opt in df_ohlc.columns:
+                required_cols.append(opt)
+
         if not all(col in df_ohlc.columns for col in required_cols):
             logger.warning("[lgbm] CSV missing required columns")
             return
@@ -500,6 +606,135 @@ def ensure_lgbm_proba_uptodate(
         except Exception as e:
             logger.warning(f"[lgbm] feature generation failed: {e}")
             return
+
+        # --- 観測ログ（features作成直後） ---
+        # - 欠損率（上位）/行ハッシュ（先頭3/末尾3）で「同一入力連発」や「欠損→0埋め由来」を切り分ける
+        try:
+            meta_for_obs = None
+            try:
+                meta_for_obs = load_active_model_meta()
+            except Exception:
+                meta_for_obs = None
+            exp_feats = None
+            try:
+                if isinstance(meta_for_obs, dict):
+                    exp_feats = (
+                        meta_for_obs.get("expected_features")
+                        or meta_for_obs.get("feature_order")
+                        or meta_for_obs.get("features")
+                    )
+                if not isinstance(exp_feats, list):
+                    exp_feats = None
+            except Exception:
+                exp_feats = None
+
+            # 未推論対象の time（上限n=2000）
+            ts_list = df_missing["time"].tolist()
+            ts_list = ts_list[-2000:] if len(ts_list) > 2000 else ts_list
+
+            df_feat_indexed = df_feat.set_index("time", drop=False)
+            X_new = df_feat_indexed.loc[ts_list]
+            # loc が単一行だと Series になることがあるので DataFrame化
+            if isinstance(X_new, pd.Series):
+                X_new = X_new.to_frame().T
+            # time列は除外
+            if "time" in X_new.columns:
+                X_body = X_new.drop(columns=["time"])
+            else:
+                X_body = X_new
+
+            # 欠損率 top
+            na_top = None
+            try:
+                na_rate = X_body.isna().mean().sort_values(ascending=False).head(10)
+                na_top = {str(k): float(v) for k, v in na_rate.items()}
+            except Exception:
+                na_top = None
+
+            # expected_features 整合（存在/欠落の観測）
+            exp_meta = None
+            exp_missing = None
+            exp_present = None
+            try:
+                if isinstance(exp_feats, list):
+                    exp_meta = [str(x) for x in exp_feats if isinstance(x, str)]
+                    cols_set = set([str(c) for c in X_body.columns])
+                    exp_present = [c for c in exp_meta if c in cols_set]
+                    exp_missing = [c for c in exp_meta if c not in cols_set]
+            except Exception:
+                exp_meta = None
+                exp_missing = None
+                exp_present = None
+
+            # 行ハッシュ（軽量：round(6)して連結→sha1）
+            import hashlib
+            import math
+
+            def _row_sig(row: pd.Series) -> str:
+                vals: list[str] = []
+                for v in row.tolist():
+                    try:
+                        fv = float(v)
+                        if not math.isfinite(fv):
+                            vals.append("NA")
+                        else:
+                            vals.append(f"{fv:.6f}")
+                    except Exception:
+                        vals.append("NA")
+                s = "|".join(vals).encode("utf-8")
+                return hashlib.sha1(s).hexdigest()[:12]
+
+            head_hash = None
+            tail_hash = None
+            try:
+                head_hash = [_row_sig(X_body.iloc[i]) for i in range(min(3, len(X_body)))]
+                tail_hash = [_row_sig(X_body.iloc[i]) for i in range(max(0, len(X_body) - 3), len(X_body))]
+            except Exception:
+                head_hash = None
+                tail_hash = None
+
+            logger.info(
+                "[lgbm_proba][features] X_new shape={} cols={} na_top={} expected_n={} expected_present_n={} expected_missing_n={} missing_examples={} head_hash={} tail_hash={}",
+                tuple(getattr(X_body, "shape", (None, None))),
+                int(len(getattr(X_body, "columns", []))),
+                na_top,
+                int(len(exp_meta)) if isinstance(exp_meta, list) else None,
+                int(len(exp_present)) if isinstance(exp_present, list) else None,
+                int(len(exp_missing)) if isinstance(exp_missing, list) else None,
+                (exp_missing[:10] if isinstance(exp_missing, list) else None),
+                head_hash,
+                tail_hash,
+            )
+
+            # expected_features に揃えた入力ベクトルが「実質同一」になってないか（先頭3/末尾3だけ）
+            try:
+                if isinstance(exp_meta, list) and exp_meta:
+                    def _vec_sig(row: pd.Series) -> str:
+                        vals: list[str] = []
+                        for k in exp_meta:
+                            try:
+                                v = row.get(k, 0.0)
+                                fv = float(v)
+                                vals.append(f"{fv:.6f}" if math.isfinite(fv) else "NA")
+                            except Exception:
+                                vals.append("NA")
+                        return hashlib.sha1("|".join(vals).encode("utf-8")).hexdigest()[:12]
+
+                    head_vec = []
+                    for i in range(min(3, len(X_body))):
+                        head_vec.append(_vec_sig(X_body.iloc[i]))
+                    tail_vec = []
+                    for i in range(max(0, len(X_body) - 3), len(X_body)):
+                        tail_vec.append(_vec_sig(X_body.iloc[i]))
+                    logger.info(
+                        "[lgbm_proba][features] vec_sig (expected_features) head={} tail={}",
+                        head_vec,
+                        tail_vec,
+                    )
+            except Exception as e:
+                logger.warning("[lgbm_proba][features] vec_sig failed: {}", e)
+        except Exception as e:
+            logger.warning("[lgbm_proba][features] failed: {}", e)
 
         # 8) 未推論分だけ推論実行
         ai_service = get_ai_service()
@@ -555,10 +790,37 @@ def ensure_lgbm_proba_uptodate(
         # 9) proba CSVに追記
         if rows_to_append:
             df_new = pd.DataFrame(rows_to_append)
+            # --- 観測ログ（書き込み前: prewrite） ---
+            try:
+                _obs_prob_df("prewrite", df_new, time_col="time", prob_col="prob_buy", n=2000)
+                # dtype観測
+                try:
+                    logger.info(
+                        "[lgbm_proba][prewrite] dtypes prob_buy={} prob_sell={} model_id={}",
+                        str(df_new.get("prob_buy").dtype) if "prob_buy" in df_new.columns else None,
+                        str(df_new.get("prob_sell").dtype) if "prob_sell" in df_new.columns else None,
+                        str(df_new.get("model_id").dtype) if "model_id" in df_new.columns else None,
+                    )
+                except Exception:
+                    pass
+            except Exception as e:
+                logger.warning("[lgbm_proba][prewrite] failed: {}", e)
+
             # CSVが存在する場合は追記、存在しない場合は新規作成
             if proba_csv_path.exists():
+                # --- 観測ログ（保存直前: write） ---
+                logger.info(
+                    "[lgbm_proba][write] path={} mode=a header=false index=false date_format={} float_format=None round_used=None",
+                    str(proba_csv_path),
+                    "%Y-%m-%d %H:%M:%S",
+                )
                 df_new.to_csv(proba_csv_path, mode="a", header=False, index=False, date_format="%Y-%m-%d %H:%M:%S")
             else:
+                logger.info(
+                    "[lgbm_proba][write] path={} mode=w header=true index=false date_format={} float_format=None round_used=None",
+                    str(proba_csv_path),
+                    "%Y-%m-%d %H:%M:%S",
+                )
                 df_new.to_csv(proba_csv_path, mode="w", header=True, index=False, date_format="%Y-%m-%d %H:%M:%S")
 
         # 10) 必須ログ

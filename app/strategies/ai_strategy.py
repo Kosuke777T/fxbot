@@ -172,6 +172,35 @@ def build_features_recipe(df: pd.DataFrame, name: str) -> pd.DataFrame:
         # ボラ指標
         out["vol_pct_20"] = close.pct_change().rolling(20).std() * math.sqrt(20)
 
+        # -------------------------------------------------
+        # feature name alias / compatibility (最小差分)
+        # active_model.json の expected_features（例: ret_1 等）に合わせて列を補完する。
+        # - 既存列は壊さない（不足分のみ追加）
+        # - “推測で別名を当てる”のではなく、現レシピで確定している列/元データ列から埋める
+        # -------------------------------------------------
+        # ret_1 / ret_5: 既存の ret1 / ret5 から copy
+        if "ret_1" not in out.columns and "ret1" in out.columns:
+            out["ret_1"] = out["ret1"]
+        if "ret_5" not in out.columns and "ret5" in out.columns:
+            out["ret_5"] = out["ret5"]
+
+        # ema_5 / ema_ratio: close と ema_20（本レシピ既存）から補完
+        if "ema_5" not in out.columns:
+            out["ema_5"] = _ema(close, 5)
+        if "ema_ratio" not in out.columns:
+            out["ema_ratio"] = out["ema_5"] / (out["ema_20"] + 1e-12)
+
+        # range: 高低差（本レシピ内でも tr として使用している値）を列として残す
+        if "range" not in out.columns:
+            out["range"] = (high - low).abs()
+
+        # vol_chg: tick_volume / real_volume がある場合のみ生成
+        if "vol_chg" not in out.columns:
+            if "tick_volume" in out.columns:
+                out["vol_chg"] = pd.to_numeric(out["tick_volume"], errors="coerce").pct_change()
+            elif "real_volume" in out.columns:
+                out["vol_chg"] = pd.to_numeric(out["real_volume"], errors="coerce").pct_change()
+
     else:
         raise ValueError(f"unknown feature recipe: {name}")
 

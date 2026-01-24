@@ -34,6 +34,161 @@ from app.services.visualization_service import (
 from app.services.ohlcv_update_service import ensure_lgbm_proba_uptodate
 
 
+def _obs_dump_series(
+    tag: str,
+    df,
+    *,
+    source_name: str | None = None,
+    source_path: str | None = None,
+    time_col: str = "time",
+    prob_col: str | None = "prob_buy",
+    n: int = 1000,
+    join_meta: str | None = None,
+) -> None:
+    """
+    観測ログ専用（挙動変更なし）。
+    - df の内容は変更しない（必要ならコピーして集計）
+    - 空/列なし/型不正でも落とさない
+    """
+    try:
+        import math
+        import pandas as pd
+
+        if df is None:
+            logger.info(
+                "[viz][prob_obs] tag={} source={} path={} join_meta={} df=None",
+                tag,
+                source_name,
+                source_path,
+                join_meta,
+            )
+            return
+
+        if not hasattr(df, "__len__"):
+            logger.info(
+                "[viz][prob_obs] tag={} source={} path={} join_meta={} df_type={} (no len)",
+                tag,
+                source_name,
+                source_path,
+                join_meta,
+                type(df).__name__,
+            )
+            return
+
+        # DataFrame化（dict/listでも受けられるようにする）
+        dff = df if hasattr(df, "columns") else pd.DataFrame(df)
+        if getattr(dff, "empty", False) or int(len(dff)) == 0:
+            cols_idx = getattr(dff, "columns", None)
+            cols = list(cols_idx) if cols_idx is not None else []
+            logger.info(
+                "[viz][prob_obs] tag={} source={} path={} join_meta={} empty columns={}",
+                tag,
+                source_name,
+                source_path,
+                join_meta,
+                cols,
+            )
+            return
+
+        cols_idx = getattr(dff, "columns", None)
+        cols = list(cols_idx) if cols_idx is not None else []
+        has_time = time_col in cols
+        has_prob = (prob_col in cols) if isinstance(prob_col, str) else False
+
+        # 観測対象を末尾n行に制限（重い計算を避ける）
+        n2 = int(max(10, min(int(n), 5000)))
+
+        if not has_time:
+            logger.info(
+                "[viz][prob_obs] tag={} source={} path={} join_meta={} len={} columns={} has_time=false",
+                tag,
+                source_name,
+                source_path,
+                join_meta,
+                int(len(dff)),
+                cols,
+            )
+            return
+
+        if isinstance(prob_col, str) and has_prob:
+            sub = dff[[time_col, prob_col]].tail(n2).copy()
+        else:
+            # timeのみ観測（prob列が無い/不要なケース）
+            sub = dff[[time_col]].tail(n2).copy()
+
+        # time整形（失敗は握る）
+        try:
+            sub[time_col] = pd.to_datetime(sub[time_col], errors="coerce")
+            sub = sub.dropna(subset=[time_col])
+        except Exception:
+            pass
+
+        if isinstance(prob_col, str) and (prob_col in sub.columns):
+            # prob整形（数値化できるものだけで統計）
+            try:
+                sub[prob_col] = pd.to_numeric(sub[prob_col], errors="coerce")
+            except Exception:
+                pass
+
+        # Δt 分布（上位のみ）
+        dt_top = None
+        try:
+            dt = sub[time_col].sort_values().diff()
+            dt_sec = dt.dt.total_seconds()
+            vc = dt_sec.value_counts().head(10)
+            dt_top = {str(k): int(v) for k, v in vc.items()}
+        except Exception:
+            dt_top = None
+
+        # 階段化の強さ：連続同値の最長run（NaN/非finite除外）
+        run_max = None
+        try:
+            if isinstance(prob_col, str) and (prob_col in sub.columns):
+                s = sub[prob_col]
+                s2 = [float(x) for x in s.tolist() if x is not None and math.isfinite(float(x))]
+                if s2:
+                    # 元の並びで run を見るため、sub の順序のまま series を作る
+                    ss = pd.Series(
+                        [
+                            float(x) if (x is not None and math.isfinite(float(x))) else None
+                            for x in s.tolist()
+                        ]
+                    )
+                    grp = (ss != ss.shift()).cumsum()
+                    run_max = int(grp.value_counts().max()) if len(grp) > 0 else None
+        except Exception:
+            run_max = None
+
+        # head/tail（timeとprobのみ）
+        try:
+            if isinstance(prob_col, str) and (prob_col in sub.columns):
+                head = list(zip(sub[time_col].head(3).tolist(), sub[prob_col].head(3).tolist()))
+                tail = list(zip(sub[time_col].tail(3).tolist(), sub[prob_col].tail(3).tolist()))
+            else:
+                head = sub[time_col].head(3).tolist()
+                tail = sub[time_col].tail(3).tolist()
+        except Exception:
+            head = None
+            tail = None
+
+        logger.info(
+            "[viz][prob_obs] tag={} source={} path={} join_meta={} len={} nunique_prob={} nunique_time={} run_max={} head={} tail={} dt_top={}",
+            tag,
+            source_name,
+            source_path,
+            join_meta,
+            int(len(sub)),
+            int(sub[prob_col].nunique(dropna=True)) if isinstance(prob_col, str) and (prob_col in sub.columns) else None,
+            int(sub[time_col].nunique(dropna=True)),
+            run_max,
+            head,
+            tail,
+            dt_top,
+        )
+    except Exception as e:
+        logger.warning("[viz][prob_obs] failed: {}", e)
+
+
 class VisualizeTab(QWidget):
     """
     可視化タブ（将来シミュレーターの土台）
@@ -306,6 +461,91 @@ class VisualizeTab(QWidget):
             symbol=sym, count=n, keys=("prob_buy", "prob_sell"), start_time=t_min, end_time=t_max
         )
 
+        # --- 観測ログ：入力ソース（proba）/OHLC/突合（表示直前） ---
+        # ※挙動は変えない。重い処理を避けるため末尾n=1000程度に制限する。
+        try:
+            import pandas as pd
+
+            # OHLC 観測（time粒度）
+            if isinstance(ohlc, dict) and bool(ohlc.get("ok")):
+                df_ohlc_obs = pd.DataFrame({"time": list(ohlc.get("time") or [])})
+                _obs_dump_series(
+                    "ohlc_input",
+                    df_ohlc_obs,
+                    source_name=str(ohlc.get("source") or "unknown"),
+                    source_path=str(ohlc.get("csv_path") or ""),
+                    time_col="time",
+                    prob_col=None,
+                    n=1000,
+                    join_meta="source=get_recent_ohlcv (time only)",
+                )
+        except Exception:
+            pass
+
+        try:
+            import pandas as pd
+
+            # proba 観測（Visualizeが参照している入力）
+            lgbm_ok = isinstance(lgbm, dict) and bool(lgbm.get("ok"))
+            lgbm_path = str(lgbm.get("path") or "") if isinstance(lgbm, dict) else ""
+            lgbm_series = lgbm.get("series") if lgbm_ok else None
+            prob_buy_list = None
+            if isinstance(lgbm_series, dict):
+                prob_buy_list = lgbm_series.get("prob_buy")
+            df_prob_obs = pd.DataFrame(
+                {
+                    "time": list(lgbm.get("time") or []) if lgbm_ok else [],
+                    "prob_buy": list(prob_buy_list or []) if isinstance(prob_buy_list, list) else [],
+                }
+            )
+            _obs_dump_series(
+                "proba_input",
+                df_prob_obs,
+                source_name="proba_csv",
+                source_path=lgbm_path,
+                time_col="time",
+                prob_col="prob_buy",
+                n=1000,
+                join_meta="source=visualization_service.get_recent_lgbm_series (no join in GUI plot)",
+            )
+
+            # 観測用の突合（OHLC time を基準に merge_asof して段階化要因を切り分け）
+            # - Visualize本体の描画ロジックは変更しない（このDFはログ用途のみ）
+            if (
+                isinstance(ohlc, dict)
+                and bool(ohlc.get("ok"))
+                and isinstance(ohlc.get("time"), list)
+                and lgbm_ok
+                and len(df_prob_obs) > 0
+            ):
+                df_ohlc_t = pd.DataFrame({"time": list(ohlc.get("time") or [])})
+                df_ohlc_t["time"] = pd.to_datetime(df_ohlc_t["time"], errors="coerce")
+                df_ohlc_t = df_ohlc_t.dropna(subset=["time"]).sort_values("time", kind="mergesort")
+
+                df_prob_t = df_prob_obs.copy()
+                df_prob_t["time"] = pd.to_datetime(df_prob_t["time"], errors="coerce")
+                df_prob_t["prob_buy"] = pd.to_numeric(df_prob_t["prob_buy"], errors="coerce")
+                df_prob_t = df_prob_t.dropna(subset=["time"]).sort_values("time", kind="mergesort")
+
+                joined = pd.merge_asof(
+                    df_ohlc_t,
+                    df_prob_t[["time", "prob_buy"]],
+                    on="time",
+                    direction="backward",
+                )
+                _obs_dump_series(
+                    "proba_joined_on_ohlc",
+                    joined,
+                    source_name="proba_csv",
+                    source_path=lgbm_path,
+                    time_col="time",
+                    prob_col="prob_buy",
+                    n=1000,
+                    join_meta="merge_asof(on=time, direction=backward, tolerance=None) (OBS ONLY)",
+                )
+        except Exception:
+            pass
+
         # 観測用（1回/refresh 程度に抑える）
         try:
             keys = list(lgbm.get("keys") or []) if isinstance(lgbm, dict) else []
@@ -513,6 +753,25 @@ class VisualizeTab(QWidget):
                 prob_buy = []
                 prob_sell = []
 
+        # 観測ログ（挙動は変えない）：Visualize側で prob_buy が潰れていないか確認
+        # - join事故（全バー同一値）なら nunique==1 になる
+        # - データ正常なら std>0 かつ nunique>1 になる
+        try:
+            import pandas as pd
+
+            df_joined = pd.DataFrame({"prob_buy": prob_buy})
+            logger.info(
+                "[VIS][CHECK] prob_buy std=%s nunique=%s head=%s tail=%s"
+                % (
+                    df_joined["prob_buy"].std(),
+                    df_joined["prob_buy"].nunique(),
+                    df_joined["prob_buy"].head(3).tolist(),
+                    df_joined["prob_buy"].tail(3).tolist(),
+                )
+            )
+        except Exception as e:
+            logger.warning("[VIS][CHECK] prob_buy stats failed: {}", e)
+
         # 統計計算（prob_buy/prob_sell/diffが確定した後）
         mean_buy = None
         mean_sell = None
@@ -602,7 +861,23 @@ class VisualizeTab(QWidget):
                 ax_prob.plot(xs_lgbm, diff, color="#2196f3", linewidth=1.5, label="diff (buy-sell)", alpha=0.8)
                 ax_prob.axhline(0.0, color="#888", linewidth=0.8, linestyle=":", alpha=0.5)
                 ax_prob.set_ylabel("Diff (buy-sell)")
-                ax_prob.set_ylim(-1.0, 1.0)
+                # diff の振幅に応じて動的に表示レンジを決める（表示のみ）
+                # - 微小変動でも「直線に見えない」ように span 下限を設ける
+                # - NaN/空などで max_abs が決められない場合は固定レンジへフォールバック
+                try:
+                    import math
+
+                    finite_abs = [abs(float(d)) for d in diff if d is not None and math.isfinite(float(d))]
+                    if finite_abs:
+                        max_abs = float(max(finite_abs))
+                        span = float(max(max_abs * 1.2, 0.02))
+                        ax_prob.set_ylim(-span, +span)
+                        # 視認性補助（表示のみ、ログは増やさない）
+                        ax_prob.set_title(f"Diff span=±{span:.3f}", fontsize=9, loc="left", pad=2)
+                    else:
+                        ax_prob.set_ylim(-1.0, 1.0)
+                except Exception:
+                    ax_prob.set_ylim(-1.0, 1.0)
                 ax_prob.grid(True, alpha=0.25)
             elif xs_lgbm and prob_buy and len(xs_lgbm) == len(prob_buy):
                 # prob_sell が無い場合は注記のみ
