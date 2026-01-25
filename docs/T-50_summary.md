@@ -258,3 +258,13 @@ Exit 設計だけで戦略特性を制御できる構造が確立
 
 ミチビキは「入口依存」ではなく
 出口設計主導のシステムとして成立
+
+T-50-5 完了：tools/compare_min_holding_bars.py を追加し、min_holding_bars を 0/1/2/3（任意リスト可）で同一条件比較できるようにした
+
+実行方式：サブプロセスなし、run_backtest() を同一プロセスで直接呼び出し
+
+出力：min_hold_{k}/ に試行分離し、summary.csv に trades / PF / DD / avg_holding_bars を集計
+
+観測結果：PF最大=2、DD最小=3、0/1は同一で劣後
+
+注意点：私の例コマンドは引数名が古く、実装の usage（--csv, --start-date, --end-date）がSSOT
