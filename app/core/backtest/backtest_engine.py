@@ -47,15 +47,62 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 import csv
 
+import numpy as np
 import pandas as pd
 
 from app.core.backtest.simulated_execution import SimulatedExecution
 from app.core.trade.decision_logic import decide_signal
 from app.core.filter.strategy_filter_engine import StrategyFilterEngine
-from app.services.ai_service import AISvc, get_model_metrics
 from app.services.filter_service import evaluate_entry
 from app.services.profile_stats_service import get_profile_stats_service
-from app.strategies.ai_strategy import build_features
+from app.strategies.ai_strategy import (
+    build_features,
+    get_active_model_meta,
+    validate_feature_order_fail_fast,
+    load_active_model,
+    _predict_proba_generic,
+    _load_model_generic,
+    _load_scaler_if_any,
+    _ensure_feature_order,
+)
+
+# region agent log
+# Debug mode NDJSON logger (no secrets)
+import time as _time
+
+_DEBUG_LOG_PATH = r"d:\fxbot\.cursor\debug.log"
+_DEBUG_SESSION_ID = "debug-session"
+_DEBUG_RUN_ID = "obs1"
+
+
+def _dbg(hypothesisId: str, location: str, message: str, data: dict) -> None:
+    try:
+        payload = {
+            "sessionId": _DEBUG_SESSION_ID,
+            "runId": _DEBUG_RUN_ID,
+            "hypothesisId": str(hypothesisId),
+            "location": str(location),
+            "message": str(message),
+            "data": data or {},
+            "timestamp": int(_time.time() * 1000),
+        }
+        with open(_DEBUG_LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(json.dumps(payload, ensure_ascii=False) + "\n")
+    except Exception:
+        # never break runtime due to debug logging
+        pass
+
+# endregion agent log
+
+
+class ProbOut:
+    """
+    AISvc.ProbOut の代替（ai_service 依存を避けるため）
+    """
+    def __init__(self, p_buy: float, p_sell: float, p_skip: float = 0.0) -> None:
+        self.p_buy = float(p_buy)
+        self.p_sell = float(p_sell)
+        self.p_skip = float(p_skip)
 
 
 class BacktestEngine:
@@ -93,7 +140,6 @@ class BacktestEngine:
         self.init_position = (init_position or "flat").lower()
         self.trade_start_ts = trade_start_ts
 
-        self.ai_service = AISvc()
         self.executor = SimulatedExecution(initial_capital, contract_size)
         self.profile_stats_service = get_profile_stats_service()
         self.filter_engine = StrategyFilterEngine()
@@ -104,12 +150,232 @@ class BacktestEngine:
         # decisions.jsonl の記録用
         self.decisions: List[Dict[str, Any]] = []
 
-        # best_threshold を取得（active_model.jsonから）
+        # モデル情報を取得（active_model.jsonから）
         try:
-            model_metrics = get_model_metrics()
-            self.best_threshold = float(model_metrics.get("best_threshold", 0.52))
-        except Exception:
+            meta = get_active_model_meta()
+            self.best_threshold = float(meta.get("best_threshold", 0.52))
+            # モデルをロード（後で使用）
+            self.model_kind, self.model_payload, _, self.model_params = load_active_model()
+            self.model = None  # 遅延ロード
+            self.scaler = None  # 遅延ロード
+            # region agent log
+            self._dbg_once = False
+            self._dbg_pred_n = 0
+            # endregion agent log
+            _dbg(
+                "A",
+                "app/core/backtest/backtest_engine.py:__init__",
+                "init loaded model config",
+                {
+                    "best_threshold": self.best_threshold,
+                    "model_kind": self.model_kind,
+                    "model_payload_type": type(self.model_payload).__name__,
+                    "model_params_keys_n": len(getattr(self, "model_params", {}) or {}),
+                    "meta_keys_n": len(meta.keys()) if isinstance(meta, dict) else None,
+                    "meta_has_feature_order": bool(isinstance(meta, dict) and (meta.get("feature_order") or meta.get("features"))),
+                },
+            )
+        except Exception as e:
             self.best_threshold = 0.52  # フォールバック
+            self.model_kind = None
+            self.model_payload = None
+            self.model_params = {}
+            self.model = None
+            self.scaler = None
+            # region agent log
+            self._dbg_once = False
+            self._dbg_pred_n = 0
+            # endregion agent log
+            _dbg(
+                "A",
+                "app/core/backtest/backtest_engine.py:__init__",
+                "init failed to load model config",
+                {
+                    "exc_type": type(e).__name__,
+                    "exc_msg": str(e)[:300],
+                },
+            )
+
+    def _ensure_model_loaded(self) -> None:
+        """
+        モデルとスケーラーを遅延ロードする
+        """
+        if self.model is None and self.model_kind is not None:
+            try:
+                # region agent log
+                if getattr(self, "_dbg_pred_n", 0) == 0:
+                    _dbg(
+                        "A",
+                        "app/core/backtest/backtest_engine.py:_ensure_model_loaded",
+                        "enter",
+                        {
+                            "model_kind": self.model_kind,
+                            "model_payload_type": type(self.model_payload).__name__,
+                            "model_is_none": self.model is None,
+                            "scaler_is_none": self.scaler is None,
+                        },
+                    )
+                # endregion agent log
+                if self.model_kind == "builtin":
+                    # builtinモデルは予測時に処理
+                    pass
+                else:
+                    # 外部モデルをロード
+                    self.model = _load_model_generic(self.model_payload)
+                    # スケーラーをロード
+                    self.scaler = _load_scaler_if_any(self.model_params)
+                # region agent log
+                if getattr(self, "_dbg_pred_n", 0) == 0:
+                    _dbg(
+                        "A",
+                        "app/core/backtest/backtest_engine.py:_ensure_model_loaded",
+                        "exit",
+                        {
+                            "model_loaded": self.model is not None,
+                            "scaler_loaded": self.scaler is not None,
+                        },
+                    )
+                # endregion agent log
+            except Exception as e:
+                print(f"[BacktestEngine] Failed to load model: {e}", flush=True)
+                self.model = None
+                self.scaler = None
+                _dbg(
+                    "A",
+                    "app/core/backtest/backtest_engine.py:_ensure_model_loaded",
+                    "exception",
+                    {
+                        "exc_type": type(e).__name__,
+                        "exc_msg": str(e)[:300],
+                    },
+                )
+
+    def _predict(self, features_dict: Dict[str, float]) -> ProbOut:
+        """
+        特徴量辞書から予測確率を取得する（ai_service 依存を避けるため）
+        """
+        try:
+            # region agent log
+            if getattr(self, "_dbg_pred_n", 0) < 3:
+                _dbg(
+                    "A",
+                    "app/core/backtest/backtest_engine.py:_predict",
+                    "enter",
+                    {
+                        "model_kind": self.model_kind,
+                        "model_is_none": self.model is None,
+                        "features_n": len(features_dict or {}),
+                        "feature_keys_head": list((features_dict or {}).keys())[:8],
+                    },
+                )
+            # endregion agent log
+            self._ensure_model_loaded()
+            
+            if self.model_kind == "builtin":
+                # builtinモデルは未対応（必要に応じて実装）
+                return ProbOut(0.0, 0.0, 1.0)
+            
+            if self.model is None:
+                # region agent log
+                if getattr(self, "_dbg_pred_n", 0) < 3:
+                    _dbg(
+                        "A",
+                        "app/core/backtest/backtest_engine.py:_predict",
+                        "model unavailable -> returning zeros",
+                        {},
+                    )
+                # endregion agent log
+                return ProbOut(0.0, 0.0, 1.0)
+            
+            # 特徴量をDataFrameに変換（1行）
+            feat_df = pd.DataFrame([features_dict])
+            
+            # 特徴量の順序を確保
+            try:
+                X = _ensure_feature_order(feat_df, self.model_params)
+            except Exception as e:
+                _dbg(
+                    "B",
+                    "app/core/backtest/backtest_engine.py:_predict",
+                    "ensure_feature_order failed",
+                    {
+                        "exc_type": type(e).__name__,
+                        "exc_msg": str(e)[:300],
+                        "feat_cols": list(feat_df.columns)[:50],
+                    },
+                )
+                raise
+            
+            # スケーラーを適用
+            if self.scaler is not None:
+                Xv = X.values
+                try:
+                    # 標準のsklearn系（StandardScaler など）
+                    Xv = self.scaler.transform(Xv)
+                except AttributeError:
+                    # dict / (mean, scale) / ndarray を許容
+                    if isinstance(self.scaler, dict) and ("mean" in self.scaler or "scale" in self.scaler):
+                        mean = np.asarray(self.scaler.get("mean", np.zeros(Xv.shape[1])))
+                        scale = np.asarray(self.scaler.get("scale", np.ones(Xv.shape[1])))
+                        Xv = (Xv - mean) / (scale + 1e-12)
+                    elif isinstance(self.scaler, (tuple, list)) and len(self.scaler) >= 2:
+                        mean = np.asarray(self.scaler[0])
+                        scale = np.asarray(self.scaler[1])
+                        Xv = (Xv - mean) / (scale + 1e-12)
+                    elif isinstance(self.scaler, np.ndarray):
+                        mean = self.scaler
+                        Xv = (Xv - mean)
+                # DataFrameに戻す
+                X = pd.DataFrame(Xv, index=X.index, columns=X.columns)
+            
+            # 予測確率を取得
+            proba = _predict_proba_generic(self.model, X)
+            
+            # 2次元(=確率2列)なら陽性側だけを採用
+            if proba.ndim == 2 and proba.shape[1] == 2:
+                p_buy = float(proba[0, 1])
+            else:
+                p_buy = float(proba[0])
+            
+            # 0〜1 にクリップ
+            p_buy = max(0.0, min(1.0, p_buy))
+            p_sell = 1.0 - p_buy
+            p_skip = 0.0
+            # region agent log
+            # 予測確率算出直後の観測（最初の3回のみ記録）
+            if getattr(self, "_dbg_pred_n", 0) < 3:
+                _dbg(
+                    "C",
+                    "app/core/backtest/backtest_engine.py:_predict",
+                    "予測確率算出直後",
+                    {
+                        "p_buy": p_buy,
+                        "p_sell": p_sell,
+                        "p_skip": p_skip,
+                        "proba_shape": getattr(proba, "shape", None),
+                        "proba_is_nan": bool(np.isnan(np.asarray(proba)).any()) if proba is not None else None,
+                        "p_buy_is_zero": p_buy == 0.0,
+                        "p_sell_is_zero": p_sell == 0.0,
+                        "p_buy_is_one": p_buy == 1.0,
+                        "p_sell_is_one": p_sell == 1.0,
+                    },
+                )
+                self._dbg_pred_n = int(getattr(self, "_dbg_pred_n", 0)) + 1
+            # endregion agent log
+            
+            return ProbOut(p_buy, p_sell, p_skip)
+        except Exception as e:
+            print(f"[BacktestEngine] Prediction failed: {e}", flush=True)
+            _dbg(
+                "A",
+                "app/core/backtest/backtest_engine.py:_predict",
+                "exception -> returning zeros",
+                {
+                    "exc_type": type(e).__name__,
+                    "exc_msg": str(e)[:300],
+                },
+            )
+            return ProbOut(0.0, 0.0, 1.0)
 
     def _normalize_filter_ctx(self, filters_ctx: dict | None) -> dict:
         """
@@ -178,6 +444,31 @@ class BacktestEngine:
         if "close" not in df_features.columns:
             df_features["close"] = df["close"].astype(float)
 
+        # Fail-fast: feature_order must match active_model feature_order
+        # active_model.json の feature_order のみを使用（推測・補完なし）
+        meta = get_active_model_meta() or {}
+        feature_order = meta.get("feature_order") or meta.get("features")
+        if not feature_order:
+            raise RuntimeError("[BacktestEngine] feature_order missing in active_model.json")
+        if not isinstance(feature_order, list):
+            raise RuntimeError(f"[BacktestEngine] feature_order must be a list, got {type(feature_order)}")
+        
+        # 検証（validate_feature_order_fail_fast 内で time/close は除外される）
+        feature_order = validate_feature_order_fail_fast(
+            df_cols=list(df_features.columns),
+            expected=list(feature_order),
+            context="backtest",
+        )
+        
+        # 整形（time, close を保持しつつ、feature_order の順序で並べる）
+        keep_cols = []
+        if "time" in df_features.columns:
+            keep_cols.append("time")
+        if "close" in df_features.columns:
+            keep_cols.append("close")
+        keep_cols.extend(feature_order)
+        df_features = df_features[keep_cols]
+
         # 各バーを処理
         print(f"[BacktestEngine] Processing {len(df_features)} bars...", flush=True)
 
@@ -214,8 +505,8 @@ class BacktestEngine:
             # 特徴量を辞書形式に変換
             features_dict = {col: float(row[col]) for col in df_features.columns if col not in ["time", "close"]}
 
-            # Strategy.predict を呼ぶ
-            ai_out = self.ai_service.predict(features_dict, no_metrics=True)
+            # 予測を実行（ai_service 依存を避けるため）
+            ai_out = self._predict(features_dict)
 
             # EntryContext を作成
             entry_context = self._build_entry_context(row, timestamp)
@@ -249,6 +540,36 @@ class BacktestEngine:
                 filter_reasons=filter_reasons,
                 entry_context=entry_context,
             )
+            # region agent log
+            # 決定構築直後の観測（最初の取引可能バーで1回のみ記録）
+            if not getattr(self, "_dbg_once", False):
+                try:
+                    if self.trade_start_ts is None or timestamp >= self.trade_start_ts:
+                        action = decision.get("action")
+                        side = decision.get("side")
+                        _dbg(
+                            "E",
+                            "app/core/backtest/backtest_engine.py:run",
+                            "決定構築直後：最初の取引可能バー",
+                            {
+                                "bar_index": idx,
+                                "timestamp": str(timestamp),
+                                "prob_buy": float(getattr(ai_out, "p_buy", 0.0)) if ai_out is not None else None,
+                                "prob_sell": float(getattr(ai_out, "p_sell", 0.0)) if ai_out is not None else None,
+                                "threshold": float(getattr(self, "best_threshold", 0.0)),
+                                "filter_level": int(getattr(self, "filter_level", -1)),
+                                "filter_pass": bool(filter_pass),
+                                "filter_reasons": filter_reasons if isinstance(filter_reasons, list) else [str(filter_reasons)] if filter_reasons else [],
+                                "action": action,
+                                "side": side,
+                                "signal": decision.get("signal", {}),
+                                "will_skip": action != "ENTRY" or side is None,
+                            },
+                        )
+                        self._dbg_once = True
+                except Exception:
+                    pass
+            # endregion agent log
 
             # シグナルカウンタを更新
             signal_side = decision.get("signal", {}).get("side")
@@ -337,6 +658,47 @@ class BacktestEngine:
             # decision.action が "ENTRY" でない、または side が None の場合はブロック
             action = decision.get("action")
             side = decision.get("side")
+            # region agent log
+            # エントリー判定直前の観測（最初のSKIPバーで必ず記録）
+            if action != "ENTRY" or side is None:
+                entry_block_reason = None
+                if action != "ENTRY":
+                    entry_block_reason = f"action_not_entry:{action}"
+                elif side is None:
+                    signal_side = decision.get("signal", {}).get("side")
+                    if signal_side is None:
+                        entry_block_reason = "signal_none"
+                    else:
+                        entry_block_reason = f"side_none:signal={signal_side}"
+                
+                # 最初のSKIPバーで必ず記録（single-shot）
+                if debug_counters["entry_block_reason"] is None:
+                    debug_counters["entry_block_reason"] = entry_block_reason
+                    _dbg(
+                        "D",
+                        "app/core/backtest/backtest_engine.py:run",
+                        "ENTRY判定直前：最初のSKIPバー",
+                        {
+                            "bar_index": idx,
+                            "timestamp": str(timestamp),
+                            "action": action,
+                            "entry_block_reason": entry_block_reason,
+                            "prob_buy": float(getattr(ai_out, "p_buy", 0.0)) if ai_out is not None else None,
+                            "prob_sell": float(getattr(ai_out, "p_sell", 0.0)) if ai_out is not None else None,
+                            "threshold": float(getattr(self, "best_threshold", 0.0)),
+                            "filter_level": int(getattr(self, "filter_level", -1)),
+                            "position": "open" if self.executor._open_position is not None else "flat",
+                            "strategy_name": self.model_kind or "unknown",
+                            "decision_signal_side": decision.get("signal", {}).get("side"),
+                            "decision_side": side,
+                            "decision_signal_reason": decision.get("signal", {}).get("reason"),
+                            "decision_signal_pass_threshold": decision.get("signal", {}).get("pass_threshold"),
+                            "decision_signal_confidence": decision.get("signal", {}).get("confidence"),
+                            "filter_pass": decision.get("filter_pass"),
+                            "filter_reasons": decision.get("filter_reasons", []),
+                        },
+                    )
+            # endregion agent log
             if action != "ENTRY" or side is None:
                 if debug_counters["entry_block_reason"] is None:
                     if action != "ENTRY":
@@ -360,6 +722,30 @@ class BacktestEngine:
             sl = decision.get("signal", {}).get("sl")
             tp = decision.get("signal", {}).get("tp")
 
+            # region agent log
+            # 実際のポジション開設直前の観測（最初のENTRY試行で記録）
+            if debug_counters["n_entries"] == 0:
+                _dbg(
+                    "F",
+                    "app/core/backtest/backtest_engine.py:run",
+                    "ポジション開設直前：最初のENTRY試行",
+                    {
+                        "bar_index": idx,
+                        "timestamp": str(timestamp),
+                        "action": action,
+                        "side": side,
+                        "prob_buy": float(getattr(ai_out, "p_buy", 0.0)) if ai_out is not None else None,
+                        "prob_sell": float(getattr(ai_out, "p_sell", 0.0)) if ai_out is not None else None,
+                        "threshold": float(getattr(self, "best_threshold", 0.0)),
+                        "filter_level": int(getattr(self, "filter_level", -1)),
+                        "filter_pass": decision.get("filter_pass"),
+                        "position_before": "open" if self.executor._open_position is not None else "flat",
+                        "lot": lot,
+                        "price": price,
+                    },
+                )
+            # endregion agent log
+
             self.executor.open_position(
                 side=side,
                 price=price,
@@ -371,6 +757,22 @@ class BacktestEngine:
             )
             # エントリーカウンタを更新
             debug_counters["n_entries"] += 1
+            
+            # region agent log
+            # ポジション開設直後の観測（最初のENTRY成功で記録）
+            if debug_counters["n_entries"] == 1:
+                _dbg(
+                    "F",
+                    "app/core/backtest/backtest_engine.py:run",
+                    "ポジション開設直後：最初のENTRY成功",
+                    {
+                        "bar_index": idx,
+                        "timestamp": str(timestamp),
+                        "position_after": "open" if self.executor._open_position is not None else "flat",
+                        "n_entries": debug_counters["n_entries"],
+                    },
+                )
+            # endregion agent log
 
         # 最終バーで強制クローズ
         if self.executor._open_position is not None:

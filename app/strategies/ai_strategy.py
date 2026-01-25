@@ -84,29 +84,93 @@ def _load_model_generic(path_str: str):
 # active_model.json の読み込み
 # =====================================================
 def load_active_model() -> Tuple[str, str, float, Dict[str, Any]]:
-    meta = PROJECT_ROOT / "active_model.json"
+    """
+    モデルの唯一の真実は `models/active_model.json` とする（T-50 方針）。
+    - builtin_ で始まる場合は内蔵モデル
+    - それ以外は models/ 配下のファイルを参照
+    """
+    meta = PROJECT_ROOT / "models" / "active_model.json"
     if not meta.exists():
         raise FileNotFoundError(f"{meta} not found.")
 
     j = json.loads(meta.read_text(encoding="utf-8"))
-    model_name = j.get("model_name", "").strip()
+    model_name = str(j.get("model_name", "")).strip()
     threshold = float(j.get("best_threshold", 0.5))
     params = j.get("params", {}) or {}
 
     if model_name.startswith("builtin_"):
         return ("builtin", model_name, threshold, params)
 
-    # 外部モデル
-    pkl = PROJECT_ROOT / "models" / f"{model_name}.pkl"
-    txt = PROJECT_ROOT / "models" / f"{model_name}.txt"
+    # 外部モデル: active_model.json の "file" を最優先
+    file_name = str(j.get("file", "")).strip()
+    if not file_name:
+        # 最低限の互換: model_name から推測（無い場合は fail-fast）
+        if not model_name:
+            raise FileNotFoundError("models/active_model.json has neither 'file' nor 'model_name'")
+        file_name = f"{model_name}.pkl"
 
-    # ここを txt 優先にする
-    if txt.exists():
-        return ("pickle", str(txt), threshold, params)
-    if pkl.exists():
-        return ("pickle", str(pkl), threshold, params)
+    p = PROJECT_ROOT / "models" / file_name
+    if not p.exists():
+        raise FileNotFoundError(f"Model file not found: {p}")
 
-    raise FileNotFoundError(f"Model file not found: {pkl} nor {txt}")
+    # 拡張子に応じて loader が扱えるように渡す
+    return ("pickle", str(p), threshold, params)
+
+
+def get_active_model_meta() -> dict:
+    """
+    軽量な実装: active_model.json を読み込んで返す。
+    backtest_run.py で使用（ai_service 依存を避けるため）。
+    """
+    # 唯一の真実: models/active_model.json を最優先
+    candidates = [
+        PROJECT_ROOT / "models" / "active_model.json",
+        PROJECT_ROOT / "config" / "active_model.json",
+        PROJECT_ROOT / "configs" / "active_model.json",
+        PROJECT_ROOT / "active_model.json",
+    ]
+    for p in candidates:
+        if p.exists():
+            try:
+                return json.loads(p.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+    return {}
+
+
+def validate_feature_order_fail_fast(df_cols: list[str], expected: list[str], context: str = "backtest") -> list[str]:
+    """
+    FAIL-FAST:
+      - missing があれば即エラー
+      - extra は許容（バックテスト/推論で特徴量が増えても、モデルが使う列だけ抜く）
+    戻り値: expected（=モデルが期待する順序）
+    
+    軽量な実装: backtest_run.py で使用（ai_service 依存を避けるため）。
+    """
+    # 必須: time と close を除外（検証対象外）
+    IGNORE = {"time", "close"}
+    df_cols = [c for c in df_cols if c not in IGNORE]
+    expected = [c for c in expected if c not in IGNORE]
+    
+    df_set = set(df_cols)
+    exp_set = set(expected)
+    
+    missing = [c for c in expected if c not in df_set]
+    extra = [c for c in df_cols if c not in exp_set]
+    
+    if missing:
+        raise RuntimeError(
+            "[feature_check] feature columns mismatch -> FAIL-FAST\n"
+            f"  context={context}\n"
+            f"  missing={missing}\n"
+            f"  extra={extra}\n"
+        )
+    
+    # extra はログだけ（logger が使えるなら logger.warning 推奨）
+    if extra:
+        print(f"[feature_check] extra columns will be ignored (context={context}) extra={extra}", flush=True)
+    
+    return expected
 
 
 # =====================================================

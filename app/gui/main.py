@@ -22,6 +22,7 @@ from app.gui.history_tab import HistoryTab
 from app.services.execution_stub import evaluate_and_log_once
 from app.gui.ai_tab import AITab
 from app.gui.backtest_tab import BacktestTab
+from app.gui.virtual_bt_tab import VirtualBTTab
 from app.gui.kpi_tab import KPITab
 from app.gui.settings_tab import SettingsTab
 from app.gui.ops_tab import OpsTab
@@ -450,6 +451,10 @@ QTabBar::tab:hover {
                 profile_name="michibiki_std",
             ),
             "Backtest"
+        )
+        self.tabs.addTab(
+            VirtualBTTab(parent=self),
+            "Virtual BT"
         )
         self.tabs.addTab(
             KPITab(

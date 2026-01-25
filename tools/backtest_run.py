@@ -19,8 +19,9 @@ from app.strategies.ai_strategy import (
     load_active_model,
     predict_signals,
     trades_from_signals,
+    get_active_model_meta,
+    validate_feature_order_fail_fast,
 )
-from app.services.ai_service import get_active_model_meta, validate_feature_order_fail_fast
 
 LOG_DIR = PROJECT_ROOT / "logs" / "backtest"
 
@@ -722,28 +723,29 @@ def run_backtest(
         guard = EditionGuard()
         current_filter_level = guard.filter_level()
 
-        # Fail-fast: feature_order must match active_model expected_features (single source of truth)
+        # Fail-fast: feature_order must match active_model feature_order
+        # active_model.json の feature_order のみを使用（推測・補完なし）
         feat_df = build_features(df, params={})
         meta = get_active_model_meta() or {}
-        expected = meta.get("expected_features") or meta.get("feature_order") or meta.get("head") or []
-        if not isinstance(expected, list) or not expected:
-            raise RuntimeError("[feature_check] expected_features is empty in active_model.json -> FAIL-FAST")
-        drop_cols = {"time"}
-        have = [c for c in feat_df.columns.tolist() if isinstance(c, str) and c not in drop_cols]
-        have_set = set(have)
-        expected_set = set(expected)
-        missing = [c for c in expected if c not in have_set]
-        extra = [c for c in have if c not in expected_set]
-        if missing or extra:
-            raise RuntimeError(
-                "[feature_check] feature columns mismatch -> FAIL-FAST\n"
-                f"  context=backtest\n"
-                f"  missing={missing}\n"
-                f"  extra={extra}\n"
-            )
-        # IMPORTANT: order is defined by expected_features (model input order)
-        feature_order = list(expected)
-        validate_feature_order_fail_fast(feature_order, context="backtest")
+        feature_order = meta.get("feature_order") or meta.get("features")
+        if not feature_order:
+            raise RuntimeError("[feature_check] feature_order missing in active_model.json -> FAIL-FAST")
+        if not isinstance(feature_order, list):
+            raise RuntimeError(f"[feature_check] feature_order must be a list, got {type(feature_order)}")
+        
+        # 検証（validate_feature_order_fail_fast 内で time/close は除外される）
+        feature_order = validate_feature_order_fail_fast(
+            df_cols=list(feat_df.columns),
+            expected=list(feature_order),
+            context="backtest",
+        )
+        
+        # 整形（time を保持しつつ、feature_order の順序で並べる）
+        keep_cols = []
+        if "time" in feat_df.columns:
+            keep_cols.append("time")
+        keep_cols.extend(feature_order)
+        feat_df = feat_df[keep_cols]
         print(f"[bt] Initializing BacktestEngine (profile={profile}, filter_level={current_filter_level}, init_position={init_position})", flush=True)
         engine = BacktestEngine(
             profile=profile,
@@ -1127,17 +1129,24 @@ def main() -> None:
     ap.add_argument("--layout", choices=["flat", "per-symbol"], default="per-symbol")
     ap.add_argument("--train-ratio", type=float, default=0.7)
     ap.add_argument("--profile", default="michibiki_std", help="プロファイル名（backtests/<profile>/ に出力）")
+    ap.add_argument("--out-dir", help="出力ディレクトリ（指定時は自動生成をスキップ）", required=False)
     args = ap.parse_args()
 
     csv = Path(args.csv).resolve()
-    base_dir = LOG_DIR / args.symbol / args.timeframe
-    base_dir.mkdir(parents=True, exist_ok=True)
-
+    
     # 日付引数の正規化（YYYY-MM-DD or None）
     start_str, end_str = _normalize_dates_from_args(args, ap)
     period_tag = _build_period_tag(start_str, end_str)
-    period_dir = base_dir / f"backtest_{period_tag}"
-    period_dir.mkdir(parents=True, exist_ok=True)
+    
+    # --out-dir が指定されている場合はそれを使用、なければ既存の自動生成ロジック
+    if args.out_dir:
+        period_dir = Path(args.out_dir).resolve()
+        period_dir.mkdir(parents=True, exist_ok=True)
+    else:
+        base_dir = LOG_DIR / args.symbol / args.timeframe
+        base_dir.mkdir(parents=True, exist_ok=True)
+        period_dir = base_dir / f"backtest_{period_tag}"
+        period_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"[main] mode={args.mode} csv={csv}", flush=True)
     print(f"[main] period={period_tag}", flush=True)

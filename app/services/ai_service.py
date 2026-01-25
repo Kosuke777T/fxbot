@@ -1,8 +1,16 @@
 from __future__ import annotations
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, TYPE_CHECKING
 import time
 import json
+import logging
+
+logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    # 型ヒントだけ欲しい場合はここに置く（実行時importしない）
+    # from app.services.shap_service import ShapFeatureImpact  # 例
+    pass
 
 
 def _enrich_active_model_meta(meta: dict, model_obj=None) -> dict:
@@ -96,12 +104,20 @@ def load_active_model_meta() -> dict:
         pass
     return _fallback_load_active_meta()
 from app.services.feature_importance import compute_feature_importance
-from app.services.shap_service import (
-    ShapFeatureImpact,
-    compute_shap_feature_importance,
-    shap_items_to_frame,
-)
 from app.services.edition_guard import get_capability
+
+
+def _lazy_import_shap_service():
+    """
+    SHAPは重い＆環境依存（matplotlib/home等）なので遅延importする。
+    バックテスト等、SHAP不要な経路で落ちないようにする。
+    """
+    try:
+        from app.services import shap_service  # ← ここで初めてimport
+        return shap_service
+    except Exception as e:
+        logger.warning("[AISvc] shap_service unavailable: %s", e, exc_info=True)
+        return None
 
 # AISvc.predict の詳細ログを出すかどうか（バックテストでは OFF 推奨）
 DEBUG_PREDICT_LOG = False
@@ -739,7 +755,12 @@ class AISvc:
             else list(df_bg.columns)
         )
 
-        items: list[ShapFeatureImpact] = compute_shap_feature_importance(
+        # SHAPをlazy import
+        ss = _lazy_import_shap_service()
+        if ss is None:
+            raise RuntimeError("SHAP is unavailable in this environment.")
+        
+        items = ss.compute_shap_feature_importance(
             target_model,
             df_bg,
             feature_names=feature_names,
@@ -747,7 +768,7 @@ class AISvc:
             max_background=max_background,
         )
 
-        df_result = shap_items_to_frame(items)
+        df_result = ss.shap_items_to_frame(items)
         df_result.insert(0, "model", target_name)
 
         self._shap_cache = df_result.copy()
