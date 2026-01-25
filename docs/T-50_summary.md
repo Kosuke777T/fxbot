@@ -268,3 +268,66 @@ T-50-5 完了：tools/compare_min_holding_bars.py を追加し、min_holding_bar
 観測結果：PF最大=2、DD最小=3、0/1は同一で劣後
 
 注意点：私の例コマンドは引数名が古く、実装の usage（--csv, --start-date, --end-date）がSSOT
+
+T-50-5ExitPolicy: min_holding_bars 比較ランナー作成 → 観測で比較確定
+
+■ 目的
+
+ExitPolicy の中で唯一有効と確定した min_holding_bars を、モデル不変・CSV/期間固定で 0/1/2/3 比較し、運用固定の根拠（観測）を作る
+
+■ 実施内容（事実）
+
+min_holding_bars=0/1/2/3 を同一条件で4回バックテスト実行し、指標を summary.csv に集計
+
+同一プロセスで run_backtest() を直接呼び出し（サブプロセス無し）
+
+各試行出力を min_hold_0/1/2/3/ に分離
+
+触ったレイヤ：tools（運用・比較導線）
+
+新規関数：最小（比較ツール追加が中心）
+
+■ 変更ファイル
+
+tools/compare_min_holding_bars.py（新規作成）
+
+■ 守った制約
+
+モデル不変（active_model.json をSSOTとして使用）
+
+CSV・期間固定（比較中にデータ更新なし）
+
+バグ修正なし（既存挙動は新ツール未使用時に不変）
+
+推測で直さず、ログ/usage/出力で観測して確定
+
+■ 挙動の変化
+
+変わった点：min_holding_bars を 同一条件で掃引比較できるようになった（summary.csv 出力）
+
+変わっていない点（重要）：通常の実行経路・モデル・CSV生成・期間・既存バックテスト挙動は不変
+
+■ 確認方法
+
+実行した確認コマンド（例）
+
+python -X utf8 -m py_compile tools/compare_min_holding_bars.py
+
+python -X utf8 tools/compare_min_holding_bars.py --csv ... --start-date ... --end-date ... --out-root ...
+
+OK条件
+
+out-root/summary.csv が生成され、0/1/2/3 の4行が揃う
+
+各試行ディレクトリ min_hold_k/ が生成される
+
+■ 観測結果（2025年通年・提示ログの実測）
+
+0: trades=73832, PF=1.0777, DD=-0.2422, avg_hold=1.00
+
+1: trades=73832, PF=1.0777, DD=-0.2422, avg_hold=1.00
+
+2: trades=36916, PF=1.1026, DD=-0.2860, avg_hold=2.00
+
+3: trades=24611, PF=1.0944, DD=-0.3612, avg_hold≈3.00
+
