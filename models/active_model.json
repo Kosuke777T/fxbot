@@ -1,8 +1,8 @@
 {
-  "model_name": "LightGBM_clf",
-  "file": "LightGBM_clf_20260124_235700.pkl",
-  "meta_file": "LightGBM_clf_20260124_235700.pkl.meta.json",
-  "version": 1769299020.867613,
+  "model_name": "LightGBM_clf_20260125_110619",
+  "file": "LightGBM_clf_20260125_110619.pkl",
+  "meta_file": "LightGBM_clf_20260125_110619.meta.json",
+  "version": 1769306944.321376,
   "best_threshold": 0.5,
   "feature_order": [
     "ret_1",
@@ -25,5 +25,6 @@
     "atr_14",
     "range",
     "vol_chg"
-  ]
+  ],
+  "model_kind": "pickle"
 }

@@ -83,3 +83,92 @@ ENTRY〜決済〜成果物出力まで 因果が一気通貫
 
 T-50-2（調整）に進む前提条件はすべて満たした
 
+
+T-50-2
+目的
+
+取引頻度が低い（または異常に見える）原因を
+バグ修正なし・観測ベースで特定すること
+
+観測で確定した事実
+1. LightGBMモデルの状態
+
+旧モデルは 実質壊れていた
+
+prob_buy が 3値に固定
+
+特徴量数不一致（学習9 / 推論19）
+
+再学習を実施し、以下を達成：
+
+prob_buy ユニーク値数：979
+
+分布：0.01〜0.93
+
+BUY / SELL 両方向が発生
+
+LightGBMは正常状態に復帰（作り直し完了）
+
+2. active_model.json
+
+再学習モデルを SSOTとして正しく反映
+
+feature_order / model_kind / threshold の整合性確認済み
+
+推論・VirtualBT 両方で正常動作
+
+3. VirtualBTの実行実態
+
+decisions.jsonl（intent）: 5870
+
+trades.csv（actual）: 5869
+
+execution_rate ≒ 1.0
+→ ENTRY意思決定はほぼ全て取引に変換されている
+
+4. 取引頻度の制御性
+
+threshold を上げると 線形に取引数が減少
+
+filter_level の影響は小さい
+→ 頻度調整ノブとして threshold は有効
+
+5. 決定的な構造問題（最重要）
+
+全スイープで：
+
+avg_holding_bars = 0
+
+avg_holding_days = 0
+
+entry_time が M5 で完全連続
+
+👉 エントリーした同一バー内で必ず決済されている
+
+6. 利確・損切について
+
+TP / SL は 存在する（列も出力されている）
+
+しかし：
+
+次バー以降に評価されない
+
+別の exit 条件により即クローズ
+
+結果：
+
+勝率 ≈ 0.5
+
+PF ≈ 1.0
+
+成績が threshold 調整では改善しない
+
+結論
+
+LightGBMは壊れていない（再学習後は正常）
+
+threshold / filter_level は頻度制御には有効
+
+損益が出ない主因は VirtualBT の「同一バー完結 exit 設計」
+
+パラメータ調整だけではこれ以上改善しない

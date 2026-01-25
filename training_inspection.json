@@ -1,0 +1,353 @@
+{
+  "n_rows": 114213,
+  "n_cols": 28,
+  "columns": [
+    {
+      "name": "time",
+      "dtype": "datetime64[ns]",
+      "n_unique": 114213,
+      "n_missing": 0,
+      "missing_rate": 0.0
+    },
+    {
+      "name": "open",
+      "dtype": "float64",
+      "n_unique": 18433,
+      "n_missing": 0,
+      "missing_rate": 0.0,
+      "min": 139.643,
+      "max": 161.609,
+      "mean": 150.0982401302829,
+      "std": 4.838628094706206,
+      "zero_variance": false
+    },
+    {
+      "name": "high",
+      "dtype": "float64",
+      "n_unique": 18377,
+      "n_missing": 0,
+      "missing_rate": 0.0,
+      "min": 139.704,
+      "max": 161.619,
+      "mean": 150.1343363627608,
+      "std": 4.834373396159727,
+      "zero_variance": false
+    },
+    {
+      "name": "low",
+      "dtype": "float64",
+      "n_unique": 18378,
+      "n_missing": 0,
+      "missing_rate": 0.0,
+      "min": 139.578,
+      "max": 161.586,
+      "mean": 150.06254012240288,
+      "std": 4.84235675363884,
+      "zero_variance": false
+    },
+    {
+      "name": "close",
+      "dtype": "float64",
+      "n_unique": 18417,
+      "n_missing": 0,
+      "missing_rate": 0.0,
+      "min": 139.643,
+      "max": 161.61,
+      "mean": 150.0983024349242,
+      "std": 4.838539633145821,
+      "zero_variance": false
+    },
+    {
+      "name": "tick_volume",
+      "dtype": "int64",
+      "n_unique": 1279,
+      "n_missing": 0,
+      "missing_rate": 0.0,
+      "min": 1.0,
+      "max": 1404.0,
+      "mean": 359.16140019087146,
+      "std": 211.1150064684992,
+      "zero_variance": false
+    },
+    {
+      "name": "spread",
+      "dtype": "int64",
+      "n_unique": 185,
+      "n_missing": 0,
+      "missing_rate": 0.0,
+      "min": 0.0,
+      "max": 236.0,
+      "mean": 4.97170199539457,
+      "std": 15.746005331306765,
+      "zero_variance": false
+    },
+    {
+      "name": "real_volume",
+      "dtype": "int64",
+      "n_unique": 1,
+      "n_missing": 0,
+      "missing_rate": 0.0,
+      "min": 0.0,
+      "max": 0.0,
+      "mean": 0.0,
+      "std": 0.0,
+      "zero_variance": true
+    },
+    {
+      "name": "ret1",
+      "dtype": "float64",
+      "n_unique": 109501,
+      "n_missing": 0,
+      "missing_rate": 0.0,
+      "min": -0.013723650776886642,
+      "max": 0.012808863815129357,
+      "mean": -1.939043719342541e-07,
+      "std": 0.00039581167038277087,
+      "zero_variance": false
+    },
+    {
+      "name": "ret5",
+      "dtype": "float64",
+      "n_unique": 112112,
+      "n_missing": 0,
+      "missing_rate": 0.0,
+      "min": -0.019216444684384326,
+      "max": 0.014803608681836389,
+      "mean": -9.764385397042842e-07,
+      "std": 0.0008746856036735355,
+      "zero_variance": false
+    },
+    {
+      "name": "ret20",
+      "dtype": "float64",
+      "n_unique": 113060,
+      "n_missing": 0,
+      "missing_rate": 0.0,
+      "min": -0.023228660972162363,
+      "max": 0.021905313849677643,
+      "mean": -3.856356578572443e-06,
+      "std": 0.0017557113126337226,
+      "zero_variance": false
+    },
+    {
+      "name": "sma_10",
+      "dtype": "float64",
+      "n_unique": 89377,
+      "n_missing": 0,
+      "missing_rate": 0.0,
+      "min": 139.7541,
+      "max": 161.5618,
+      "mean": 150.09849629289133,
+      "std": 4.838282399766501,
+      "zero_variance": false
+    },
+    {
+      "name": "sma_50",
+      "dtype": "float64",
+      "n_unique": 107553,
+      "n_missing": 0,
+      "missing_rate": 0.0,
+      "min": 139.9193,
+      "max": 161.05636,
+      "mean": 150.09932579493528,
+      "std": 4.8373309895627745,
+      "zero_variance": false
+    },
+    {
+      "name": "ema_20",
+      "dtype": "float64",
+      "n_unique": 114213,
+      "n_missing": 0,
+      "missing_rate": 0.0,
+      "min": 139.83121141750016,
+      "max": 161.34994941069496,
+      "mean": 150.09870580431348,
+      "std": 4.837457887033669,
+      "zero_variance": false
+    },
+    {
+      "name": "rsi_14",
+      "dtype": "float64",
+      "n_unique": 105303,
+      "n_missing": 0,
+      "missing_rate": 0.0,
+      "min": 0.0,
+      "max": 99.99999999803094,
+      "mean": 50.44033734456032,
+      "std": 16.769942178663968,
+      "zero_variance": false
+    },
+    {
+      "name": "bb_high_20_2",
+      "dtype": "float64",
+      "n_unique": 113968,
+      "n_missing": 0,
+      "missing_rate": 0.0,
+      "min": 139.9402556397619,
+      "max": 163.33338968268112,
+      "mean": 150.26318984746948,
+      "std": 4.822514002848482,
+      "zero_variance": false
+    },
+    {
+      "name": "bb_low_20_2",
+      "dtype": "float64",
+      "n_unique": 113967,
+      "n_missing": 0,
+      "missing_rate": 0.0,
+      "min": 139.5490197477184,
+      "max": 160.95400008626595,
+      "mean": 149.93423053374806,
+      "std": 4.8573302675241985,
+      "zero_variance": false
+    },
+    {
+      "name": "stoch_k_14_3",
+      "dtype": "float64",
+      "n_unique": 85082,
+      "n_missing": 0,
+      "missing_rate": 0.0,
+      "min": 0.0,
+      "max": 99.99999999995204,
+      "mean": 51.25678658457056,
+      "std": 30.162381553977283,
+      "zero_variance": false
+    },
+    {
+      "name": "stoch_d_14_3",
+      "dtype": "float64",
+      "n_unique": 113937,
+      "n_missing": 0,
+      "missing_rate": 0.0,
+      "min": 0.0,
+      "max": 99.90530303005092,
+      "mean": 51.25680119841267,
+      "std": 28.10860161946481,
+      "zero_variance": false
+    },
+    {
+      "name": "atr_14",
+      "dtype": "float64",
+      "n_unique": 17353,
+      "n_missing": 0,
+      "missing_rate": 0.0,
+      "min": 0.006428571428567612,
+      "max": 0.7669285714285711,
+      "mean": 0.07179545235656187,
+      "std": 0.041532051091466154,
+      "zero_variance": false
+    },
+    {
+      "name": "vol_pct_20",
+      "dtype": "float64",
+      "n_unique": 114177,
+      "n_missing": 0,
+      "missing_rate": 0.0,
+      "min": 0.00012227852205000923,
+      "max": 0.01677551069065726,
+      "mean": 0.001467112359625155,
+      "std": 0.000991719232576811,
+      "zero_variance": false
+    },
+    {
+      "name": "ret_1",
+      "dtype": "float64",
+      "n_unique": 109501,
+      "n_missing": 0,
+      "missing_rate": 0.0,
+      "min": -0.013723650776886642,
+      "max": 0.012808863815129357,
+      "mean": -1.939043719342541e-07,
+      "std": 0.00039581167038277087,
+      "zero_variance": false
+    },
+    {
+      "name": "ret_5",
+      "dtype": "float64",
+      "n_unique": 112112,
+      "n_missing": 0,
+      "missing_rate": 0.0,
+      "min": -0.019216444684384326,
+      "max": 0.014803608681836389,
+      "mean": -9.764385397042842e-07,
+      "std": 0.0008746856036735355,
+      "zero_variance": false
+    },
+    {
+      "name": "ema_5",
+      "dtype": "float64",
+      "n_unique": 114190,
+      "n_missing": 0,
+      "missing_rate": 0.0,
+      "min": 139.7022029740681,
+      "max": 161.56913890622704,
+      "mean": 150.09838848989233,
+      "std": 4.838259811726993,
+      "zero_variance": false
+    },
+    {
+      "name": "ema_ratio",
+      "dtype": "float64",
+      "n_unique": 114213,
+      "n_missing": 0,
+      "missing_rate": 0.0,
+      "min": 0.9901632288181974,
+      "max": 1.0074217852560052,
+      "mean": 0.9999978778689127,
+      "std": 0.0005913288947971264,
+      "zero_variance": false
+    },
+    {
+      "name": "range",
+      "dtype": "float64",
+      "n_unique": 1018,
+      "n_missing": 0,
+      "missing_rate": 0.0,
+      "min": 0.0,
+      "max": 2.693000000000012,
+      "mean": 0.07179624035792774,
+      "std": 0.059173382499699924,
+      "zero_variance": false
+    },
+    {
+      "name": "vol_chg",
+      "dtype": "float64",
+      "n_unique": 57042,
+      "n_missing": 0,
+      "missing_rate": 0.0,
+      "min": -0.9964028776978417,
+      "max": 145.0,
+      "mean": 0.09463077303148697,
+      "std": 1.14417280216857,
+      "zero_variance": false
+    },
+    {
+      "name": "target",
+      "dtype": "int64",
+      "n_unique": 2,
+      "n_missing": 0,
+      "missing_rate": 0.0,
+      "min": 0.0,
+      "max": 1.0,
+      "mean": 0.07663751061612951,
+      "std": 0.26601658250774135,
+      "zero_variance": false
+    }
+  ],
+  "target_stats": {
+    "n_total": 114213,
+    "n_missing": 0,
+    "n_unique": 2,
+    "value_counts": {
+      "0": 105460,
+      "1": 8753
+    },
+    "ratios": {
+      "0": 0.9233624893838704,
+      "1": 0.07663751061612951
+    }
+  },
+  "issues": [
+    "列 'real_volume' は分散ゼロ（定数列）"
+  ]
+}
