@@ -1,0 +1,10 @@
+$csv = "D:\fxbot\data\USDJPY\ohlcv\USDJPY_M5.csv"
+
+# Baseline
+python -m tools.backtest_run `
+  --csv $csv `
+  --symbol USDJPY- `
+  --timeframe M5 `
+  --start-date 2025-10-01 `
+  --end-date   2025-12-31 `
+  --out-dir backtests\_t50_3_baseline_short

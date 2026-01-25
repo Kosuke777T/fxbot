@@ -636,6 +636,7 @@ def run_backtest(
     profile: str = "michibiki_std",
     symbol: str = "USDJPY-",
     init_position: str = "flat",
+    exit_policy: dict | None = None,
 ) -> Path:
     """
     v5.1 準拠のバックテストを実行する
@@ -753,6 +754,7 @@ def run_backtest(
             filter_level=current_filter_level,
             init_position=init_position,
             trade_start_ts=trade_start_ts,
+            exit_policy=exit_policy,
         )
 
         print(f"[bt] Running backtest...", flush=True)
@@ -1130,6 +1132,9 @@ def main() -> None:
     ap.add_argument("--train-ratio", type=float, default=0.7)
     ap.add_argument("--profile", default="michibiki_std", help="プロファイル名（backtests/<profile>/ に出力）")
     ap.add_argument("--out-dir", help="出力ディレクトリ（指定時は自動生成をスキップ）", required=False)
+    ap.add_argument("--exit-policy-min-hold", type=int, default=0, help="ExitPolicy: 最低保有バー数（デフォルト: 0）")
+    ap.add_argument("--exit-policy-tp-sl-next", action="store_true", help="ExitPolicy: TP/SLを次バー以降で評価")
+    ap.add_argument("--exit-policy-reverse-only", action="store_true", help="ExitPolicy: 逆シグナル時のみexit")
     args = ap.parse_args()
 
     csv = Path(args.csv).resolve()
@@ -1153,6 +1158,15 @@ def main() -> None:
     print(f"[main] profile={args.profile}", flush=True)
     print(f"[main] init_position={args.init_position}", flush=True)
     if args.mode == "bt":
+        # ExitPolicy を構築
+        exit_policy = None
+        if args.exit_policy_min_hold > 0 or args.exit_policy_tp_sl_next or args.exit_policy_reverse_only:
+            exit_policy = {
+                "min_holding_bars": args.exit_policy_min_hold,
+                "tp_sl_eval_from_next_bar": args.exit_policy_tp_sl_next,
+                "exit_on_reverse_signal_only": args.exit_policy_reverse_only,
+            }
+        
         p = run_backtest(
             csv,
             start_str,
@@ -1162,6 +1176,7 @@ def main() -> None:
             profile=args.profile,
             symbol=args.symbol,
             init_position=args.init_position,
+            exit_policy=exit_policy,
         )
     else:
         p = run_wfo(

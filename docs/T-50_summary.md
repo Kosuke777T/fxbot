@@ -172,3 +172,89 @@ threshold / filter_level は頻度制御には有効
 損益が出ない主因は VirtualBT の「同一バー完結 exit 設計」
 
 パラメータ調整だけではこれ以上改善しない
+
+
+T-50-3 → T-50-4（ExitPolicy 設計調整・アブレーション）
+
+目的
+
+バグ修正なし
+
+モデル不変（active_model.json SSOT）
+
+Exit / Holding の設計調整のみで
+勝率・PF・DD・保有期間が変化するかを観測で確認
+
+使用データ（観測で確定）
+
+CSV: D:\fxbot\data\USDJPY\ohlcv\USDJPY_M5.csv
+
+期間:
+
+min: 2024-07-08 11:45:00
+
+max: 2026-01-25 07:50:00
+
+Timeframe: M5
+
+実装済み ExitPolicy
+
+min_holding_bars
+
+tp_sl_eval_from_next_bar
+
+exit_on_reverse_signal_only
+
+（すべてデフォルトOFF、既存挙動不変）
+
+T-50-4 アブレーション結果（確定）
+name	trades	win_rate	profit_factor	max_drawdown	avg_holding_bars
+baseline	2876	0.50	0.99	-0.32	1.00
+tpslnext	2876	0.50	0.99	-0.32	1.00
+minhold2	1438	0.50	0.97	-0.27	2.00
+both	1438	0.50	0.97	-0.27	2.00
+観測で確定した事実
+
+取引頻度を制御している唯一のノブは min_holding_bars
+
+trades が約 1/2 に減少
+
+avg_holding_bars が設計通り増加
+
+tp_sl_eval_from_next_bar は本条件では効果なし
+
+baseline と完全一致
+
+min_holding_bars と組み合わせても差分なし
+
+現時点では冗長
+
+min_holding_bars の効果
+
+max_drawdown を確実に低下
+
+profit_factor はやや低下
+
+勝率は不変（≈0.50）
+
+ExitPolicy は
+
+正常に機能
+
+設計通り指標を変化させることを確認
+
+結論（T-50 系の到達点）
+
+Exit 設計だけで戦略特性を制御できる構造が確立
+
+モデル改変なしで
+
+リスク（DD）
+
+取引頻度
+
+保有期間
+を操作可能
+
+ミチビキは「入口依存」ではなく
+出口設計主導のシステムとして成立

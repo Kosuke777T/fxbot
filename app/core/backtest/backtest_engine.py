@@ -120,6 +120,7 @@ class BacktestEngine:
         filter_level: int = 3,
         init_position: str = "flat",
         trade_start_ts: Optional[pd.Timestamp] = None,
+        exit_policy: Optional[Dict[str, Any]] = None,
     ):
         """
         Parameters
@@ -132,6 +133,11 @@ class BacktestEngine:
             契約サイズ（JPYペアの場合は100000）
         filter_level : int
             フィルタレベル（0=無効, 1=Basic, 2=Pro, 3=Expert）
+        exit_policy : dict, optional
+            Exit設計パラメータ:
+            - min_holding_bars: int = 0 (最低保有バー数)
+            - tp_sl_eval_from_next_bar: bool = False (TP/SLを次バー以降で評価)
+            - exit_on_reverse_signal_only: bool = False (逆シグナル時のみexit)
         """
         self.profile = profile
         self.initial_capital = initial_capital
@@ -139,6 +145,15 @@ class BacktestEngine:
         self.filter_level = filter_level
         self.init_position = (init_position or "flat").lower()
         self.trade_start_ts = trade_start_ts
+
+        # ExitPolicy（デフォルトは既存挙動を維持）
+        if exit_policy is None:
+            exit_policy = {}
+        self.exit_policy = {
+            "min_holding_bars": exit_policy.get("min_holding_bars", 0),
+            "tp_sl_eval_from_next_bar": exit_policy.get("tp_sl_eval_from_next_bar", False),
+            "exit_on_reverse_signal_only": exit_policy.get("exit_on_reverse_signal_only", False),
+        }
 
         self.executor = SimulatedExecution(initial_capital, contract_size)
         self.profile_stats_service = get_profile_stats_service()
@@ -149,6 +164,19 @@ class BacktestEngine:
 
         # decisions.jsonl の記録用
         self.decisions: List[Dict[str, Any]] = []
+        
+        # ExitPolicy適用ログ（最初の1回のみ）
+        if (
+            self.exit_policy["min_holding_bars"] > 0
+            or self.exit_policy["tp_sl_eval_from_next_bar"]
+            or self.exit_policy["exit_on_reverse_signal_only"]
+        ):
+            print(
+                f"[exit_policy] min_hold={self.exit_policy['min_holding_bars']} "
+                f"tp_sl_next={self.exit_policy['tp_sl_eval_from_next_bar']} "
+                f"reverse_only={self.exit_policy['exit_on_reverse_signal_only']}",
+                flush=True,
+            )
 
         # モデル情報を取得（active_model.jsonから）
         try:
@@ -433,6 +461,11 @@ class BacktestEngine:
         df = df.copy()
         df["time"] = pd.to_datetime(df["time"])
         df = df.sort_values("time").reset_index(drop=True)
+        
+        # ExitPolicy用：エントリー時のバーインデックスを記録（SimulatedTradeに追加）
+        # entry_bar_index を保持するための辞書（trade_id -> bar_index）
+        self._entry_bar_indices: Dict[int, int] = {}
+        self._next_trade_id = 0
 
         # 特徴量を構築
         print(f"[BacktestEngine] Building features...", flush=True)
@@ -605,33 +638,93 @@ class BacktestEngine:
             if not filter_pass:
                 continue
 
-            # 既存ポジションのクローズ判定（SL/TP判定）
+            # 既存ポジションのクローズ判定（SL/TP判定 + ExitPolicy適用）
             if self.executor._open_position is not None:
                 open_pos = self.executor._open_position
                 should_close = False
                 close_price = price
+                close_reason = None
 
-                # SL/TP判定
-                if open_pos.side == "BUY":
-                    if open_pos.sl is not None and price <= open_pos.sl:
-                        should_close = True
-                        close_price = open_pos.sl
-                    elif open_pos.tp is not None and price >= open_pos.tp:
-                        should_close = True
-                        close_price = open_pos.tp
-                else:  # SELL
-                    if open_pos.sl is not None and price >= open_pos.sl:
-                        should_close = True
-                        close_price = open_pos.sl
-                    elif open_pos.tp is not None and price <= open_pos.tp:
-                        should_close = True
-                        close_price = open_pos.tp
+                # ExitPolicy: min_holding_bars チェック
+                entry_bar_idx = getattr(open_pos, "_entry_bar_index", None)
+                if entry_bar_idx is not None:
+                    holding_bars_count = idx - entry_bar_idx
+                    if holding_bars_count < self.exit_policy["min_holding_bars"]:
+                        # min_holding_bars 未満の場合は exit を抑制（TP/SL/逆シグナルすべて）
+                        should_close = False
+                    else:
+                        # min_holding_bars を満たした場合のみ exit 判定を実行
+                        # SL/TP判定（tp_sl_eval_from_next_bar が True の場合は entry_bar と同じバーでは評価しない）
+                        if self.exit_policy["tp_sl_eval_from_next_bar"] and idx == entry_bar_idx:
+                            # エントリーと同じバーでは TP/SL を評価しない
+                            pass
+                        else:
+                            # SL/TP判定
+                            if open_pos.side == "BUY":
+                                if open_pos.sl is not None and price <= open_pos.sl:
+                                    if not self.exit_policy["exit_on_reverse_signal_only"]:
+                                        should_close = True
+                                        close_price = open_pos.sl
+                                        close_reason = "SL"
+                                elif open_pos.tp is not None and price >= open_pos.tp:
+                                    if not self.exit_policy["exit_on_reverse_signal_only"]:
+                                        should_close = True
+                                        close_price = open_pos.tp
+                                        close_reason = "TP"
+                            else:  # SELL
+                                if open_pos.sl is not None and price >= open_pos.sl:
+                                    if not self.exit_policy["exit_on_reverse_signal_only"]:
+                                        should_close = True
+                                        close_price = open_pos.sl
+                                        close_reason = "SL"
+                                elif open_pos.tp is not None and price <= open_pos.tp:
+                                    if not self.exit_policy["exit_on_reverse_signal_only"]:
+                                        should_close = True
+                                        close_price = open_pos.tp
+                                        close_reason = "TP"
 
-                # 簡易版：次のバーでクローズ（SL/TPが無い場合）
-                if not should_close and idx < len(df_features) - 1:
-                    # 次のバーでクローズ
-                    should_close = True
-                    close_price = float(df_features.iloc[idx + 1]["close"])
+                        # 逆シグナル判定（exit_on_reverse_signal_only が True の場合のみ、または常にチェック）
+                        if decision.get("action") == "ENTRY":
+                            signal_side = decision.get("side")
+                            if signal_side is not None and signal_side != open_pos.side:
+                                # 逆シグナル検出
+                                should_close = True
+                                close_price = price
+                                close_reason = "reverse_signal"
+
+                        # 簡易版：次のバーでクローズ（SL/TPが無い場合、かつ exit_on_reverse_signal_only=False の場合のみ）
+                        if (
+                            not should_close
+                            and not self.exit_policy["exit_on_reverse_signal_only"]
+                            and idx < len(df_features) - 1
+                        ):
+                            # 次のバーでクローズ
+                            should_close = True
+                            close_price = float(df_features.iloc[idx + 1]["close"])
+                            close_reason = "next_bar"
+                else:
+                    # entry_bar_index が記録されていない場合（既存挙動を維持）
+                    # SL/TP判定
+                    if open_pos.side == "BUY":
+                        if open_pos.sl is not None and price <= open_pos.sl:
+                            should_close = True
+                            close_price = open_pos.sl
+                        elif open_pos.tp is not None and price >= open_pos.tp:
+                            should_close = True
+                            close_price = open_pos.tp
+                    else:  # SELL
+                        if open_pos.sl is not None and price >= open_pos.sl:
+                            should_close = True
+                            close_price = open_pos.sl
+                        elif open_pos.tp is not None and price <= open_pos.tp:
+                            should_close = True
+                            close_price = open_pos.tp
+
+                    # 簡易版：次のバーでクローズ（SL/TPが無い場合）
+                    if not should_close and idx < len(df_features) - 1:
+                        # 次のバーでクローズ
+                        should_close = True
+                        close_price = float(df_features.iloc[idx + 1]["close"])
 
                 if should_close:
                     closed_trade = self.executor.close_position(close_price, timestamp)
@@ -755,6 +848,12 @@ class BacktestEngine:
                 sl=sl,
                 tp=tp,
             )
+            # ExitPolicy用：エントリー時のバーインデックスを記録
+            if self.executor._open_position is not None:
+                self.executor._open_position._entry_bar_index = idx
+                self.executor._open_position._entry_trade_id = self._next_trade_id
+                self._entry_bar_indices[self._next_trade_id] = idx
+                self._next_trade_id += 1
             # エントリーカウンタを更新
             debug_counters["n_entries"] += 1
             
@@ -1172,6 +1271,34 @@ class BacktestEngine:
 
         # トレード履歴を取得
         trades_df = self.executor.get_trades_df()
+
+        # holding_bars と holding_days を計算して追加
+        if not trades_df.empty:
+            # entry_time と exit_time から holding_bars を計算
+            entry_times = pd.to_datetime(trades_df["entry_time"])
+            exit_times = pd.to_datetime(trades_df["exit_time"])
+            
+            # バーインデックスを取得（df_features の time 列と照合）
+            timestamps = pd.to_datetime(df_features["time"])
+            holding_bars_list = []
+            holding_days_list = []
+            
+            for i, (entry_ts, exit_ts) in enumerate(zip(entry_times, exit_times)):
+                # entry と exit のバーインデックスを取得
+                entry_idx = timestamps.searchsorted(entry_ts, side="right") - 1
+                exit_idx = timestamps.searchsorted(exit_ts, side="right") - 1
+                
+                # holding_bars = exit_idx - entry_idx（0以上）
+                holding_bars = max(0, exit_idx - entry_idx)
+                holding_bars_list.append(holding_bars)
+                
+                # holding_days = (exit_time - entry_time).days
+                holding_days = (exit_ts - entry_ts).days
+                holding_days_list.append(holding_days)
+            
+            trades_df = trades_df.copy()
+            trades_df["holding_bars"] = holding_bars_list
+            trades_df["holding_days"] = holding_days_list
 
         # エクイティ曲線を生成
         timestamps = pd.to_datetime(df_features["time"])
