@@ -331,3 +331,11 @@ out-root/summary.csv が生成され、0/1/2/3 の4行が揃う
 
 3: trades=24611, PF=1.0944, DD=-0.3612, avg_hold≈3.00
 
+T-50-6
+SSOT：active_model.json の exit_policy.min_holding_bars=2 が有効
+
+解決優先順位：cli_override > active_model > default をログで観測
+
+比較ツール：0 を含む明示指定が常に cli_override として効く
+
+実行健全性：モデル実体ロード成功、returning zeros 消失、取引生成を確認

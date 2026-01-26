@@ -77,14 +77,12 @@ def compare_min_holding_bars(
         trial_dir = out_root / f"min_hold_{min_hold}"
         trial_dir.mkdir(parents=True, exist_ok=True)
 
-        # ExitPolicy を構築（min_holding_bars のみ指定、他はデフォルト）
-        exit_policy = None
-        if min_hold > 0:
-            exit_policy = {
-                "min_holding_bars": min_hold,
-                "tp_sl_eval_from_next_bar": False,
-                "exit_on_reverse_signal_only": False,
-            }
+        # ExitPolicy を構築（比較ツールからの明示指定は常に cli_override として優先）
+        exit_policy = {
+            "min_holding_bars": min_hold,
+            "tp_sl_eval_from_next_bar": False,
+            "exit_on_reverse_signal_only": False,
+        }
 
         try:
             # バックテスト実行（同一プロセス呼び出し）

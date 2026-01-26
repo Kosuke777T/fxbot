@@ -146,11 +146,31 @@ class BacktestEngine:
         self.init_position = (init_position or "flat").lower()
         self.trade_start_ts = trade_start_ts
 
-        # ExitPolicy（デフォルトは既存挙動を維持）
+        # ExitPolicy（min_holding_bars 解決の優先順位: caller > active_model > default）
         if exit_policy is None:
             exit_policy = {}
+
+        # min_holding_bars の解決（優先順位: caller > active_model > default）
+        _min_hold_source = "default"
+        _min_hold_value = 0  # デフォルト
+
+        # 1. active_model.json からの取得（SSOT）
+        try:
+            _am_meta = get_active_model_meta() or {}
+            _am_exit_policy = _am_meta.get("exit_policy") or {}
+            if "min_holding_bars" in _am_exit_policy:
+                _min_hold_value = int(_am_exit_policy["min_holding_bars"])
+                _min_hold_source = "active_model"
+        except Exception:
+            pass  # フォールバック: default を維持
+
+        # 2. caller 明示指定があれば上書き（最優先）
+        if "min_holding_bars" in exit_policy:
+            _min_hold_value = int(exit_policy["min_holding_bars"])
+            _min_hold_source = "cli_override"
+
         self.exit_policy = {
-            "min_holding_bars": exit_policy.get("min_holding_bars", 0),
+            "min_holding_bars": _min_hold_value,
             "tp_sl_eval_from_next_bar": exit_policy.get("tp_sl_eval_from_next_bar", False),
             "exit_on_reverse_signal_only": exit_policy.get("exit_on_reverse_signal_only", False),
         }
@@ -164,19 +184,13 @@ class BacktestEngine:
 
         # decisions.jsonl の記録用
         self.decisions: List[Dict[str, Any]] = []
-        
-        # ExitPolicy適用ログ（最初の1回のみ）
-        if (
-            self.exit_policy["min_holding_bars"] > 0
-            or self.exit_policy["tp_sl_eval_from_next_bar"]
-            or self.exit_policy["exit_on_reverse_signal_only"]
-        ):
-            print(
-                f"[exit_policy] min_hold={self.exit_policy['min_holding_bars']} "
-                f"tp_sl_next={self.exit_policy['tp_sl_eval_from_next_bar']} "
-                f"reverse_only={self.exit_policy['exit_on_reverse_signal_only']}",
-                flush=True,
-            )
+
+        # ExitPolicy適用ログ（常に出力、source 付き）
+        print(
+            f"[exit_policy] min_holding_bars={self.exit_policy['min_holding_bars']} "
+            f"source={_min_hold_source}",
+            flush=True,
+        )
 
         # モデル情報を取得（active_model.jsonから）
         try:
