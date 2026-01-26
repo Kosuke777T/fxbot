@@ -339,3 +339,93 @@ SSOT：active_model.json の exit_policy.min_holding_bars=2 が有効
 比較ツール：0 を含む明示指定が常に cli_override として効く
 
 実行健全性：モデル実体ロード成功、returning zeros 消失、取引生成を確認
+
+T-50-9 要点サマリ
+目的
+
+backtest 初回 _predict enter で model_is_none=true が一度だけ出る原因を
+推測禁止・観測で確定し、再発防止判断（修正要否）を行う。
+
+観測で確定した事実
+1. ログのSSOT（実体）
+
+D:\fxbot\.cursor\debug.log
+
+D:\fxbot\backtests\michibiki_std\sanity_after_train\debug_tail.log
+※ .\logs\debug.log は存在しない（誤認を修正）
+
+2. 初回 _predict の実際のログ順序（実ファイル抜粋）
+
+__init__
+
+model_kind="pickle"
+
+モデル設定メタはロード済み
+
+_predict enter
+
+model_is_none=true
+
+_ensure_model_loaded enter
+
+model_is_none=true
+
+_ensure_model_loaded exit
+
+model_loaded=true
+
+_predict（予測確率算出直後）
+
+p_buy ≈ 0.51（正常）
+
+run
+
+ENTRY 判定まで正常に進行
+
+3. 2回目以降の挙動
+
+debug_tail.log にて
+2回目以降の _predict enter は model_is_none=false を観測
+
+因果関係（観測で確定）
+
+設計は lazy-load
+
+__init__ では self.model=None
+
+_predict 入口ログは ロード前状態を出力
+
+直後に _ensure_model_loaded() が必ず呼ばれ、ロード完了
+
+同一呼び出し内で予測・意思決定まで成功
+
+断定（推測なし）
+
+原因分類：A)
+初回のみ model_is_none=true は lazy-load設計通りの正常動作
+
+バグではない
+
+運用上の問題なし
+
+修正不要（このTでは）
+
+文字化けについて（観測のみ）
+
+.cursor\debug.log の先頭バイト：7B（{）
+
+UTF-8 BOMなしで正常
+
+Get-Content -Encoding UTF8 で日本語表示も正常
+→ このファイル自体に文字化け問題はなし
+
+成功条件の判定
+
+成功条件①（初回から model_is_none=false）：❌（仕様上）
+
+成功条件②（問題ないと判断できる材料を揃える）：✅ 達成
+
+結論
+
+T-50-9 は
+「原因確定・設計通り・修正不要」 として 完了。
