@@ -36,6 +36,7 @@ from app.core.config_loader import load_config
 from app.core import market
 from app.services.orderbook_stub import orderbook
 from loguru import logger
+from app.services.aisvc_loader import check_model_health_at_startup
 
 
 class SchedulerTickRunner(QObject):
@@ -396,6 +397,35 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("FX AI Bot Control Panel")
         self.resize(980, 640)
+        
+        # 起動時にモデル健全性チェックを1回だけ実行（起動時のみ、tick処理中は呼ばない）
+        try:
+            health = check_model_health_at_startup()
+            stable = health.get("stable", False)
+            score = health.get("score", 0.0)
+            reasons = health.get("reasons", [])
+            meta = health.get("meta", {})
+            model_path = meta.get("model_path", "n/a")
+            
+            if stable:
+                logger.info(
+                    "[model_health] stable=true score={score} model={model}",
+                    score=score,
+                    model=model_path,
+                )
+            else:
+                logger.warning(
+                    "[model_health] stable=false score={score} model={model} reasons={reasons}",
+                    score=score,
+                    model=model_path,
+                    reasons=reasons,
+                )
+        except Exception as e:
+            # チェック自体が失敗してもアプリは落とさない（最重要の成功条件）
+            logger.error(
+                "[model_health] check failed (app continues): {err}",
+                err=type(e).__name__,
+            )
 
         # --- QTabWidget をインスタンス変数として保持 ---
         self.tabs = QTabWidget(self)

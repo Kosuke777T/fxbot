@@ -429,3 +429,75 @@ Get-Content -Encoding UTF8 で日本語表示も正常
 
 T-50-9 は
 「原因確定・設計通り・修正不要」 として 完了。
+
+T-51-1：backtest / live 共通のモデルロード・健全性チェック設計
+
+■ 目的
+
+起動時に active_model.json と実モデルファイル不整合を検知し、モデル不在系事故を事前に可視化する（ただし売買ロジックへ影響させない）。
+
+■ 実施内容（事実）
+
+services層に check_model_health_at_startup() を追加し、起動時に active_model.json / model_path / scaler_path / ロード可否 / 推論API有無 / expected_features を検査。
+
+aisvc_loader
+
+GUI起動（MainWindow.__init__ 早期）で 1回だけ健全性チェックを実行し、[model_health] ログを出力。
+
+main
+
+触ったレイヤ：services / gui
+
+新規関数：あり（check_model_health_at_startup）
+
+aisvc_loader
+
+■ 変更ファイル
+
+app/services/aisvc_loader.py（check_model_health_at_startup() 追加）
+
+aisvc_loader
+
+app/gui/main.py（MainWindow.__init__() で起動時1回チェック＆ログ）
+
+main
+
+■ 守った制約
+
+最小差分
+
+既存ロード経路（既存API優先）
+
+責務境界（GUI→services）遵守
+
+売買ロジックに影響なし（起動時診断のみ）
+
+main
+
+
+
+aisvc_loader
+
+■ 挙動の変化
+
+変わった点：起動時に モデル健全性の診断ログが必ず出る（正常/異常で stable/score/reasons）。
+
+main
+
+変わっていない点（重要）：売買判断・発注経路・tick処理・バックテスト処理は一切変更なし。
+
+main
+
+■ 確認方法
+
+python -X utf8 -m py_compile app/services/aisvc_loader.py app/gui/main.py（OK）
+
+正常：stable=true score=100 ログ
+
+異常（active_model.json 不在など）：stable=false reasons=[...] ログ、アプリ継続
+
+main
+
+
+
+aisvc_loader
