@@ -557,3 +557,59 @@ python -X utf8 -m py_compile app/gui/main.py
 ■ 次にやるべきこと（あれば）
 
 T-51-3候補：meta の詳細（model_path / trained_at / scaler_path）をAIタブ or Settingsに折りたたみ表示し、コピーしやすくする（※起動時チェックの再実行は増やさず、保持結果の表示のみ）
+
+T-51-3 起動時モデル健全性チェック meta をGUIで折りたたみ表示 + コピー
+
+■ 目的
+
+起動時モデル健全性チェックの meta（model_path / trained_at / scaler_path 等） を、AIタブに 折りたたみ詳細として表示し、コピーしやすくする。
+
+■ 実施内容（事実）
+
+AIタブ（モデル指標）に「モデル健全性（詳細）」の折りたたみ領域を追加（QGroupBox + QPlainTextEdit + コピー）
+
+起動時健全性結果のスナップショット getter を services 層に用意し、GUIから参照
+
+健全性チェック終了時に 1行ログを追加
+
+表示・コピーで例外が出ても アプリ継続（握り）
+
+■ 変更ファイル
+
+app/gui/ai_tab.py（モデル指標タブ内に「モデル健全性（詳細）」＋コピー追加）
+
+ai_tab
+
+app/services/aisvc_loader.py（健全性結果のスナップショット保存 + getter + 1行ログ）
+
+aisvc_loader
+
+■ 守った制約
+
+最小差分
+
+既存API優先（GUI→services参照）
+
+責務境界（gui/services/core）遵守
+
+表示とログ補強のみ（挙動変更なし）
+
+■ 挙動の変化
+
+変わった点：AIタブに 健全性metaの折りたたみ詳細が増え、コピーしやすくなった
+
+変わっていない点（重要）：stable/reasons バナー維持、売買ロジック／ボタン活性／起動フローは不変
+
+■ 確認方法
+
+python -X utf8 -m py_compile app/services/aisvc_loader.py
+
+python -X utf8 -m py_compile app/gui/ai_tab.py
+
+python -X utf8 -m py_compile app/gui/main.py
+
+起動→AIタブ→モデル指標→詳細展開→コピー→貼り付けできる／チェック失敗でも落ちない
+
+■ 次にやるべきこと（あれば）
+
+仮想実行バックテスト（Virtual BT）を「GUIから実行」できるように配線（表示中心、売買挙動は触らない）

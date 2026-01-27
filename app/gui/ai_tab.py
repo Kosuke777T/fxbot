@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QTabWidget,
     QApplication,
+    QPlainTextEdit,
 )
 from PyQt6.QtCore import Qt
 
@@ -29,6 +30,7 @@ from app.gui.widgets.model_info_widget import ModelInfoWidget
 from app.core.strategy_profile import get_profile
 from app.services import edition_guard
 from app.services.diagnosis_service import get_diagnosis_service
+from app.services.aisvc_loader import get_last_model_health
 
 
 class AITab(QWidget):
@@ -79,6 +81,28 @@ QTabBar::tab:hover {
         # モデル指標ウィジェット
         self.model_info_widget = ModelInfoWidget(self.tab_model_info)
         model_info_layout.addWidget(self.model_info_widget)
+
+        # --- モデル健全性（詳細）折りたたみグループ ---
+        self.health_detail_group = QGroupBox("モデル健全性（詳細）", self.tab_model_info)
+        self.health_detail_group.setCheckable(True)
+        self.health_detail_group.setChecked(False)  # デフォルトは折りたたみ
+        health_detail_layout = QVBoxLayout(self.health_detail_group)
+
+        # 詳細情報表示用テキストエリア（read-only）
+        self.health_detail_text = QPlainTextEdit(self.health_detail_group)
+        self.health_detail_text.setReadOnly(True)
+        self.health_detail_text.setMaximumHeight(200)
+        health_detail_layout.addWidget(self.health_detail_text)
+
+        # コピーボタン
+        btn_copy_layout = QHBoxLayout()
+        btn_copy_layout.addStretch()
+        self.btn_copy_health = QPushButton("コピー", self.health_detail_group)
+        self.btn_copy_health.clicked.connect(self._on_copy_health_clicked)
+        btn_copy_layout.addWidget(self.btn_copy_health)
+        health_detail_layout.addLayout(btn_copy_layout)
+
+        model_info_layout.addWidget(self.health_detail_group)
         model_info_layout.addStretch(1)
 
         self.tab_model_info.setLayout(model_info_layout)
@@ -174,6 +198,9 @@ QTabBar::tab:hover {
 
         # モデル指標は ModelInfoWidget 内で自動的に初期化される
 
+        # モデル健全性（詳細）の表示を更新
+        self._update_health_detail()
+
     def refresh_kpi(self) -> None:
         """
         recent_kpi.compute_recent_kpi_from_decisions を呼び出し、
@@ -225,3 +252,120 @@ QTabBar::tab:hover {
         """モデル指標ウィジェットを再読込する。"""
         if hasattr(self, "model_info_widget"):
             self.model_info_widget.reload()
+
+    def _update_health_detail(self) -> None:
+        """
+        モデル健全性（詳細）の表示を更新する。
+        get_last_model_health() から結果を取得して整形表示。
+        """
+        try:
+            health_result = get_last_model_health()
+            if health_result is None:
+                self.health_detail_text.setPlainText("(健全性チェック未実行)")
+                return
+
+            # meta情報を整形
+            meta = health_result.get("meta", {})
+            stable = health_result.get("stable", False)
+            score = health_result.get("score", 0.0)
+            reasons = health_result.get("reasons", [])
+
+            # 表示用テキストを構築
+            lines = []
+            lines.append(f"stable: {stable}")
+            lines.append(f"score: {score:.1f}")
+            if reasons:
+                lines.append(f"reasons: {', '.join(str(r) for r in reasons)}")
+            else:
+                lines.append("reasons: (none)")
+
+            lines.append("")  # 空行
+            lines.append("--- meta ---")
+
+            # model_path
+            model_path = meta.get("model_path", None)
+            if model_path:
+                lines.append(f"model_path: {model_path}")
+            else:
+                lines.append("model_path: (n/a)")
+
+            # trained_at
+            trained_at = meta.get("trained_at", None)
+            if trained_at:
+                lines.append(f"trained_at: {trained_at}")
+            else:
+                # active_model.json から直接取得を試みる
+                try:
+                    from app.services.ai_service import load_active_model_meta
+                    active_meta = load_active_model_meta()
+                    if active_meta:
+                        trained_at_alt = active_meta.get("trained_at") or active_meta.get("version")
+                        if trained_at_alt:
+                            lines.append(f"trained_at: {trained_at_alt}")
+                        else:
+                            lines.append("trained_at: (n/a)")
+                    else:
+                        lines.append("trained_at: (n/a)")
+                except Exception:
+                    lines.append("trained_at: (n/a)")
+
+            # scaler_path
+            scaler_path = meta.get("scaler_path", None)
+            if scaler_path:
+                lines.append(f"scaler_path: {scaler_path}")
+            else:
+                lines.append("scaler_path: (n/a)")
+
+            # expected_features_count
+            expected_features_count = meta.get("expected_features_count", None)
+            if expected_features_count is not None:
+                lines.append(f"expected_features_count: {expected_features_count}")
+
+            # best_threshold（active_model.json から取得を試みる）
+            try:
+                from app.services.ai_service import load_active_model_meta
+                active_meta = load_active_model_meta()
+                if active_meta:
+                    best_threshold = active_meta.get("best_threshold")
+                    if best_threshold is not None:
+                        lines.append(f"best_threshold: {best_threshold}")
+            except Exception:
+                pass
+
+            # その他のmeta情報
+            other_keys = set(meta.keys()) - {
+                "model_path",
+                "trained_at",
+                "scaler_path",
+                "expected_features_count",
+                "active_model_path",
+            }
+            if other_keys:
+                lines.append("")  # 空行
+                lines.append("--- その他 ---")
+                for key in sorted(other_keys):
+                    value = meta.get(key)
+                    lines.append(f"{key}: {value}")
+
+            text = "\n".join(lines)
+            self.health_detail_text.setPlainText(text)
+
+        except Exception as e:
+            # 例外は握る（表示失敗でもアプリは継続）
+            self.health_detail_text.setPlainText(f"(表示エラー: {type(e).__name__})")
+
+    def _on_copy_health_clicked(self) -> None:
+        """コピーボタン押下時：健全性詳細をクリップボードにコピー。"""
+        try:
+            text = self.health_detail_text.toPlainText()
+            if text:
+                clipboard = QApplication.clipboard()
+                clipboard.setText(text)
+                # 簡易フィードバック（ボタンテキストを一時変更）
+                original_text = self.btn_copy_health.text()
+                self.btn_copy_health.setText("コピーしました")
+                from PyQt6.QtCore import QTimer
+                QTimer.singleShot(2000, lambda: self.btn_copy_health.setText(original_text))
+        except Exception:
+            # コピー失敗でもアプリは継続
+            pass

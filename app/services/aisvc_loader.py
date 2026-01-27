@@ -227,6 +227,29 @@ def check_model_health_at_startup(models_dir: str | Path = "models") -> Dict[str
     # 結果をスナップショットとして保存（GUI表示用）
     set_last_model_health(result)
     
+    # ログ補強（1行のみ）
+    try:
+        from loguru import logger
+        stable_val = result.get("stable", False)
+        score_val = result.get("score", 0.0)
+        reasons_list = result.get("reasons", [])
+        meta_dict = result.get("meta", {})
+        model_path_str = meta_dict.get("model_path", "n/a")
+        trained_at_str = meta_dict.get("trained_at") or "n/a"
+        scaler_path_str = meta_dict.get("scaler_path") or "n/a"
+        logger.info(
+            "[model_health] stable={} score={:.1f} reasons={} model_path={} trained_at={} scaler_path={}",
+            stable_val,
+            score_val,
+            len(reasons_list),
+            model_path_str,
+            trained_at_str,
+            scaler_path_str,
+        )
+    except Exception:
+        # ログ失敗でも処理は継続
+        pass
+    
     return result
 
 
