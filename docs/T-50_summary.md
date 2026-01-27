@@ -501,3 +501,59 @@ main
 
 
 aisvc_loader
+
+T-51-2：起動時モデル健全性チェック結果（stable/score/reasons/meta）をGUI表示
+
+■ 目的
+
+起動直後に画面上で stable と reasons を視認できるようにする（失敗でもアプリ継続、挙動変更なし）
+
+■ 実施内容（事実）
+
+services：app/services/aisvc_loader.py に起動時チェック結果のスナップショット保持・参照窓口を追加
+
+_MODEL_HEALTH_LAST / set_last_model_health() / get_last_model_health()
+
+check_model_health_at_startup() 実行結果を自動保存
+
+gui：app/gui/main.py に タブの上へ health_banner(QLabel) を追加し、起動時1回の結果を表示
+
+stable=False の場合は視認性のため背景色変更
+
+reasons が長い場合は省略＋tooltipで全文
+
+ログ：起動時1回のみ [model_health] stable/score/reasons と meta要点（あれば）をINFO出力
+
+失敗時も例外で落とさず、stable=False + reasons に失敗理由を詰めて表示しアプリ継続
+
+■ 変更ファイル
+
+app/services/aisvc_loader.py（末尾付近：保持/参照窓口、起動時チェック結果の保存）
+
+app/gui/main.py（MainWindow 初期化付近：バナー配置・表示更新）
+
+■ 守った制約
+
+表示とログ補強のみ（売買ロジック・ボタン活性/非活性など挙動変更なし）
+
+既存API優先・新規最小
+
+責務境界（GUI→servicesのみ）遵守
+
+■ 挙動の変化
+
+変わった点：起動直後に Model health バナーが表示され、stable/reasons を即時確認できる
+
+変わっていない点（重要）：売買ロジック、各ボタンの挙動、実行フローは不変
+
+■ 確認方法
+
+python -X utf8 -m py_compile app/services/aisvc_loader.py
+
+python -X utf8 -m py_compile app/gui/main.py
+
+起動直後にバナーが表示されること（失敗ケースでもクラッシュしないこと）
+
+■ 次にやるべきこと（あれば）
+
+T-51-3候補：meta の詳細（model_path / trained_at / scaler_path）をAIタブ or Settingsに折りたたみ表示し、コピーしやすくする（※起動時チェックの再実行は増やさず、保持結果の表示のみ）

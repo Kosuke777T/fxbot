@@ -1,11 +1,14 @@
 # app/services/aisvc_loader.py
 import json
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 ROOT = Path(r"C:\fxbot")  # 運用固定
 ACTIVE = ROOT / "active_model.json"
 MODELS = ROOT / "models_store"
+
+# 起動時モデル健全性チェック結果のスナップショット（参照窓口）
+_MODEL_HEALTH_LAST: Optional[Dict[str, Any]] = None
 
 
 class ActiveModelInfo(dict):
@@ -214,9 +217,44 @@ def check_model_health_at_startup(models_dir: str | Path = "models") -> Dict[str
         score -= 15.0
         reasons.append(f"expected_features_check_failed: {type(e).__name__}")
     
-    return {
+    result = {
         "stable": stable,
         "score": max(0.0, score),  # 負の値にならないように
         "reasons": reasons,
         "meta": meta,
     }
+    
+    # 結果をスナップショットとして保存（GUI表示用）
+    set_last_model_health(result)
+    
+    return result
+
+
+def set_last_model_health(result: Dict[str, Any]) -> None:
+    """
+    起動時モデル健全性チェック結果を保存する（参照窓口用）。
+    
+    Args:
+        result: check_model_health_at_startup() の戻り値
+    """
+    global _MODEL_HEALTH_LAST
+    try:
+        _MODEL_HEALTH_LAST = result.copy() if isinstance(result, dict) else None
+    except Exception:
+        # 例外は握る（参照窓口なので失敗しても継続）
+        _MODEL_HEALTH_LAST = None
+
+
+def get_last_model_health() -> Optional[Dict[str, Any]]:
+    """
+    起動時モデル健全性チェック結果を取得する（参照窓口用）。
+    
+    Returns:
+        check_model_health_at_startup() の戻り値、または None（未チェック/失敗時）
+    """
+    global _MODEL_HEALTH_LAST
+    try:
+        return _MODEL_HEALTH_LAST.copy() if _MODEL_HEALTH_LAST is not None else None
+    except Exception:
+        # 例外は握る（参照窓口なので失敗しても継続）
+        return None

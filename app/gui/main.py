@@ -1,7 +1,7 @@
 import sys
 import traceback
 import threading
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from PyQt6.QtCore import QTimer, QObject
 from PyQt6.QtWidgets import (
@@ -36,7 +36,7 @@ from app.core.config_loader import load_config
 from app.core import market
 from app.services.orderbook_stub import orderbook
 from loguru import logger
-from app.services.aisvc_loader import check_model_health_at_startup
+from app.services.aisvc_loader import check_model_health_at_startup, set_last_model_health
 
 
 class SchedulerTickRunner(QObject):
@@ -399,34 +399,65 @@ class MainWindow(QMainWindow):
         self.resize(980, 640)
         
         # 起動時にモデル健全性チェックを1回だけ実行（起動時のみ、tick処理中は呼ばない）
+        health_result: Dict[str, Any] = {"stable": False, "score": 0.0, "reasons": ["startup_check_exception"], "meta": {}}
         try:
             health = check_model_health_at_startup()
-            stable = health.get("stable", False)
-            score = health.get("score", 0.0)
-            reasons = health.get("reasons", [])
-            meta = health.get("meta", {})
-            model_path = meta.get("model_path", "n/a")
-            
-            if stable:
-                logger.info(
-                    "[model_health] stable=true score={score} model={model}",
-                    score=score,
-                    model=model_path,
-                )
-            else:
-                logger.warning(
-                    "[model_health] stable=false score={score} model={model} reasons={reasons}",
-                    score=score,
-                    model=model_path,
-                    reasons=reasons,
-                )
+            # 結果を正規化（stable/score/reasons/meta を保証）
+            health_result = {
+                "stable": health.get("stable", False),
+                "score": health.get("score", 0.0),
+                "reasons": health.get("reasons", []),
+                "meta": health.get("meta", {}),
+            }
+            # services側の参照窓口に保存
+            set_last_model_health(health_result)
         except Exception as e:
             # チェック自体が失敗してもアプリは落とさない（最重要の成功条件）
+            # 失敗時は正規化された結果を保持
+            health_result = {
+                "stable": False,
+                "score": 0.0,
+                "reasons": [f"startup_check_exception: {type(e).__name__}"],
+                "meta": {},
+            }
+            set_last_model_health(health_result)
             logger.error(
                 "[model_health] check failed (app continues): {err}",
                 err=type(e).__name__,
             )
+        
+        # ログ補強（1回だけ）
+        stable = health_result["stable"]
+        score = health_result["score"]
+        reasons = health_result["reasons"]
+        meta = health_result["meta"]
+        model_path = meta.get("model_path", "n/a")
+        trained_at = meta.get("trained_at", None)
+        scaler_path = meta.get("scaler_path", None)
+        
+        log_parts = [f"stable={stable}", f"score={score:.1f}", f"reasons={reasons}"]
+        if model_path != "n/a":
+            log_parts.append(f"model_path={model_path}")
+        if trained_at:
+            log_parts.append(f"trained_at={trained_at}")
+        if scaler_path:
+            log_parts.append(f"scaler_path={scaler_path}")
+        
+        logger.info(f"[model_health] {' '.join(log_parts)}")
 
+        # --- モデル健全性バナー（タブの上に配置） ---
+        self.health_banner = QLabel(self)
+        self.health_banner.setStyleSheet("""
+            QLabel {
+                background-color: #F5F5F5;
+                border: 1px solid #CCCCCC;
+                border-radius: 3px;
+                padding: 4px 8px;
+                font-size: 11px;
+            }
+        """)
+        self._update_health_banner(health_result)
+        
         # --- QTabWidget をインスタンス変数として保持 ---
         self.tabs = QTabWidget(self)
 
@@ -498,8 +529,16 @@ QTabBar::tab:hover {
         self.tabs.addTab(SchedulerTab(), "Scheduler")
         self.tabs.addTab(OpsTab(), "Ops")
 
-        # QTabWidget をメインウィンドウにセット
-        self.setCentralWidget(self.tabs)
+        # バナーとタブを縦に配置するコンテナ
+        central_container = QWidget(self)
+        central_layout = QVBoxLayout(central_container)
+        central_layout.setContentsMargins(4, 4, 4, 4)
+        central_layout.setSpacing(4)
+        central_layout.addWidget(self.health_banner)
+        central_layout.addWidget(self.tabs)
+        
+        # コンテナをメインウィンドウにセット
+        self.setCentralWidget(central_container)
 
         # タブ切り替えシグナルにハンドラを接続
         self.tabs.currentChanged.connect(self._on_tab_changed)
@@ -558,6 +597,63 @@ QTabBar::tab:hover {
 
             # 念のため、フォーカスも AI タブに合わせておく
             self.tabs.setCurrentIndex(index)
+    
+    def _update_health_banner(self, health_result: Dict[str, Any]) -> None:
+        """
+        モデル健全性バナーの表示を更新する。
+        
+        Args:
+            health_result: check_model_health_at_startup() の戻り値
+        """
+        try:
+            stable = health_result.get("stable", False)
+            score = health_result.get("score", 0.0)
+            reasons = health_result.get("reasons", [])
+            
+            # reasons の整形（空なら "(none)"、複数なら "; " で連結）
+            if not reasons:
+                reasons_str = "(none)"
+            else:
+                reasons_str = "; ".join(str(r) for r in reasons)
+                # 長い場合は省略（tooltipにフル表示）
+                if len(reasons_str) > 80:
+                    reasons_display = reasons_str[:77] + "..."
+                else:
+                    reasons_display = reasons_str
+                reasons_str = reasons_display
+            
+            # 表示テキスト
+            text = f"Model health: stable={stable} score={score:.1f} reasons={reasons_str}"
+            
+            # バナーに設定
+            self.health_banner.setText(text)
+            self.health_banner.setToolTip(f"Full reasons: {reasons_str}" if reasons else "No issues detected")
+            
+            # stable=False の場合は背景色を変える（視認性向上）
+            if not stable:
+                self.health_banner.setStyleSheet("""
+                    QLabel {
+                        background-color: #FFF3CD;
+                        border: 1px solid #FFC107;
+                        border-radius: 3px;
+                        padding: 4px 8px;
+                        font-size: 11px;
+                    }
+                """)
+            else:
+                self.health_banner.setStyleSheet("""
+                    QLabel {
+                        background-color: #F5F5F5;
+                        border: 1px solid #CCCCCC;
+                        border-radius: 3px;
+                        padding: 4px 8px;
+                        font-size: 11px;
+                    }
+                """)
+        except Exception:
+            # 例外は握る（表示失敗でもアプリは継続）
+            self.health_banner.setText("Model health: (check failed)")
+            self.health_banner.setToolTip("Health check failed to display")
 
 
 def main() -> None:
