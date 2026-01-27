@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-from PyQt6.QtCore import Qt, QProcess
+from PyQt6.QtCore import Qt, QProcess, QSettings
 from PyQt6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -39,8 +39,14 @@ class VirtualBTTab(QWidget):
         self._service = VirtualBacktestService(self)
         self._csv_path: Optional[str] = None
         
+        # QSettings を初期化（CSVパス永続化用）
+        self._settings = QSettings("fxbot", "michibiki")
+        
         # UI構築
         self._setup_ui()
+        
+        # 保存済みCSVパスを復元
+        self._restore_last_csv_path()
         
         # サービスシグナル接続
         self._service.finished.connect(self._on_service_finished)
@@ -150,7 +156,12 @@ class VirtualBTTab(QWidget):
         
     def _select_csv(self):
         """CSVファイルを選択する。"""
-        start_dir = str(Path("logs").resolve()) if Path("logs").exists() else str(Path(".").resolve())
+        # 初期フォルダを D:\fxbot\data に固定
+        start_dir = r"D:\fxbot\data"
+        # フォルダが存在しない場合は現在のディレクトリにフォールバック
+        if not Path(start_dir).exists():
+            start_dir = str(Path(".").resolve())
+        
         fn, _ = QFileDialog.getOpenFileName(
             self,
             "バックテスト入力CSV（OHLCV）を選択",
@@ -160,7 +171,28 @@ class VirtualBTTab(QWidget):
         if fn:
             self._csv_path = fn
             self.csv_path_edit.setText(fn)
+            # QSettings に保存
+            self._settings.setValue("virtual_bt/last_csv_path", fn)
             self._append_log(f"[VirtualBT] CSV selected: {fn}")
+    
+    def _restore_last_csv_path(self):
+        """保存済みCSVパスを復元する。"""
+        try:
+            saved_path = self._settings.value("virtual_bt/last_csv_path", None)
+            if saved_path and isinstance(saved_path, str):
+                # ファイルが存在するか確認
+                csv_path = Path(saved_path)
+                if csv_path.exists() and csv_path.is_file():
+                    self._csv_path = saved_path
+                    self.csv_path_edit.setText(saved_path)
+                    self._append_log(f"[VirtualBT] Restored CSV path: {saved_path}")
+                else:
+                    # ファイルが存在しない場合は設定をクリア
+                    self._settings.remove("virtual_bt/last_csv_path")
+                    self._append_log(f"[VirtualBT] Saved CSV path not found, cleared: {saved_path}")
+        except Exception as e:
+            # 復元失敗時は無視（アプリは継続）
+            self._append_log(f"[VirtualBT] Failed to restore CSV path: {e}")
     
     def _on_start_clicked(self):
         """開始ボタンがクリックされたときの処理。"""
