@@ -691,3 +691,44 @@ UX改善として適切
 将来の「条件再現・実験ログ化」への布石になっている
 
 ミチビキの思想（人間の記憶に依存しない設計）と整合
+
+T-52
+達成したこと（成功条件）
+
+開始ボタン → Virtual BT 実行 → equity_curve.csv 生成（ストリーミング追記） → GUIで資産曲線表示 を最小差分で達成
+
+差分更新：equity_curve.csv を 5バーごとに追記
+
+GUI更新：500ms タイマーで 差分だけ読み取り（seek）して描画更新
+
+全読み込み禁止：GUI/services 側の読み取りは差分のみ
+
+責務境界：GUI=操作/描画、Services=起動/差分読取、Core=実行/出力 で維持
+
+主要変更点（ファイル別）
+
+app/core/backtest/backtest_engine.py
+
+equity_curve.csv を 5バーごとに追記
+
+equity算出を 全履歴再計算禁止（executor.equity を利用）
+
+_generate_outputs() で 既存 equity_curve.csv を上書きしない（SSOT化）
+
+app/services/virtual_bt_service.py
+
+read_equity_curve_diff() を追加：ファイル位置保持＋差分のみ読取
+
+app/gui/virtual_bt_tab.py
+
+下段に **資産曲線（matplotlib）**を追加、500ms差分更新
+
+描画更新を set_data() で軽量化
+
+UI改善：ログ領域を狭くしてグラフを拡大（splitter比率＋stretch＋ログフォント小）
+
+動作確認（実施済みとして扱う観測）
+
+py_compile が通る
+
+Virtual BT 実行後、成果物（equity_curve.csv/metrics.json/trades.csv/monthly_returns.csv 等）が生成され、GUIに資産曲線が表示される

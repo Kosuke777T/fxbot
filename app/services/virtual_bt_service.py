@@ -31,6 +31,11 @@ class VirtualBacktestService(QObject):
         self._run_id: Optional[str] = None
         self._out_dir: Optional[Path] = None
         self._log_file: Optional[Path] = None
+        # equity_curve.csv の差分読取用
+        self._equity_csv_path: Optional[Path] = None
+        self._equity_file_handle = None
+        self._equity_last_pos: int = 0
+        self._equity_header_skipped: bool = False
         
     def generate_run_id(self) -> str:
         """
@@ -114,6 +119,11 @@ class VirtualBacktestService(QObject):
         
         # ログファイルパス
         self._log_file = self._out_dir / "bt_app.log"
+        
+        # equity_curve.csv のパスを設定
+        self._equity_csv_path = self._out_dir / "equity_curve.csv"
+        self._equity_last_pos = 0
+        self._equity_header_skipped = False
         
         # matplotlibキャッシュディレクトリを作成
         mpl_cache = self._out_dir / ".mplconfig"
@@ -238,6 +248,14 @@ class VirtualBacktestService(QObject):
             except Exception:
                 pass
         
+        # equity_curve.csv のファイルハンドルを閉じる
+        if self._equity_file_handle is not None:
+            try:
+                self._equity_file_handle.close()
+                self._equity_file_handle = None
+            except Exception:
+                pass
+        
         self._process = None
     
     def is_running(self) -> bool:
@@ -298,6 +316,14 @@ class VirtualBacktestService(QObject):
             except Exception:
                 pass
         
+        # equity_curve.csv のファイルハンドルを閉じる
+        if self._equity_file_handle is not None:
+            try:
+                self._equity_file_handle.close()
+                self._equity_file_handle = None
+            except Exception:
+                pass
+        
         # シグナル発火（例外処理で保護）
         try:
             self.finished.emit(int(exit_code), status_int)
@@ -324,3 +350,64 @@ class VirtualBacktestService(QObject):
                 self._log_file_handle.flush()
         except Exception:
             pass
+    
+    def read_equity_curve_diff(self) -> list[dict]:
+        """
+        equity_curve.csv の差分を読み取る（全読み込み禁止、差分のみ）。
+        
+        Returns
+        -------
+        list[dict]
+            新しく追加された行のリスト。各要素は {"time": str, "equity": float, "signal": str}
+        """
+        if self._equity_csv_path is None or not self._equity_csv_path.exists():
+            return []
+        
+        new_rows = []
+        try:
+            # ファイルを開く（初回のみ）
+            if self._equity_file_handle is None:
+                self._equity_file_handle = open(self._equity_csv_path, "r", encoding="utf-8")
+                self._equity_last_pos = 0
+                self._equity_header_skipped = False
+            
+            # 前回の位置に移動
+            self._equity_file_handle.seek(self._equity_last_pos)
+            
+            # 新しい行を読み取る
+            for line in self._equity_file_handle:
+                line = line.strip()
+                if not line:
+                    continue
+                
+                # ヘッダー行をスキップ（初回のみ）
+                if not self._equity_header_skipped:
+                    if line.startswith("time,equity,signal"):
+                        self._equity_header_skipped = True
+                        continue
+                
+                # CSV行をパース
+                parts = line.split(",")
+                if len(parts) >= 2:
+                    try:
+                        time_str = parts[0].strip()
+                        equity_str = parts[1].strip()
+                        signal_str = parts[2].strip() if len(parts) > 2 else "HOLD"
+                        equity_val = float(equity_str)
+                        new_rows.append({
+                            "time": time_str,
+                            "equity": equity_val,
+                            "signal": signal_str,
+                        })
+                    except (ValueError, IndexError):
+                        # パース失敗は無視（不正な行）
+                        continue
+            
+            # 現在の位置を記録
+            self._equity_last_pos = self._equity_file_handle.tell()
+            
+        except Exception as e:
+            # 読取失敗時は空リストを返す（アプリは継続）
+            pass
+        
+        return new_rows

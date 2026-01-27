@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-from PyQt6.QtCore import Qt, QProcess, QSettings
+from PyQt6.QtCore import Qt, QProcess, QSettings, QTimer
 from PyQt6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -18,8 +18,11 @@ from PyQt6.QtWidgets import (
     QPlainTextEdit,
     QMessageBox,
     QLineEdit,
+    QSplitter,
 )
 from PyQt6.QtCore import QDate
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as Canvas
+from matplotlib.figure import Figure
 
 from app.services.virtual_bt_service import VirtualBacktestService
 
@@ -41,6 +44,14 @@ class VirtualBTTab(QWidget):
         
         # QSettings を初期化（CSVパス永続化用）
         self._settings = QSettings("fxbot", "michibiki")
+        
+        # 資産曲線データ（差分更新用）
+        self._equity_data: list[dict] = []
+        
+        # 500msタイマー（実行中のみ動作）
+        self._update_timer = QTimer(self)
+        self._update_timer.setInterval(500)
+        self._update_timer.timeout.connect(self._on_update_timer)
         
         # UI構築
         self._setup_ui()
@@ -148,11 +159,44 @@ class VirtualBTTab(QWidget):
         self.out_dir_label.hide()
         root.addWidget(self.out_dir_label)
         
+        # 分割ウィジェット（ログと資産曲線）
+        splitter = QSplitter(Qt.Orientation.Vertical, self)
+        
         # ログ表示
         self.log_text = QPlainTextEdit()
         self.log_text.setReadOnly(True)
         self.log_text.setPlaceholderText("実行ログがここに表示されます")
-        root.addWidget(self.log_text, 1)
+        # ログのフォントサイズを小さく（行密度を上げる）
+        self.log_text.setStyleSheet("QPlainTextEdit { font-size: 10px; }")
+        splitter.addWidget(self.log_text)
+        
+        # 資産曲線描画エリア
+        equity_widget = QWidget(self)
+        equity_layout = QVBoxLayout(equity_widget)
+        equity_layout.setContentsMargins(0, 0, 0, 0)
+        
+        equity_label = QLabel("資産曲線", equity_widget)
+        equity_layout.addWidget(equity_label)
+        
+        self.equity_fig = Figure(figsize=(9, 3))
+        self.equity_canvas = Canvas(self.equity_fig)
+        self.equity_ax = self.equity_fig.add_subplot(111)
+        self.equity_ax.set_xlabel("時間")
+        self.equity_ax.set_ylabel("資産 (JPY)")
+        self.equity_ax.grid(True)
+        self.equity_line = None  # 後で初期化
+        
+        equity_layout.addWidget(self.equity_canvas)
+        splitter.addWidget(equity_widget)
+        
+        # 分割比率（ログ:資産曲線 = 1:2）
+        splitter.setSizes([120, 260])
+        
+        # ログ側は縮みやすく、グラフ側は広さを優先
+        splitter.setStretchFactor(0, 0)  # ログ
+        splitter.setStretchFactor(1, 1)  # 資産曲線
+        
+        root.addWidget(splitter, 1)
         
     def _select_csv(self):
         """CSVファイルを選択する。"""
@@ -234,6 +278,13 @@ class VirtualBTTab(QWidget):
             self._append_log(f"[VirtualBT] Started run_id={run_id}")
             self._append_log(f"[VirtualBT] Out dir: {out_dir}")
             
+            # 資産曲線をリセット
+            self._equity_data = []
+            self._update_equity_plot()
+            
+            # 500msタイマーを開始
+            self._update_timer.start()
+            
         except Exception as e:
             QMessageBox.critical(self, "Virtual BT エラー", f"実行開始に失敗しました:\n{e}")
             self._append_log(f"[VirtualBT] ERROR: {e}")
@@ -292,6 +343,10 @@ class VirtualBTTab(QWidget):
         self.capital_edit.setEnabled(not running)
         self.profile_combo.setEnabled(not running)
         self.init_pos_combo.setEnabled(not running)
+        
+        # タイマーを停止/開始
+        if not running:
+            self._update_timer.stop()
     
     def _check_outputs(self, out_dir: Path):
         """成果物を確認してログに出力する。"""
@@ -321,3 +376,53 @@ class VirtualBTTab(QWidget):
     def _on_log_output(self, text: str):
         """サービスからのリアルタイムログ出力を受け取る。"""
         self._append_log(text)
+    
+    def _on_update_timer(self):
+        """500msタイマー：equity_curve.csv の差分を読み取って描画を更新。"""
+        if not self._service.is_running():
+            return
+        
+        try:
+            # 差分を読み取る（全読み込み禁止）
+            new_rows = self._service.read_equity_curve_diff()
+            if new_rows:
+                # データに追加
+                self._equity_data.extend(new_rows)
+                # 描画を更新
+                self._update_equity_plot()
+        except Exception as e:
+            # 更新失敗でもアプリは継続
+            pass
+    
+    def _update_equity_plot(self):
+        """資産曲線の描画を更新する。"""
+        if not self._equity_data:
+            return
+        
+        try:
+            import pandas as pd
+            
+            # データをDataFrameに変換
+            df = pd.DataFrame(self._equity_data)
+            if df.empty:
+                return
+            
+            # 時間をdatetimeに変換
+            df["time"] = pd.to_datetime(df["time"])
+            df = df.sort_values("time")
+            
+            # 既存の線がある場合は set_data で更新、ない場合は plot で新規作成
+            if self.equity_line is None:
+                self.equity_line, = self.equity_ax.plot(df["time"], df["equity"], "b-", linewidth=1.5)
+            else:
+                self.equity_line.set_data(df["time"], df["equity"])
+            
+            # 軸を更新
+            self.equity_ax.relim()
+            self.equity_ax.autoscale_view()
+            
+            # キャンバスを更新
+            self.equity_canvas.draw_idle()
+        except Exception as e:
+            # 描画失敗でもアプリは継続
+            pass

@@ -533,6 +533,12 @@ class BacktestEngine:
             "entry_block_reason": None,  # 最初の1件のエントリーブロック理由
         }
 
+        # equity_curve.csv のストリーミング追記用（5バーごと）
+        equity_csv_path = out_dir / "equity_curve.csv"
+        equity_csv_handle = None
+        equity_csv_header_written = False
+        equity_batch = []  # 5バー分のデータを蓄積
+
         from tools.backtest_run import iter_with_progress
         for idx, row in iter_with_progress(df_features, step=5, use_iterrows=True):
             timestamp = pd.Timestamp(row["time"])
@@ -887,6 +893,34 @@ class BacktestEngine:
                 )
             # endregion agent log
 
+            # ループの末尾：5バーごとにequity_curve.csvに追記（ストリーミング更新）
+            # 各バーの処理が一通り終わった後、エントリー有無に依存せず追記
+            try:
+                # 現在のequityを取得（全履歴再計算禁止：SimulatedExecution.equity を直接使用）
+                current_equity = self.executor.equity
+                
+                # バッチに追加
+                equity_batch.append({
+                    "time": timestamp,
+                    "equity": current_equity,
+                    "signal": "HOLD",  # T-52では暫定HOLD固定
+                })
+                
+                # 5バーごとに追記（バー index 基準）
+                if (idx + 1) % 5 == 0:
+                    if equity_csv_handle is None:
+                        equity_csv_handle = open(equity_csv_path, "w", encoding="utf-8", newline="")
+                        equity_csv_handle.write("time,equity,signal\n")
+                        equity_csv_header_written = True
+                    
+                    for item in equity_batch:
+                        equity_csv_handle.write(f"{item['time']},{item['equity']:.2f},{item['signal']}\n")
+                    equity_csv_handle.flush()
+                    equity_batch = []
+            except Exception as e:
+                # 追記失敗でも処理は継続（ログのみ）
+                print(f"[BacktestEngine][warn] Failed to append equity_curve.csv: {e!r}", flush=True)
+
         # 最終バーで強制クローズ
         if self.executor._open_position is not None:
             final_price = float(df_features.iloc[-1]["close"])
@@ -895,6 +929,27 @@ class BacktestEngine:
             closed_trade = self.executor.close_position(final_price, final_timestamp)
             if closed_trade:
                 debug_counters["n_exits"] += 1
+
+        # 残りのバッチを出力
+        if equity_batch:
+            try:
+                if equity_csv_handle is None:
+                    equity_csv_handle = open(equity_csv_path, "w", encoding="utf-8", newline="")
+                    equity_csv_handle.write("time,equity,signal\n")
+                    equity_csv_header_written = True
+                
+                for item in equity_batch:
+                    equity_csv_handle.write(f"{item['time']},{item['equity']:.2f},{item['signal']}\n")
+                equity_csv_handle.flush()
+            except Exception as e:
+                print(f"[BacktestEngine][warn] Failed to flush remaining equity batch: {e!r}", flush=True)
+        
+        # equity_curve.csv のファイルハンドルを閉じる
+        if equity_csv_handle is not None:
+            try:
+                equity_csv_handle.close()
+            except Exception:
+                pass
 
         # 出力ファイルを生成
         print(f"[BacktestEngine] Generating output files...", flush=True)
@@ -1324,10 +1379,13 @@ class BacktestEngine:
             "equity": equity_series.values,
         })
 
-        # ファイル出力
+        # ファイル出力（ストリーミング追記済みの場合はスキップ）
         equity_csv = out_dir / "equity_curve.csv"
-        equity_df.to_csv(equity_csv, index=False)
-        print(f"[BacktestEngine] Wrote {equity_csv}", flush=True)
+        if equity_csv.exists() and equity_csv.stat().st_size > 0:
+            print(f"[BacktestEngine] equity_curve.csv exists -> keep streaming output", flush=True)
+        else:
+            equity_df.to_csv(equity_csv, index=False)
+            print(f"[BacktestEngine] Wrote {equity_csv}", flush=True)
 
         # --- Step2-18: write next_action_timeline.csv (run folder) ---
         tl_path = out_dir / 'next_action_timeline.csv'
