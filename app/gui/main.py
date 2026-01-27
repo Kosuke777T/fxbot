@@ -612,22 +612,24 @@ QTabBar::tab:hover {
             
             # reasons の整形（空なら "(none)"、複数なら "; " で連結）
             if not reasons:
-                reasons_str = "(none)"
+                full_reasons_str = "(none)"
+                display_reasons_str = "(none)"
             else:
-                reasons_str = "; ".join(str(r) for r in reasons)
-                # 長い場合は省略（tooltipにフル表示）
-                if len(reasons_str) > 80:
-                    reasons_display = reasons_str[:77] + "..."
+                # 全文保持用
+                full_reasons_str = "; ".join(str(r) for r in reasons)
+                # 表示用（長い場合は省略）
+                if len(full_reasons_str) > 80:
+                    display_reasons_str = full_reasons_str[:77] + "..."
                 else:
-                    reasons_display = reasons_str
-                reasons_str = reasons_display
+                    display_reasons_str = full_reasons_str
             
-            # 表示テキスト
-            text = f"Model health: stable={stable} score={score:.1f} reasons={reasons_str}"
+            # 表示テキスト（省略版を使用）
+            text = f"Model health: stable={stable} score={score:.1f} reasons={display_reasons_str}"
             
             # バナーに設定
             self.health_banner.setText(text)
-            self.health_banner.setToolTip(f"Full reasons: {reasons_str}" if reasons else "No issues detected")
+            # tooltip には全文を使用
+            self.health_banner.setToolTip(f"Full reasons: {full_reasons_str}" if reasons else "No issues detected")
             
             # stable=False の場合は背景色を変える（視認性向上）
             if not stable:
