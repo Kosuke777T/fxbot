@@ -10,12 +10,12 @@ __pycache__/
 data/
 logs/
 *.csv
-*.pkl
+#*.pkl
 *.log
 
 # モデルだけフォルダ指定で無視したい場合はこんな感じでもOK
-models/
-models/*.pkl
+#models/
+#models/*.pkl
 
 # --- IDE ---
 .vscode/
