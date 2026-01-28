@@ -200,6 +200,10 @@ class BacktestEngine:
             self.model_kind, self.model_payload, _, self.model_params = load_active_model()
             self.model = None  # 遅延ロード
             self.scaler = None  # 遅延ロード
+            # classes_ に基づく BUY/SELL の index マッピング（モデルロード時に確定）
+            self._class_index_map = None  # type: Optional[Dict[str, Any]]
+            # 警告ログの連打抑制フラグ
+            self._warned_classmap_undetermined = False
             # region agent log
             self._dbg_once = False
             self._dbg_pred_n = 0
@@ -224,6 +228,8 @@ class BacktestEngine:
             self.model_params = {}
             self.model = None
             self.scaler = None
+            self._class_index_map = None
+            self._warned_classmap_undetermined = False
             # region agent log
             self._dbg_once = False
             self._dbg_pred_n = 0
@@ -238,6 +244,162 @@ class BacktestEngine:
                 },
             )
 
+    def _extract_classes_any(self, model_obj) -> Optional[Any]:
+        """
+        Best-effortで classes_ を回収する（services 層と同じロジック）。
+        Pipeline/CalibratedClassifierCV/ラッパー/tuple/dict などを想定。
+        """
+        if model_obj is None:
+            return None
+
+        # 1) 直である
+        cls = getattr(model_obj, "classes_", None)
+        if cls is not None:
+            return cls
+
+        # 2) sklearn Pipeline
+        named_steps = getattr(model_obj, "named_steps", None)
+        if isinstance(named_steps, dict) and named_steps:
+            # 後ろ（最終推定器）から探す
+            for step in reversed(list(named_steps.values())):
+                cls = getattr(step, "classes_", None)
+                if cls is not None:
+                    return cls
+
+        # 3) よくあるラッパー
+        for attr in ("estimator", "base_estimator", "classifier", "model"):
+            inner = getattr(model_obj, attr, None)
+            if inner is not None:
+                cls = getattr(inner, "classes_", None)
+                if cls is not None:
+                    return cls
+
+        # 4) CalibratedClassifierCV 系
+        ccs = getattr(model_obj, "calibrated_classifiers_", None)
+        if isinstance(ccs, (list, tuple)) and ccs:
+            for cc in ccs:
+                est = getattr(cc, "estimator", None)
+                if est is not None:
+                    cls = getattr(est, "classes_", None)
+                    if cls is not None:
+                        return cls
+
+        # 5) tuple/dict で包まれてるケース
+        if isinstance(model_obj, (list, tuple)) and model_obj:
+            for item in model_obj:
+                cls = self._extract_classes_any(item)
+                if cls is not None:
+                    return cls
+        if isinstance(model_obj, dict) and model_obj:
+            for item in model_obj.values():
+                cls = self._extract_classes_any(item)
+                if cls is not None:
+                    return cls
+
+        return None
+
+    def _determine_class_index_map(self, model) -> Optional[Dict[str, Any]]:
+        """
+        model.classes_ を観測して BUY/SELL の index を確定する（services 層と同じロジック）。
+        
+        Returns
+        -------
+        dict or None
+            {
+                "classes": list,  # classes_ の実値
+                "buy_index": int,  # BUY に対応する列インデックス
+                "sell_index": int,  # SELL に対応する列インデックス
+                "source": str,  # "classes_" / "fallback" / "error"
+            }
+            取得できない場合は None
+        """
+        classes = None
+        source = "unknown"
+        
+        # _extract_classes_any() を使用して classes_ を回収
+        try:
+            classes = self._extract_classes_any(model)
+            if classes is not None:
+                # source を特定（簡易版：直接持っているかどうか）
+                if hasattr(model, "classes_"):
+                    source = "classes_"
+                elif hasattr(model, "named_steps"):
+                    source = "pipeline.named_steps"
+                elif hasattr(model, "base_estimator"):
+                    source = "base_estimator"
+                elif hasattr(model, "calibrated_classifiers_"):
+                    source = "calibrated_classifiers_"
+                else:
+                    source = "extracted"
+        except Exception:
+            return None
+        
+        if classes is None:
+            return None
+        
+        # list 化
+        try:
+            classes_list = list(classes)
+        except Exception:
+            return None
+        
+        if len(classes_list) < 2:
+            return None
+        
+        # BUY/SELL の index を確定
+        buy_index = None
+        sell_index = None
+        
+        # 文字列の場合
+        for idx, cls in enumerate(classes_list):
+            cls_str = str(cls).upper()
+            if cls_str in ("BUY", "LONG"):
+                buy_index = idx
+            elif cls_str in ("SELL", "SHORT"):
+                sell_index = idx
+        
+        # 数値の場合（既存のラベル規約を確認）
+        if buy_index is None or sell_index is None:
+            # 数値セットを観測
+            try:
+                classes_set = set(classes_list)
+                
+                # {0, 1} の場合: SELL=0, BUY=1
+                if classes_set == {0, 1}:
+                    for idx, cls in enumerate(classes_list):
+                        if cls == 0:
+                            sell_index = idx
+                        elif cls == 1:
+                            buy_index = idx
+                    source = f"numeric:{{0,1}}"
+                
+                # {-1, 1} の場合: SELL=-1, BUY=1
+                elif classes_set == {-1, 1}:
+                    for idx, cls in enumerate(classes_list):
+                        if cls == -1:
+                            sell_index = idx
+                        elif cls == 1:
+                            buy_index = idx
+                    source = f"numeric:{{-1,1}}"
+                
+                # その他の数値セットは未対応（安全側に倒す）
+                else:
+                    return None
+            except Exception:
+                # 数値変換に失敗した場合は None を返す
+                return None
+        
+        # 両方の index が確定できた場合のみ返す
+        if buy_index is not None and sell_index is not None:
+            return {
+                "classes": classes_list,
+                "buy_index": buy_index,
+                "sell_index": sell_index,
+                "source": source,
+            }
+        else:
+            return None
+    
     def _ensure_model_loaded(self) -> None:
         """
         モデルとスケーラーを遅延ロードする
@@ -266,6 +428,23 @@ class BacktestEngine:
                     self.model = _load_model_generic(self.model_payload)
                     # スケーラーをロード
                     self.scaler = _load_scaler_if_any(self.model_params)
+                    
+                    # model.classes_ を観測して BUY/SELL の index を確定（初回のみログ出力）
+                    if self.model is not None:
+                        self._class_index_map = self._determine_class_index_map(self.model)
+                        if self._class_index_map:
+                            print(
+                                f"[ai_model] classes_={list(self._class_index_map.get('classes', []))} "
+                                f"class_index_map BUY->{self._class_index_map.get('buy_index', -1)} "
+                                f"SELL->{self._class_index_map.get('sell_index', -1)} "
+                                f"source={self._class_index_map.get('source', 'unknown')}",
+                                flush=True,
+                            )
+                        else:
+                            print(
+                                "[ai_model] classes_ を取得できませんでした。安全側に倒します（p_buy=p_sell=0）。",
+                                flush=True,
+                            )
                 # region agent log
                 if getattr(self, "_dbg_pred_n", 0) == 0:
                     _dbg(
@@ -373,15 +552,37 @@ class BacktestEngine:
             # 予測確率を取得
             proba = _predict_proba_generic(self.model, X)
             
-            # 2次元(=確率2列)なら陽性側だけを採用
-            if proba.ndim == 2 and proba.shape[1] == 2:
-                p_buy = float(proba[0, 1])
+            # classes_ に基づいて正しく p_buy/p_sell を取得
+            if self._class_index_map and proba.ndim == 2 and proba.shape[1] >= 2:
+                buy_idx = self._class_index_map.get("buy_index")
+                sell_idx = self._class_index_map.get("sell_index")
+                if buy_idx is not None and sell_idx is not None:
+                    p_buy = float(proba[0, buy_idx])
+                    p_sell = float(proba[0, sell_idx])
+                else:
+                    # class_index_map が不完全な場合は安全停止（警告は1回だけ）
+                    if not self._warned_classmap_undetermined:
+                        self._warned_classmap_undetermined = True
+                        print(
+                            "[BacktestEngine._predict] class_index_map が不完全。安全停止（p_buy=p_sell=0）。",
+                            flush=True,
+                        )
+                    p_buy = 0.0
+                    p_sell = 0.0
             else:
-                p_buy = float(proba[0])
+                # class_index_map が取得できない場合は安全停止（列決め打ち禁止、警告は1回だけ）
+                if not self._warned_classmap_undetermined:
+                    self._warned_classmap_undetermined = True
+                    print(
+                        "[BacktestEngine._predict] class_index_map が未確定。安全停止（p_buy=p_sell=0）。",
+                        flush=True,
+                    )
+                p_buy = 0.0
+                p_sell = 0.0
             
             # 0〜1 にクリップ
             p_buy = max(0.0, min(1.0, p_buy))
-            p_sell = 1.0 - p_buy
+            p_sell = max(0.0, min(1.0, p_sell))
             p_skip = 0.0
             # region agent log
             # 予測確率算出直後の観測（最初の3回のみ記録）

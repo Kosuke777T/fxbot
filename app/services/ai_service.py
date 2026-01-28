@@ -270,6 +270,12 @@ class AISvc:
         self.expected_features: Optional[list[str]] = None
         self.calibrator_name: str = "none"  # execution_stub.py で参照される属性
         self.model_name: str = "unknown"  # execution_stub.py で参照される属性
+        
+        # classes_ に基づく BUY/SELL の index マッピング（モデルロード時に確定）
+        self._class_index_map: Optional[Dict[str, Any]] = None
+        
+        # 警告ログの連打抑制フラグ
+        self._warned_classmap_undetermined = False
 
         # ★ここを追加：起動時に一度だけ active_model.json と同期
         self._sync_expected_features()
@@ -365,6 +371,176 @@ class AISvc:
             self.p_sell = float(p_sell)
             self.p_skip = float(p_skip)
 
+    def _extract_classes_any(self, model_obj) -> Optional[Any]:
+        """
+        Best-effortで classes_ を回収する。
+        Pipeline/CalibratedClassifierCV/ラッパー/tuple/dict などを想定。
+        """
+        if model_obj is None:
+            return None
+
+        # 1) 直である
+        cls = getattr(model_obj, "classes_", None)
+        if cls is not None:
+            return cls
+
+        # 2) sklearn Pipeline
+        named_steps = getattr(model_obj, "named_steps", None)
+        if isinstance(named_steps, dict) and named_steps:
+            # 後ろ（最終推定器）から探す
+            for step in reversed(list(named_steps.values())):
+                cls = getattr(step, "classes_", None)
+                if cls is not None:
+                    return cls
+
+        # 3) よくあるラッパー
+        for attr in ("estimator", "base_estimator", "classifier", "model"):
+            inner = getattr(model_obj, attr, None)
+            if inner is not None:
+                cls = getattr(inner, "classes_", None)
+                if cls is not None:
+                    return cls
+
+        # 4) CalibratedClassifierCV 系
+        ccs = getattr(model_obj, "calibrated_classifiers_", None)
+        if isinstance(ccs, (list, tuple)) and ccs:
+            for cc in ccs:
+                est = getattr(cc, "estimator", None)
+                if est is not None:
+                    cls = getattr(est, "classes_", None)
+                    if cls is not None:
+                        return cls
+
+        # 5) tuple/dict で包まれてるケース
+        if isinstance(model_obj, (list, tuple)) and model_obj:
+            for item in model_obj:
+                cls = self._extract_classes_any(item)
+                if cls is not None:
+                    return cls
+        if isinstance(model_obj, dict) and model_obj:
+            for item in model_obj.values():
+                cls = self._extract_classes_any(item)
+                if cls is not None:
+                    return cls
+
+        return None
+
+    def _determine_class_index_map(self, model) -> Optional[Dict[str, Any]]:
+        """
+        model.classes_ を観測して BUY/SELL の index を確定する。
+        
+        Returns
+        -------
+        dict or None
+            {
+                "classes": list,  # classes_ の実値
+                "buy_index": int,  # BUY に対応する列インデックス
+                "sell_index": int,  # SELL に対応する列インデックス
+                "source": str,  # "classes_" / "fallback" / "error"
+            }
+            取得できない場合は None
+        """
+        classes = None
+        source = "unknown"
+        
+        # _extract_classes_any() を使用して classes_ を回収
+        try:
+            classes = self._extract_classes_any(model)
+            if classes is not None:
+                # source を特定（簡易版：直接持っているかどうか）
+                if hasattr(model, "classes_"):
+                    source = "classes_"
+                elif hasattr(model, "named_steps"):
+                    source = "pipeline.named_steps"
+                elif hasattr(model, "base_estimator"):
+                    source = "base_estimator"
+                elif hasattr(model, "calibrated_classifiers_"):
+                    source = "calibrated_classifiers_"
+                else:
+                    source = "extracted"
+        except Exception as e:
+            logger.warning("[ai_model] classes_ 取得中にエラー: {err}", err=e)
+            return None
+        
+        if classes is None:
+            return None
+        
+        # list 化
+        try:
+            classes_list = list(classes)
+        except Exception:
+            return None
+        
+        if len(classes_list) < 2:
+            logger.warning("[ai_model] classes_ の要素数が不足: {classes}", classes=classes_list)
+            return None
+        
+        # BUY/SELL の index を確定
+        buy_index = None
+        sell_index = None
+        
+        # 文字列の場合
+        for idx, cls in enumerate(classes_list):
+            cls_str = str(cls).upper()
+            if cls_str in ("BUY", "LONG"):
+                buy_index = idx
+            elif cls_str in ("SELL", "SHORT"):
+                sell_index = idx
+        
+        # 数値の場合（既存のラベル規約を確認）
+        if buy_index is None or sell_index is None:
+            # 数値セットを観測
+            try:
+                classes_set = set(classes_list)
+                
+                # {0, 1} の場合: SELL=0, BUY=1
+                if classes_set == {0, 1}:
+                    for idx, cls in enumerate(classes_list):
+                        if cls == 0:
+                            sell_index = idx
+                        elif cls == 1:
+                            buy_index = idx
+                    source = f"numeric:{{0,1}}"
+                
+                # {-1, 1} の場合: SELL=-1, BUY=1
+                elif classes_set == {-1, 1}:
+                    for idx, cls in enumerate(classes_list):
+                        if cls == -1:
+                            sell_index = idx
+                        elif cls == 1:
+                            buy_index = idx
+                    source = f"numeric:{{-1,1}}"
+                
+                # その他の数値セットは未対応（安全側に倒す）
+                else:
+                    logger.warning(
+                        "[ai_model] 数値 classes_ が未対応のセットです。classes_={classes}",
+                        classes=classes_list,
+                    )
+                    return None
+            except Exception:
+                # 数値変換に失敗した場合は None を返す
+                logger.warning(
+                    "[ai_model] BUY/SELL ラベルが見つかりません。classes_={classes}",
+                    classes=classes_list,
+                )
+                return None
+        
+        # 両方の index が確定できた場合のみ返す
+        if buy_index is not None and sell_index is not None:
+            return {
+                "classes": classes_list,
+                "buy_index": buy_index,
+                "sell_index": sell_index,
+                "source": source,
+            }
+        else:
+            logger.warning(
+                "[ai_model] BUY/SELL の index を確定できませんでした。classes_={classes}",
+                classes=classes_list,
+            )
+            return None
+    
     def _ensure_model_loaded(self) -> None:
         """
         self.models に推論用モデルが未ロードなら、active_model.json を見てロードする。
@@ -415,6 +591,21 @@ class AISvc:
         self.models["lgbm"] = model
         logger.info("[AISvc] model loaded: key='lgbm', type={typ}",
                     typ=type(model).__name__)
+
+        # model.classes_ を観測して BUY/SELL の index を確定（初回のみログ出力）
+        self._class_index_map = self._determine_class_index_map(model)
+        if self._class_index_map:
+            logger.info(
+                "[ai_model] classes_={classes} class_index_map BUY->{buy_idx} SELL->{sell_idx} source={source}",
+                classes=list(self._class_index_map.get("classes", [])),
+                buy_idx=self._class_index_map.get("buy_index", -1),
+                sell_idx=self._class_index_map.get("sell_index", -1),
+                source=self._class_index_map.get("source", "unknown"),
+            )
+        else:
+            logger.warning(
+                "[ai_model] classes_ を取得できませんでした。安全側に倒します（p_buy=p_sell=0）。"
+            )
 
         # モデル側が feature_name / expected_features を持っていて、
         # まだ expected_features がセットされていなければ同期しておく
@@ -526,22 +717,53 @@ class AISvc:
             if hasattr(model, "predict_proba"):
                 proba = model.predict_proba(X)
                 proba = np.asarray(proba)
-                if proba.ndim == 2 and proba.shape[1] >= 2:
-                    p_buy = float(proba[0, 1])
+                
+                # classes_ に基づいて正しく p_buy/p_sell を取得
+                if self._class_index_map and proba.ndim == 2 and proba.shape[1] >= 2:
+                    buy_idx = self._class_index_map.get("buy_index")
+                    sell_idx = self._class_index_map.get("sell_index")
+                    if buy_idx is not None and sell_idx is not None:
+                        p_buy = float(proba[0, buy_idx])
+                        p_sell = float(proba[0, sell_idx])
+                    else:
+                        # class_index_map が不完全な場合は安全停止（警告は1回だけ）
+                        if not self._warned_classmap_undetermined:
+                            self._warned_classmap_undetermined = True
+                            logger.warning(
+                                "[AISvc.predict] class_index_map が不完全。安全停止（p_buy=p_sell=0）。"
+                            )
+                        return AISvc.ProbOut(0.0, 0.0, 1.0)
                 else:
-                    p_buy = float(proba[0])
+                    # class_index_map が取得できない場合は安全停止（列決め打ち禁止、警告は1回だけ）
+                    if not self._warned_classmap_undetermined:
+                        self._warned_classmap_undetermined = True
+                        logger.warning(
+                            "[AISvc.predict] class_index_map が未確定。安全停止（p_buy=p_sell=0）。"
+                        )
+                    return AISvc.ProbOut(0.0, 0.0, 1.0)
             else:
                 # LightGBM Booster など: predict がそのまま「陽線クラスの確率」を返す前提
+                # ただし class_index_map が無い場合は安全停止（警告は1回だけ）
+                if not self._class_index_map:
+                    if not self._warned_classmap_undetermined:
+                        self._warned_classmap_undetermined = True
+                        logger.warning(
+                            "[AISvc.predict] class_index_map が未確定（Booster）。安全停止（p_buy=p_sell=0）。"
+                        )
+                    return AISvc.ProbOut(0.0, 0.0, 1.0)
+                
                 y_pred = model.predict(X)
                 y_pred = np.asarray(y_pred)
+                # Booster の場合は predict が確率を返す前提だが、classes_ が無い場合は安全停止
                 p_buy = float(y_pred[0])
+                p_sell = 1.0 - p_buy
         except Exception as exc:
             logger.error("[AISvc.predict] 推論に失敗: {err}", err=exc)
             return AISvc.ProbOut(0.0, 0.0, 1.0)
 
         # 0〜1 にクリップしておく
         p_buy = max(0.0, min(1.0, p_buy))
-        p_sell = 1.0 - p_buy
+        p_sell = max(0.0, min(1.0, p_sell))
         p_skip = 0.0
 
         return AISvc.ProbOut(p_buy, p_sell, p_skip)
