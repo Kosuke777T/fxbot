@@ -531,6 +531,12 @@ class BacktestEngine:
             "filter_fail_reason": None,  # 最初の1件の失敗理由
             "filter_fail_reason_count": 0,  # 同じ理由の出現回数（optional）
             "entry_block_reason": None,  # 最初の1件のエントリーブロック理由
+            # 平均保有時間計算用
+            "sum_holding_bars_closed": 0,
+            "n_closed_trades": 0,
+            # 最大ドローダウン計算用（軽量化）
+            "peak_equity": self.executor.initial_capital,
+            "max_drawdown": 0.0,
         }
 
         # equity_curve.csv のストリーミング追記用（5バーごと）
@@ -538,6 +544,9 @@ class BacktestEngine:
         equity_csv_handle = None
         equity_csv_header_written = False
         equity_batch = []  # 5バー分のデータを蓄積
+        
+        # live_stats.json のパス（実行中リアルタイム更新用）
+        live_stats_path = out_dir / "live_stats.json"
 
         from tools.backtest_run import iter_with_progress
         for idx, row in iter_with_progress(df_features, step=5, use_iterrows=True):
@@ -752,6 +761,15 @@ class BacktestEngine:
                     if closed_trade:
                         # エグジットカウンタを更新
                         debug_counters["n_exits"] += 1
+                        
+                        # 平均保有時間計算用：holding_bars を計算してカウンタに積む
+                        trade_id = getattr(closed_trade, "_entry_trade_id", None)
+                        if trade_id is not None and trade_id in self._entry_bar_indices:
+                            entry_bar_idx = self._entry_bar_indices[trade_id]
+                            holding_bars = idx - entry_bar_idx
+                            debug_counters["sum_holding_bars_closed"] += holding_bars
+                            debug_counters["n_closed_trades"] += 1
+                        
                         # 連敗カウンタを更新
                         if closed_trade.pnl < 0:
                             self.consecutive_losses += 1
@@ -899,6 +917,17 @@ class BacktestEngine:
                 # 現在のequityを取得（全履歴再計算禁止：SimulatedExecution.equity を直接使用）
                 current_equity = self.executor.equity
                 
+                # 最大ドローダウンを逐次更新（軽量化）
+                peak_equity = debug_counters.get("peak_equity", self.executor.initial_capital)
+                if current_equity > peak_equity:
+                    peak_equity = current_equity
+                    debug_counters["peak_equity"] = peak_equity
+                
+                dd = (current_equity / peak_equity - 1.0) if peak_equity > 0 else 0.0
+                max_dd = debug_counters.get("max_drawdown", 0.0)
+                if dd < max_dd:
+                    debug_counters["max_drawdown"] = dd
+                
                 # バッチに追加
                 equity_batch.append({
                     "time": timestamp,
@@ -917,6 +946,10 @@ class BacktestEngine:
                         equity_csv_handle.write(f"{item['time']},{item['equity']:.2f},{item['signal']}\n")
                     equity_csv_handle.flush()
                     equity_batch = []
+                
+                # 100バーごとに live_stats.json を更新（実行中リアルタイム更新）
+                if (idx + 1) % 100 == 0:
+                    self._write_live_stats(live_stats_path, debug_counters, df_features, idx + 1)
             except Exception as e:
                 # 追記失敗でも処理は継続（ログのみ）
                 print(f"[BacktestEngine][warn] Failed to append equity_curve.csv: {e!r}", flush=True)
@@ -929,7 +962,22 @@ class BacktestEngine:
             closed_trade = self.executor.close_position(final_price, final_timestamp)
             if closed_trade:
                 debug_counters["n_exits"] += 1
+                
+                # 平均保有時間計算用：holding_bars を計算してカウンタに積む
+                trade_id = getattr(closed_trade, "_entry_trade_id", None)
+                if trade_id is not None and trade_id in self._entry_bar_indices:
+                    entry_bar_idx = self._entry_bar_indices[trade_id]
+                    holding_bars = len(df_features) - 1 - entry_bar_idx
+                    debug_counters["sum_holding_bars_closed"] += holding_bars
+                    debug_counters["n_closed_trades"] += 1
 
+        # 最終 live_stats.json を更新（ループ終了時）
+        try:
+            debug_counters["n_bars"] = len(df_features)
+            self._write_live_stats(live_stats_path, debug_counters, df_features, len(df_features))
+        except Exception as e:
+            print(f"[BacktestEngine][warn] Failed to write final live_stats.json: {e!r}", flush=True)
+        
         # 残りのバッチを出力
         if equity_batch:
             try:
@@ -1467,4 +1515,218 @@ class BacktestEngine:
         result["output_errors"] = validation_result["errors"]
 
         return result
+    
+    def _write_live_stats(self, live_stats_path: Path, debug_counters: dict, df_features: pd.DataFrame, bars_processed: int) -> None:
+        """
+        実行中リアルタイム更新用の live_stats.json を書き込む。
+        
+        Parameters
+        ----------
+        live_stats_path : Path
+            live_stats.json のパス
+        debug_counters : dict
+            デバッグカウンタ（n_entries, n_filter_fail 等）
+        df_features : pd.DataFrame
+            特徴量データ（進捗時点まで）
+        bars_processed : int
+            処理済みバー数
+        """
+        try:
+            import json
+            
+            # 基本統計（debug_counters から取得）
+            stats = {
+                "bars_processed": bars_processed,
+                "n_entries": debug_counters.get("n_entries", 0),
+                "n_filter_fail": debug_counters.get("n_filter_fail", 0),
+                "n_signal_buy": debug_counters.get("n_signal_buy", 0),
+                "n_signal_sell": debug_counters.get("n_signal_sell", 0),
+            }
+            
+            # 最大ドローダウン（debug_counters から取得、軽量化）
+            stats["max_drawdown"] = debug_counters.get("max_drawdown", 0.0)
+            
+            # 平均保有時間（debug_counters から取得）
+            sum_holding_bars = debug_counters.get("sum_holding_bars_closed", 0)
+            n_closed = debug_counters.get("n_closed_trades", 0)
+            if n_closed > 0:
+                stats["avg_holding_bars"] = float(sum_holding_bars) / n_closed
+            else:
+                stats["avg_holding_bars"] = 0.0
+            
+            # Buy/Sell 別統計（進捗時点のtradesから計算、exit_timeでソート）
+            try:
+                trades_df = self.executor.get_trades_df()
+                if not trades_df.empty and "side" in trades_df.columns:
+                    # exit_time でソート（時系列順に確定）
+                    if "exit_time" in trades_df.columns:
+                        trades_df = trades_df.sort_values("exit_time").reset_index(drop=True)
+                    
+                    # Buy統計
+                    buy_trades = trades_df[trades_df["side"] == "BUY"]
+                    buy_entries = len(buy_trades)
+                    buy_wins = len(buy_trades[buy_trades["pnl"] > 0]) if buy_entries > 0 else 0
+                    buy_max_consec_win = self._calc_max_consecutive_from_trades(buy_trades, True)
+                    buy_consec_win = self._calc_current_consecutive_from_trades(buy_trades, True)
+                    
+                    stats["buy_entries"] = buy_entries
+                    stats["buy_wins"] = buy_wins
+                    stats["buy_max_consec_win"] = buy_max_consec_win
+                    stats["buy_consec_win"] = buy_consec_win
+                    
+                    # Sell統計
+                    sell_trades = trades_df[trades_df["side"] == "SELL"]
+                    sell_entries = len(sell_trades)
+                    sell_wins = len(sell_trades[sell_trades["pnl"] > 0]) if sell_entries > 0 else 0
+                    sell_max_consec_win = self._calc_max_consecutive_from_trades(sell_trades, True)
+                    sell_consec_win = self._calc_current_consecutive_from_trades(sell_trades, True)
+                    
+                    stats["sell_entries"] = sell_entries
+                    stats["sell_wins"] = sell_wins
+                    stats["sell_max_consec_win"] = sell_max_consec_win
+                    stats["sell_consec_win"] = sell_consec_win
+                    
+                    # Buy/Sell 勝率
+                    if buy_entries > 0:
+                        stats["buy_win_rate"] = float(buy_wins) / buy_entries
+                    else:
+                        stats["buy_win_rate"] = None
+                    
+                    if sell_entries > 0:
+                        stats["sell_win_rate"] = float(sell_wins) / sell_entries
+                    else:
+                        stats["sell_win_rate"] = None
+                    
+                    # Buy/Sell 最大連敗
+                    buy_loss_streak_max = self._calc_max_consecutive_from_trades(buy_trades, False)
+                    sell_loss_streak_max = self._calc_max_consecutive_from_trades(sell_trades, False)
+                    stats["buy_loss_streak_max"] = buy_loss_streak_max
+                    stats["sell_loss_streak_max"] = sell_loss_streak_max
+                    
+                    # 全体の最大連敗・現在連敗
+                    loss_streak_max = self._calc_max_consecutive_from_trades(trades_df, False)
+                    loss_streak_current = self._calc_current_consecutive_from_trades(trades_df, False)
+                    stats["loss_streak_max"] = loss_streak_max
+                    stats["loss_streak_current"] = loss_streak_current
+                    
+                    # Profit Factor
+                    if "pnl" in trades_df.columns:
+                        win_pnl_sum = trades_df[trades_df["pnl"] > 0]["pnl"].sum()
+                        loss_pnl_sum = abs(trades_df[trades_df["pnl"] < 0]["pnl"].sum())
+                        if loss_pnl_sum > 0:
+                            stats["profit_factor"] = float(win_pnl_sum / loss_pnl_sum)
+                        else:
+                            stats["profit_factor"] = None  # loss=0 の場合は None（表示側で "—" にする）
+                    else:
+                        stats["profit_factor"] = None
+                    
+                    # 1トレードあたり期待値（平均PnL）
+                    if "pnl" in trades_df.columns and len(trades_df) > 0:
+                        stats["avg_pnl_per_trade"] = float(trades_df["pnl"].mean())
+                    else:
+                        stats["avg_pnl_per_trade"] = 0.0
+                else:
+                    # デフォルト値
+                    stats["buy_entries"] = 0
+                    stats["buy_wins"] = 0
+                    stats["buy_max_consec_win"] = 0
+                    stats["buy_consec_win"] = 0
+                    stats["buy_win_rate"] = None
+                    stats["buy_loss_streak_max"] = 0
+                    stats["sell_entries"] = 0
+                    stats["sell_wins"] = 0
+                    stats["sell_max_consec_win"] = 0
+                    stats["sell_consec_win"] = 0
+                    stats["sell_win_rate"] = None
+                    stats["sell_loss_streak_max"] = 0
+                    stats["loss_streak_max"] = 0
+                    stats["loss_streak_current"] = 0
+                    stats["profit_factor"] = None
+                    stats["avg_pnl_per_trade"] = 0.0
+            except Exception:
+                # デフォルト値
+                stats["buy_entries"] = 0
+                stats["buy_wins"] = 0
+                stats["buy_max_consec_win"] = 0
+                stats["buy_consec_win"] = 0
+                stats["buy_win_rate"] = None
+                stats["buy_loss_streak_max"] = 0
+                stats["sell_entries"] = 0
+                stats["sell_wins"] = 0
+                stats["sell_max_consec_win"] = 0
+                stats["sell_consec_win"] = 0
+                stats["sell_win_rate"] = None
+                stats["sell_loss_streak_max"] = 0
+                stats["loss_streak_max"] = 0
+                stats["loss_streak_current"] = 0
+                stats["profit_factor"] = None
+                stats["avg_pnl_per_trade"] = 0.0
+            
+            # 資産・損益統計
+            try:
+                final_equity = self.executor.equity
+                initial_capital = self.executor.initial_capital
+                total_pnl_jpy = final_equity - initial_capital
+                if initial_capital > 0:
+                    total_pnl_pct = (total_pnl_jpy / initial_capital) * 100.0
+                else:
+                    total_pnl_pct = 0.0
+                
+                stats["final_equity"] = final_equity
+                stats["initial_capital"] = initial_capital
+                stats["total_pnl_jpy"] = total_pnl_jpy
+                stats["total_pnl_pct"] = total_pnl_pct
+            except Exception:
+                stats["final_equity"] = 0.0
+                stats["initial_capital"] = 0.0
+                stats["total_pnl_jpy"] = 0.0
+                stats["total_pnl_pct"] = 0.0
+            
+            # JSON として書き込み
+            live_stats_path.write_text(
+                json.dumps(stats, ensure_ascii=False, indent=2),
+                encoding="utf-8"
+            )
+        except Exception as e:
+            # 書き込み失敗でも処理は継続（ログのみ）
+            print(f"[BacktestEngine][warn] Failed to write live_stats.json: {e!r}", flush=True)
+    
+    def _calc_max_consecutive_from_trades(self, trades_df: pd.DataFrame, is_win: bool) -> int:
+        """最大連勝/連敗数を計算する（trades_dfから）。"""
+        if trades_df.empty or "pnl" not in trades_df.columns:
+            return 0
+        
+        wins = (trades_df["pnl"] > 0).astype(int)
+        if not is_win:
+            wins = 1 - wins
+        
+        max_consec = 0
+        current = 0
+        for w in wins:
+            if w == 1:
+                current += 1
+                max_consec = max(max_consec, current)
+            else:
+                current = 0
+        
+        return max_consec
+    
+    def _calc_current_consecutive_from_trades(self, trades_df: pd.DataFrame, is_win: bool) -> int:
+        """現在の連勝/連敗数を計算する（trades_dfから、最後から数える）。"""
+        if trades_df.empty or "pnl" not in trades_df.columns:
+            return 0
+        
+        wins = (trades_df["pnl"] > 0).astype(int)
+        if not is_win:
+            wins = 1 - wins
+        
+        # 最後から連続する数を数える
+        current = 0
+        for w in reversed(wins):
+            if w == 1:
+                current += 1
+            else:
+                break
+        
+        return current
 
