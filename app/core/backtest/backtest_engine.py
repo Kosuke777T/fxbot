@@ -537,6 +537,15 @@ class BacktestEngine:
             # 最大ドローダウン計算用（軽量化）
             "peak_equity": self.executor.initial_capital,
             "max_drawdown": 0.0,
+            # エントリー率・連続エントリー計算用
+            "entry_bar_indices": [],  # エントリーが発生したバーのインデックスリスト
+            # 段階別カウンタ（Sell=0原因特定用）
+            "signal_buy_count": 0,  # BUYシグナルが生成された回数
+            "signal_sell_count": 0,  # SELLシグナルが生成された回数
+            "entry_buy_count": 0,  # BUYでエントリー成立回数
+            "entry_sell_count": 0,  # SELLでエントリー成立回数
+            "blocked_buy_count": 0,  # BUYがブロックされた回数
+            "blocked_sell_count": 0,  # SELLがブロックされた回数
         }
 
         # equity_curve.csv のストリーミング追記用（5バーごと）
@@ -637,8 +646,10 @@ class BacktestEngine:
             signal_side = decision.get("signal", {}).get("side")
             if signal_side == "BUY":
                 debug_counters["n_signal_buy"] += 1
+                debug_counters["signal_buy_count"] += 1
             elif signal_side == "SELL":
                 debug_counters["n_signal_sell"] += 1
+                debug_counters["signal_sell_count"] += 1
 
             # フィルタカウンタを更新
             if filter_pass:
@@ -784,6 +795,12 @@ class BacktestEngine:
             if self.executor._open_position is not None:
                 if debug_counters["entry_block_reason"] is None:
                     debug_counters["entry_block_reason"] = "already_in_position"
+                # ブロックカウンタを更新（シグナル側で判定）
+                signal_side = decision.get("signal", {}).get("side")
+                if signal_side == "BUY":
+                    debug_counters["blocked_buy_count"] += 1
+                elif signal_side == "SELL":
+                    debug_counters["blocked_sell_count"] += 1
                 continue
 
             # decision.action が "ENTRY" でない、または side が None の場合はブロック
@@ -840,12 +857,24 @@ class BacktestEngine:
                             debug_counters["entry_block_reason"] = "signal_none"
                         else:
                             debug_counters["entry_block_reason"] = f"side_none:signal={signal_side}"
+                # ブロックカウンタを更新（シグナル側で判定）
+                signal_side = decision.get("signal", {}).get("side")
+                if signal_side == "BUY":
+                    debug_counters["blocked_buy_count"] += 1
+                elif signal_side == "SELL":
+                    debug_counters["blocked_sell_count"] += 1
                 continue
 
             # BUY/SELL のチェック（後方互換のため）
             if side not in ("BUY", "SELL"):
                 if debug_counters["entry_block_reason"] is None:
                     debug_counters["entry_block_reason"] = f"invalid_side:{side}"
+                # ブロックカウンタを更新（シグナル側で判定）
+                signal_side = decision.get("signal", {}).get("side")
+                if signal_side == "BUY":
+                    debug_counters["blocked_buy_count"] += 1
+                elif signal_side == "SELL":
+                    debug_counters["blocked_sell_count"] += 1
                 continue
 
             lot = decision.get("lot", 0.1)
@@ -894,6 +923,13 @@ class BacktestEngine:
                 self._next_trade_id += 1
             # エントリーカウンタを更新
             debug_counters["n_entries"] += 1
+            # エントリー発生バーのインデックスを記録
+            debug_counters["entry_bar_indices"].append(idx)
+            # エントリー成立カウンタを更新（side別）
+            if side == "BUY":
+                debug_counters["entry_buy_count"] += 1
+            elif side == "SELL":
+                debug_counters["entry_sell_count"] += 1
             
             # region agent log
             # ポジション開設直後の観測（最初のENTRY成功で記録）
@@ -1541,6 +1577,13 @@ class BacktestEngine:
                 "n_filter_fail": debug_counters.get("n_filter_fail", 0),
                 "n_signal_buy": debug_counters.get("n_signal_buy", 0),
                 "n_signal_sell": debug_counters.get("n_signal_sell", 0),
+                # 段階別カウンタ（Sell=0原因特定用）
+                "signal_buy_count": debug_counters.get("signal_buy_count", 0),
+                "signal_sell_count": debug_counters.get("signal_sell_count", 0),
+                "entry_buy_count": debug_counters.get("entry_buy_count", 0),
+                "entry_sell_count": debug_counters.get("entry_sell_count", 0),
+                "blocked_buy_count": debug_counters.get("blocked_buy_count", 0),
+                "blocked_sell_count": debug_counters.get("blocked_sell_count", 0),
             }
             
             # 最大ドローダウン（debug_counters から取得、軽量化）
@@ -1553,6 +1596,38 @@ class BacktestEngine:
                 stats["avg_holding_bars"] = float(sum_holding_bars) / n_closed
             else:
                 stats["avg_holding_bars"] = 0.0
+            
+            # エントリー率・平均バー数・連続エントリー最大回数
+            n_entries = debug_counters.get("n_entries", 0)
+            if bars_processed > 0:
+                # エントリー率（%）
+                stats["entry_rate_pct"] = (float(n_entries) / bars_processed) * 100.0
+            else:
+                stats["entry_rate_pct"] = 0.0
+            
+            if n_entries > 0:
+                # 平均何バーに1回エントリー
+                stats["avg_bars_per_entry"] = float(bars_processed) / n_entries
+            else:
+                stats["avg_bars_per_entry"] = 0.0
+            
+            # 連続エントリー最大回数（entry_bar_indices から連続するバーを判定）
+            entry_bar_indices = debug_counters.get("entry_bar_indices", [])
+            if len(entry_bar_indices) > 0:
+                # ソート（念のため）
+                sorted_indices = sorted(entry_bar_indices)
+                max_consec = 1
+                current_consec = 1
+                for i in range(1, len(sorted_indices)):
+                    # 連続するバー（前のインデックス + 1）かチェック
+                    if sorted_indices[i] == sorted_indices[i-1] + 1:
+                        current_consec += 1
+                        max_consec = max(max_consec, current_consec)
+                    else:
+                        current_consec = 1
+                stats["max_consec_entry_bars"] = max_consec
+            else:
+                stats["max_consec_entry_bars"] = 0
             
             # Buy/Sell 別統計（進捗時点のtradesから計算、exit_timeでソート）
             try:

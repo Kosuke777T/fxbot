@@ -191,16 +191,45 @@ class VirtualBTTab(QWidget):
         stats_label.setStyleSheet("font-weight: bold;")
         stats_layout.addWidget(stats_label)
         
-        # 成績表示用のグリッドレイアウト
-        self.stats_grid = QGridLayout()
+        # 左右2列のレイアウト
+        stats_hbox = QHBoxLayout()
+        stats_hbox.setSpacing(12)
+        
+        # 左列：全体 / シグナル / ブロック / エントリー（原因究明系）
+        left_widget = QWidget(summary_panel)
+        self.stats_grid_left = QGridLayout(left_widget)
+        self.stats_grid_left.setContentsMargins(0, 0, 0, 0)
+        self.stats_grid_left.setSpacing(4)
+        
+        # 右列：Buy / Sell（成績系）
+        right_widget = QWidget(summary_panel)
+        self.stats_grid_right = QGridLayout(right_widget)
+        self.stats_grid_right.setContentsMargins(0, 0, 0, 0)
+        self.stats_grid_right.setSpacing(4)
+        
+        stats_hbox.addWidget(left_widget, 1)
+        stats_hbox.addWidget(right_widget, 1)
+        
         self.stats_labels = {}  # ラベルを保持する辞書
-        self._stats_row_count = 0  # 現在の行数
+        self._stats_row_count_left = 0  # 左列の現在の行数
+        self._stats_row_count_right = 0  # 右列の現在の行数
         self._category_row_counts = {}  # カテゴリごとの行数
         
         # 全体統計
         self._add_stat_row("全体", "実行バー数", "bars", "0")
         self._add_stat_row("全体", "エントリー総数", "n_entries", "0")
+        self._add_stat_row("全体", "エントリー率", "entry_rate_pct", "0.0%")
+        self._add_stat_row("全体", "平均バー/エントリー", "avg_bars_per_entry", "0.0")
+        self._add_stat_row("全体", "最大連続エントリー", "max_consec_entry_bars", "0")
         self._add_stat_row("全体", "スキップ数", "n_filter_fail", "0")
+        
+        # 段階別カウンタ（Sell=0原因特定用）
+        self._add_stat_row("シグナル", "BUY", "signal_buy_count", "0")
+        self._add_stat_row("シグナル", "SELL", "signal_sell_count", "0")
+        self._add_stat_row("ブロック", "BUY", "blocked_buy_count", "0")
+        self._add_stat_row("ブロック", "SELL", "blocked_sell_count", "0")
+        self._add_stat_row("エントリー", "BUY", "entry_buy_count", "0")
+        self._add_stat_row("エントリー", "SELL", "entry_sell_count", "0")
         self._add_stat_row("全体", "最大ドローダウン", "max_drawdown", "0.0%")
         self._add_stat_row("全体", "平均保有時間", "avg_holding_bars", "0.0 bars")
         self._add_stat_row("全体", "最大連敗", "loss_streak_max", "0")
@@ -226,7 +255,7 @@ class VirtualBTTab(QWidget):
         self._add_stat_row("Sell", "最大連勝数", "sell_max_consec_win", "0")
         self._add_stat_row("Sell", "最大連敗数", "sell_loss_streak_max", "0")
         
-        stats_layout.addLayout(self.stats_grid)
+        stats_layout.addLayout(stats_hbox)
         stats_layout.addStretch(1)
         tabs_inner.addTab(summary_panel, "成績サマリ")
         
@@ -462,7 +491,17 @@ class VirtualBTTab(QWidget):
                 self._append_log(f"[VirtualBT] - {fname} not generated (optional)")
     
     def _add_stat_row(self, category: str, label: str, key: str, default: str = "0"):
-        """成績サマリに1行追加する。"""
+        """成績サマリに1行追加する（左右2列に自動振り分け）。"""
+        # カテゴリに応じて左右どちらのグリッドに追加するか決定
+        # 右列：Buy, Sell
+        # 左列：それ以外（全体、シグナル、ブロック、エントリー）
+        if category in ("Buy", "Sell"):
+            target_grid = self.stats_grid_right
+            row_count = self._stats_row_count_right
+        else:
+            target_grid = self.stats_grid_left
+            row_count = self._stats_row_count_left
+        
         # カテゴリごとの行数をカウント
         if category not in self._category_row_counts:
             self._category_row_counts[category] = 0
@@ -478,16 +517,21 @@ class VirtualBTTab(QWidget):
             # 最初の行はカテゴリラベルも表示
             cat_label = QLabel(f"{category}:", self)
             cat_label.setStyleSheet("font-weight: bold;")
-            self.stats_grid.addWidget(cat_label, self._stats_row_count, 0)
-            self.stats_grid.addWidget(stat_label, self._stats_row_count, 1)
-            self.stats_grid.addWidget(value_label, self._stats_row_count, 2)
+            target_grid.addWidget(cat_label, row_count, 0)
+            target_grid.addWidget(stat_label, row_count, 1)
+            target_grid.addWidget(value_label, row_count, 2)
         else:
             # 2行目以降はカテゴリラベルは空
-            self.stats_grid.addWidget(stat_label, self._stats_row_count, 1)
-            self.stats_grid.addWidget(value_label, self._stats_row_count, 2)
+            target_grid.addWidget(stat_label, row_count, 1)
+            target_grid.addWidget(value_label, row_count, 2)
         
         self._category_row_counts[category] += 1
-        self._stats_row_count += 1
+        
+        # 行数を更新
+        if category in ("Buy", "Sell"):
+            self._stats_row_count_right += 1
+        else:
+            self._stats_row_count_left += 1
     
     def _append_log(self, text: str):
         """ログテキストに追加する（別ウィンドウ用）。"""
@@ -581,8 +625,35 @@ class VirtualBTTab(QWidget):
                     self.stats_labels["bars"].setText(str(bars))
                 if "n_entries" in self.stats_labels:
                     self.stats_labels["n_entries"].setText(str(n_entries))
+                
+                entry_rate_pct = stats.get("entry_rate_pct", 0.0)
+                if "entry_rate_pct" in self.stats_labels:
+                    self.stats_labels["entry_rate_pct"].setText(f"{entry_rate_pct:.2f}%")
+                
+                avg_bars_per_entry = stats.get("avg_bars_per_entry", 0.0)
+                if "avg_bars_per_entry" in self.stats_labels:
+                    self.stats_labels["avg_bars_per_entry"].setText(f"{avg_bars_per_entry:.1f}")
+                
+                max_consec_entry_bars = stats.get("max_consec_entry_bars", 0)
+                if "max_consec_entry_bars" in self.stats_labels:
+                    self.stats_labels["max_consec_entry_bars"].setText(str(max_consec_entry_bars))
+                
                 if "n_filter_fail" in self.stats_labels:
                     self.stats_labels["n_filter_fail"].setText(str(n_filter_fail))
+                
+                # 段階別カウンタ（Sell=0原因特定用）
+                if "signal_buy_count" in self.stats_labels:
+                    self.stats_labels["signal_buy_count"].setText(str(stats.get("signal_buy_count", 0)))
+                if "signal_sell_count" in self.stats_labels:
+                    self.stats_labels["signal_sell_count"].setText(str(stats.get("signal_sell_count", 0)))
+                if "blocked_buy_count" in self.stats_labels:
+                    self.stats_labels["blocked_buy_count"].setText(str(stats.get("blocked_buy_count", 0)))
+                if "blocked_sell_count" in self.stats_labels:
+                    self.stats_labels["blocked_sell_count"].setText(str(stats.get("blocked_sell_count", 0)))
+                if "entry_buy_count" in self.stats_labels:
+                    self.stats_labels["entry_buy_count"].setText(str(stats.get("entry_buy_count", 0)))
+                if "entry_sell_count" in self.stats_labels:
+                    self.stats_labels["entry_sell_count"].setText(str(stats.get("entry_sell_count", 0)))
                 if "max_drawdown" in self.stats_labels:
                     self.stats_labels["max_drawdown"].setText(f"{max_dd*100:.2f}%")
                 if "avg_holding_bars" in self.stats_labels:
@@ -674,6 +745,16 @@ class VirtualBTTab(QWidget):
                     self.stats_labels["bars"].setText(str(bars))
                 if "n_entries" in self.stats_labels:
                     self.stats_labels["n_entries"].setText(str(n_entries))
+                
+                # エントリー率・平均バー数・連続エントリー（metrics.json からは取得できないため、デフォルト値を設定）
+                # 実際の値は live_stats.json から取得される
+                if "entry_rate_pct" in self.stats_labels:
+                    self.stats_labels["entry_rate_pct"].setText("—")
+                if "avg_bars_per_entry" in self.stats_labels:
+                    self.stats_labels["avg_bars_per_entry"].setText("—")
+                if "max_consec_entry_bars" in self.stats_labels:
+                    self.stats_labels["max_consec_entry_bars"].setText("—")
+                
                 if "n_filter_fail" in self.stats_labels:
                     self.stats_labels["n_filter_fail"].setText(str(n_filter_fail))
                 if "max_drawdown" in self.stats_labels:

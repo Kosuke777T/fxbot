@@ -732,3 +732,15 @@ UI改善：ログ領域を狭くしてグラフを拡大（splitter比率＋stre
 py_compile が通る
 
 Virtual BT 実行後、成果物（equity_curve.csv/metrics.json/trades.csv/monthly_returns.csv 等）が生成され、GUIに資産曲線が表示される
+
+
+T-52-1
+Virtual BT のUIを整理し、成績サマリ／資産曲線をタブ分離して視認性を改善
+
+実行中のリアルタイム成績更新（live_stats）を導入
+
+BUY/SELL の段階別カウンタ（シグナル→ブロック→エントリー）で原因可視化
+
+エントリー密度の定量化（率、平均バー/エントリー、最大連続）
+
+p_sell の扱いについて、LightGBMの predict_proba と classes_ 依存である点を整理（補数利用の注意点を明確化）
