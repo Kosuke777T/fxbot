@@ -1,0 +1,89 @@
+{
+  "model_name": "LightGBM_clf",
+  "file": "LightGBM_clf_20260124_235700.pkl",
+  "created_at_utc": "2026-01-24T23:57:00.867613+00:00",
+  "version": 1769299020.867613,
+  "symbol": "USDJPY-",
+  "timeframe": "M5",
+  "label_horizon_bars": 10,
+  "min_pips": 0.6,
+  "features": [
+    "ret_1",
+    "ret_5",
+    "ema_5",
+    "ema_20",
+    "ema_ratio",
+    "rsi_14",
+    "atr_14",
+    "range",
+    "vol_chg"
+  ],
+  "metrics": {
+    "logloss": 0.6928788469326929,
+    "auc": 0.5061937279747861
+  },
+  "wfo": {
+    "mean_logloss": 0.6928788469326929,
+    "mean_accuracy": 0.509211663558204,
+    "folds": [
+      {
+        "fold": 0,
+        "train_start": "0",
+        "train_end": "21982",
+        "val_start": "21983",
+        "val_end": "43965",
+        "logloss": 0.693148387785002,
+        "accuracy": 0.5044807351134968,
+        "n_train": 21983,
+        "n_val": 21983
+      },
+      {
+        "fold": 1,
+        "train_start": "0",
+        "train_end": "43965",
+        "val_start": "43966",
+        "val_end": "65948",
+        "logloss": 0.6929578714917312,
+        "accuracy": 0.5052085702588364,
+        "n_train": 43966,
+        "n_val": 21983
+      },
+      {
+        "fold": 2,
+        "train_start": "0",
+        "train_end": "65948",
+        "val_start": "65949",
+        "val_end": "87931",
+        "logloss": 0.6929699836946044,
+        "accuracy": 0.510212436883046,
+        "n_train": 65949,
+        "n_val": 21983
+      },
+      {
+        "fold": 3,
+        "train_start": "0",
+        "train_end": "87931",
+        "val_start": "87932",
+        "val_end": "109914",
+        "logloss": 0.6924391376995516,
+        "accuracy": 0.5169449119774371,
+        "n_train": 87932,
+        "n_val": 21983
+      }
+    ]
+  },
+  "threshold": {
+    "best_thr": 0.5,
+    "equity": 1620.0,
+    "win_rate": 0.509211663558204,
+    "n_trades": 87932
+  },
+  "data": {
+    "csv_path": "data\\USDJPY\\ohlcv\\USDJPY_M5.csv",
+    "from": "2024-07-08T11:45:00",
+    "to": "2026-01-25T07:50:00",
+    "n_rows_raw": 114233,
+    "n_rows_train": 109919
+  },
+  "sha256": "eafa208338932122e6ad173855f3a548ef8e54ce23e7503b1de9fbed74424f5b"
+}

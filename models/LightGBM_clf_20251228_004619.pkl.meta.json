@@ -1,0 +1,87 @@
+{
+  "model_name": "LightGBM_clf",
+  "file": "LightGBM_clf_20251228_004619.pkl",
+  "created_at_utc": "2025-12-28T00:46:19.463147+00:00",
+  "version": 1766882779.463147,
+  "symbol": "USDJPY-",
+  "timeframe": "M5",
+  "label_horizon_bars": 10,
+  "min_pips": 1.0,
+  "features": [
+    "ret_1",
+    "ret_5",
+    "ema_5",
+    "ema_20",
+    "ema_ratio",
+    "rsi_14",
+    "atr_14",
+    "range",
+    "vol_chg"
+  ],
+  "metrics": {
+    "logloss": 0.6928096628621939,
+    "auc": 0.5075402396262199
+  },
+  "wfo": {
+    "mean_logloss": 0.6928096628621939,
+    "mean_accuracy": 0.5065616466066553,
+    "folds": [
+      {
+        "fold": 0,
+        "train_start": "0",
+        "train_end": "19773",
+        "val_start": "19774",
+        "val_end": "39547",
+        "logloss": 0.6932550917140613,
+        "accuracy": 0.4990897137655507,
+        "n_train": 19774,
+        "n_val": 19774
+      },
+      {
+        "fold": 1,
+        "train_start": "0",
+        "train_end": "39547",
+        "val_start": "39548",
+        "val_end": "59321",
+        "logloss": 0.693241748290643,
+        "accuracy": 0.4995954283402448,
+        "n_train": 39548,
+        "n_val": 19774
+      },
+      {
+        "fold": 2,
+        "train_start": "0",
+        "train_end": "59321",
+        "val_start": "59322",
+        "val_end": "79095",
+        "logloss": 0.6930724041672788,
+        "accuracy": 0.5081925761100435,
+        "n_train": 59322,
+        "n_val": 19774
+      },
+      {
+        "fold": 3,
+        "train_start": "0",
+        "train_end": "79095",
+        "val_start": "79096",
+        "val_end": "98869",
+        "logloss": 0.6916694184643798,
+        "accuracy": 0.5193688682107819,
+        "n_train": 79096,
+        "n_val": 19774
+      }
+    ]
+  },
+  "threshold": {
+    "best_threshold": 0.45,
+    "best_equity": 1469.0
+  },
+  "data": {
+    "csv_path": "data\\USDJPY\\ohlcv\\USDJPY_M5.csv",
+    "from": "2024-07-08T11:45:00",
+    "to": "2025-12-15T12:30:00",
+    "n_rows_raw": 106118,
+    "n_rows_train": 98873
+  },
+  "sha256": "df3fc02bc5980be13c4dc79fa7e084c1f5fa24526a68ee2cd10e1ba61dde4c01"
+}

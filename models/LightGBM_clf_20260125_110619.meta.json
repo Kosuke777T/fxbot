@@ -1,0 +1,28 @@
+{
+  "model_name": "LightGBM_clf_20260125_110619",
+  "file": "LightGBM_clf_20260125_110619.pkl",
+  "feature_order": [
+    "ret_1",
+    "ret_5",
+    "ema_5",
+    "ema_20",
+    "ema_ratio",
+    "rsi_14",
+    "atr_14",
+    "range",
+    "vol_chg"
+  ],
+  "features": [
+    "ret_1",
+    "ret_5",
+    "ema_5",
+    "ema_20",
+    "ema_ratio",
+    "rsi_14",
+    "atr_14",
+    "range",
+    "vol_chg"
+  ],
+  "version": 1769306779.968198,
+  "created_at": "2026-01-25T11:06:19.968202"
+}

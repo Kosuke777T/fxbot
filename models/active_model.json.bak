@@ -1,0 +1,29 @@
+{
+  "model_name": "LightGBM_clf",
+  "file": "LightGBM_clf_20260124_235700.pkl",
+  "meta_file": "LightGBM_clf_20260124_235700.pkl.meta.json",
+  "version": 1769299020.867613,
+  "best_threshold": 0.5,
+  "feature_order": [
+    "ret_1",
+    "ret_5",
+    "ema_5",
+    "ema_20",
+    "ema_ratio",
+    "rsi_14",
+    "atr_14",
+    "range",
+    "vol_chg"
+  ],
+  "features": [
+    "ret_1",
+    "ret_5",
+    "ema_5",
+    "ema_20",
+    "ema_ratio",
+    "rsi_14",
+    "atr_14",
+    "range",
+    "vol_chg"
+  ]
+}

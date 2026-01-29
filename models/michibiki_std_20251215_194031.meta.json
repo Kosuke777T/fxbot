@@ -1,0 +1,54 @@
+{
+  "model_name": "michibiki_std",
+  "version": "20251215_194031",
+  "features": [
+    "ret1",
+    "ret3",
+    "ret5",
+    "vol20",
+    "sma5",
+    "sma10",
+    "sma20",
+    "sma50",
+    "ema5",
+    "ema10",
+    "ema20",
+    "ema50",
+    "bb_p",
+    "rsi14",
+    "atr14",
+    "pos_in_range",
+    "vol_sma20",
+    "vol_chg"
+  ],
+  "horizon": 10,
+  "oof_metrics": {
+    "auc": 0.5092060320906754,
+    "logloss": 0.7027088693677254,
+    "thr_oof": 0.1793402455591682,
+    "f1_oof": 0.6737501185841276,
+    "thr_final": 0.17037323328120976
+  },
+  "folds": [
+    {
+      "fold": 0,
+      "train_start": "2024-07-12 03:10:00",
+      "train_end": "2025-09-29 23:25:00",
+      "test_start": "2025-09-29 23:30:00",
+      "test_end": "2025-11-01 08:20:00",
+      "n_train": 90000,
+      "n_test": 7000,
+      "auc": 0.5092060320906754,
+      "logloss": 0.7027088693677254,
+      "f1_at_thr": 0.6737501185841276,
+      "thr": 0.1793402455591682
+    }
+  ],
+  "source_csv": "USDJPY_M5.csv",
+  "bars": {
+    "total": 99864,
+    "train": 90000,
+    "test": 7000,
+    "step": 7000
+  }
+}
