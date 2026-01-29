@@ -369,6 +369,106 @@ def _max_consecutive(x: pd.Series, val: int) -> int:
     return m
 
 
+def _trade_stats_from_trades_csv(trades_df: pd.DataFrame) -> dict:
+    """
+    trades.csv 由来の DataFrame から GUI/metrics 用の Buy/Sell 統計を算出する。
+    例外時は空のデフォルト dict を返し、呼び出し元で base に 0/None でマージ可能にする。
+    """
+    empty = {
+        "buy_entries": 0,
+        "buy_wins": 0,
+        "buy_win_rate": None,
+        "buy_max_consec_win": 0,
+        "buy_loss_streak_max": 0,
+        "sell_entries": 0,
+        "sell_wins": 0,
+        "sell_win_rate": None,
+        "sell_max_consec_win": 0,
+        "sell_loss_streak_max": 0,
+        "loss_streak_max": 0,
+        "loss_streak_current": 0,
+        "profit_factor": None,
+        "avg_pnl_per_trade": 0.0,
+    }
+    try:
+        if trades_df is None or trades_df.empty:
+            return empty
+        if "pnl" not in trades_df.columns:
+            return empty
+        df = trades_df.copy()
+        df["pnl"] = pd.to_numeric(df["pnl"], errors="coerce").fillna(0.0)
+        pnl = df["pnl"]
+        win = pnl > 0
+        loss = ~win
+        n = len(df)
+
+        def _consec_wins(ser: pd.Series) -> int:
+            return int(_max_consecutive(ser.astype(int), 1))
+
+        def _consec_losses(ser: pd.Series) -> int:
+            return int(_max_consecutive((~ser).astype(int), 1))
+
+        def _trailing_losses(ser: pd.Series) -> int:
+            c = 0
+            for v in reversed(ser.tolist()):
+                if not v:
+                    c += 1
+                else:
+                    break
+            return c
+
+        # 全体
+        sum_win = float(pnl[win].sum())
+        sum_loss_abs = float((-pnl[loss]).clip(lower=0).sum())
+        profit_factor = None
+        if sum_loss_abs > 0:
+            profit_factor = float(sum_win / sum_loss_abs)
+        elif sum_win > 0:
+            profit_factor = float("inf")
+        avg_pnl_per_trade = float(pnl.mean()) if n > 0 else 0.0
+        loss_streak_max = _consec_losses(win)
+        loss_streak_current = _trailing_losses(win)
+
+        out = {
+            "loss_streak_max": loss_streak_max,
+            "loss_streak_current": loss_streak_current,
+            "profit_factor": profit_factor,
+            "avg_pnl_per_trade": avg_pnl_per_trade,
+        }
+
+        if "side" not in df.columns:
+            out.update({
+                "buy_entries": 0, "buy_wins": 0, "buy_win_rate": None,
+                "buy_max_consec_win": 0, "buy_loss_streak_max": 0,
+                "sell_entries": 0, "sell_wins": 0, "sell_win_rate": None,
+                "sell_max_consec_win": 0, "sell_loss_streak_max": 0,
+            })
+            return out
+
+        for side_key, side_val in (("buy", "BUY"), ("sell", "SELL")):
+            sub = df[df["side"].astype(str).str.upper() == side_val]
+            entries = len(sub)
+            if entries == 0:
+                out[f"{side_key}_entries"] = 0
+                out[f"{side_key}_wins"] = 0
+                out[f"{side_key}_win_rate"] = None
+                out[f"{side_key}_max_consec_win"] = 0
+                out[f"{side_key}_loss_streak_max"] = 0
+                continue
+            spnl = sub["pnl"]
+            swin = spnl > 0
+            wins = int(swin.sum())
+            out[f"{side_key}_entries"] = entries
+            out[f"{side_key}_wins"] = wins
+            out[f"{side_key}_win_rate"] = float(wins / entries)
+            out[f"{side_key}_max_consec_win"] = _consec_wins(swin)
+            out[f"{side_key}_loss_streak_max"] = _consec_losses(swin)
+
+        return out
+    except Exception:
+        return empty
+
+
 def _dd_duration_max(eq: pd.Series) -> int:
     """ドローダウン期間の最大日数を算出。時系列がintならスキップする。"""
     peak = -np.inf
@@ -637,6 +737,8 @@ def run_backtest(
     symbol: str = "USDJPY-",
     init_position: str = "flat",
     exit_policy: dict | None = None,
+    bt_circuit_breaker: "object | None" = None,
+    threshold_override: float | None = None,
 ) -> Path:
     """
     v5.1 準拠のバックテストを実行する
@@ -733,14 +835,14 @@ def run_backtest(
             raise RuntimeError("[feature_check] feature_order missing in active_model.json -> FAIL-FAST")
         if not isinstance(feature_order, list):
             raise RuntimeError(f"[feature_check] feature_order must be a list, got {type(feature_order)}")
-        
+
         # 検証（validate_feature_order_fail_fast 内で time/close は除外される）
         feature_order = validate_feature_order_fail_fast(
             df_cols=list(feat_df.columns),
             expected=list(feature_order),
             context="backtest",
         )
-        
+
         # 整形（time を保持しつつ、feature_order の順序で並べる）
         keep_cols = []
         if "time" in feat_df.columns:
@@ -755,7 +857,13 @@ def run_backtest(
             init_position=init_position,
             trade_start_ts=trade_start_ts,
             exit_policy=exit_policy,
+            breaker=bt_circuit_breaker,
+            threshold_override=threshold_override,
+            threshold_source="cli" if threshold_override is not None else None,
         )
+        used_th = getattr(engine, "best_threshold", None)
+        src = getattr(engine, "_threshold_source", "default")
+        print(f"[bt] threshold used: {used_th} source={src}", flush=True)
 
         print(f"[bt] Running backtest...", flush=True)
         results = engine.run(df, out_dir, symbol=symbol)
@@ -837,6 +945,29 @@ def run_backtest(
             except Exception:
                 pass
 
+            # trades.csv から Buy/Sell 統計を算出して metrics にマージ（GUI 表示用）
+            trade_stats = {}
+            try:
+                trade_stats = _trade_stats_from_trades_csv(trades_df)
+                base.update(trade_stats)
+                b_ent = trade_stats.get("buy_entries", 0)
+                s_ent = trade_stats.get("sell_entries", 0)
+                print(f"[bt] trade_stats computed: buy_entries={b_ent} sell_entries={s_ent}", flush=True)
+            except Exception:
+                pass
+
+            # VirtualBT が live_stats を優先して読むため、完了後に live_stats も更新する
+            try:
+                live_stats_path = out_dir / "live_stats.json"
+                if live_stats_path.exists() and trade_stats:
+                    live = json.loads(live_stats_path.read_text(encoding="utf-8"))
+                    live.update(trade_stats)
+                    live_stats_path.write_text(
+                        json.dumps(live, ensure_ascii=False, indent=2), encoding="utf-8"
+                    )
+            except Exception:
+                pass
+
         (out_dir / "metrics.json").write_text(
             json.dumps(base, ensure_ascii=False, indent=2)
         )
@@ -909,6 +1040,11 @@ def run_backtest(
         base = metrics_from_equity(eq_df["equity"])
         tmet = trade_metrics(trades)
         base.update(tmet)
+        try:
+            trade_stats = _trade_stats_from_trades_csv(trades)
+            base.update(trade_stats)
+        except Exception:
+            pass
         (out_dir / "metrics.json").write_text(
             json.dumps(base, ensure_ascii=False, indent=2)
         )
@@ -1135,14 +1271,18 @@ def main() -> None:
     ap.add_argument("--exit-policy-min-hold", type=int, default=0, help="ExitPolicy: 最低保有バー数（デフォルト: 0）")
     ap.add_argument("--exit-policy-tp-sl-next", action="store_true", help="ExitPolicy: TP/SLを次バー以降で評価")
     ap.add_argument("--exit-policy-reverse-only", action="store_true", help="ExitPolicy: 逆シグナル時のみexit")
+    ap.add_argument("--bt-max-dd", type=float, default=None, help="BT-CB: 最大ドローダウン閾値（例: 0.20 = 20%%）。指定時のみBT-CB有効")
+    ap.add_argument("--bt-max-loss-streak", type=int, default=None, help="BT-CB: 連敗数閾値。指定時のみBT-CB有効")
+    ap.add_argument("--bt-cooldown-bars", type=int, default=0, help="BT-CB: トリップ後何バーで再許可するか（デフォルト: 0）")
+    ap.add_argument("--threshold", type=float, default=None, help="閾値上書き（例: 0.55）。未指定時は active_model.json の best_threshold を使用")
     args = ap.parse_args()
 
     csv = Path(args.csv).resolve()
-    
+
     # 日付引数の正規化（YYYY-MM-DD or None）
     start_str, end_str = _normalize_dates_from_args(args, ap)
     period_tag = _build_period_tag(start_str, end_str)
-    
+
     # --out-dir が指定されている場合はそれを使用、なければ既存の自動生成ロジック
     if args.out_dir:
         period_dir = Path(args.out_dir).resolve()
@@ -1166,7 +1306,18 @@ def main() -> None:
                 "tp_sl_eval_from_next_bar": args.exit_policy_tp_sl_next,
                 "exit_on_reverse_signal_only": args.exit_policy_reverse_only,
             }
-        
+
+        # BT-CB: いずれか指定時のみ BacktestCircuitBreaker を有効化
+        bt_cb = None
+        if args.bt_max_dd is not None or args.bt_max_loss_streak is not None:
+            from app.core.backtest.backtest_circuit_breaker import BacktestCircuitBreaker
+            bt_cb = BacktestCircuitBreaker(
+                max_drawdown=float(args.bt_max_dd) if args.bt_max_dd is not None else 0.0,
+                max_consecutive_losses=int(args.bt_max_loss_streak) if args.bt_max_loss_streak is not None else 0,
+                cooldown_bars=int(args.bt_cooldown_bars or 0),
+            )
+            print(f"[bt] BT-CB enabled: max_dd={bt_cb.max_drawdown} max_loss_streak={bt_cb.max_consecutive_losses} cooldown_bars={bt_cb.cooldown_bars}", flush=True)
+
         p = run_backtest(
             csv,
             start_str,
@@ -1177,6 +1328,8 @@ def main() -> None:
             symbol=args.symbol,
             init_position=args.init_position,
             exit_policy=exit_policy,
+            bt_circuit_breaker=bt_cb,
+            threshold_override=getattr(args, "threshold", None),
         )
     else:
         p = run_wfo(

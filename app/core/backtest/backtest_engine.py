@@ -121,6 +121,9 @@ class BacktestEngine:
         init_position: str = "flat",
         trade_start_ts: Optional[pd.Timestamp] = None,
         exit_policy: Optional[Dict[str, Any]] = None,
+        breaker: Optional[Any] = None,
+        threshold_override: Optional[float] = None,
+        threshold_source: Optional[str] = None,
     ):
         """
         Parameters
@@ -178,6 +181,7 @@ class BacktestEngine:
         self.executor = SimulatedExecution(initial_capital, contract_size)
         self.profile_stats_service = get_profile_stats_service()
         self.filter_engine = StrategyFilterEngine()
+        self.breaker = breaker  # BacktestCircuitBreaker または None（無ければエントリー抑止なし）
 
         # 連敗カウンタ（バックテスト中に動的に更新）
         self.consecutive_losses = 0
@@ -196,6 +200,7 @@ class BacktestEngine:
         try:
             meta = get_active_model_meta()
             self.best_threshold = float(meta.get("best_threshold", 0.52))
+            self._threshold_source = "active_model" if (meta and "best_threshold" in meta) else "default"
             # モデルをロード（後で使用）
             self.model_kind, self.model_payload, _, self.model_params = load_active_model()
             self.model = None  # 遅延ロード
@@ -223,6 +228,7 @@ class BacktestEngine:
             )
         except Exception as e:
             self.best_threshold = 0.52  # フォールバック
+            self._threshold_source = "default"
             self.model_kind = None
             self.model_payload = None
             self.model_params = {}
@@ -243,6 +249,11 @@ class BacktestEngine:
                     "exc_msg": str(e)[:300],
                 },
             )
+
+        # 閾値上書き（CLI/GUI 指定時、active_model より優先）
+        if threshold_override is not None:
+            self.best_threshold = float(threshold_override)
+            self._threshold_source = (threshold_source or "cli").strip() or "cli"
 
     def _extract_classes_any(self, model_obj) -> Optional[Any]:
         """
@@ -301,7 +312,7 @@ class BacktestEngine:
     def _determine_class_index_map(self, model) -> Optional[Dict[str, Any]]:
         """
         model.classes_ を観測して BUY/SELL の index を確定する（services 層と同じロジック）。
-        
+
         Returns
         -------
         dict or None
@@ -315,7 +326,7 @@ class BacktestEngine:
         """
         classes = None
         source = "unknown"
-        
+
         # _extract_classes_any() を使用して classes_ を回収
         try:
             classes = self._extract_classes_any(model)
@@ -333,23 +344,23 @@ class BacktestEngine:
                     source = "extracted"
         except Exception:
             return None
-        
+
         if classes is None:
             return None
-        
+
         # list 化
         try:
             classes_list = list(classes)
         except Exception:
             return None
-        
+
         if len(classes_list) < 2:
             return None
-        
+
         # BUY/SELL の index を確定
         buy_index = None
         sell_index = None
-        
+
         # 文字列の場合
         for idx, cls in enumerate(classes_list):
             cls_str = str(cls).upper()
@@ -357,13 +368,13 @@ class BacktestEngine:
                 buy_index = idx
             elif cls_str in ("SELL", "SHORT"):
                 sell_index = idx
-        
+
         # 数値の場合（既存のラベル規約を確認）
         if buy_index is None or sell_index is None:
             # 数値セットを観測
             try:
                 classes_set = set(classes_list)
-                
+
                 # {0, 1} の場合: SELL=0, BUY=1
                 if classes_set == {0, 1}:
                     for idx, cls in enumerate(classes_list):
@@ -372,7 +383,7 @@ class BacktestEngine:
                         elif cls == 1:
                             buy_index = idx
                     source = f"numeric:{{0,1}}"
-                
+
                 # {-1, 1} の場合: SELL=-1, BUY=1
                 elif classes_set == {-1, 1}:
                     for idx, cls in enumerate(classes_list):
@@ -381,14 +392,14 @@ class BacktestEngine:
                         elif cls == 1:
                             buy_index = idx
                     source = f"numeric:{{-1,1}}"
-                
+
                 # その他の数値セットは未対応（安全側に倒す）
                 else:
                     return None
             except Exception:
                 # 数値変換に失敗した場合は None を返す
                 return None
-        
+
         # 両方の index が確定できた場合のみ返す
         if buy_index is not None and sell_index is not None:
             return {
@@ -399,7 +410,7 @@ class BacktestEngine:
             }
         else:
             return None
-    
+
     def _ensure_model_loaded(self) -> None:
         """
         モデルとスケーラーを遅延ロードする
@@ -428,7 +439,7 @@ class BacktestEngine:
                     self.model = _load_model_generic(self.model_payload)
                     # スケーラーをロード
                     self.scaler = _load_scaler_if_any(self.model_params)
-                    
+
                     # model.classes_ を観測して BUY/SELL の index を確定（初回のみログ出力）
                     if self.model is not None:
                         self._class_index_map = self._determine_class_index_map(self.model)
@@ -491,12 +502,30 @@ class BacktestEngine:
                 )
             # endregion agent log
             self._ensure_model_loaded()
-            
+
             if self.model_kind == "builtin":
                 # builtinモデルは未対応（必要に応じて実装）
+                n_unsafe = getattr(self, "_obs_unsafe_stop_log_count", 0)
+                if n_unsafe < 5:
+                    self._obs_unsafe_stop_log_count = n_unsafe + 1
+                    print(
+                        f"[BT-OBS] _predict safe_stop has_wrapper_class_index_map=False map_value=N/A "
+                        f"reason_of_unset=builtin bar_index={getattr(self, '_obs_bar_index', None)} "
+                        f"ts={getattr(self, '_obs_ts', None)}",
+                        flush=True,
+                    )
                 return ProbOut(0.0, 0.0, 1.0)
-            
+
             if self.model is None:
+                n_unsafe = getattr(self, "_obs_unsafe_stop_log_count", 0)
+                if n_unsafe < 5:
+                    self._obs_unsafe_stop_log_count = n_unsafe + 1
+                    print(
+                        f"[BT-OBS] _predict safe_stop has_wrapper_class_index_map=False map_value=N/A "
+                        f"reason_of_unset=model_none bar_index={getattr(self, '_obs_bar_index', None)} "
+                        f"ts={getattr(self, '_obs_ts', None)}",
+                        flush=True,
+                    )
                 # region agent log
                 if getattr(self, "_dbg_pred_n", 0) < 3:
                     _dbg(
@@ -507,10 +536,10 @@ class BacktestEngine:
                     )
                 # endregion agent log
                 return ProbOut(0.0, 0.0, 1.0)
-            
+
             # 特徴量をDataFrameに変換（1行）
             feat_df = pd.DataFrame([features_dict])
-            
+
             # 特徴量の順序を確保
             try:
                 X = _ensure_feature_order(feat_df, self.model_params)
@@ -526,7 +555,7 @@ class BacktestEngine:
                     },
                 )
                 raise
-            
+
             # スケーラーを適用
             if self.scaler is not None:
                 Xv = X.values
@@ -548,10 +577,60 @@ class BacktestEngine:
                         Xv = (Xv - mean)
                 # DataFrameに戻す
                 X = pd.DataFrame(Xv, index=X.index, columns=X.columns)
-            
+
+            # モデル渡し前: X を必ず 2D に整形（モデル実装差の吸収）
+            Xvals = np.asarray(X.values if isinstance(X, pd.DataFrame) else X, dtype=float)
+            if Xvals.ndim == 1:
+                Xvals = Xvals.reshape(1, -1)
+            X = pd.DataFrame(Xvals, index=X.index, columns=X.columns) if isinstance(X, pd.DataFrame) else Xvals
+
+            # 観測: X.shape（最初の数回のみ）
+            n_shape_log = getattr(self, "_obs_shape_log_count", 0)
+            if n_shape_log < 5:
+                self._obs_shape_log_count = n_shape_log + 1
+                x_shape = Xvals.shape if isinstance(Xvals, np.ndarray) else getattr(X, "shape", None)
+                print(
+                    f"[BT-OBS] _predict X.shape={x_shape} bar_index={getattr(self, '_obs_bar_index', None)} "
+                    f"ts={getattr(self, '_obs_ts', None)}",
+                    flush=True,
+                )
+
             # 予測確率を取得
             proba = _predict_proba_generic(self.model, X)
-            
+            proba = np.asarray(proba)
+
+            # 出力: proba を「2クラス (1,2)」に正規化（モデル実装差の吸収）
+            if proba.ndim == 2:
+                pass  # OK
+            elif proba.ndim == 1:
+                if len(proba) == 2:
+                    proba = proba.reshape(1, 2)
+                elif len(proba) == 1:
+                    p = float(proba[0])
+                    proba = np.array([[1.0 - p, p]], dtype=float)
+                else:
+                    print(
+                        f"[BacktestEngine._predict] proba ndim=1 len={len(proba)} は未対応。安全停止。"
+                        f" bar_index={getattr(self, '_obs_bar_index', None)} ts={getattr(self, '_obs_ts', None)}",
+                        flush=True,
+                    )
+                    return ProbOut(0.0, 0.0, 1.0)
+            else:
+                print(
+                    f"[BacktestEngine._predict] proba ndim={proba.ndim} は未対応。安全停止。"
+                    f" bar_index={getattr(self, '_obs_bar_index', None)} ts={getattr(self, '_obs_ts', None)}",
+                    flush=True,
+                )
+                return ProbOut(0.0, 0.0, 1.0)
+
+            # 観測: proba.shape（最初の数回のみ）
+            if n_shape_log < 5:
+                print(
+                    f"[BT-OBS] _predict proba.shape={proba.shape} bar_index={getattr(self, '_obs_bar_index', None)} "
+                    f"ts={getattr(self, '_obs_ts', None)}",
+                    flush=True,
+                )
+
             # classes_ に基づいて正しく p_buy/p_sell を取得
             if self._class_index_map and proba.ndim == 2 and proba.shape[1] >= 2:
                 buy_idx = self._class_index_map.get("buy_index")
@@ -561,6 +640,16 @@ class BacktestEngine:
                     p_sell = float(proba[0, sell_idx])
                 else:
                     # class_index_map が不完全な場合は安全停止（警告は1回だけ）
+                    n_unsafe = getattr(self, "_obs_unsafe_stop_log_count", 0)
+                    if n_unsafe < 5:
+                        self._obs_unsafe_stop_log_count = n_unsafe + 1
+                        map_val = f"buy_index={buy_idx} sell_index={sell_idx}"
+                        print(
+                            f"[BT-OBS] _predict safe_stop has_wrapper_class_index_map=True map_value={map_val} "
+                            f"reason_of_unset=buy_or_sell_index_none bar_index={getattr(self, '_obs_bar_index', None)} "
+                            f"ts={getattr(self, '_obs_ts', None)}",
+                            flush=True,
+                        )
                     if not self._warned_classmap_undetermined:
                         self._warned_classmap_undetermined = True
                         print(
@@ -571,6 +660,25 @@ class BacktestEngine:
                     p_sell = 0.0
             else:
                 # class_index_map が取得できない場合は安全停止（列決め打ち禁止、警告は1回だけ）
+                n_unsafe = getattr(self, "_obs_unsafe_stop_log_count", 0)
+                if n_unsafe < 5:
+                    self._obs_unsafe_stop_log_count = n_unsafe + 1
+                    has_map = bool(self._class_index_map)
+                    if not has_map:
+                        reason_of_unset = "class_index_map_none"
+                        map_val = "N/A"
+                    else:
+                        if proba.ndim != 2:
+                            reason_of_unset = "proba_not_2d"
+                        else:
+                            reason_of_unset = "proba_shape_1_lt_2"
+                        map_val = repr(self._class_index_map)[:80] if self._class_index_map else "N/A"
+                    print(
+                        f"[BT-OBS] _predict safe_stop has_wrapper_class_index_map={has_map} map_value={map_val} "
+                        f"reason_of_unset={reason_of_unset} bar_index={getattr(self, '_obs_bar_index', None)} "
+                        f"ts={getattr(self, '_obs_ts', None)}",
+                        flush=True,
+                    )
                 if not self._warned_classmap_undetermined:
                     self._warned_classmap_undetermined = True
                     print(
@@ -579,7 +687,7 @@ class BacktestEngine:
                     )
                 p_buy = 0.0
                 p_sell = 0.0
-            
+
             # 0〜1 にクリップ
             p_buy = max(0.0, min(1.0, p_buy))
             p_sell = max(0.0, min(1.0, p_sell))
@@ -605,7 +713,7 @@ class BacktestEngine:
                 )
                 self._dbg_pred_n = int(getattr(self, "_dbg_pred_n", 0)) + 1
             # endregion agent log
-            
+
             return ProbOut(p_buy, p_sell, p_skip)
         except Exception as e:
             print(f"[BacktestEngine] Prediction failed: {e}", flush=True)
@@ -676,7 +784,7 @@ class BacktestEngine:
         df = df.copy()
         df["time"] = pd.to_datetime(df["time"])
         df = df.sort_values("time").reset_index(drop=True)
-        
+
         # ExitPolicy用：エントリー時のバーインデックスを記録（SimulatedTradeに追加）
         # entry_bar_index を保持するための辞書（trade_id -> bar_index）
         self._entry_bar_indices: Dict[int, int] = {}
@@ -700,14 +808,14 @@ class BacktestEngine:
             raise RuntimeError("[BacktestEngine] feature_order missing in active_model.json")
         if not isinstance(feature_order, list):
             raise RuntimeError(f"[BacktestEngine] feature_order must be a list, got {type(feature_order)}")
-        
+
         # 検証（validate_feature_order_fail_fast 内で time/close は除外される）
         feature_order = validate_feature_order_fail_fast(
             df_cols=list(df_features.columns),
             expected=list(feature_order),
             context="backtest",
         )
-        
+
         # 整形（time, close を保持しつつ、feature_order の順序で並べる）
         keep_cols = []
         if "time" in df_features.columns:
@@ -747,6 +855,11 @@ class BacktestEngine:
             "entry_sell_count": 0,  # SELLでエントリー成立回数
             "blocked_buy_count": 0,  # BUYがブロックされた回数
             "blocked_sell_count": 0,  # SELLがブロックされた回数
+            "bt_cb_blocked": 0,  # BT-CB によるエントリー抑止回数
+            "n_skips": 0,  # 戦略が SKIP した回数（観測で確定）
+            "skip_reason_count": {},  # reason -> count（内訳）
+            "used_threshold": float(getattr(self, "best_threshold", 0.52)),
+            "threshold_source": str(getattr(self, "_threshold_source", "default")),
         }
 
         # equity_curve.csv のストリーミング追記用（5バーごと）
@@ -754,14 +867,19 @@ class BacktestEngine:
         equity_csv_handle = None
         equity_csv_header_written = False
         equity_batch = []  # 5バー分のデータを蓄積
-        
+
         # live_stats.json のパス（実行中リアルタイム更新用）
         live_stats_path = out_dir / "live_stats.json"
 
         from tools.backtest_run import iter_with_progress
+        self._obs_unsafe_stop_log_count = 0
+        self._obs_skip_log_count = 0
+        self._obs_shape_log_count = 0
         for idx, row in iter_with_progress(df_features, step=5, use_iterrows=True):
             timestamp = pd.Timestamp(row["time"])
             price = float(row["close"])
+            self._obs_bar_index = idx
+            self._obs_ts = timestamp
 
             # flat: start以前は取引を抑止（特徴量更新のみ許可）
             try:
@@ -777,7 +895,7 @@ class BacktestEngine:
             # 特徴量を辞書形式に変換
             features_dict = {col: float(row[col]) for col in df_features.columns if col not in ["time", "close"]}
 
-            # 予測を実行（ai_service 依存を避けるため）
+            # 予測を実行（ai_service 依存を避けるため）（_predict 内で bar_index/ts 観測用に self._obs_* を参照）
             ai_out = self._predict(features_dict)
 
             # EntryContext を作成
@@ -973,7 +1091,7 @@ class BacktestEngine:
                     if closed_trade:
                         # エグジットカウンタを更新
                         debug_counters["n_exits"] += 1
-                        
+
                         # 平均保有時間計算用：holding_bars を計算してカウンタに積む
                         trade_id = getattr(closed_trade, "_entry_trade_id", None)
                         if trade_id is not None and trade_id in self._entry_bar_indices:
@@ -981,7 +1099,7 @@ class BacktestEngine:
                             holding_bars = idx - entry_bar_idx
                             debug_counters["sum_holding_bars_closed"] += holding_bars
                             debug_counters["n_closed_trades"] += 1
-                        
+
                         # 連敗カウンタを更新
                         if closed_trade.pnl < 0:
                             self.consecutive_losses += 1
@@ -991,6 +1109,33 @@ class BacktestEngine:
             # filter_pass = True の場合のみ SimulatedExecution に渡す
             # エントリー試行カウンタを更新
             debug_counters["n_entry_attempts"] += 1
+
+            # -----------------------------------------------------------------
+            # バックテスト用サーキットブレーカー（BT-CB）ゲート
+            # -----------------------------------------------------------------
+            _eq = self.executor.equity
+            _peak = debug_counters.get("peak_equity", self.executor.initial_capital)
+            _dd = (_eq / _peak - 1.0) if _peak > 0 else 0.0
+            _streak = self.consecutive_losses
+
+            if self.breaker is not None:
+                self.breaker.update(_eq, _peak, _streak, idx)
+                if not self.breaker.can_enter(idx):
+                    debug_counters["bt_cb_blocked"] += 1
+                    if debug_counters["bt_cb_blocked"] == 1:
+                        st = self.breaker.status()
+                        print(
+                            f"[BT-CB] blocked reason={st.get('reason', '?')} eq={_eq:.0f} peak={_peak:.0f} "
+                            f"dd={_dd:.4f} streak={_streak} bar={idx}",
+                            flush=True,
+                        )
+                    continue
+            elif debug_counters["n_entry_attempts"] == 1:
+                print(
+                    f"[BT-CB] no_circuit_breaker eq={_eq:.0f} peak={_peak:.0f} dd={_dd:.4f} streak={_streak} "
+                    "(no threshold check, entry not gated)",
+                    flush=True,
+                )
 
             # 既存ポジション保有中の場合はブロック
             if self.executor._open_position is not None:
@@ -1019,7 +1164,39 @@ class BacktestEngine:
                         entry_block_reason = "signal_none"
                     else:
                         entry_block_reason = f"side_none:signal={signal_side}"
-                
+
+                # SKIP 集計（観測可能な値だけで reason を決定、二重計上しない）
+                filter_pass = decision.get("filter_pass", True)
+                filter_reasons = list(decision.get("filter_reasons", [])) if decision.get("filter_reasons") else []
+                prob_buy = float(getattr(ai_out, "p_buy", 0.0)) if ai_out is not None else 0.0
+                prob_sell = float(getattr(ai_out, "p_sell", 0.0)) if ai_out is not None else 0.0
+                threshold = float(getattr(self, "best_threshold", 0.0))
+                if not filter_pass:
+                    skip_reason = f"filter_fail:{filter_reasons[0]}" if filter_reasons else "filter_fail"
+                elif action != "ENTRY":
+                    skip_reason = f"other:{action}"
+                elif side is None:
+                    skip_reason = "below_threshold" if (max(prob_buy, prob_sell) < threshold) else "no_side"
+                else:
+                    skip_reason = "other:unknown"
+                debug_counters["n_skips"] += 1
+                debug_counters["skip_reason_count"][skip_reason] = (
+                    debug_counters["skip_reason_count"].get(skip_reason, 0) + 1
+                )
+
+                # SKIP 分岐の観測ログ（最初の5回まで）
+                n_skip = getattr(self, "_obs_skip_log_count", 0)
+                if n_skip < 5:
+                    self._obs_skip_log_count = n_skip + 1
+                    prob_b = float(getattr(ai_out, "p_buy", 0.0)) if ai_out is not None else None
+                    prob_s = float(getattr(ai_out, "p_sell", 0.0)) if ai_out is not None else None
+                    print(
+                        f"[BT-OBS] SKIP action={action} side={side} prob_buy={prob_b} prob_sell={prob_s} "
+                        f"threshold={getattr(self, 'best_threshold', None)} filter_level={getattr(self, 'filter_level', None)} "
+                        f"skip_reason={entry_block_reason} bar_index={idx} ts={timestamp}",
+                        flush=True,
+                    )
+
                 # 最初のSKIPバーで必ず記録（single-shot）
                 if debug_counters["entry_block_reason"] is None:
                     debug_counters["entry_block_reason"] = entry_block_reason
@@ -1068,6 +1245,22 @@ class BacktestEngine:
 
             # BUY/SELL のチェック（後方互換のため）
             if side not in ("BUY", "SELL"):
+                skip_reason = "invalid_side"
+                debug_counters["n_skips"] += 1
+                debug_counters["skip_reason_count"][skip_reason] = (
+                    debug_counters["skip_reason_count"].get(skip_reason, 0) + 1
+                )
+                n_skip = getattr(self, "_obs_skip_log_count", 0)
+                if n_skip < 5:
+                    self._obs_skip_log_count = n_skip + 1
+                    prob_b = float(getattr(ai_out, "p_buy", 0.0)) if ai_out is not None else None
+                    prob_s = float(getattr(ai_out, "p_sell", 0.0)) if ai_out is not None else None
+                    print(
+                        f"[BT-OBS] SKIP action={action} side={side} prob_buy={prob_b} prob_sell={prob_s} "
+                        f"threshold={getattr(self, 'best_threshold', None)} filter_level={getattr(self, 'filter_level', None)} "
+                        f"skip_reason=invalid_side:{side} bar_index={idx} ts={timestamp}",
+                        flush=True,
+                    )
                 if debug_counters["entry_block_reason"] is None:
                     debug_counters["entry_block_reason"] = f"invalid_side:{side}"
                 # ブロックカウンタを更新（シグナル側で判定）
@@ -1131,7 +1324,7 @@ class BacktestEngine:
                 debug_counters["entry_buy_count"] += 1
             elif side == "SELL":
                 debug_counters["entry_sell_count"] += 1
-            
+
             # region agent log
             # ポジション開設直後の観測（最初のENTRY成功で記録）
             if debug_counters["n_entries"] == 1:
@@ -1153,37 +1346,37 @@ class BacktestEngine:
             try:
                 # 現在のequityを取得（全履歴再計算禁止：SimulatedExecution.equity を直接使用）
                 current_equity = self.executor.equity
-                
+
                 # 最大ドローダウンを逐次更新（軽量化）
                 peak_equity = debug_counters.get("peak_equity", self.executor.initial_capital)
                 if current_equity > peak_equity:
                     peak_equity = current_equity
                     debug_counters["peak_equity"] = peak_equity
-                
+
                 dd = (current_equity / peak_equity - 1.0) if peak_equity > 0 else 0.0
                 max_dd = debug_counters.get("max_drawdown", 0.0)
                 if dd < max_dd:
                     debug_counters["max_drawdown"] = dd
-                
+
                 # バッチに追加
                 equity_batch.append({
                     "time": timestamp,
                     "equity": current_equity,
                     "signal": "HOLD",  # T-52では暫定HOLD固定
                 })
-                
+
                 # 5バーごとに追記（バー index 基準）
                 if (idx + 1) % 5 == 0:
                     if equity_csv_handle is None:
                         equity_csv_handle = open(equity_csv_path, "w", encoding="utf-8", newline="")
                         equity_csv_handle.write("time,equity,signal\n")
                         equity_csv_header_written = True
-                    
+
                     for item in equity_batch:
                         equity_csv_handle.write(f"{item['time']},{item['equity']:.2f},{item['signal']}\n")
                     equity_csv_handle.flush()
                     equity_batch = []
-                
+
                 # 100バーごとに live_stats.json を更新（実行中リアルタイム更新）
                 if (idx + 1) % 100 == 0:
                     self._write_live_stats(live_stats_path, debug_counters, df_features, idx + 1)
@@ -1199,7 +1392,7 @@ class BacktestEngine:
             closed_trade = self.executor.close_position(final_price, final_timestamp)
             if closed_trade:
                 debug_counters["n_exits"] += 1
-                
+
                 # 平均保有時間計算用：holding_bars を計算してカウンタに積む
                 trade_id = getattr(closed_trade, "_entry_trade_id", None)
                 if trade_id is not None and trade_id in self._entry_bar_indices:
@@ -1214,7 +1407,7 @@ class BacktestEngine:
             self._write_live_stats(live_stats_path, debug_counters, df_features, len(df_features))
         except Exception as e:
             print(f"[BacktestEngine][warn] Failed to write final live_stats.json: {e!r}", flush=True)
-        
+
         # 残りのバッチを出力
         if equity_batch:
             try:
@@ -1222,13 +1415,13 @@ class BacktestEngine:
                     equity_csv_handle = open(equity_csv_path, "w", encoding="utf-8", newline="")
                     equity_csv_handle.write("time,equity,signal\n")
                     equity_csv_header_written = True
-                
+
                 for item in equity_batch:
                     equity_csv_handle.write(f"{item['time']},{item['equity']:.2f},{item['signal']}\n")
                 equity_csv_handle.flush()
             except Exception as e:
                 print(f"[BacktestEngine][warn] Failed to flush remaining equity batch: {e!r}", flush=True)
-        
+
         # equity_curve.csv のファイルハンドルを閉じる
         if equity_csv_handle is not None:
             try:
@@ -1631,25 +1824,25 @@ class BacktestEngine:
             # entry_time と exit_time から holding_bars を計算
             entry_times = pd.to_datetime(trades_df["entry_time"])
             exit_times = pd.to_datetime(trades_df["exit_time"])
-            
+
             # バーインデックスを取得（df_features の time 列と照合）
             timestamps = pd.to_datetime(df_features["time"])
             holding_bars_list = []
             holding_days_list = []
-            
+
             for i, (entry_ts, exit_ts) in enumerate(zip(entry_times, exit_times)):
                 # entry と exit のバーインデックスを取得
                 entry_idx = timestamps.searchsorted(entry_ts, side="right") - 1
                 exit_idx = timestamps.searchsorted(exit_ts, side="right") - 1
-                
+
                 # holding_bars = exit_idx - entry_idx（0以上）
                 holding_bars = max(0, exit_idx - entry_idx)
                 holding_bars_list.append(holding_bars)
-                
+
                 # holding_days = (exit_time - entry_time).days
                 holding_days = (exit_ts - entry_ts).days
                 holding_days_list.append(holding_days)
-            
+
             trades_df = trades_df.copy()
             trades_df["holding_bars"] = holding_bars_list
             trades_df["holding_days"] = holding_days_list
@@ -1752,11 +1945,11 @@ class BacktestEngine:
         result["output_errors"] = validation_result["errors"]
 
         return result
-    
+
     def _write_live_stats(self, live_stats_path: Path, debug_counters: dict, df_features: pd.DataFrame, bars_processed: int) -> None:
         """
         実行中リアルタイム更新用の live_stats.json を書き込む。
-        
+
         Parameters
         ----------
         live_stats_path : Path
@@ -1770,7 +1963,7 @@ class BacktestEngine:
         """
         try:
             import json
-            
+
             # 基本統計（debug_counters から取得）
             stats = {
                 "bars_processed": bars_processed,
@@ -1785,11 +1978,16 @@ class BacktestEngine:
                 "entry_sell_count": debug_counters.get("entry_sell_count", 0),
                 "blocked_buy_count": debug_counters.get("blocked_buy_count", 0),
                 "blocked_sell_count": debug_counters.get("blocked_sell_count", 0),
+                "bt_cb_blocked": debug_counters.get("bt_cb_blocked", 0),
+                "n_skips": debug_counters.get("n_skips", 0),
+                "skip_reason_count": dict(debug_counters.get("skip_reason_count", {})),
+                "used_threshold": debug_counters.get("used_threshold"),
+                "threshold_source": debug_counters.get("threshold_source"),
             }
-            
+
             # 最大ドローダウン（debug_counters から取得、軽量化）
             stats["max_drawdown"] = debug_counters.get("max_drawdown", 0.0)
-            
+
             # 平均保有時間（debug_counters から取得）
             sum_holding_bars = debug_counters.get("sum_holding_bars_closed", 0)
             n_closed = debug_counters.get("n_closed_trades", 0)
@@ -1797,7 +1995,7 @@ class BacktestEngine:
                 stats["avg_holding_bars"] = float(sum_holding_bars) / n_closed
             else:
                 stats["avg_holding_bars"] = 0.0
-            
+
             # エントリー率・平均バー数・連続エントリー最大回数
             n_entries = debug_counters.get("n_entries", 0)
             if bars_processed > 0:
@@ -1805,13 +2003,13 @@ class BacktestEngine:
                 stats["entry_rate_pct"] = (float(n_entries) / bars_processed) * 100.0
             else:
                 stats["entry_rate_pct"] = 0.0
-            
+
             if n_entries > 0:
                 # 平均何バーに1回エントリー
                 stats["avg_bars_per_entry"] = float(bars_processed) / n_entries
             else:
                 stats["avg_bars_per_entry"] = 0.0
-            
+
             # 連続エントリー最大回数（entry_bar_indices から連続するバーを判定）
             entry_bar_indices = debug_counters.get("entry_bar_indices", [])
             if len(entry_bar_indices) > 0:
@@ -1829,7 +2027,7 @@ class BacktestEngine:
                 stats["max_consec_entry_bars"] = max_consec
             else:
                 stats["max_consec_entry_bars"] = 0
-            
+
             # Buy/Sell 別統計（進捗時点のtradesから計算、exit_timeでソート）
             try:
                 trades_df = self.executor.get_trades_df()
@@ -1837,54 +2035,54 @@ class BacktestEngine:
                     # exit_time でソート（時系列順に確定）
                     if "exit_time" in trades_df.columns:
                         trades_df = trades_df.sort_values("exit_time").reset_index(drop=True)
-                    
+
                     # Buy統計
                     buy_trades = trades_df[trades_df["side"] == "BUY"]
                     buy_entries = len(buy_trades)
                     buy_wins = len(buy_trades[buy_trades["pnl"] > 0]) if buy_entries > 0 else 0
                     buy_max_consec_win = self._calc_max_consecutive_from_trades(buy_trades, True)
                     buy_consec_win = self._calc_current_consecutive_from_trades(buy_trades, True)
-                    
+
                     stats["buy_entries"] = buy_entries
                     stats["buy_wins"] = buy_wins
                     stats["buy_max_consec_win"] = buy_max_consec_win
                     stats["buy_consec_win"] = buy_consec_win
-                    
+
                     # Sell統計
                     sell_trades = trades_df[trades_df["side"] == "SELL"]
                     sell_entries = len(sell_trades)
                     sell_wins = len(sell_trades[sell_trades["pnl"] > 0]) if sell_entries > 0 else 0
                     sell_max_consec_win = self._calc_max_consecutive_from_trades(sell_trades, True)
                     sell_consec_win = self._calc_current_consecutive_from_trades(sell_trades, True)
-                    
+
                     stats["sell_entries"] = sell_entries
                     stats["sell_wins"] = sell_wins
                     stats["sell_max_consec_win"] = sell_max_consec_win
                     stats["sell_consec_win"] = sell_consec_win
-                    
+
                     # Buy/Sell 勝率
                     if buy_entries > 0:
                         stats["buy_win_rate"] = float(buy_wins) / buy_entries
                     else:
                         stats["buy_win_rate"] = None
-                    
+
                     if sell_entries > 0:
                         stats["sell_win_rate"] = float(sell_wins) / sell_entries
                     else:
                         stats["sell_win_rate"] = None
-                    
+
                     # Buy/Sell 最大連敗
                     buy_loss_streak_max = self._calc_max_consecutive_from_trades(buy_trades, False)
                     sell_loss_streak_max = self._calc_max_consecutive_from_trades(sell_trades, False)
                     stats["buy_loss_streak_max"] = buy_loss_streak_max
                     stats["sell_loss_streak_max"] = sell_loss_streak_max
-                    
+
                     # 全体の最大連敗・現在連敗
                     loss_streak_max = self._calc_max_consecutive_from_trades(trades_df, False)
                     loss_streak_current = self._calc_current_consecutive_from_trades(trades_df, False)
                     stats["loss_streak_max"] = loss_streak_max
                     stats["loss_streak_current"] = loss_streak_current
-                    
+
                     # Profit Factor
                     if "pnl" in trades_df.columns:
                         win_pnl_sum = trades_df[trades_df["pnl"] > 0]["pnl"].sum()
@@ -1895,7 +2093,7 @@ class BacktestEngine:
                             stats["profit_factor"] = None  # loss=0 の場合は None（表示側で "—" にする）
                     else:
                         stats["profit_factor"] = None
-                    
+
                     # 1トレードあたり期待値（平均PnL）
                     if "pnl" in trades_df.columns and len(trades_df) > 0:
                         stats["avg_pnl_per_trade"] = float(trades_df["pnl"].mean())
@@ -1937,7 +2135,7 @@ class BacktestEngine:
                 stats["loss_streak_current"] = 0
                 stats["profit_factor"] = None
                 stats["avg_pnl_per_trade"] = 0.0
-            
+
             # 資産・損益統計
             try:
                 final_equity = self.executor.equity
@@ -1947,7 +2145,7 @@ class BacktestEngine:
                     total_pnl_pct = (total_pnl_jpy / initial_capital) * 100.0
                 else:
                     total_pnl_pct = 0.0
-                
+
                 stats["final_equity"] = final_equity
                 stats["initial_capital"] = initial_capital
                 stats["total_pnl_jpy"] = total_pnl_jpy
@@ -1957,7 +2155,7 @@ class BacktestEngine:
                 stats["initial_capital"] = 0.0
                 stats["total_pnl_jpy"] = 0.0
                 stats["total_pnl_pct"] = 0.0
-            
+
             # JSON として書き込み
             live_stats_path.write_text(
                 json.dumps(stats, ensure_ascii=False, indent=2),
@@ -1966,16 +2164,16 @@ class BacktestEngine:
         except Exception as e:
             # 書き込み失敗でも処理は継続（ログのみ）
             print(f"[BacktestEngine][warn] Failed to write live_stats.json: {e!r}", flush=True)
-    
+
     def _calc_max_consecutive_from_trades(self, trades_df: pd.DataFrame, is_win: bool) -> int:
         """最大連勝/連敗数を計算する（trades_dfから）。"""
         if trades_df.empty or "pnl" not in trades_df.columns:
             return 0
-        
+
         wins = (trades_df["pnl"] > 0).astype(int)
         if not is_win:
             wins = 1 - wins
-        
+
         max_consec = 0
         current = 0
         for w in wins:
@@ -1984,18 +2182,18 @@ class BacktestEngine:
                 max_consec = max(max_consec, current)
             else:
                 current = 0
-        
+
         return max_consec
-    
+
     def _calc_current_consecutive_from_trades(self, trades_df: pd.DataFrame, is_win: bool) -> int:
         """現在の連勝/連敗数を計算する（trades_dfから、最後から数える）。"""
         if trades_df.empty or "pnl" not in trades_df.columns:
             return 0
-        
+
         wins = (trades_df["pnl"] > 0).astype(int)
         if not is_win:
             wins = 1 - wins
-        
+
         # 最後から連続する数を数える
         current = 0
         for w in reversed(wins):
@@ -2003,6 +2201,6 @@ class BacktestEngine:
                 current += 1
             else:
                 break
-        
+
         return current
 

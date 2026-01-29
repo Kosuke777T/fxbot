@@ -559,6 +559,14 @@ class AISvc:
 
         self._active_meta = meta
 
+        # 観測: GUI/可視化側で解決している active_model.json の参照キーと model_path 解決結果をログ出力
+        _referenced_keys = [k for k in ("model_path", "file", "feature_order", "features", "expected_features") if k in meta]
+        logger.info(
+            "[OBS] AISvc active_model 参照: keys_in_meta=%s referenced_keys=%s",
+            list(meta.keys()),
+            _referenced_keys,
+        )
+
         # model_path を取得（フォールバック: file から models/<file> を組み立て）
         model_path = meta.get("model_path")
         if not model_path:
@@ -569,6 +577,8 @@ class AISvc:
                 if p.exists():
                     model_path = str(p)
 
+        if model_path:
+            logger.info("[OBS] AISvc model_path 解決結果: %s", model_path)
         if not model_path:
             logger.error("[AISvc] active_model.json に 'model_path' または 'file' がありません")
             return

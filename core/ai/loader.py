@@ -85,6 +85,43 @@ def _apply_calibration(calibrator: Any, p1: FloatArray) -> FloatArray:
     return data
 
 # ------------------------------------------------------------
+# Booster を sklearn 互換にラップ（weekly_retrain 保存物の復元用）
+# pickle 復元時にこのモジュールからクラスを解決するため、ここで定義する。
+# ------------------------------------------------------------
+class _LGBBoosterSklearnWrapper:
+    """
+    lgb.Booster を sklearn 互換にラップ。classes_ = [0, 1] を保持。
+    weekly_retrain が dump するオブジェクトはこのクラスのインスタンスである必要がある。
+    """
+    __slots__ = ("booster_", "classes_", "feature_name_")
+
+    def __init__(self, booster: Any, feature_cols: List[str]) -> None:
+        self.booster_ = booster
+        self.classes_ = np.array([0, 1], dtype=np.int64)
+        self.feature_name_ = list(feature_cols)
+
+    def predict_proba(self, X: Any) -> np.ndarray:
+        """
+        二値分類の確率を返す。戻り値は常に shape (n, 2): [P(0), P(1)]。
+        """
+        if isinstance(X, pd.DataFrame):
+            X2 = X.copy()
+            missing_cols = [c for c in self.feature_name_ if c not in X2.columns]
+            if missing_cols:
+                X2 = X2.assign(**{c: 0.0 for c in missing_cols})
+            X2 = X2[self.feature_name_].astype(np.float32)
+            arr = np.asarray(X2, dtype=np.float32)
+        else:
+            arr = np.asarray(X, dtype=np.float32)
+            if arr.ndim == 1:
+                arr = arr.reshape(-1, 1)
+        p1 = self.booster_.predict(arr)
+        p1 = np.asarray(p1, dtype=np.float64).reshape(-1)
+        # 常に (n, 2): [1-p1, p1]
+        return np.column_stack([1.0 - p1, p1])
+
+
+# ------------------------------------------------------------
 # モデルバンドル（必要なら使う。未使用なら残しても害なし）
 # ------------------------------------------------------------
 @dataclass

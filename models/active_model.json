@@ -1,9 +1,9 @@
 {
-  "model_name": "LightGBM_clf_20260122_235026",
-  "file": "LightGBM_clf_20260122_235026.pkl",
-  "meta_file": "LightGBM_clf_20260122_235026.pkl.meta.json",
-  "version": 1769306944.321376,
-  "best_threshold": 0.5,
+  "model_name": "LightGBM_clf",
+  "file": "LightGBM_clf_20260129_041516.pkl",
+  "meta_file": "LightGBM_clf_20260129_041516.pkl.meta.json",
+  "version": 1769660116.873717,
+  "best_threshold": 0.45,
   "feature_order": [
     "ret_1",
     "ret_5",
@@ -26,8 +26,16 @@
     "range",
     "vol_chg"
   ],
-  "model_kind": "pickle",
-  "exit_policy": {
-    "min_holding_bars": 2
-  }
+  "expected_features": [
+    "ret_1",
+    "ret_5",
+    "ema_5",
+    "ema_20",
+    "ema_ratio",
+    "rsi_14",
+    "atr_14",
+    "range",
+    "vol_chg"
+  ],
+  "feature_hash": "e0d7b4eadc0524a4294ba163999f477d9c42c32d0203e126dfceca98bb9ca863"
 }

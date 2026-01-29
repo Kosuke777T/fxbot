@@ -40,7 +40,7 @@ scripts/weekly_retrain.py（run_weekly_retrain 内：観測ログ追加＋NameEr
 
 python -X utf8 -m py_compile scripts/weekly_retrain.py
 
-python -X utf8 scripts/weekly_retrain.py --dry-run
+python -X utf8 -m scripts.weekly_retrain --dry-run
 
 OK条件：[DATA BALANCE][RAW] と [DATA BALANCE][TRAIN] が出力され、dry-run 終了まで到達
 

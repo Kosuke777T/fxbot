@@ -11,8 +11,11 @@ scripts/weekly_retrain.py
     -> しきい値最適化
     -> モデル保存 & 署名 (active_model.json 更新)
 
+実行方法（推奨: モジュール実行で import の揺れを排除）:
+    python -m scripts.weekly_retrain [--config configs/config.yaml] [--dry-run]
+
 前提:
-- ルート直下 (fxbot/) から実行すること
+- プロジェクトルート (fxbot/) をカレントにして実行すること
 - 設定: configs/config.yaml もしくは --config で指定
 - 価格CSV: data/USDJPY/ohlcv/USDJPY_M5.csv のような構造
 """
@@ -23,6 +26,7 @@ import argparse
 import hashlib
 import json
 import os
+import sys
 import time
 
 
@@ -67,7 +71,7 @@ def _enrich_active_model_meta(meta: dict, model_obj=None) -> dict:
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional, Tuple
 
 import lightgbm as lgb
 import numpy as np
@@ -82,6 +86,7 @@ from sklearn.metrics import roc_auc_score
 
 MIN_WFO_SPLITS: int = 2
 DEFAULT_CLASS_THRESHOLD: float = 0.5
+MIN_FINAL_ROUNDS: int = 200  # 最終モデル num_boost_round の下限（pkl 極小化防止）
 
 JST = UTC  # 後で必要なら Asia/Tokyo に変更してもOK
 
@@ -363,7 +368,8 @@ def train_lightgbm_wfo(
     X: pd.DataFrame,
     y: pd.Series,
     cfg: RetrainConfig,
-) -> Tuple[WFOResult, List[lgb.Booster], npt.NDArray[np.float64]]:
+    obs_output_dir: Optional[Path] = None,
+) -> Tuple[WFOResult, List[lgb.Booster], npt.NDArray[np.float64], int]:
     params: dict[str, object] = {
         "objective": "binary",
         "metric": ["binary_logloss"],
@@ -381,6 +387,9 @@ def train_lightgbm_wfo(
     n = len(X)
     splits = iter_walkforward_indices(n, cfg.n_splits)
 
+    NUM_BOOST_ROUND = 500
+    EARLY_STOPPING_ROUNDS = 50
+
     oof_pred: npt.NDArray[np.float_] = np.full(
         shape=n,
         fill_value=np.nan,
@@ -388,6 +397,7 @@ def train_lightgbm_wfo(
     )
     boosters: list[lgb.Booster] = []
     fold_results: list[FoldResult] = []
+    fold_obs: list[dict] = []
 
     for fold_idx, (tr_idx, va_idx) in enumerate(splits):
         X_tr, y_tr = X.iloc[tr_idx], y.iloc[tr_idx]
@@ -404,21 +414,81 @@ def train_lightgbm_wfo(
         booster = lgb.train(
             params,
             train_data,
-            num_boost_round=500,
+            num_boost_round=NUM_BOOST_ROUND,
             valid_sets=[valid_data],
             valid_names=["valid"],
             callbacks=[
-                lgb.early_stopping(stopping_rounds=50, verbose=False),
+                lgb.early_stopping(stopping_rounds=EARLY_STOPPING_ROUNDS, verbose=False),
             ],
         )
 
         boosters.append(booster)
+
+        # 【観測】fold 完了時の booster 状態（best_iteration が小さい理由の確定用）
+        best_iter = getattr(booster, "best_iteration", None)
+        num_trees_val = None
+        current_iter_val = None
+        try:
+            if hasattr(booster, "num_trees"):
+                num_trees_val = booster.num_trees()
+        except Exception:
+            pass
+        try:
+            if hasattr(booster, "current_iteration"):
+                current_iter_val = booster.current_iteration()
+        except Exception:
+            pass
+        best_score_val = None
+        try:
+            bs = getattr(booster, "best_score", None)
+            if isinstance(bs, dict):
+                for key in ("valid", "valid_0"):
+                    if key in bs and isinstance(bs[key], dict) and "binary_logloss" in bs[key]:
+                        best_score_val = bs[key]["binary_logloss"]
+                        break
+                if best_score_val is None:
+                    for v in bs.values():
+                        if isinstance(v, dict) and "binary_logloss" in v:
+                            best_score_val = v["binary_logloss"]
+                            break
+        except Exception:
+            pass
 
         y_proba: npt.NDArray[np.float_] = booster.predict(
             X_va,
             num_iteration=booster.best_iteration,
         )
         oof_pred[va_idx] = y_proba.astype("float32")
+        p1: npt.NDArray[np.float_] = np.asarray(y_proba, dtype=np.float64).reshape(-1)
+
+        # 【観測】検証データでの予測確率分布（1行）。pred_pos_rate と n_ge_05/n_valid の整合確認用に n_valid/n_ge_05/p1_min/p1_max/uniq4 を追加。
+        p1_mean = float(np.mean(p1))
+        p1_std = float(np.std(p1)) if len(p1) > 1 else 0.0
+        p1_p05, p1_p50, p1_p95 = float(np.percentile(p1, 5)), float(np.percentile(p1, 50)), float(np.percentile(p1, 95))
+        pred_pos_rate = float((p1 >= 0.5).mean())
+        y_pos_rate = float(y_va.mean())
+        n_valid = len(p1)
+        n_ge_05 = int((p1 >= 0.5).sum())
+        p1_min = float(np.min(p1))
+        p1_max = float(np.max(p1))
+        uniq4 = int(np.unique(np.round(p1, 4)).size)
+        logger.info(
+            "[OBS][WFO] fold_id={} n_valid={} n_ge_05={} p1_min={:.4f} p1_max={:.4f} uniq4={} "
+            "p1_mean={:.4f} p1_std={:.4f} p1_p05={:.4f} p1_p50={:.4f} p1_p95={:.4f} pred_pos_rate={:.4f} y_pos_rate={:.4f}",
+            fold_idx,
+            n_valid,
+            n_ge_05,
+            p1_min,
+            p1_max,
+            uniq4,
+            p1_mean,
+            p1_std,
+            p1_p05,
+            p1_p50,
+            p1_p95,
+            pred_pos_rate,
+            y_pos_rate,
+        )
 
         # メトリクス
         eps = 1e-15
@@ -430,9 +500,57 @@ def train_lightgbm_wfo(
         logloss = float(
             -np.mean(y_va * np.log(y_clipped) + (1 - y_va) * np.log(1 - y_clipped))
         )
+        if best_score_val is None:
+            best_score_val = logloss
 
         preds_label = (y_proba >= DEFAULT_CLASS_THRESHOLD).astype(int)
         acc = float(((y_va == preds_label).sum()) / len(y_va))
+
+        pos_rate = float(y_va.mean())
+        fold_obs.append({
+            "fold_id": fold_idx,
+            "num_boost_round": NUM_BOOST_ROUND,
+            "early_stopping_rounds": EARLY_STOPPING_ROUNDS,
+            "best_iteration": best_iter,
+            "num_trees": num_trees_val,
+            "current_iteration": current_iter_val,
+            "best_score": best_score_val,
+            "train_size": len(X_tr),
+            "valid_size": len(X_va),
+            "pos_rate": pos_rate,
+        })
+        logger.info(
+            "[OBS][WFO] fold_id={} num_boost_round={} early_stopping_rounds={} "
+            "best_iteration={} num_trees={} current_iteration={} best_score={:.5f} "
+            "train_size={} valid_size={} pos_rate={:.4f}",
+            fold_idx,
+            NUM_BOOST_ROUND,
+            EARLY_STOPPING_ROUNDS,
+            best_iter,
+            num_trees_val,
+            current_iter_val,
+            best_score_val,
+            len(X_tr),
+            len(X_va),
+            pos_rate,
+        )
+
+        # 【観測】特徴量重要度（gain/split 上位10）を CSV 保存
+        if obs_output_dir is not None:
+            obs_output_dir.mkdir(parents=True, exist_ok=True)
+            fnames = booster.feature_name()
+            gain_arr = booster.feature_importance(importance_type="gain")
+            split_arr = booster.feature_importance(importance_type="split")
+            rows: list[dict] = []
+            for imp_type, arr in (("gain", gain_arr), ("split", split_arr)):
+                paired = list(zip(fnames, arr, strict=True))
+                paired.sort(key=lambda x: x[1], reverse=True)
+                for feat, imp in paired[:10]:
+                    rows.append({"fold_id": fold_idx, "importance_type": imp_type, "feature": feat, "importance": imp})
+            if rows:
+                fi_path = obs_output_dir / f"fi_fold{fold_idx}.csv"
+                pd.DataFrame(rows).to_csv(fi_path, index=False, encoding="utf-8")
+                logger.info("[OBS][WFO] fi_fold{}.csv saved: {}", fold_idx, fi_path)
 
         fold_results.append(
             FoldResult(
@@ -449,6 +567,19 @@ def train_lightgbm_wfo(
         )
 
         logger.info(f"[WFO] fold={fold_idx} logloss={logloss:.5f} acc={acc:.4f}")
+
+    # 【観測】全 fold の best_iteration 一覧と最終採用値（中央値＋下限適用）
+    best_iters_raw = [getattr(b, "best_iteration", None) for b in boosters]
+    best_iters_for_median = [x if x is not None else 200 for x in best_iters_raw]
+    adopted_median = int(np.median(best_iters_for_median))
+    final_num_boost_round = max(adopted_median, MIN_FINAL_ROUNDS)
+    logger.info(
+        "[OBS][WFO] fold_best_iterations={} adopted_median={} final_num_boost_round={} MIN_FINAL_ROUNDS={}",
+        best_iters_raw,
+        adopted_median,
+        final_num_boost_round,
+        MIN_FINAL_ROUNDS,
+    )
 
     valid_mask = ~np.isnan(oof_pred)
     mean_logloss = float("nan")
@@ -479,7 +610,7 @@ def train_lightgbm_wfo(
         mean_auc=mean_auc,
     )
 
-    return wfo_result, boosters, oof_pred
+    return wfo_result, boosters, oof_pred, final_num_boost_round
 
 
 # ------------------------
@@ -1293,6 +1424,33 @@ def save_wfo_report_and_equity(
 # ------------------------
 # モデル保存 & 署名
 # ------------------------
+#
+# 【観測用メモ】weekly_retrain.py が書き出す active_model.json の仕様
+#
+# 1) active_model.json に書き出しているキー一覧（save_model_and_meta 内の active 辞書）:
+#    - model_name: str  （固定 "LightGBM_clf"）
+#    - file: str        （例: "LightGBM_clf_20260122_235026.pkl"）
+#    - meta_file: str  （例: "LightGBM_clf_20260122_235026.pkl.meta.json"）
+#    - version: float  （timestamp）
+#    - best_threshold: float | None  （threshold_info.get("best_thr")）
+#    - feature_order: list[str]  （feature_cols のコピー）
+#    - features: list[str]       （feature_cols のコピー）
+#    注意: expected_features / feature_hash / model_path は書き出していない。
+#    _enrich_active_model_meta() は定義されているが本スクリプト内では呼ばれていない（重要観測ポイント）。
+#
+# 2) モデル保存形式:
+#    - joblib.dump(booster, model_path) で保存。
+#    - booster は lgb.Booster（lgb.train() の戻り値）。sklearn 互換の LGBMClassifier ではない。
+#    - したがって classes_ 属性は存在しない（Booster 単体）。
+#
+# 3) feature_order / features の意味と生成元:
+#    - ともに save_model_and_meta(feature_cols=...) の feature_cols。
+#    - 呼び出し元では list(X.columns)。X は align_features_and_labels(feats, labels) の戻り値の列（特徴量のみ）。
+#    - つまり学習時に使った特徴量名のリスト。
+
+
+# sklearn 互換ラッパーは core.ai.loader で定義（pickle 復元時にモジュールから解決するため）
+from core.ai.loader import _LGBBoosterSklearnWrapper  # noqa: F401  # 保存物の型
 
 
 def sha256_file(path: Path) -> str:
@@ -1320,7 +1478,43 @@ def save_model_and_meta(  # noqa: PLR0913  (引数多めでもここはOKとす�
     model_name = f"LightGBM_clf_{ts_str}.pkl"
     model_path = cfg.paths.models_dir / model_name
 
-    dump(booster, model_path)
+    # sklearn 互換ラッパー（classes_ を持つ）として保存し、AISvc が確定ルートに入れるようにする
+    wrapper = _LGBBoosterSklearnWrapper(booster, list(feature_cols))
+
+    # 【観測】保存直前の booster 状態（pkl 容量異常小の原因確定用）
+    num_trees_val = None
+    current_iter_val = None
+    best_iter_val = getattr(booster, "best_iteration", None)
+    model_str_len = None
+    try:
+        if hasattr(booster, "num_trees"):
+            num_trees_val = booster.num_trees()
+    except Exception as e:
+        num_trees_val = f"err:{e!r}"
+    try:
+        if hasattr(booster, "current_iteration"):
+            current_iter_val = booster.current_iteration()
+    except Exception as e:
+        current_iter_val = f"err:{e!r}"
+    try:
+        if hasattr(booster, "model_to_string"):
+            model_str_len = len(booster.model_to_string())
+    except Exception as e:
+        model_str_len = f"err:{e!r}"
+    logger.info(
+        "[OBS] pre_save booster: booster_type={} wrapper_type={} num_trees={} current_iteration={} best_iteration={} model_to_string_len={}",
+        type(booster).__name__,
+        type(wrapper).__name__,
+        num_trees_val,
+        current_iter_val,
+        best_iter_val,
+        model_str_len,
+    )
+
+    dump(wrapper, model_path)
+
+    pkl_size_bytes = model_path.stat().st_size
+    logger.info("[OBS] post_save pkl file_size_bytes={} path={}", pkl_size_bytes, model_path)
 
     sha = sha256_file(model_path)
 
@@ -1364,11 +1558,25 @@ def save_model_and_meta(  # noqa: PLR0913  (引数多めでもここはOKとす�
         "feature_order": list(feature_cols),
         "features": list(feature_cols),
     }
+    active = _enrich_active_model_meta(active, wrapper)
     active_path = cfg.paths.models_dir / "active_model.json"
     with active_path.open("w", encoding="utf-8") as f:
         json.dump(active, f, ensure_ascii=False, indent=2)
 
     logger.info(f"[SAVE] active_model={active_path}")
+    # 観測: 書き出し直後の active_model.json とモデル実体をログで明示（ミチビキ側との突き合わせ用）
+    logger.info(
+        "[OBS] active_model.json written: path={} keys={} model_type={} classes_={}",
+        str(active_path.resolve()),
+        list(active.keys()),
+        type(wrapper).__name__,
+        "あり（classes_={}）".format(list(wrapper.classes_)),
+    )
+    # ------------------------
+    # 【観測まとめ】weekly_retrain 書き出し vs AISvc/GUI 参照
+    # ------------------------
+    # 保存物: _LGBBoosterSklearnWrapper（classes_=[0,1], feature_name_, predict_proba）を pkl で保存。
+    # active_model.json: _enrich_active_model_meta 適用により expected_features / feature_hash を含む。
     return model_path
 
 
@@ -1492,7 +1700,12 @@ def run_weekly_retrain(cfg: WeeklyRetrainConfig, dry_run: bool = False) -> None:
         return
 
     logger.info("[STEP] train_lightgbm_wfo")
-    wfo_result, boosters, oof_pred = train_lightgbm_wfo(X, y, rt)
+    obs_dir = cfg.paths.logs_dir / "retrain" / "lgbm_obs"
+    obs_dir.mkdir(parents=True, exist_ok=True)
+    logger.info("[OBS][WFO] lgbm_obs output_dir: {}", obs_dir.resolve())
+    wfo_result, boosters, oof_pred, final_num_boost_round = train_lightgbm_wfo(
+        X, y, rt, obs_output_dir=obs_dir
+    )
     logger.info(
         f"[WFO] mean_logloss={wfo_result.mean_logloss:.5f} "
         f"mean_acc={wfo_result.mean_accuracy:.4f}"
@@ -1548,13 +1761,28 @@ def run_weekly_retrain(cfg: WeeklyRetrainConfig, dry_run: bool = False) -> None:
         "force_col_wise": True,
     }
     train_all = lgb.Dataset(X, label=y)
-    best_iters = [b.best_iteration or 200 for b in boosters]
-    num_boost_round = int(np.median(best_iters))
     booster_all = lgb.train(
         params,
         train_all,
-        num_boost_round=num_boost_round,
+        num_boost_round=final_num_boost_round,
     )
+
+    # 【観測】最終モデルの特徴量重要度（gain/split 上位10）を CSV 保存
+    obs_dir = cfg.paths.logs_dir / "retrain" / "lgbm_obs"
+    obs_dir.mkdir(parents=True, exist_ok=True)
+    fnames_final = booster_all.feature_name()
+    gain_final = booster_all.feature_importance(importance_type="gain")
+    split_final = booster_all.feature_importance(importance_type="split")
+    rows_final: list[dict] = []
+    for imp_type, arr in (("gain", gain_final), ("split", split_final)):
+        paired = list(zip(fnames_final, arr, strict=True))
+        paired.sort(key=lambda x: x[1], reverse=True)
+        for feat, imp in paired[:10]:
+            rows_final.append({"fold_id": "final", "importance_type": imp_type, "feature": feat, "importance": imp})
+    if rows_final:
+        fi_final_path = obs_dir / "fi_final.csv"
+        pd.DataFrame(rows_final).to_csv(fi_final_path, index=False, encoding="utf-8")
+        logger.info("[OBS][WFO] fi_final.csv saved: {}", fi_final_path)
 
     logger.info("[STEP] save_model_and_meta")
     data_info = {

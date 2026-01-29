@@ -744,3 +744,189 @@ BUY/SELL の段階別カウンタ（シグナル→ブロック→エントリ�
 エントリー密度の定量化（率、平均バー/エントリー、最大連続）
 
 p_sell の扱いについて、LightGBMの predict_proba と classes_ 依存である点を整理（補数利用の注意点を明確化）
+
+T-53
+目的
+
+VirtualBT / Backtest の挙動を「観測可能」にし
+
+異常（エントリーされない／SKIPが見えない／勝率が0になる）を
+
+原因特定 → 最小修正 → GUIまで反映 する
+
+結果として、
+バックテストの数値が「信用できる状態」まで引き上げた スレッドです。
+
+1. LightGBM 学習・モデル周り
+MIN_FINAL_ROUNDS 導入
+
+num_boost_round が極端に小さくなる問題を防止
+
+final_num_boost_round = max(adopted_median, MIN_FINAL_ROUNDS)
+
+pkl が 15KB → 約700KB に増加（= 正常）
+
+WFO / weekly_retrain の整理
+
+final 学習のラウンド数を WFO中央値 + 下限保証 に統一
+
+戻り値に final_num_boost_round を含め、追跡可能に
+
+2. Circuit Breaker（CB）の整理と分離
+live 用 CircuitBreaker
+
+daily_loss_accum_jpy → 実態は損益累計
+
+daily_pnl_accum_jpy にリネーム
+
+status() で 旧キー互換を維持
+
+backtest 用 CircuitBreaker 新設
+
+live と完全分離
+
+機能は「エントリー抑止のみ」
+
+判定条件：
+
+最大DD
+
+最大連敗
+
+optional cooldown
+
+bt_cb_blocked を metrics に出力
+
+→
+「バックテストにCBが効いているか」をログと数値で観測可能に
+
+3. BacktestEngine の「見えない挙動」を可視化
+_predict の安全停止問題を特定
+
+class_index_map はあるのに
+
+proba が 1次元で返ってきていた
+
+→ reason_of_unset=proba_not_2d が真因
+
+修正内容
+
+X を必ず 2D に整形
+
+proba を (1,2) に正規化
+
+観測ログ追加：
+
+X.shape
+
+proba.shape
+
+bar_index / ts
+
+→
+安全停止が消え、エントリーが正常復帰。
+
+4. SKIP の正体を定義・集計
+SKIP の定義を確定
+
+SKIP と数えるのは 戦略判断による非エントリーのみ：
+
+action != ENTRY
+
+side is None
+
+invalid_side
+
+※ 以下は SKIP に含めない
+
+既存ポジションあり
+
+CircuitBreaker ブロック
+
+追加した集計
+
+n_skips
+
+skip_reason_count
+
+GUI 連動
+
+「スキップ数」を n_skips に接続
+
+従来の n_filter_fail はフォールバック扱い
+
+5. 閾値（threshold）上書き機構の実装
+CLI / GUI / Engine を貫通
+
+CLI: --threshold
+
+GUI: 閾値上書き（有効ON/OFF + 数値）
+
+Engine:
+
+used_threshold
+
+threshold_source = cli | active_model | default
+
+観測結果
+
+threshold ↑ → SKIP ↑ / entry ↓
+
+metrics.json で完全一致を確認
+
+6. Buy / Sell 勝率が 0 になる問題の解消（重要）
+原因
+
+GUI が期待する
+
+buy_entries
+
+buy_wins
+
+buy_win_rate
+
+が metrics.json に存在しなかった
+
+debug_counters だけでは不足
+
+解決策（正攻法）
+
+trades.csv を唯一の真実源 と定義
+
+tools/backtest_run.py にヘルパー追加：
+
+trades.csv → Buy/Sell 統計を算出
+
+metrics.json / live_stats.json にマージ
+
+算出内容：
+
+Buy/Sell
+
+エントリー数
+
+勝数・勝率
+
+最大連勝・最大連敗
+
+全体
+
+profit factor
+
+平均損益
+
+現在連敗数
+
+結果
+
+GUI の Buy / Sell 勝率・連勝・連敗が 正しく表示
+
+trades.csv と metrics.json の完全一致を確認
+
+7. このスレッドで得られた最終状態
+
+バックテスト結果は 数値・ログ・GUIが完全同期
+
+「なぜそうなったか」を 後追いで必ず説明できる
+
+モデル・戦略・実行系の責務分離が明確
