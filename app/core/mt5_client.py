@@ -325,6 +325,13 @@ def shutdown() -> None:
     else:
         MT5.shutdown()
 
+
+def is_connected() -> bool:
+    """接続中かどうか。_client が存在し且つ connected が True のとき True。"""
+    global _client
+    return _client is not None and getattr(_client, "connected", False)
+
+
 def get_account_info():
     """
     アカウント情報を取得するラッパー。

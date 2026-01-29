@@ -19,6 +19,67 @@ from app.services import mt5_account_store  # ★ 追加
 _CTRL = re.compile(r"[\x00-\x1F\x7F]")
 
 
+def is_mt5_connected() -> bool:
+    """
+    MT5 が接続中かどうかを services 経由で返す。
+    app.core.mt5_client の _client 状態を参照する。
+    """
+    return mt5_client.is_connected()
+
+
+def connect_mt5() -> bool:
+    """
+    GUI の「ログイン」用。既存の接続経路（run_mt5_selftest と同様）で MT5 に接続する。
+    - active_profile から環境変数を適用して mt5_client.initialize() を呼ぶ
+    - 成功時 True、失敗時 False（接続は維持しない）
+    """
+    active = mt5_account_store.get_active_profile_name()
+    if not active:
+        return False
+    mt5_account_store.set_active_profile(active, apply_env=True)
+    try:
+        mt5_client.shutdown()
+    except Exception:
+        pass
+    return mt5_client.initialize()
+
+
+def disconnect_mt5() -> None:
+    """GUI の「ログアウト」用。mt5_client.shutdown() を呼ぶ。"""
+    try:
+        mt5_client.shutdown()
+    except Exception:
+        pass
+
+
+def get_account_snapshot() -> Dict[str, Any]:
+    """
+    MT5ログイン中の口座スナップショット（read-only）。
+    未接続なら {"ok": False} を返す。shutdown() は呼ばない（ログイン状態を維持するのが目的）。
+    """
+    if not is_mt5_connected():
+        return {"ok": False}
+
+    info = mt5_client.get_account_info()
+    if not info:
+        return {"ok": False}
+
+    balance = _get_attr(info, "balance", None)
+    equity = _get_attr(info, "equity", None)
+    margin_free = _get_attr(info, "margin_free", None)
+
+    positions = mt5_client.get_positions()
+    n_pos = len(positions) if positions else 0
+
+    return {
+        "ok": True,
+        "balance": balance,
+        "equity": equity,
+        "margin_free": margin_free,
+        "positions": n_pos,
+    }
+
+
 def _json_safe_str(s: object) -> str:
     """
     JSON安全な文字列に正規化する。

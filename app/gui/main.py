@@ -31,7 +31,7 @@ from app.gui.visualize_tab import VisualizeTab
 from app.services.kpi_service import KPIService
 from app.services.scheduler_facade import get_scheduler
 from app.services.execution_service import ExecutionService
-from app.services import trade_state
+from app.services import trade_state, mt5_account_store, mt5_selftest
 from app.core.config_loader import load_config
 from app.core import market
 from app.services.orderbook_stub import orderbook
@@ -445,6 +445,18 @@ class MainWindow(QMainWindow):
         
         logger.info(f"[model_health] {' '.join(log_parts)}")
 
+        # --- 口座プロファイル帯（タブの上・最上段、常時表示） ---
+        self.account_banner = QLabel(self)
+        self.account_banner.setStyleSheet("""
+            QLabel {
+                background-color: #6B7280;
+                color: white;
+                border-radius: 3px;
+                padding: 4px 8px;
+                font-size: 11px;
+            }
+        """)
+
         # --- モデル健全性バナー（タブの上に配置） ---
         self.health_banner = QLabel(self)
         self.health_banner.setStyleSheet("""
@@ -483,7 +495,9 @@ QTabBar::tab:hover {
 
         # まずは軽いタブだけ即座に生成
         self.tabs.addTab(DashboardTab(), "Dashboard")
-        self.tabs.addTab(ControlTab(main_window=self), "Control")
+        control_tab = ControlTab(main_window=self)
+        self.control_tab = control_tab
+        self.tabs.addTab(control_tab, "Control")
         self.tabs.addTab(HistoryTab(), "History")
         self.tabs.addTab(VisualizeTab(), "Visualize")
 
@@ -525,7 +539,8 @@ QTabBar::tab:hover {
             ),
             "運用KPI"
         )
-        self.tabs.addTab(SettingsTab(), "Settings")
+        settings_tab = SettingsTab()
+        self.tabs.addTab(settings_tab, "Settings")
         self.tabs.addTab(SchedulerTab(), "Scheduler")
         self.tabs.addTab(OpsTab(), "Ops")
 
@@ -534,6 +549,7 @@ QTabBar::tab:hover {
         central_layout = QVBoxLayout(central_container)
         central_layout.setContentsMargins(4, 4, 4, 4)
         central_layout.setSpacing(4)
+        central_layout.addWidget(self.account_banner)
         central_layout.addWidget(self.health_banner)
         central_layout.addWidget(self.tabs)
         
@@ -542,6 +558,33 @@ QTabBar::tab:hover {
 
         # タブ切り替えシグナルにハンドラを接続
         self.tabs.currentChanged.connect(self._on_tab_changed)
+
+        settings_tab.active_profile_changed.connect(self._update_account_banner)
+
+        control_tab.mt5_login_toggle_requested.connect(self._on_mt5_login_toggle)
+
+        # 口座帯を起動時の active_profile で初期表示
+        self._update_account_banner()
+        self._refresh_login_button()
+        self._refresh_mt5_stats()
+
+        # --- MT5口座ステータス：ログイン中だけ10秒更新 ---
+        self._mt5_stats_timer = QTimer(self)
+        self._mt5_stats_timer.setInterval(10_000)
+
+        def _tick_mt5_stats():
+            try:
+                if mt5_selftest.is_mt5_connected():
+                    self._refresh_mt5_stats()
+                else:
+                    # 未接続ならタイマー停止（ムダ撃ち防止）
+                    if self._mt5_stats_timer.isActive():
+                        self._mt5_stats_timer.stop()
+            except Exception:
+                # UI継続最優先：例外は握る
+                pass
+
+        self._mt5_stats_timer.timeout.connect(_tick_mt5_stats)
 
         app_logger.setup()
 
@@ -656,6 +699,148 @@ QTabBar::tab:hover {
             # 例外は握る（表示失敗でもアプリは継続）
             self.health_banner.setText("Model health: (check failed)")
             self.health_banner.setToolTip("Health check failed to display")
+
+    def _update_account_banner(self, profile_name: str | None = None) -> None:
+        """
+        口座プロファイル帯の表示を更新する。
+        profile_name が None のときは mt5_account_store.load_config() から active_profile を読む。
+        """
+        try:
+            if profile_name is None:
+                cfg = mt5_account_store.load_config()
+                profile_name = cfg.get("active_profile") or ""
+            key = (profile_name or "").strip().lower()
+            if key == "demo":
+                text = "MT5口座: DEMO（デモ）"
+                self.account_banner.setStyleSheet("""
+                    QLabel {
+                        background-color: #1E5AA8;
+                        color: white;
+                        border-radius: 3px;
+                        padding: 4px 8px;
+                        font-size: 11px;
+                    }
+                """)
+            elif key == "real":
+                text = "MT5口座: REAL（本番注意）"
+                self.account_banner.setStyleSheet("""
+                    QLabel {
+                        background-color: #B3261E;
+                        color: white;
+                        border-radius: 3px;
+                        padding: 4px 8px;
+                        font-size: 11px;
+                    }
+                """)
+            else:
+                text = f"MT5口座: {profile_name or '(未設定)'}"
+                self.account_banner.setStyleSheet("""
+                    QLabel {
+                        background-color: #6B7280;
+                        color: white;
+                        border-radius: 3px;
+                        padding: 4px 8px;
+                        font-size: 11px;
+                    }
+                """)
+            if mt5_selftest.is_mt5_connected():
+                text += " / ログイン中"
+            self.account_banner.setText(text)
+        except Exception:
+            fail_text = "MT5口座: (取得失敗)"
+            if mt5_selftest.is_mt5_connected():
+                fail_text += " / ログイン中"
+            self.account_banner.setText(fail_text)
+            self.account_banner.setStyleSheet("""
+                QLabel {
+                    background-color: #6B7280;
+                    color: white;
+                    border-radius: 3px;
+                    padding: 4px 8px;
+                    font-size: 11px;
+                }
+            """)
+
+    def _on_mt5_login_toggle(self) -> None:
+        """
+        Control タブのログイン/ログアウトボタン押下時。
+        services 経由で接続状態を判定し、未接続なら connect_mt5、接続中なら disconnect_mt5 を呼ぶ。
+        """
+        try:
+            connected = mt5_selftest.is_mt5_connected()
+            if connected:
+                mt5_selftest.disconnect_mt5()
+                logger.info("[GUI][MT5] ログアウトしました")
+            else:
+                if not mt5_selftest.connect_mt5():
+                    logger.warning("[GUI][MT5] ログインに失敗しました（アクティブプロファイル未設定または initialize 失敗）")
+                    return
+                logger.info("[GUI][MT5] ログインしました")
+            self._update_account_banner()
+            self._refresh_login_button()
+            self._refresh_mt5_stats()
+
+            # ログイン中だけ10秒更新を回す
+            try:
+                if mt5_selftest.is_mt5_connected():
+                    if not self._mt5_stats_timer.isActive():
+                        self._mt5_stats_timer.start()
+                else:
+                    if self._mt5_stats_timer.isActive():
+                        self._mt5_stats_timer.stop()
+            except Exception:
+                pass
+        except Exception as e:
+            logger.exception("[GUI][MT5] ログイン/ログアウト処理でエラー: {}", e)
+
+    def _refresh_login_button(self) -> None:
+        """Control タブのログインボタン表記を接続状態に合わせて更新する。"""
+        if not hasattr(self, "control_tab") or self.control_tab is None:
+            return
+        try:
+            connected = mt5_selftest.is_mt5_connected()
+            self.control_tab.login_btn.setText("ログアウト" if connected else "ログイン")
+        except Exception:
+            pass
+
+    def _refresh_mt5_stats(self) -> None:
+        """Control タブの口座ステータス表示を更新する（ログイン中は実値、未接続は --）。"""
+        if not hasattr(self, "control_tab") or self.control_tab is None:
+            return
+        try:
+            if not mt5_selftest.is_mt5_connected():
+                self.control_tab.set_mt5_stats_text(
+                    "残高: -- / 有効証拠金: -- / 余剰証拠金: -- / ポジション: --"
+                )
+                return
+
+            snap = mt5_selftest.get_account_snapshot()
+            if not snap.get("ok"):
+                self.control_tab.set_mt5_stats_text(
+                    "残高: -- / 有効証拠金: -- / 余剰証拠金: -- / ポジション: --"
+                )
+                return
+
+            bal = snap.get("balance")
+            eq = snap.get("equity")
+            mf = snap.get("margin_free")
+            npos = snap.get("positions")
+
+            def _fmt(x):
+                try:
+                    return f"{float(x):,.0f}"
+                except Exception:
+                    return "--"
+
+            txt = (
+                f"残高: {_fmt(bal)} / 有効証拠金: {_fmt(eq)} / 余剰証拠金: {_fmt(mf)} / "
+                f"ポジション: {npos if npos is not None else '--'}"
+            )
+            self.control_tab.set_mt5_stats_text(txt)
+        except Exception:
+            self.control_tab.set_mt5_stats_text(
+                "残高: -- / 有効証拠金: -- / 余剰証拠金: -- / ポジション: --"
+            )
 
 
 def main() -> None:

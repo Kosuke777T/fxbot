@@ -2,7 +2,7 @@ from typing import Optional
 from pathlib import Path
 import json
 from datetime import datetime, timezone
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
@@ -41,6 +41,9 @@ def _write_runtime_flags(trading_enabled: bool) -> None:
 
 
 class ControlTab(QWidget):
+    """ログイン/ログアウトは接続処理を持たず、シグナルで MainWindow に通知する。"""
+    mt5_login_toggle_requested = pyqtSignal()
+
     def __init__(self, parent=None, main_window=None):
         super().__init__(parent)
         self._main_window = main_window
@@ -52,7 +55,22 @@ class ControlTab(QWidget):
 
         # 運転
         box_run = QGroupBox("運転")
-        lay_run = QHBoxLayout()
+        lay_run = QVBoxLayout()
+        # ログイン/ログアウト行（取引ボタン群の上）
+        row_login = QHBoxLayout()
+        self.login_btn = QPushButton("ログイン")
+        self.login_btn.clicked.connect(lambda: self.mt5_login_toggle_requested.emit())
+        row_login.addWidget(self.login_btn)
+        row_login.addStretch()
+        lay_run.addLayout(row_login)
+        # 口座ステータス表示（ログイン行の直下、取引ボタン行の直前）
+        self.lbl_mt5_stats = QLabel("残高: -- / 有効証拠金: -- / 余剰証拠金: -- / ポジション: --")
+        self.lbl_mt5_stats.setStyleSheet(
+            "QLabel { background-color: #F0F0F0; border-radius: 2px; padding: 2px 6px; font-size: 20px; }"
+        )
+        lay_run.addWidget(self.lbl_mt5_stats)
+        # 取引ボタン行
+        row_trading = QHBoxLayout()
         self.btn_toggle = QPushButton("取引：停止中（クリックで開始）")
         self.btn_toggle.setCheckable(True)
         self.btn_toggle.clicked.connect(self._toggle_trading)
@@ -67,10 +85,11 @@ class ControlTab(QWidget):
         if self._main_window is not None and hasattr(self._main_window, "request_test_entry"):
             self.btn_test_entry.clicked.connect(self._main_window.request_test_entry)
 
-        lay_run.addWidget(self.btn_toggle)
-        lay_run.addWidget(self.btn_test_entry)
-        lay_run.addWidget(self.btn_close_all)
-        lay_run.addWidget(self.btn_cb_reset)
+        row_trading.addWidget(self.btn_toggle)
+        row_trading.addWidget(self.btn_test_entry)
+        row_trading.addWidget(self.btn_close_all)
+        row_trading.addWidget(self.btn_cb_reset)
+        lay_run.addLayout(row_trading)
         box_run.setLayout(lay_run)
         root_layout.addWidget(box_run)
 
@@ -123,6 +142,10 @@ class ControlTab(QWidget):
         root_layout.addWidget(self.lbl_status)
 
         self._sync_from_state()
+
+    def set_mt5_stats_text(self, text: str) -> None:
+        """口座ステータス表示ラベルのテキストを更新する（表示器のみ、MT5アクセスはしない）。"""
+        self.lbl_mt5_stats.setText(text)
 
     def _sync_from_state(self):
         s = trade_state.get_settings()

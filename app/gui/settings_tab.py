@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -31,6 +31,8 @@ class SettingsTab(QWidget):
     - 「この口座に切り替え」ボタンで active_profile を変更し、
       カレントプロセスの環境変数 MT5_LOGIN/PASSWORD/SERVER も更新する
     """
+
+    active_profile_changed = pyqtSignal(str)
 
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
@@ -179,6 +181,9 @@ class SettingsTab(QWidget):
         self._apply_profile_to_fields(self.cmb_profile.currentText())
         self._refresh_active_label()
 
+        if active:
+            self.active_profile_changed.emit(active)
+
     def _apply_profile_to_fields(self, profile_name: str) -> None:
         """指定プロファイルの情報を入力欄に反映。"""
         if not profile_name:
@@ -253,6 +258,7 @@ class SettingsTab(QWidget):
 
         mt5_account_store.set_active_profile(name, apply_env=True)
         self._refresh_active_label()
+        self.active_profile_changed.emit(name)
 
         QMessageBox.information(
             self,
