@@ -117,6 +117,93 @@ def snapshot_account() -> Optional[dict]:
         mt5_client.shutdown()
 
 
+def run_start_diagnosis(symbol: str) -> bool:
+    """
+    T-65: 自動売買ループ開始直後の事前診断（1回だけ）。
+    T-65.1: ログイン前押下時も例外を出さず NG 即 BLOCK（env 未設定等は BLOCK として回収）。
+
+    - services 層から mt5_client.initialize() を実行
+    - initialize() が RuntimeError（env 未設定等）を投げた場合は例外を握り、ok_init=False 相当で BLOCK
+    - connected / trade_allowed / account(REAL|DEMO) を取得
+    - 1行ログ [mt5] connected=... trade_allowed=... account=... を出力
+    - NG 時: next_action=BLOCKED を確定し、ui_events と ops_history に理由を記録して False を返す
+    - OK 時: True を返し、既存フローに合流（MT5 は接続のまま）
+
+    Returns:
+        True: 取引可能。False: 取引不可のためループを開始しない。
+    """
+    from loguru import logger
+    from app.services.ops_history_service import append_ops_result
+    from datetime import datetime, timezone
+
+    connected = False
+    trade_allowed = False
+    account_label = "UNKNOWN"
+    ok_init = False
+    exception_caught = False
+    try:
+        ok_init = mt5_client.initialize()
+    except Exception as e:
+        loguru_logger.warning(
+            "[trade_loop] start diagnosis exception (treated as BLOCK): {}",
+            e,
+        )
+        ok_init = False
+        exception_caught = True
+
+    if not ok_init:
+        connected = False
+        trade_allowed = False
+        account_label = "UNKNOWN"
+    else:
+        try:
+            diag = mt5_diag_snapshot(symbol)
+            connected = bool(diag.get("connected"))
+            term_allowed = diag.get("terminal_trade_allowed")
+            account_allowed = diag.get("account_trade_allowed")
+            trade_allowed = (term_allowed is True and account_allowed is True)
+            info = mt5_client.get_account_info()
+            account_label = "REAL" if (info and getattr(info, "trade_mode", 0) != 0) else "DEMO"
+        except Exception:
+            connected = False
+            trade_allowed = False
+            account_label = "UNKNOWN"
+
+    loguru_logger.info(
+        "[mt5] connected={} trade_allowed={} account={}",
+        connected,
+        trade_allowed,
+        account_label,
+    )
+
+    if connected and trade_allowed:
+        return True
+
+    reason = "env_missing" if exception_caught else ("mt5_not_connected" if not connected else "trade_not_allowed")
+    loguru_logger.warning(
+        "[trade_loop] start blocked reason={} next_action=BLOCKED",
+        reason,
+    )
+    EVENT_STORE.add(
+        kind="INFO",
+        symbol=symbol,
+        reason=reason,
+        notes="next_action=BLOCKED trade_loop_start_blocked",
+    )
+    started_at = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+    append_ops_result({
+        "symbol": symbol,
+        "profiles": [],
+        "started_at": started_at,
+        "ok": False,
+        "step": "blocked",
+        "model_path": None,
+        "reason": reason,
+        "next_action": "BLOCKED",
+    })
+    return False
+
+
 class TradeService:
     """Facade that coordinates guards, circuit breaker, and decision helpers."""
 

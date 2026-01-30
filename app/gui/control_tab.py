@@ -147,6 +147,36 @@ class ControlTab(QWidget):
         """口座ステータス表示ラベルのテキストを更新する（表示器のみ、MT5アクセスはしない）。"""
         self.lbl_mt5_stats.setText(text)
 
+    def set_trading_controls_enabled(self, enabled: bool, *, reason_text: str = "") -> None:
+        """
+        取引系ボタンの有効/無効を切り替える（GUI内のみのAPI、未ログイン時は無効にし表示と内部状態を一致させる）。
+        enabled=False: 取引ボタン・テストエントリーを押せなくし、OFF＋trading_enabled=False に確定する。
+        enabled=True: 取引ボタン・テストエントリーを押せるようにする。
+        """
+        self.btn_toggle.setEnabled(enabled)
+        self.btn_test_entry.setEnabled(enabled)
+        if not enabled:
+            self.btn_toggle.blockSignals(True)
+            try:
+                self.btn_toggle.setChecked(False)
+                self.btn_toggle.setText("取引：停止中（ログインしてください）")
+                trade_state.update(trading_enabled=False)
+                _write_runtime_flags(trading_enabled=False)
+                self._refresh_status()
+            finally:
+                self.btn_toggle.blockSignals(False)
+        else:
+            s = trade_state.get_settings()
+            self.btn_toggle.blockSignals(True)
+            try:
+                self.btn_toggle.setChecked(bool(getattr(s, "trading_enabled", False)))
+                self.btn_toggle.setText(
+                    "取引：稼働中（クリックで停止）" if getattr(s, "trading_enabled", False) else "取引：停止中（クリックで開始）"
+                )
+            finally:
+                self.btn_toggle.blockSignals(False)
+            self._refresh_status()
+
     def _sync_from_state(self):
         s = trade_state.get_settings()
         self.btn_toggle.setChecked(s.trading_enabled)
@@ -181,12 +211,16 @@ class ControlTab(QWidget):
             if self._main_window is not None and hasattr(self._main_window, "_trade_loop"):
                 if enabled:
                     if not self._main_window._trade_loop.start():
-                        # 既に実行中の場合はボタンの状態を戻す
-                        self.btn_toggle.setChecked(False)
-                        trade_state.update(trading_enabled=False)
-                        _write_runtime_flags(trading_enabled=False)
-                        self.btn_toggle.setText("取引：停止中（クリックで開始）")
-                        self._refresh_status()
+                        # T-65.1: start() 失敗時は必ず OFF 表記に戻す（blockSignals で再入防止）
+                        self.btn_toggle.blockSignals(True)
+                        try:
+                            self.btn_toggle.setChecked(False)
+                            trade_state.update(trading_enabled=False)
+                            _write_runtime_flags(trading_enabled=False)
+                            self.btn_toggle.setText("取引：停止中（クリックで開始）")
+                            self._refresh_status()
+                        finally:
+                            self.btn_toggle.blockSignals(False)
                 else:
                     self._main_window._trade_loop.stop(reason="ui_toggle_off")
         except Exception as e:

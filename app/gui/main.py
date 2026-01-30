@@ -136,6 +136,10 @@ class TradeLoopRunner(QObject):
                 effective_dry_run,
                 self._symbol,
             )
+            # T-65: 開始直後の事前診断（1回だけ）。NG なら BLOCK して注文系に進まない
+            from app.services import trade_service as trade_service_mod
+            if not trade_service_mod.run_start_diagnosis(self._symbol):
+                return False
             # T-4: started直後に1回だけ診断ログ（dry_run/liveどちらでも出す）
             self._emit_mt5_diag_once(dry_run=effective_dry_run)
 
@@ -564,6 +568,11 @@ QTabBar::tab:hover {
         self._update_account_banner()
         self._refresh_login_button()
         self._refresh_mt5_stats()
+        # 未ログイン時は取引ボタンを押せない状態にする（UIと内部状態の整合）
+        try:
+            self.control_tab.set_trading_controls_enabled(mt5_selftest.is_mt5_connected())
+        except Exception:
+            pass
 
         # --- MT5口座ステータス：ログイン中だけ10秒更新 ---
         self._mt5_stats_timer = QTimer(self)
@@ -762,17 +771,26 @@ QTabBar::tab:hover {
         """
         Control タブのログイン/ログアウトボタン押下時。
         services 経由で接続状態を判定し、未接続なら connect_mt5、接続中なら disconnect_mt5 を呼ぶ。
+        ログアウト時は取引ループ停止＋取引OFFへ強制復元する。
         """
         try:
             connected = mt5_selftest.is_mt5_connected()
             if connected:
+                # ログアウト前：取引ループを必ず停止（reason を明示）
+                try:
+                    if hasattr(self, "_trade_loop") and self._trade_loop is not None and self._trade_loop.is_running():
+                        self._trade_loop.stop(reason="mt5_logout")
+                except Exception as e:
+                    logger.warning("[GUI][MT5] trade_loop stop on logout: {}", e)
                 mt5_selftest.disconnect_mt5()
                 logger.info("[GUI][MT5] ログアウトしました")
+                self.control_tab.set_trading_controls_enabled(False)
             else:
                 if not mt5_selftest.connect_mt5():
                     logger.warning("[GUI][MT5] ログインに失敗しました（アクティブプロファイル未設定または initialize 失敗）")
                     return
                 logger.info("[GUI][MT5] ログインしました")
+                self.control_tab.set_trading_controls_enabled(True)
             self._update_account_banner()
             self._refresh_login_button()
             self._refresh_mt5_stats()

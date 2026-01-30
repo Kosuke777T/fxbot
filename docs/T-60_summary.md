@@ -90,3 +90,83 @@ Controlタブは 操作盤＋計器盤として完成
 
 T-60（自動売買可能な状態への下地）達成
 
+
+##########################
+T-65 完了サマリ（安全な起動・ログイン連動・取引トグル整合）
+ゴール
+
+未ログイン状態で取引ONできない（誤操作防止）
+
+ログアウト時に取引ループを必ず停止し、UI/内部状態をOFFへ復元
+
+env未設定などで mt5_client.initialize() が例外を投げても、GUIが壊れず “BLOCK” として扱える
+
+1) T-65.1：initialize() 例外を “BLOCK” 回収（services側）
+
+mt5_client.initialize() が _get_env 経由で 環境変数未設定なら RuntimeError を投げるのを観測。
+
+run_start_diagnosis() で initialize() を try/except し、例外を落とさずに 開始をBLOCK 扱いへ統一。
+
+例外時は reason を env_missing に固定して、監査可能なログだけ残す（スタックトレース連打なし）。
+
+結果：
+
+ログイン前に取引ONしても、クラッシュ/スタックトレースなしで BLOCKED に収束。 
+
+main
+
+2) T-65：未ログイン時の取引ボタン無効化（GUI側）
+ControlTab：取引系コントロールを一括でON/OFFできるAPIを追加
+
+ControlTab.set_trading_controls_enabled(enabled: bool, reason_text: str="") を追加。
+
+enabled=False のとき：
+
+btn_toggle と btn_test_entry を setEnabled(False)（押せない）
+
+btn_toggle を OFF表示へ強制（blockSignalsで再入防止）
+
+trading_enabled=False を trade_state と runtime_flags.json に確定
+
+表示文言：「取引：停止中（ログインしてください）」
+
+enabled=True のとき：
+
+取引ボタン群を有効化し、trade_state に合わせて表示復元
+
+control_tab
+
+3) MainWindow：起動時＋ログイン/ログアウトに連動して取引ボタンを制御
+
+起動時：
+
+mt5_selftest.is_mt5_connected() を見て 未ログインなら即無効化
+
+ログイン成功時：
+
+set_trading_controls_enabled(True)
+
+ログアウト時：
+
+先に trade_loop を stop(reason="mt5_logout")
+
+disconnect_mt5()
+
+set_trading_controls_enabled(False) で UIと内部状態をOFFへ固定
+
+main
+
+4) 期待どおりになった観測結果（今回のログから）
+
+ログアウト後に取引ボタンが押せない状態へ戻り、誤って開始できない
+
+ログイン後のみ取引ONでき、取引ループが回る
+
+ログアウト時に停止ログが出てループが止まる（UIと整合）
+
+5) 安全性が上がったポイント（本質）
+
+「取引ONできる条件」を “ログイン状態” に結びつけて UI で強制
+
+さらに services の診断で env未設定などの例外を “BLOCK” として閉じる
+→ 二重の安全柵（UI柵 + 診断柵）になったのがデカいです。宇宙は残酷なので柵は多いほどいい。
