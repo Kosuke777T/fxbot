@@ -475,6 +475,7 @@ class TradeService:
         comment: str = "",
         features: Dict[str, Any] | None = None,
         dry_run: bool = False,
+        run_id: Optional[int] = None,
     ) -> None:
         """
         MT5 への発注。ATR を元に lot 計算を優先し、なければ ATR なしのフォールバック lot で送信。
@@ -485,6 +486,32 @@ class TradeService:
         side_up = side.upper()
         if side_up not in {"BUY", "SELL"}:
             raise ValueError('side must be "buy" or "sell"')
+
+        # --- T-62-2 MT5に触る前ガード: run_id 指定時はここで止め、login/order_send に進ませない ---
+        if run_id is not None:
+            rt_early = trade_state.get_runtime()
+            if not trade_state.get_settings().trading_enabled:
+                loguru_logger.info(
+                    "[ORDER] cancelled reason=trading_disabled run_id={} (before MT5)",
+                    run_id,
+                )
+                return
+            if not getattr(rt_early, "trade_loop_running", False):
+                loguru_logger.info(
+                    "[ORDER] cancelled reason=trade_loop_not_running run_id={} rt_running={} rt_run_id={} (before MT5)",
+                    run_id,
+                    getattr(rt_early, "trade_loop_running", False),
+                    getattr(rt_early, "trade_run_id", None),
+                )
+                return
+            if getattr(rt_early, "trade_run_id", None) != run_id:
+                loguru_logger.info(
+                    "[ORDER] cancelled reason=run_id_mismatch expected={} got={} run_id={} (before MT5)",
+                    getattr(rt_early, "trade_run_id", None),
+                    run_id,
+                    run_id,
+                )
+                return
 
         # --- T-45-4(A): ENTRYゲート（単一） ---
         # 目的:
@@ -856,16 +883,41 @@ class TradeService:
             self._last_lot_result = lot_result
             self.last_lot_result = lot_result
 
+            # --- T-62-2 発注直前の最終防衛: trading_enabled → trade_loop_running → run_id（安い順） ---
+            rt = trade_state.get_runtime()
+            if run_id is not None:
+                if not trade_state.get_settings().trading_enabled:
+                    loguru_logger.info("[ORDER] cancelled reason=trading_disabled run_id={}", run_id)
+                    return
+                if not getattr(rt, "trade_loop_running", False):
+                    loguru_logger.info(
+                        "[ORDER] cancelled reason=trade_loop_not_running run_id={} rt_running={} rt_run_id={}",
+                        run_id,
+                        getattr(rt, "trade_loop_running", False),
+                        getattr(rt, "trade_run_id", None),
+                    )
+                    return
+                current = getattr(rt, "trade_run_id", None)
+                if current != run_id:
+                    loguru_logger.info(
+                        "[ORDER] cancelled reason=run_id_mismatch expected={} got={} run_id={}",
+                        current,
+                        run_id,
+                        run_id,
+                    )
+                    return
+
             # --- T-3 observe: order_send prepared (single point) ---
             # NOTE: trade logic is unchanged; this is observation-only logging.
             loguru_logger.info(
-                "[ORDER] prepared symbol={} side={} lot={} sl={} tp={} dry_run={}",
+                "[ORDER] prepared symbol={} side={} lot={} sl={} tp={} dry_run={} run_id={}",
                 symbol,
                 side_up,
                 float(lot_val),
                 sl,
                 tp,
                 bool(dry_run),
+                run_id,
             )
 
             if dry_run:
@@ -1097,6 +1149,7 @@ def execute_decision(
     symbol: Optional[str] = None,
     service: Optional[TradeService] = None,
     dry_run: bool = False,
+    run_id: Optional[int] = None,
 ) -> None:
     """
     Live 用のヘルパ:
@@ -1201,6 +1254,7 @@ def execute_decision(
         atr=float(atr_for_lot) if atr_for_lot is not None else None,
         features=features,
         dry_run=bool(dry_run),
+        run_id=run_id,
     )
 
 

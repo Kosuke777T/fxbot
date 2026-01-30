@@ -707,6 +707,7 @@ def validate_decision_context(decision_context: Dict[str, Any], strict: bool = F
 def validate_runtime(runtime: Dict[str, Any], strict: bool = True) -> list[str]:
     """
     runtime dict を検証し、必須キー・型チェックを行う（v1/v2 両対応）。
+    v2 任意キー（trade_run_id, trade_loop_running）は存在時のみ型チェック。未知キー拒否は行わない。
 
     Parameters
     ----------
@@ -866,6 +867,22 @@ def validate_runtime(runtime: Dict[str, Any], strict: bool = True) -> list[str]:
                 if strict:
                     raise TypeError(f"runtime.price must be number or None, got {type(runtime['price']).__name__}")
                 warnings.append(f"runtime.price is {type(runtime['price']).__name__} (should be number or None)")
+
+    # v2 任意キー（T-62-2）: 存在する場合のみ型チェック。strict でも未知キー拒否はしない。
+    # V2_OPTIONAL_KEYS: 将来 unknown_keys 拒否を入れる場合はこの集合を許可リストに含めること。
+    V2_OPTIONAL_KEYS = {"trade_run_id", "trade_loop_running"}
+    if "trade_run_id" in runtime:
+        v = runtime["trade_run_id"]
+        if isinstance(v, bool) or not isinstance(v, int):
+            if strict:
+                raise TypeError(f"runtime.trade_run_id must be int (not bool), got {type(v).__name__}")
+            warnings.append(f"runtime.trade_run_id is {type(v).__name__} (should be int)")
+    if "trade_loop_running" in runtime:
+        v = runtime["trade_loop_running"]
+        if not isinstance(v, bool):
+            if strict:
+                raise TypeError(f"runtime.trade_loop_running must be bool, got {type(v).__name__}")
+            warnings.append(f"runtime.trade_loop_running is {type(v).__name__} (should be bool)")
 
     # deprecated/forbidden keys のチェック（warn のみ、例外は発生させない）
     deprecated_prefixes = ["_sim_"]

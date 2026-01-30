@@ -86,6 +86,9 @@ class TradeLoopRunner(QObject):
         self._symbol = "USDJPY-"
         self._mt5_diag_logged = False
         self._test_entry_used = False
+        # T-62-1 stop残り火根絶: stop_event/run_id（in-flight thread を無効化するため）
+        self._stop_event = threading.Event()
+        self._run_id = 0
 
     def _emit_mt5_diag_once(self, *, dry_run: bool) -> None:
         """T-4: trade_loop開始直後のMT5診断ログ（重複防止）。"""
@@ -121,6 +124,10 @@ class TradeLoopRunner(QObject):
             logger.warning("[trade_loop] start denied reason=already_running")
             return False
 
+        # T-62-1 世代開始（古い in-flight thread を無効化する）
+        self._stop_event.clear()
+        self._run_id += 1
+
         try:
             self._mt5_diag_logged = False
             self._test_entry_used = False
@@ -137,10 +144,11 @@ class TradeLoopRunner(QObject):
 
             # 開始ログを出力（T-61: 観測で即断できるよう 1 箇所のみ）
             logger.info(
-                "[trade_loop] started mode={} dry_run={} symbol={}",
+                "[trade_loop] started mode={} dry_run={} symbol={} run_id={}",
                 mode,
                 effective_dry_run,
                 self._symbol,
+                self._run_id,
             )
             # T-65: 開始直後の事前診断（1回だけ）。NG なら BLOCK して注文系に進まない
             from app.services import trade_service as trade_service_mod
@@ -150,6 +158,9 @@ class TradeLoopRunner(QObject):
             self._emit_mt5_diag_once(dry_run=effective_dry_run)
 
             self._is_running = True
+            rt = trade_state.get_runtime()
+            rt.trade_run_id = self._run_id
+            rt.trade_loop_running = True
             self._timer.start()
             return True
         except Exception as e:
@@ -165,10 +176,16 @@ class TradeLoopRunner(QObject):
         if not self._is_running:
             return
 
-        logger.info("[trade_loop] stopping reason={} symbol={}", reason, self._symbol)
-        self._timer.stop()
+        # T-62-1 stop残り火根絶: stop_event->run_id->is_running->timer.stop（順序が重要）
+        self._stop_event.set()
+        self._run_id += 1
         self._is_running = False
+        rt = trade_state.get_runtime()
+        rt.trade_run_id = self._run_id
+        rt.trade_loop_running = False
+        self._timer.stop()
 
+        logger.info("[trade_loop] stopping reason={} symbol={} run_id={}", reason, self._symbol, self._run_id)
         logger.info("[trade_loop] stopped reason={}", reason)
 
     def is_running(self) -> bool:
@@ -299,7 +316,10 @@ class TradeLoopRunner(QObject):
             return
 
     def _on_tick(self):
-        """タイマーイベントハンドラ"""
+        """タイマーイベントハンドラ。停止後tick残り火根絶：先頭で _is_running を必ず見る。"""
+        # T-62 停止後tick残り火根絶：stop 後に tick が入っても execute_entry に到達させない
+        if not self._is_running:
+            return
         # 連続起動を防ぐ
         if self._lock.locked():
             return
@@ -313,14 +333,17 @@ class TradeLoopRunner(QObject):
             self.stop(reason="auto_stop_trading_disabled")
             return
 
-        t = threading.Thread(target=self._run, daemon=True)
-        t.start()
+        # T-62-1 stop残り火根絶: captured run_id を渡して thread 起動
+        rid = self._run_id
+        threading.Thread(target=self._run, args=(rid,), daemon=True).start()
 
-    def _run(self):
-        """実際のループ処理（別スレッドで実行）"""
+    def _run(self, rid: int):
+        """実際のループ処理（別スレッドで実行）。rid は起動時の _run_id（世代トークン）。"""
         with self._lock:
             try:
-                if not self._is_running:
+                if self._stop_event.is_set():
+                    return
+                if (not self._is_running) or (rid != self._run_id):
                     return
 
                 # 設定を再読み込み（必要に応じて）
@@ -382,6 +405,12 @@ class TradeLoopRunner(QObject):
                         open_positions=open_positions,
                     )
 
+                    # T-62-1 stop残り火根絶: guard before execute_entry（stop 後の in-flight はここで止める）
+                    if self._stop_event.is_set():
+                        return
+                    if (not self._is_running) or (rid != self._run_id):
+                        return
+
                     # ExecutionService.execute_entry を呼び出す
                     logger.info(
                         "[trade_loop][tick] calling execute_entry symbol={} dry_run={}",
@@ -392,6 +421,7 @@ class TradeLoopRunner(QObject):
                         features=features,
                         symbol=symbol,
                         dry_run=effective_dry_run,
+                        run_id=rid,
                     )
                     ok = bool(res.get("ok")) if isinstance(res, dict) else False
                     logger.info("[trade_loop][tick] execute_entry returned ok={}", ok)

@@ -534,6 +534,7 @@ class ExecutionService:
         dry_run: bool = False,
         timestamp: Optional[datetime] = None,
         suppress_metrics: bool = False,
+        run_id: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
         売買判断 → フィルタ判定 → decisions.jsonl 出力まで一貫処理
@@ -1263,7 +1264,9 @@ class ExecutionService:
                         "features": features_payload2,
                     },
                 }
-                trade_service.execute_decision(payload2, symbol=symbol, service=None, dry_run=bool(dry_run))
+                trade_service.execute_decision(
+                    payload2, symbol=symbol, service=None, dry_run=bool(dry_run), run_id=run_id
+                )
         except Exception as e:
             logging.getLogger(__name__).info(
                 "[exec][entry_bridge] skip execute_decision due to %s: %s",

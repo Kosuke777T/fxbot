@@ -1,9 +1,12 @@
 # app/services/metrics.py
+# T-62 以降: runtime/metrics.json は atomic write（tmp → os.replace）+ ロック時リトライ、失敗時は tmp 残して次回回復可能。
+# 変更箇所: publish_metrics() 内の JSON 書き込みブロック（write_text → .tmp、os.replace で置換、リトライ、失敗時 tmp 残し）
 from __future__ import annotations
 from pathlib import Path
 from typing import Dict, Any
-import json, os, time, tempfile
-import shutil,time
+import json
+import os
+import time
 import traceback
 from core.metrics import METRICS_JSON, METRICS  # METRICS_JSON はファイルパス、METRICS はKVS
 
@@ -48,23 +51,29 @@ def publish_metrics(kv: Dict[str, Any], no_metrics: bool = False) -> None:
     # KVS（同一プロセス向けフォールバック）
     METRICS.update(**kv)
 
-    # JSON（別プロセス連携／Dashboard標準入力）
+    # JSON（別プロセス連携／Dashboard標準入力）。atomic write: 同一ディレクトリの .tmp に書いて os.replace で置換。
     path = Path(METRICS_JSON)
     path.parent.mkdir(parents=True, exist_ok=True)
     data = dict(kv)
-    # ts（ローカル更新時刻）はここで保証
     data.setdefault("ts", int(time.time()))
 
     txt = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
-    tmp_path = Path(tempfile.mkstemp(prefix="metrics_", suffix=".json", dir=str(path.parent))[1])
-    tmp_path.write_text(txt, encoding="utf-8")
+    tmp_path = path.parent / "metrics.json.tmp"
 
-    # --- safe replace with retry ---
-    for i in range(10):
+    try:
+        tmp_path.write_text(txt, encoding="utf-8")
+    except OSError as e:
+        print(f"[metrics][warn] could not write tmp {tmp_path}: {e}")
+        return
+
+    # --- atomic replace with retry（読み手がいても壊れない／次回復帰可能） ---
+    retry_delay_sec = 0.1
+    retry_count = 5
+    for _ in range(retry_count):
         try:
-            shutil.move(tmp_path, path)
-            break
-        except PermissionError:
-            time.sleep(0.5)
-    else:
-        print(f"[metrics][warn] could not update {path} (still locked). skipped.")
+            os.replace(tmp_path, path)
+            return
+        except (PermissionError, OSError):
+            time.sleep(retry_delay_sec)
+    # 捨てず tmp を残す（次回 publish で上書きして再試行される）
+    print(f"[metrics][warn] could not replace {path} (locked). tmp left for next retry.")

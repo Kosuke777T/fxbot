@@ -25,6 +25,10 @@ class TradeRuntime:
     open_positions: int = 0  # 現在のオープンポジション数（0以上）
     max_positions: int = 1  # 最大ポジション数（1以上）
 
+    # T-62-1 発注直前キャンセル用: 現在有効な世代トークン（TradeLoopRunner が start/stop で更新）
+    trade_run_id: int = 0
+    trade_loop_running: bool = False
+
     # 将来の拡張用（最小限）
     # inflight_orders: int = 0  # 注文中数（将来追加予定、今は未使用）
 
@@ -62,9 +66,12 @@ def as_dict() -> dict[str, Any]:
 def runtime_as_dict(rt: Optional["TradeRuntime"] = None) -> dict[str, Any]:
     """
     TradeRuntime を dict に変換し、必須キー・型を検証・矯正する（出口での統一処理）。
+    GUI表示用スナップショットとしても利用可能。
 
-    戻り値は標準3キー固定（schema_version, open_positions, max_positions）。
-    TradeRuntime に他のフィールド（last_ticket, last_side, last_symbol 等）があっても、ログの標準 runtime には含めない。
+    戻り値は標準3キー（schema_version, open_positions, max_positions）に加え、
+    v2 拡張キー（trade_run_id, trade_loop_running）を含む（観測・デバッグ・GUI表示用）。
+    last_ticket / last_side / last_symbol 等は含めない。
+    validate_runtime の必須キーには含めず、任意キーとして扱う。
 
     Parameters
     ----------
@@ -74,14 +81,13 @@ def runtime_as_dict(rt: Optional["TradeRuntime"] = None) -> dict[str, Any]:
     Returns
     -------
     dict[str, Any]
-        検証・矯正済みの runtime dict（schema_version, open_positions, max_positions のみ）
+        検証・矯正済みの runtime dict
     """
     # rt を省略したら現在のruntimeを取る
     if rt is None:
         rt = _runtime_state
 
-    # 標準3キーのみを明示的に返す（last_* などの追加フィールドは含めない）
-    # 検証・矯正: "落とさず矯正"が基本（GUI運用で落ちると嫌なので）
+    # 標準3キー + v2拡張キー（last_* は含めない）。検証・矯正: "落とさず矯正"が基本。
 
     # schema_version が無い／intでない → 1 を入れる
     try:
@@ -107,10 +113,19 @@ def runtime_as_dict(rt: Optional["TradeRuntime"] = None) -> dict[str, Any]:
     except (ValueError, TypeError):
         max_pos = 1
 
+    # v2 拡張キー: 最終防衛・観測用（validate_runtime の必須キーには含めない）
+    try:
+        trade_run_id = int(getattr(rt, "trade_run_id", 0) or 0)
+    except (ValueError, TypeError):
+        trade_run_id = 0
+    trade_loop_running = bool(getattr(rt, "trade_loop_running", False))
+
     return {
         "schema_version": schema_ver,
         "open_positions": open_pos,
         "max_positions": max_pos,
+        "trade_run_id": trade_run_id,
+        "trade_loop_running": trade_loop_running,
     }
 
 
