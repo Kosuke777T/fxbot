@@ -69,7 +69,10 @@ class SchedulerTickRunner(QObject):
 
 
 class TradeLoopRunner(QObject):
-    """GUIから直接取引ループを実行するランナー"""
+    """
+    自動売買ループを実行するランナー。
+    起動点: start() が唯一。Controlタブ「取引ON」→ _trade_loop.start() のみから呼ばれる。
+    """
 
     def __init__(self, parent=None, interval_ms: int = 3000):
         super().__init__(parent)
@@ -110,7 +113,10 @@ class TradeLoopRunner(QObject):
         )
 
     def start(self) -> bool:
-        """ループを開始する。既に実行中の場合は False を返す。"""
+        """
+        自動売買ループを開始する。既に実行中の場合は False を返す。
+        【起動点】このメソッドが唯一。GUI・services・core で [trade_loop] started はここからのみ出力。
+        """
         if self._is_running:
             logger.warning("[trade_loop] start denied reason=already_running")
             return False
@@ -152,7 +158,10 @@ class TradeLoopRunner(QObject):
             return False
 
     def stop(self, reason: str = "unknown") -> None:
-        """ループを停止する。"""
+        """
+        自動売買ループを停止する。
+        【停止処理の唯一の箇所】[trade_loop] stopped はここからのみ出力。GUI・補助・別スレッドでは出さない。
+        """
         if not self._is_running:
             return
 
@@ -160,7 +169,6 @@ class TradeLoopRunner(QObject):
         self._timer.stop()
         self._is_running = False
 
-        # 停止ログを出力（T-61: すべての停止経路がここに収束）
         logger.info("[trade_loop] stopped reason={}", reason)
 
     def is_running(self) -> bool:

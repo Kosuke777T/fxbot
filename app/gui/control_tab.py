@@ -207,7 +207,8 @@ class ControlTab(QWidget):
             )
             self._refresh_status()
 
-            # ループを開始/停止
+            # 自動売買ループ開始/停止の唯一のGUI入口（観測で確定）
+            # GUI「取引ON」押下 → _main_window._trade_loop.start() のみ。services 直呼びはしない。
             if self._main_window is not None and hasattr(self._main_window, "_trade_loop"):
                 if enabled:
                     if not self._main_window._trade_loop.start():

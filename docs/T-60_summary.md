@@ -91,6 +91,66 @@ Controlタブは 操作盤＋計器盤として完成
 T-60（自動売買可能な状態への下地）達成
 
 
+T-62：Controlタブ「取引ON」→ 自動売買ループ開始の“配線”を観測で確定
+
+■ 目的
+
+「押しても始まらない」をゼロにするため、GUI→起動点→停止点の呼び出し経路を観測で一意に固定した。
+
+■ 実施内容（事実）
+
+grepで呼び出し経路を観測確定（推測で増築なし）
+
+起動点＝TradeLoopRunner.start()、停止点＝TradeLoopRunner.stop() を唯一の点として明示（コメント追加）
+
+[trade_loop] started/stopped のログが main.py の各1箇所のみで出ることを確認
+
+多重起動ガードは 既存 _is_running を利用（新規フラグ追加なし）
+
+■ 変更ファイル
+
+app/gui/main.py（TradeLoopRunner：起動点/停止点のコメント明示、ログ一点化の前提を明文化）
+
+app/gui/control_tab.py（取引ONが _main_window._trade_loop.start()/stop() にのみ配線されている旨をコメント明示）
+
+docs/trade_loop_start_observation.md（観測結果ドキュメント化：配線・起動点・停止点・ログ・多重起動ガード）
+
+■ 守った制約
+
+最小差分
+
+既存APIのみ使用（新規関数・新規ループ・新規スレッドなし）
+
+責務境界（gui/services/core）遵守（GUIは services 直呼びしない）
+
+推測で直さず、観測で確定してから明示
+
+■ 挙動の変化
+
+変わった点：
+
+起動点・停止点がコード上でもドキュメント上でも一意に確定し、運用者が追跡可能になった
+
+変わっていない点（重要）：
+
+dry_run/real判定やガードロジックは未変更（これはT-63で扱う）
+
+取引ロジックやservices/coreの責務は未変更
+
+■ 確認方法
+
+python -X utf8 -m py_compile app/gui/main.py app/gui/control_tab.py が通ること
+
+実行してログ確認：python -m app.gui.main
+
+「取引ON」1回で [trade_loop] started ... が1回だけ
+
+連打で多重起動せず（必要なら start denied reason=already_running）
+
+停止で [trade_loop] stopped reason=... が1回だけ
+
+
+
 ##########################
 T-65 完了サマリ（安全な起動・ログイン連動・取引トグル整合）
 ゴール
