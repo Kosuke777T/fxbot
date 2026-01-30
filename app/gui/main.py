@@ -124,18 +124,15 @@ class TradeLoopRunner(QObject):
             self._symbol = runtime_cfg.get("symbol", "USDJPY-")
 
             # モードとdry_runを取得
-            requested_mode = runtime_cfg.get("mode")
             mode = runtime_cfg.get("mode", "dryrun")
             settings = trade_state.get_settings()
             trading_enabled = bool(getattr(settings, "trading_enabled", False))
             effective_dry_run = (mode == "dryrun") or (not trading_enabled)
 
-            # 開始ログを出力
+            # 開始ログを出力（T-61: 観測で即断できるよう 1 箇所のみ）
             logger.info(
-                "[trade_loop] started mode={} requested_mode={} trading_enabled={} effective_dry_run={} symbol={}",
+                "[trade_loop] started mode={} dry_run={} symbol={}",
                 mode,
-                requested_mode,
-                trading_enabled,
                 effective_dry_run,
                 self._symbol,
             )
@@ -159,8 +156,8 @@ class TradeLoopRunner(QObject):
         self._timer.stop()
         self._is_running = False
 
-        # 停止ログを出力
-        logger.info("[trade_loop] stopped symbol={}", self._symbol)
+        # 停止ログを出力（T-61: すべての停止経路がここに収束）
+        logger.info("[trade_loop] stopped reason={}", reason)
 
     def is_running(self) -> bool:
         """ループが実行中かどうかを返す。"""

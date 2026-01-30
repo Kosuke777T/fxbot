@@ -1,131 +1,138 @@
-自動売買が実行できるまでのToDoリスト（最短ルート）
-T-0 ゴールの定義（観測でOK/NG判定できる形に固定）
+T-61 ゴール定義（ログで判定できる “運用開始条件” を固定）
 
-目的: 「実運用で回せる」の定義をログで判定可能にする
-成功条件（全部ログで確認）
+狙い：人間が「今、動いてる/止まってる/危険」をログで即断できる状態に固定する。
+成功条件（観測）：
 
-[trade_loop] started ...（開始）
+[trade_loop] started mode=... dry_run=... symbol=USDJPY- が必ず出る
 
-[signal] ...（シグナル評価が走ってる）
+停止で [trade_loop] stopped reason=... が必ず出る
 
-[ORDER] prepared ...（発注直前に到達）
+以降の全判断が decisions.jsonl / ui_events / ops_history のどれかに残る（“ログに残らない判断は存在しない”） 
 
-order_send result=...（dry_run=False時のみ）
+michibiki_canonical_vocabulary
 
-[position] opened/closed ...（建玉/決済が追跡される）
+【Cursor Agent実行】：ログキーの命名は “公式語彙 + 最小追加”（例：next_action/authorize/evidence/policy_hash）を優先。 
 
-T-1 取引ボタン → 自動売買ループ開始の“配線”を確定（最優先）
+michibiki_canonical_vocabulary
 
-狙い: 「押しても始まらない」をゼロにする
-やること
+ 
 
-GUIボタン押下ハンドラ → TradeService/Runner 起動までの経路を観測で確定
+michibiki_one_page_architecture
 
-起動点に INFOログを1本入れる（最小差分）
-成功条件
+T-62 Controlタブ「取引ON」→ 自動売買ループ開始の“配線”を観測で確定
 
-ボタン押下で毎回 [trade_loop] started mode=live|paper dry_run=... symbol=USDJPY- が出る
+狙い：「押しても始まらない」をゼロにする（最優先）。
+成功条件（観測）：
 
-停止で [trade_loop] stopped が出る
+ボタン押下ごとに必ず [trade_loop] started ... が1回だけ出る（多重起動しない）
 
-二重起動が起きない（2回押しても started が増殖しない）
+停止で必ず [trade_loop] stopped ...
 
-T-2 dry_run / trading_enabled の整合を固定（事故防止の生命線）
+【Cursor Agent実行】：GUI→servicesの呼び出し点を確定し、開始ログを“起動点1箇所”にだけ追加。推測で配線を増やさない（まずgrep）。 
 
-狙い: “ライブのつもりが紙” “紙のつもりがライブ” を潰す
-やること
+内部仕様書 v5.2
 
-実効 dry_run の決定点を 1点に固定し、必ずログ出力
+T-63 dry_run / trading_enabled / real接続ガードの“一点化”
 
-設定優先順位（安全側）を固定
-成功条件
+狙い：「紙のつもりが実弾」「実のつもりが紙」を撲殺。
+成功条件（観測）：
 
-起動時ログに [exec] trading_enabled=... effective_dry_run=... が毎回出る
+起動時ログに [exec] trading_enabled=... effective_dry_run=... allow_real_account=... が毎回出る
 
-trading_enabled=False → 必ず effective_dry_run=True（送信しない）
+trading_enabled=False のとき 必ず effective_dry_run=True になり、発注経路に進まない
 
-T-3 発注の最終一点（order_send相当）を“観測で確定”して到達させる
+【Cursor Agent実行】：EditionGuard 等の既存ガードを優先し、実効dry_run決定点を1点に固定。 
 
-狙い: 戦略が良くても注文が出ない問題を潰す
-やること
+内部仕様書 v5.2
 
-order_send / OrderSend / mt5.order_send 相当の呼び出し箇所を検索し、最終一点を確定
+T-64 発注の最終一点（order_send相当）到達を“観測で確定”
 
-直前に [ORDER] prepared ... を追加（1点のみ）
-
-dry_run=True の時は「送らない」ログを必ず出す
-成功条件
+狙い：戦略が正しくても注文が出ない問題を潰す。
+成功条件（観測）：
 
 シグナル成立 → [ORDER] prepared ... が出る
 
 dry_run=True → [ORDER] skipped reason=dry_run が出る
 
-dry_run=False → order_send result=OK|FAIL reason=... が出る（失敗理由もログ）
+dry_run=False → order_send result=OK|FAIL reason=... が出る（失敗理由も）
 
-T-4 MT5接続・口座状態の事前診断（“開始時点で”分かるようにする）
+【Cursor Agent実行】：app/core/mt5_client.py / app/services/trade_service.py の既存APIを優先し、“prepared”ログは1箇所だけ。 
 
-狙い: 注文出してから気づく、をやめる
-やること
+api_catalog
 
-trade_loop started 時に1回だけ「接続/取引可能」診断ログ
-成功条件
+T-65 事前診断（開始時点で “取引可能” が確定してから回す）
 
-[mt5] connected=True account=... trade_allowed=True が出る
+狙い：注文出してから「口座ダメでした」を無くす。
+成功条件（観測）：
 
-NGなら開始直後にわかり、送信処理へ進まない（安全側）
+started直後に1回だけ [mt5] connected=... trade_allowed=... account=... が出る
 
-T-5 建玉状態の整合（open_position嘘問題・二重エントリー防止）
+NGなら 即BLOCK（送信処理へ進まない）
 
-狙い: 実運用で最も死にやすい“状態不整合”を潰す
-やること
+【Cursor Agent実行】：T-60で確立した services 経路を再利用（GUI直MT5禁止）。 
 
-3分ごとに positions を再確認し、整合しなければフラグをリセット
+内部仕様書 v5.2
 
-inflight_orders / guard のログを観測可能に維持
-成功条件
+T-66 建玉状態の整合（open_position嘘・二重エントリー防止）
 
-「ポジション無しなのに open=True」で固まらない
+狙い：実運用で一番死ぬ“状態不整合”を潰す。
+成功条件（観測）：
 
-「ポジションあるのに open=False」で二重発注しない
+「ポジ無しなのに open=True」で固まらない（定期reconcileで復帰）
 
-[guard] denied reason=... が観測できる
+「ポジあるのに open=False」で二重発注しない
 
-T-6 決済・結果記録の一本化（PnL/exit_reason が必ず残る）
+denied時に [guard] denied reason=... が出る
 
-狙い: “勝った/負けた” が確実にログ/履歴に残る
-やること
+【Cursor Agent実行】：既存の整合機構（例：TradeService._periodic_reconcile / reconcile_positions）を優先して接続。新規関数は最小限。 
 
-CLOSEイベント（profit_jpy / exit_reason）を OpsHistory に必ず流す
+api_catalog
 
-既存の record_trade_result(info) 契約（docstring）を遵守
-成功条件
+T-67 決済・損益記録の一本化（exit_reason / profit_jpy が必ず残る）
 
-決済ごとに profit_jpy が履歴に残る（ui_events / ops_history）
+狙い：“勝った/負けた/なぜ決済した”が監査可能になる。
+成功条件（観測）：
 
-exit_reason が記録される（TP/SL/timeout等）
+決済ごとに profit_jpy が ui_events / ops_history / decisions のどれかに残る
 
-T-7 実運用の最小プロトコル（運用ルールだけ。ロジック追加しない）
+exit_reason が必ず残る（TP/SL/timeout等）
 
-狙い: 回しながら壊さない
-やること（運用）
+【Cursor Agent実行】：record_trade_result(...) 系の既存契約を壊さず、ログ出力と保存先を一本化。 
 
-最初は極小ロット、時間限定、監視あり
+api_catalog
 
-例外時の停止手順（ボタン停止/プロセス停止）を確定
-成功条件
+ 
 
-“止めたい時に確実に止まる”
+michibiki_canonical_vocabulary
+
+T-68 “守りだけ自動”の安全運用（automation_level=1 相当）
+
+狙い：攻め（エントリー）を人間承認に残しつつ、守り（停止/縮小/強制EXIT）だけは自動で効く状態へ。
+成功条件（観測）：
+
+連敗/DD等で 自動停止 or サイズダウン が発動し、理由が残る（authorize/evidence）
+
+解除は人間操作が必要（勝手に復帰しない）
+
+【Cursor Agent実行】：CircuitBreaker/Guardを優先利用し、“守りの自動”だけ許可する状態にする。 
+
+api_catalog
+
+ 
+
+michibiki_canonical_vocabulary
+
+T-69 実運用ミニ・プロトコル（運用手順を固定：コード変更なし）
+
+狙い：回しながら壊さない。
+成功条件（運用）：
+
+最小ロット、時間帯限定、監視あり
+
+“止めたい時に確実に止まる”手順が確定（GUI停止→プロセス停止の順など）
 
 ログと履歴が残り、再現できる
 
-禁止事項（再掲：このToDo全体に適用）
+（この段は運用ルールの確定。ロジック追加はしない） 
 
-fold別threshold運用
-
-win_rate最大化ルールへの変更
-
-thresholdを特徴量に入れる
-
-売買ロジック条件の追加
-
-推測で修正（観測で確定せよ
+自動売買ToDoリスト
