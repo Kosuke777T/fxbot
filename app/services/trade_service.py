@@ -117,6 +117,30 @@ def snapshot_account() -> Optional[dict]:
         mt5_client.shutdown()
 
 
+def get_profile_lot_limits() -> tuple[Optional[float], Optional[float]]:
+    """
+    現在の戦略プロファイル（config の lot セクション）から min_lot / max_lot を返す。
+    GUI の口座帯表示用。取得失敗時は (None, None) を返し、ログに WARNING を出す。
+    """
+    try:
+        conf = load_config()
+        lot_cfg = (conf.get("lot", {}) if isinstance(conf, dict) else {}) or {}
+        if not isinstance(lot_cfg, dict):
+            loguru_logger.warning("[lot_limits] config 'lot' is not a dict: {}", type(lot_cfg).__name__)
+            return (None, None)
+        min_lot = lot_cfg.get("min_lot")
+        max_lot = lot_cfg.get("max_lot")
+        if min_lot is None and max_lot is None:
+            loguru_logger.warning("[lot_limits] config 'lot' has no min_lot/max_lot")
+            return (None, None)
+        min_f = float(min_lot) if min_lot is not None else None
+        max_f = float(max_lot) if max_lot is not None else None
+        return (min_f, max_f)
+    except Exception as e:
+        loguru_logger.warning("[lot_limits] get_profile_lot_limits failed: {}", e)
+        return (None, None)
+
+
 def run_start_diagnosis(symbol: str) -> bool:
     """
     T-65: 自動売買ループ開始直後の事前診断（1回だけ）。

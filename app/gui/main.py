@@ -32,6 +32,7 @@ from app.services.kpi_service import KPIService
 from app.services.scheduler_facade import get_scheduler
 from app.services.execution_service import ExecutionService
 from app.services import trade_state, mt5_account_store, mt5_selftest
+from app.services.trade_service import get_profile_lot_limits
 from app.core.config_loader import load_config
 from app.core import market
 from app.services.orderbook_stub import orderbook
@@ -436,7 +437,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("FX AI Bot Control Panel")
         self.resize(980, 640)
-        
+
         # 起動時にモデル健全性チェックを1回だけ実行（起動時のみ、tick処理中は呼ばない）
         health_result: Dict[str, Any] = {"stable": False, "score": 0.0, "reasons": ["startup_check_exception"], "meta": {}}
         try:
@@ -464,7 +465,7 @@ class MainWindow(QMainWindow):
                 "[model_health] check failed (app continues): {err}",
                 err=type(e).__name__,
             )
-        
+
         # ログ補強（1回だけ）
         stable = health_result["stable"]
         score = health_result["score"]
@@ -473,7 +474,7 @@ class MainWindow(QMainWindow):
         model_path = meta.get("model_path", "n/a")
         trained_at = meta.get("trained_at", None)
         scaler_path = meta.get("scaler_path", None)
-        
+
         log_parts = [f"stable={stable}", f"score={score:.1f}", f"reasons={reasons}"]
         if model_path != "n/a":
             log_parts.append(f"model_path={model_path}")
@@ -481,7 +482,7 @@ class MainWindow(QMainWindow):
             log_parts.append(f"trained_at={trained_at}")
         if scaler_path:
             log_parts.append(f"scaler_path={scaler_path}")
-        
+
         logger.info(f"[model_health] {' '.join(log_parts)}")
 
         # --- 口座プロファイル帯（タブの上・最上段、常時表示） ---
@@ -508,7 +509,7 @@ class MainWindow(QMainWindow):
             }
         """)
         self._update_health_banner(health_result)
-        
+
         # --- QTabWidget をインスタンス変数として保持 ---
         self.tabs = QTabWidget(self)
 
@@ -591,7 +592,7 @@ QTabBar::tab:hover {
         central_layout.addWidget(self.account_banner)
         central_layout.addWidget(self.health_banner)
         central_layout.addWidget(self.tabs)
-        
+
         # コンテナをメインウィンドウにセット
         self.setCentralWidget(central_container)
 
@@ -684,11 +685,11 @@ QTabBar::tab:hover {
 
             # 念のため、フォーカスも AI タブに合わせておく
             self.tabs.setCurrentIndex(index)
-    
+
     def _update_health_banner(self, health_result: Dict[str, Any]) -> None:
         """
         モデル健全性バナーの表示を更新する。
-        
+
         Args:
             health_result: check_model_health_at_startup() の戻り値
         """
@@ -696,7 +697,7 @@ QTabBar::tab:hover {
             stable = health_result.get("stable", False)
             score = health_result.get("score", 0.0)
             reasons = health_result.get("reasons", [])
-            
+
             # reasons の整形（空なら "(none)"、複数なら "; " で連結）
             if not reasons:
                 full_reasons_str = "(none)"
@@ -709,15 +710,15 @@ QTabBar::tab:hover {
                     display_reasons_str = full_reasons_str[:77] + "..."
                 else:
                     display_reasons_str = full_reasons_str
-            
+
             # 表示テキスト（省略版を使用）
             text = f"Model health: stable={stable} score={score:.1f} reasons={display_reasons_str}"
-            
+
             # バナーに設定
             self.health_banner.setText(text)
             # tooltip には全文を使用
             self.health_banner.setToolTip(f"Full reasons: {full_reasons_str}" if reasons else "No issues detected")
-            
+
             # stable=False の場合は背景色を変える（視認性向上）
             if not stable:
                 self.health_banner.setStyleSheet("""
@@ -789,11 +790,20 @@ QTabBar::tab:hover {
                 """)
             if mt5_selftest.is_mt5_connected():
                 text += " / ログイン中"
+                min_lot, max_lot = get_profile_lot_limits()
+                if min_lot is not None and max_lot is not None:
+                    text += f" | Lot limits (profile): min={min_lot:.2f} max={max_lot:.2f}"
+                    logger.info("[GUI] Lot limits (profile): min={} max={}", min_lot, max_lot)
+                else:
+                    text += " | Lot limits: N/A"
+            else:
+                text += " | Lot limits: N/A"
             self.account_banner.setText(text)
         except Exception:
             fail_text = "MT5口座: (取得失敗)"
             if mt5_selftest.is_mt5_connected():
                 fail_text += " / ログイン中"
+            fail_text += " | Lot limits: N/A"
             self.account_banner.setText(fail_text)
             self.account_banner.setStyleSheet("""
                 QLabel {
