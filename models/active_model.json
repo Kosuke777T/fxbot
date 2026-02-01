@@ -3,7 +3,7 @@
   "file": "LightGBM_clf_20260129_041516.pkl",
   "meta_file": "LightGBM_clf_20260129_041516.pkl.meta.json",
   "version": 1769660116.873717,
-  "best_threshold": 0.45,
+  "best_threshold": 0.53,
   "feature_order": [
     "ret_1",
     "ret_5",

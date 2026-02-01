@@ -931,6 +931,89 @@ class TradeService:
                     )
                     return
 
+            # --- SL/TP 補完ロジック（最終防波堤）---
+            # sl/tp が None の場合、build_exit_plan から取得して補完する
+            # それでも補完できなければ発注をブロック
+            if sl is None or tp is None:
+                try:
+                    import MetaTrader5 as mt5
+                    tick = mt5.symbol_info_tick(symbol)
+                    if tick is None:
+                        loguru_logger.warning(
+                            "[guard] denied reason=missing_sl_tp detail=tick_unavailable symbol={} side={} run_id={}",
+                            symbol, side_up, run_id,
+                        )
+                        return
+
+                    # 現在価格: BUY は ask、SELL は bid
+                    entry_price = tick.ask if side_up == "BUY" else tick.bid
+
+                    # pip_size を symbol から算出（JPY系は 0.01、それ以外は 0.0001）
+                    sym_upper = symbol.upper().replace("-", "").replace("_", "")
+                    pip_size = 0.01 if "JPY" in sym_upper else 0.0001
+
+                    # build_exit_plan を呼んで tp_pips / sl_pips を取得
+                    exit_plan = build_exit_plan(symbol, None)
+                    mode = exit_plan.get("mode", "fixed")
+
+                    if mode == "none":
+                        loguru_logger.warning(
+                            "[guard] denied reason=missing_sl_tp detail=exit_mode_none symbol={} side={} run_id={}",
+                            symbol, side_up, run_id,
+                        )
+                        return
+
+                    tp_pips = exit_plan.get("tp_pips")
+                    sl_pips = exit_plan.get("sl_pips")
+
+                    # ATR モードの場合は atr * mult で pips を計算
+                    if mode == "atr":
+                        atr_val = exit_plan.get("atr")
+                        tp_mult = exit_plan.get("tp_mult", 1.2)
+                        sl_mult = exit_plan.get("sl_mult", 1.0)
+                        if atr_val is not None and atr_val > 0:
+                            # ATR を pips に変換（価格単位 / pip_size）
+                            tp_pips = (atr_val * tp_mult) / pip_size
+                            sl_pips = (atr_val * sl_mult) / pip_size
+
+                    if tp_pips is None or sl_pips is None or tp_pips <= 0 or sl_pips <= 0:
+                        loguru_logger.warning(
+                            "[guard] denied reason=missing_sl_tp detail=pips_invalid tp_pips={} sl_pips={} symbol={} side={} run_id={}",
+                            tp_pips, sl_pips, symbol, side_up, run_id,
+                        )
+                        return
+
+                    # 価格を計算: BUY は SL < entry < TP、SELL は TP < entry < SL
+                    if side_up == "BUY":
+                        if sl is None:
+                            sl = entry_price - float(sl_pips) * pip_size
+                        if tp is None:
+                            tp = entry_price + float(tp_pips) * pip_size
+                    else:  # SELL
+                        if sl is None:
+                            sl = entry_price + float(sl_pips) * pip_size
+                        if tp is None:
+                            tp = entry_price - float(tp_pips) * pip_size
+
+                    loguru_logger.info(
+                        "[ORDER] sl_tp_complemented entry_price={:.5f} sl={:.5f} tp={:.5f} sl_pips={:.1f} tp_pips={:.1f} mode={} symbol={} side={}",
+                        entry_price, sl, tp, sl_pips, tp_pips, mode, symbol, side_up,
+                    )
+                except Exception as e:
+                    loguru_logger.warning(
+                        "[guard] denied reason=missing_sl_tp detail=complement_failed error={} symbol={} side={} run_id={}",
+                        e, symbol, side_up, run_id,
+                    )
+                    return
+
+            # --- SL/TP 最終チェック（必ず数値が入っていること）---
+            if sl is None or tp is None:
+                loguru_logger.warning(
+                    "[guard] denied reason=missing_sl_tp detail=final_check_failed sl={} tp={} symbol={} side={} run_id={}",
+                    sl, tp, symbol, side_up, run_id,
+                )
+                return
+
             # --- T-3 observe: order_send prepared (single point) ---
             # NOTE: trade logic is unchanged; this is observation-only logging.
             loguru_logger.info(
