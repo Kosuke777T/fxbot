@@ -412,20 +412,20 @@ class TradeLoopRunner(QObject):
                     if (not self._is_running) or (rid != self._run_id):
                         return
 
-                    # ExecutionService.execute_entry を呼び出す
+                    # ExecutionService.run_tick_loop（確定バー判定 → proba 更新 → execute_entry）
                     logger.info(
-                        "[trade_loop][tick] calling execute_entry symbol={} dry_run={}",
+                        "[trade_loop][tick] calling run_tick_loop symbol={} dry_run={}",
                         symbol,
                         effective_dry_run,
                     )
-                    res = self._exec_service.execute_entry(
-                        features=features,
+                    res = self._exec_service.run_tick_loop(
                         symbol=symbol,
+                        features=features,
                         dry_run=effective_dry_run,
                         run_id=rid,
                     )
                     ok = bool(res.get("ok")) if isinstance(res, dict) else False
-                    logger.info("[trade_loop][tick] execute_entry returned ok={}", ok)
+                    logger.info("[trade_loop][tick] run_tick_loop returned ok={}", ok)
                 except Exception as e:
                     logger.exception("[trade_loop] tick failed: {}", e)
             except Exception as e:

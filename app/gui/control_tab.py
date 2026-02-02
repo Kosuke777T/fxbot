@@ -1,8 +1,8 @@
-from typing import Optional
+from typing import Optional, Dict, Any, List
 from pathlib import Path
 import json
 from datetime import datetime, timezone
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from PyQt6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
@@ -14,6 +14,10 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.figure import Figure
+from core.metrics import METRICS_JSON, METRICS
 
 from app.core.config_loader import load_config
 from app.services import circuit_breaker, trade_state
@@ -93,19 +97,23 @@ class ControlTab(QWidget):
         box_run.setLayout(lay_run)
         root_layout.addWidget(box_run)
 
-        # しきい値
+        # しきい値（縦に圧縮）
         box_thr = QGroupBox("エントリーしきい値（確信度）")
+        box_thr.setMaximumHeight(80)
         lay_thr = QHBoxLayout()
+        lay_thr.setContentsMargins(6, 6, 6, 6)
         self.lbl_buy = QLabel("買い: 0.60")
         self.sld_buy = QSlider(Qt.Orientation.Horizontal)
         self.sld_buy.setRange(50, 80)
         self.sld_buy.setValue(60)
+        self.sld_buy.setFixedHeight(18)
         self.sld_buy.valueChanged.connect(self._on_thr_changed)
 
         self.lbl_sell = QLabel("売り: 0.60")
         self.sld_sell = QSlider(Qt.Orientation.Horizontal)
         self.sld_sell.setRange(50, 80)
         self.sld_sell.setValue(60)
+        self.sld_sell.setFixedHeight(18)
         self.sld_sell.valueChanged.connect(self._on_thr_changed)
 
         lay_thr.addWidget(self.lbl_buy)
@@ -116,9 +124,11 @@ class ControlTab(QWidget):
         box_thr.setLayout(lay_thr)
         root_layout.addWidget(box_thr)
 
-        # 決済
+        # 決済（縦に圧縮）
         box_exit = QGroupBox("決済（固定pips）")
+        box_exit.setMaximumHeight(70)
         lay_exit = QHBoxLayout()
+        lay_exit.setContentsMargins(6, 6, 6, 6)
         self.sp_sl = QSpinBox()
         self.sp_sl.setRange(1, 200)
         self.sp_sl.setValue(10)
@@ -137,9 +147,26 @@ class ControlTab(QWidget):
         box_exit.setLayout(lay_exit)
         root_layout.addWidget(box_exit)
 
+        # 確率履歴グラフ（決済枠の下）
+        graph_group = QGroupBox("Probs (p_buy / p_sell / p_skip) — latest 100")
+        graph_layout = QVBoxLayout(graph_group)
+        self._probs_fig = Figure(figsize=(6, 2.5), tight_layout=True)
+        self._probs_ax = self._probs_fig.add_subplot(111)
+        self._probs_canvas = FigureCanvas(self._probs_fig)
+        self._probs_canvas.setMinimumHeight(180)
+        graph_layout.addWidget(self._probs_canvas)
+        root_layout.addWidget(graph_group)
+
         # 状態表示
         self.lbl_status = QLabel("")
         root_layout.addWidget(self.lbl_status)
+
+        # 確率グラフの定期更新（metrics.json を1秒ごとに読む）
+        self._probs_timer = QTimer(self)
+        self._probs_timer.setInterval(1000)
+        self._probs_timer.timeout.connect(self._refresh_probs_graph_from_metrics)
+        self._probs_timer.start()
+        self._refresh_probs_graph_from_metrics()
 
         self._sync_from_state()
 
@@ -240,6 +267,52 @@ class ControlTab(QWidget):
     def _on_exit_changed(self, *_):
         trade_state.update(sl_pips=int(self.sp_sl.value()), tp_pips=int(self.sp_tp.value()))
         self._refresh_status()
+
+    def _refresh_probs_graph_from_metrics(self) -> None:
+        """runtime/metrics.json の probs_history から 3本線 + threshold 水平線を描画。データ無し/キー無しは N/A で落ちない。"""
+        kv: Dict[str, Any] = {}
+        try:
+            with open(METRICS_JSON, "r", encoding="utf-8") as f:
+                kv = json.load(f)
+        except Exception:
+            kv = METRICS.get()
+        try:
+            hist = kv.get("probs_history")
+            if not isinstance(hist, dict):
+                self._probs_ax.clear()
+                self._probs_ax.text(0.5, 0.5, "N/A", ha="center", va="center", transform=self._probs_ax.transAxes)
+                self._probs_canvas.draw_idle()
+                return
+            p_buy_list: List[float] = list(hist.get("p_buy") or [])
+            p_sell_list: List[float] = list(hist.get("p_sell") or [])
+            p_skip_list: List[float] = list(hist.get("p_skip") or [])
+            threshold_val = float(hist.get("threshold", 0.52))
+            n = max(len(p_buy_list), len(p_sell_list), len(p_skip_list), 1)
+            if n == 0:
+                self._probs_ax.clear()
+                self._probs_ax.text(0.5, 0.5, "N/A", ha="center", va="center", transform=self._probs_ax.transAxes)
+                self._probs_canvas.draw_idle()
+                return
+            x = list(range(n))
+            self._probs_ax.clear()
+            if p_buy_list:
+                self._probs_ax.plot(x, p_buy_list, color="green", label="p_buy", linewidth=1)
+            if p_sell_list:
+                self._probs_ax.plot(x, p_sell_list, color="red", label="p_sell", linewidth=1)
+            if p_skip_list:
+                self._probs_ax.plot(x, p_skip_list, color="gray", label="p_skip", linewidth=1)
+            self._probs_ax.axhline(y=threshold_val, color="blue", linestyle="--", linewidth=1, label="threshold")
+            self._probs_ax.set_ylim(-0.05, 1.05)
+            self._probs_ax.legend(loc="upper right", fontsize=7)
+            self._probs_ax.set_xlabel("tick (latest 100)")
+            self._probs_canvas.draw_idle()
+        except Exception:
+            try:
+                self._probs_ax.clear()
+                self._probs_ax.text(0.5, 0.5, "N/A", ha="center", va="center", transform=self._probs_ax.transAxes)
+                self._probs_canvas.draw_idle()
+            except Exception:
+                pass
 
     def _close_all_mock(self):
         cfg = load_config()

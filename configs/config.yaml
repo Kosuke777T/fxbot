@@ -17,6 +17,8 @@ runtime:
   slip_limit: 0.015
   spread_limit_pips: 0.2
   post_fill_grace_sec: 60
+  # バー確定遅延吸収（秒）。bar_end_time + ohlc_confirm_delay_sec <= now で確定扱い
+  ohlc_confirm_delay_sec: 30
 guard:
   reconcile_interval_sec: 15
   desync_fix: true

@@ -5,7 +5,9 @@ OHLCV CSV自動更新サービス（GUI起動中にMT5最新まで追記＋推�
 
 from __future__ import annotations
 
+import os
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -13,6 +15,7 @@ from typing import Any, Dict, Optional
 import MetaTrader5 as mt5
 import pandas as pd
 from loguru import logger
+from pandas.errors import EmptyDataError
 
 from app.core.symbol_map import resolve_symbol
 from app.services import data_guard
@@ -460,6 +463,10 @@ def ensure_lgbm_proba_uptodate(
     """
     symbol_tag = str(symbol or "USDJPY").rstrip("-").upper().strip()
     tf = str(timeframe or "M5").upper().strip()
+    ohlc_last_time_str: Optional[str] = None
+    proba_last_time_str_out: Optional[str] = None
+    df_ohlc_shape: Optional[tuple] = None
+    proba_path_str = ""
 
     try:
         # 1) M5 CSVのパスを取得
@@ -473,14 +480,21 @@ def ensure_lgbm_proba_uptodate(
         if df_ohlc.empty or "time" not in df_ohlc.columns:
             logger.warning(f"[lgbm] OHLC CSV is empty or missing time column: {ohlc_csv_path}")
             return
-
+        df_ohlc["time"] = pd.to_datetime(df_ohlc["time"], errors="coerce")
+        df_ohlc = df_ohlc.dropna(subset=["time"])
+        if df_ohlc.empty:
+            logger.warning(f"[lgbm] OHLC CSV has no valid time after coerce: {ohlc_csv_path}")
+            return
         df_ohlc = df_ohlc.sort_values("time").reset_index(drop=True)
-        t_ohlc_last = df_ohlc["time"].max()
+        t_ohlc_last = pd.Timestamp(df_ohlc["time"].iloc[-1])
+        ohlc_last_time_str = str(t_ohlc_last)
+        df_ohlc_shape = df_ohlc.shape
 
         # 3) proba CSVのパスを取得
         proba_dir = ohlc_csv_path.parent.parent / "lgbm"
         proba_dir.mkdir(parents=True, exist_ok=True)
         proba_csv_path = proba_dir / f"{symbol_tag}_{tf}_proba.csv"
+        proba_path_str = str(proba_csv_path)
 
         # 4) model_idを関数冒頭で1回だけ確定（active_model.jsonから）
         model_id: Optional[str] = None
@@ -510,38 +524,58 @@ def ensure_lgbm_proba_uptodate(
         # 5) proba CSVの既存データを読み込み（世代管理: (time, model_id) の組み合わせ）
         t_proba_last: Optional[pd.Timestamp] = None
         existing_keys: set[tuple[pd.Timestamp, str]] = set()
+        proba_last_time_str: Optional[str] = None
 
         if proba_csv_path.exists():
-            try:
-                df_proba = pd.read_csv(proba_csv_path, parse_dates=["time"])
-                if not df_proba.empty and "time" in df_proba.columns:
-                    # ★ 読み取り直後に必ずtimeで昇順ソート（mergesort: 安定ソート）
+            df_proba = None
+            for attempt in range(3):
+                try:
+                    df_proba = pd.read_csv(proba_csv_path, parse_dates=["time"])
+                    break
+                except EmptyDataError:
+                    if attempt < 2:
+                        time.sleep(0.05 + 0.05 * attempt)
+                    else:
+                        logger.warning(
+                            "[lgbm] proba CSV empty/parse failed after retries: proba_path={}",
+                            str(proba_csv_path),
+                        )
+                        return
+                except Exception as e:
+                    if attempt < 2:
+                        time.sleep(0.05 + 0.05 * attempt)
+                    else:
+                        logger.warning(
+                            "[lgbm] failed to read proba CSV after retries: proba_path={} error={}",
+                            str(proba_csv_path), e,
+                        )
+                        return
+            if df_proba is not None and not df_proba.empty and "time" in df_proba.columns:
+                df_proba["time"] = pd.to_datetime(df_proba["time"], errors="coerce")
+                df_proba = df_proba.dropna(subset=["time"])
+                if not df_proba.empty:
                     df_proba = df_proba.sort_values("time", kind="mergesort").reset_index(drop=True)
-
-                    # 現在のmodel_idの行だけから t_proba_last を取得（max(time)で最新判定）
                     if "model_id" in df_proba.columns:
                         df_current_model = df_proba[df_proba["model_id"] == model_id]
                         if not df_current_model.empty:
-                            t_proba_last = df_current_model["time"].max()
+                            t_proba_last = pd.Timestamp(df_current_model["time"].iloc[-1])
                     else:
-                        # model_id列がない場合は全体から取得（後方互換）
-                        t_proba_last = df_proba["time"].max()
-
-                    # 既存の (time, model_id) の組み合わせを記録（ソート済みdfから）
+                        t_proba_last = pd.Timestamp(df_proba["time"].iloc[-1])
+                    proba_last_time_str = str(t_proba_last)
+                    proba_last_time_str_out = proba_last_time_str
                     if "model_id" in df_proba.columns:
                         for _, row in df_proba.iterrows():
-                            existing_keys.add((row["time"], str(row["model_id"])))
+                            existing_keys.add((pd.Timestamp(row["time"]), str(row["model_id"])))
                     else:
-                        # model_id列がない場合は time のみ（後方互換）
                         for _, row in df_proba.iterrows():
-                            existing_keys.add((row["time"], "unknown"))
-            except Exception as e:
-                logger.warning(f"[lgbm] failed to read proba CSV: {e}")
+                            existing_keys.add((pd.Timestamp(row["time"]), "unknown"))
 
-        # 6) 未推論のM5行を抽出（model_idは関数冒頭で確定済み）
+        # 6) 未推論のM5行を抽出（model_idは関数冒頭で確定済み）。比較はすべて Timestamp で統一。
         if start_time is not None and end_time is not None:
             # 範囲指定時: start_time から end_time の範囲で、既存の (time, model_id) が存在しない行
-            range_mask = (df_ohlc["time"] >= pd.Timestamp(start_time)) & (df_ohlc["time"] <= pd.Timestamp(end_time))
+            ts_start = pd.Timestamp(start_time)
+            ts_end = pd.Timestamp(end_time)
+            range_mask = (df_ohlc["time"] >= ts_start) & (df_ohlc["time"] <= ts_end)
             df_range = df_ohlc[range_mask].copy()
             # 既存の (time, model_id) の組み合わせを除外
             missing_mask = df_range.apply(
@@ -571,7 +605,8 @@ def ensure_lgbm_proba_uptodate(
                 missing_mask = df_ohlc.index >= max(0, len(df_ohlc) - 100)
             else:
                 # 通常: t_proba_lastより後の行で、既存の (time, model_id) が存在しない行
-                future_mask = df_ohlc["time"] > t_proba_last
+                t_proba_ts = pd.Timestamp(t_proba_last)
+                future_mask = df_ohlc["time"] > t_proba_ts
                 df_future = df_ohlc[future_mask].copy()
                 missing_mask = df_future.apply(
                     lambda row: (row["time"], model_id) not in existing_keys, axis=1
@@ -806,22 +841,39 @@ def ensure_lgbm_proba_uptodate(
             except Exception as e:
                 logger.warning("[lgbm_proba][prewrite] failed: {}", e)
 
-            # CSVが存在する場合は追記、存在しない場合は新規作成
+            # atomic write: tmp に書いて os.replace で置換（空ファイル競合を防ぐ）
+            final_path = proba_csv_path
+            tmp_path = Path(str(proba_csv_path) + ".tmp")
             if proba_csv_path.exists():
-                # --- 観測ログ（保存直前: write） ---
-                logger.info(
-                    "[lgbm_proba][write] path={} mode=a header=false index=false date_format={} float_format=None round_used=None",
-                    str(proba_csv_path),
-                    "%Y-%m-%d %H:%M:%S",
-                )
-                df_new.to_csv(proba_csv_path, mode="a", header=False, index=False, date_format="%Y-%m-%d %H:%M:%S")
+                df_to_write = None
+                for attempt in range(3):
+                    try:
+                        df_existing = pd.read_csv(proba_csv_path, parse_dates=["time"])
+                        df_existing["time"] = pd.to_datetime(df_existing["time"], errors="coerce")
+                        df_existing = df_existing.dropna(subset=["time"])
+                        df_to_write = pd.concat([df_existing, df_new], ignore_index=True)
+                        break
+                    except EmptyDataError:
+                        if attempt < 2:
+                            time.sleep(0.05 + 0.05 * attempt)
+                        else:
+                            df_to_write = df_new.copy()
+                            break
+                    except Exception:
+                        if attempt < 2:
+                            time.sleep(0.05 + 0.05 * attempt)
+                        else:
+                            raise
+                if df_to_write is not None:
+                    df_to_write.to_csv(tmp_path, mode="w", header=True, index=False, date_format="%Y-%m-%d %H:%M:%S")
+                    os.replace(tmp_path, final_path)
             else:
                 logger.info(
-                    "[lgbm_proba][write] path={} mode=w header=true index=false date_format={} float_format=None round_used=None",
+                    "[lgbm_proba][write] path={} atomic tmp then replace header=true",
                     str(proba_csv_path),
-                    "%Y-%m-%d %H:%M:%S",
                 )
-                df_new.to_csv(proba_csv_path, mode="w", header=True, index=False, date_format="%Y-%m-%d %H:%M:%S")
+                df_new.to_csv(tmp_path, mode="w", header=True, index=False, date_format="%Y-%m-%d %H:%M:%S")
+                os.replace(tmp_path, final_path)
 
         # 10) 必須ログ
         range_start_str = start_time.strftime("%Y-%m-%d %H:%M:%S") if start_time else "none"
@@ -837,8 +889,14 @@ def ensure_lgbm_proba_uptodate(
             appended_count,
         )
 
-    except Exception as e:
-        logger.error(f"[lgbm] ensure_lgbm_proba_uptodate failed: {e}")
+    except Exception:
+        logger.exception(
+            "[lgbm] ensure_lgbm_proba_uptodate failed: proba_path={} ohlc_last_time={} proba_last_time={} df_shape={}",
+            proba_path_str,
+            ohlc_last_time_str,
+            proba_last_time_str_out,
+            df_ohlc_shape,
+        )
 
 
 if __name__ == "__main__":

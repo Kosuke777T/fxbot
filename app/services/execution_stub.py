@@ -1478,6 +1478,19 @@ class ExecutionStub:
                 "max_positions": runtime.get("max_positions", 1),
             }
 
+            # 確率確定直後に履歴を1回だけ push（Dashboard グラフ用）
+            try:
+                from app.services.metrics import push_probs
+                thr = float(filters_ctx.get("prob_threshold") or prob_threshold)
+                push_probs(
+                    float(getattr(ai_out, "p_buy", 0.0)),
+                    float(getattr(ai_out, "p_sell", 0.0)),
+                    float(getattr(ai_out, "p_skip", 0.0)),
+                    thr,
+                )
+            except Exception:
+                pass
+
             # no_metrics=True のときは metrics 更新をスキップ（publish_metrics 内で判定）
             publish_metrics({
                 "last_decision": action,

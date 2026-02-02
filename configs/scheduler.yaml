@@ -97,3 +97,12 @@ jobs:
     minute: null
     run_always: true
     scheduler_level: 3
+  # proba CSV auto update (OHLC 更新に追随、同一 run_always 間隔で実行)
+  - id: lgbm_m5_proba_auto_update
+    enabled: true
+    command: python -c "from app.services.ohlcv_update_service import ensure_lgbm_proba_uptodate; ensure_lgbm_proba_uptodate(symbol='USDJPY-', timeframe='M5')"
+    weekday: null
+    hour: null
+    minute: null
+    run_always: true
+    scheduler_level: 3

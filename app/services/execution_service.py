@@ -4,11 +4,16 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-from datetime import datetime
+import os
+import time
+from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
+import pandas as pd
 from loguru import logger as loguru_logger
+
+from core.utils.timeutil import JST
 
 # 注意: 将来 decision_logic が肥大化した場合、
 # services/decision_service.py 的な薄いラッパを挟む余地あり
@@ -20,9 +25,11 @@ from app.services.ai_service import get_ai_service, get_model_metrics
 from app.services.loss_streak_service import get_consecutive_losses
 from app.core.strategy_profile import get_profile
 from app.services.edition_guard import filter_level, EditionGuard
-from app.services import trade_state
+from app.services import trade_state, data_guard
+from app.services.ohlcv_update_service import ensure_lgbm_proba_uptodate
 from core.utils.timeutil import now_jst_iso
 from app.core import market, mt5_client
+from app.core.config_loader import load_config
 
 # プロジェクトルート = app/services/ から 2 つ上
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -34,6 +41,9 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 # 例: USDJPY- → logs/decisions_USDJPY-.jsonl
 LOG_DIR = _PROJECT_ROOT / "logs" / "decisions"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
+
+# バー確定の重複更新防止（同一 bar_time で proba を二重に書かない）
+_last_confirmed_bar_time: Optional[pd.Timestamp] = None
 
 
 def _symbol_to_filename(symbol: str) -> str:
@@ -526,6 +536,181 @@ class ExecutionService:
                         r,
                     )
 
+    def _check_bar_confirmed(self, symbol: str) -> Tuple[bool, str, Optional[pd.Timestamp]]:
+        """
+        確定バー判定（遅延吸収）。M5 の bar_end = bar_time + 5分 とし、
+        bar_end + ohlc_confirm_delay_sec <= now かつ前回確定済みと同一でない場合に True。
+        証拠をログに残す（ohlc_path / exists / last_mtime / last_bar_time）。
+        Returns:
+            (confirmed, skip_reason, bar_time)
+        """
+        global _last_confirmed_bar_time
+        try:
+            cfg = load_config()
+            runtime = (cfg.get("runtime", {}) or {}) if isinstance(cfg, dict) else {}
+            symbol_tag = (symbol or "USDJPY").rstrip("-").upper().strip()
+            delay_sec = int(runtime.get("ohlc_confirm_delay_sec", 30))
+        except Exception:
+            symbol_tag = "USDJPY"
+            delay_sec = 30
+        try:
+            # OHLCパス: data_guard 推奨 → フォールバック data/symbol/ohlcv/symbol_M5.csv
+            preferred_path = data_guard.csv_path(symbol_tag=symbol_tag, timeframe="M5", layout="per-symbol")
+            fallback_path = _PROJECT_ROOT / "data" / symbol_tag / "ohlcv" / f"{symbol_tag}_M5.csv"
+            if preferred_path.exists():
+                ohlc_path = preferred_path
+            elif fallback_path.exists():
+                ohlc_path = fallback_path
+            else:
+                ohlc_path = preferred_path
+
+            exists = ohlc_path.exists()
+            last_mtime_str = "n/a"
+            if exists:
+                try:
+                    mt = os.path.getmtime(ohlc_path)
+                    last_mtime_str = datetime.fromtimestamp(mt, tz=JST).strftime("%Y-%m-%d %H:%M:%S")
+                except Exception:
+                    last_mtime_str = "?"
+
+            if not exists:
+                loguru_logger.info(
+                    "[_check_bar_confirmed] ohlc_path={} exists=False last_mtime={} last_bar_time=n/a skip_reason=ohlc_csv_not_found",
+                    str(ohlc_path), last_mtime_str,
+                )
+                return (False, "ohlc_csv_not_found", None)
+
+            df = pd.read_csv(ohlc_path, parse_dates=["time"])
+            if df.empty or "time" not in df.columns:
+                loguru_logger.info(
+                    "[_check_bar_confirmed] ohlc_path={} exists=True last_mtime={} last_bar_time=n/a skip_reason=ohlc_empty",
+                    str(ohlc_path), last_mtime_str,
+                )
+                return (False, "ohlc_empty", None)
+            df["time"] = pd.to_datetime(df["time"], errors="coerce")
+            df = df.dropna(subset=["time"])
+            if df.empty:
+                loguru_logger.info(
+                    "[_check_bar_confirmed] ohlc_path={} exists=True last_mtime={} last_bar_time=n/a skip_reason=ohlc_no_valid_time",
+                    str(ohlc_path), last_mtime_str,
+                )
+                return (False, "ohlc_no_valid_time", None)
+
+            # 並び順に依存せず max(time) を最新バーとして判定
+            bar_time = pd.Timestamp(df["time"].max())
+            min_time = pd.Timestamp(df["time"].min())
+            max_time = pd.Timestamp(df["time"].max())
+            rows = len(df)
+            last_bar_time_str = bar_time.strftime("%Y-%m-%d %H:%M:%S")
+            min_time_str = min_time.strftime("%Y-%m-%d %H:%M:%S")
+            max_time_str = max_time.strftime("%Y-%m-%d %H:%M:%S")
+            loguru_logger.info(
+                "[_check_bar_confirmed] ohlc_path={} exists=True last_mtime={} min_time={} max_time={} rows={} last_bar_time={}",
+                str(ohlc_path), last_mtime_str, min_time_str, max_time_str, rows, last_bar_time_str,
+            )
+
+            # M5: バー終端 = bar_time + 5分。確定は bar_end + delay 以降
+            bar_end = bar_time + timedelta(minutes=5)
+            bar_end_dt = bar_end.to_pydatetime() if hasattr(bar_end, "to_pydatetime") else bar_end
+            bar_end_naive = bar_end_dt.replace(tzinfo=None) if getattr(bar_end_dt, "tzinfo", None) else bar_end_dt
+            bar_end_plus_delay = bar_end_naive + timedelta(seconds=delay_sec)
+
+            now_jst = datetime.now(JST)
+            now_naive = now_jst.replace(tzinfo=None) if now_jst.tzinfo else now_jst
+            time_ok = now_naive >= bar_end_plus_delay
+            not_dup = (bar_time != _last_confirmed_bar_time)
+            confirmed = time_ok and not_dup
+            skip_reason = "bar_not_confirmed" if not time_ok else ("bar_already_confirmed" if not not_dup else "")
+            loguru_logger.info(
+                "[ohlc] bar_confirmed bar_time={} bar_end_plus_delay={} now={} delay_sec={} confirmed={} skip_reason={}",
+                bar_time, bar_end_plus_delay, now_naive, delay_sec, confirmed, skip_reason or "ok",
+            )
+            if confirmed:
+                _last_confirmed_bar_time = bar_time
+            return (confirmed, skip_reason or "ok", bar_time)
+        except Exception as e:
+            loguru_logger.warning("[ohlc] bar_confirmed check failed: {}", e)
+            return (False, "check_failed", None)
+
+    def _update_proba_csv(self, symbol: str, bar_time: pd.Timestamp) -> None:
+        """
+        【未使用】proba CSV 更新は ensure_lgbm_proba_uptodate に一本化済み。
+        このメソッドは別スキーマ（timestamp_jst/bar_time/p_buy 等）で追記し列ずれを起こすため、
+        run_tick_loop からは呼ばれない。互換のためメソッドは残す。
+        """
+        proba_path: Optional[Path] = None
+        try:
+            symbol_tag = (symbol or "USDJPY").rstrip("-").upper().strip()
+            proba_dir = _PROJECT_ROOT / "data" / symbol_tag / "lgbm"
+            proba_dir.mkdir(parents=True, exist_ok=True)
+            proba_path = proba_dir / f"{symbol_tag}_M5_proba.csv"
+            loguru_logger.info(
+                "[proba] writing proba_path={} bar_time={}",
+                str(proba_path),
+                bar_time.strftime("%Y-%m-%d %H:%M:%S"),
+            )
+            tmp_path = Path(str(proba_path) + ".tmp")
+            ai = get_ai_service()
+            probs = ai.get_live_probs(symbol)
+            p_buy = float(probs.get("p_buy", 0.0))
+            p_sell = float(probs.get("p_sell", 0.0))
+            p_skip = float(probs.get("p_skip", 0.0))
+            try:
+                thr = float(get_model_metrics().get("best_threshold", 0.52))
+            except Exception:
+                thr = 0.52
+            now_jst = datetime.now(JST).strftime("%Y-%m-%d %H:%M:%S")
+            bar_str = bar_time.strftime("%Y-%m-%d %H:%M:%S")
+            row = {"timestamp_jst": now_jst, "symbol": symbol_tag, "bar_time": bar_str, "p_buy": p_buy, "p_sell": p_sell, "p_skip": p_skip, "threshold": thr, "decision_hint": ""}
+            new_df = pd.DataFrame([row])
+            if proba_path.exists():
+                for attempt in range(3):
+                    try:
+                        df_ex = pd.read_csv(proba_path, parse_dates=False)
+                        df_out = pd.concat([df_ex, new_df], ignore_index=True)
+                        df_out.to_csv(tmp_path, index=False, date_format="%Y-%m-%d %H:%M:%S")
+                        os.replace(tmp_path, proba_path)
+                        break
+                    except Exception:
+                        if attempt < 2:
+                            time.sleep(0.05 + 0.05 * attempt)
+                        else:
+                            raise
+            else:
+                new_df.to_csv(tmp_path, index=False, date_format="%Y-%m-%d %H:%M:%S")
+                os.replace(tmp_path, proba_path)
+            loguru_logger.info("[proba] updated path={} rows=1 ts={}", str(proba_path), bar_str)
+        except Exception as e:
+            loguru_logger.warning("[proba] update failed path={} error={}", str(proba_path) if proba_path is not None else "?", e)
+
+    def run_tick_loop(
+        self,
+        symbol: str,
+        features: Dict[str, float],
+        *,
+        dry_run: bool = False,
+        run_id: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """
+        取引ループ用の単一入口。確定バー判定 → proba CSV 更新 → execute_entry。
+        未確定時は execute_entry を呼ばず SKIP 相当で返す。
+        """
+        confirmed, skip_reason, bar_time = self._check_bar_confirmed(symbol)
+        if not confirmed:
+            loguru_logger.info(
+                "[trade_loop] skip reason=bar_not_confirmed skip_reason={}",
+                skip_reason,
+            )
+            return {"ok": False, "reasons": [skip_reason], "bar_confirmed": False}
+        if bar_time is not None:
+            loguru_logger.info(
+                "[proba] calling ensure_lgbm_proba_uptodate symbol={} timeframe=M5 bar_time={}",
+                symbol,
+                bar_time.strftime("%Y-%m-%d %H:%M:%S"),
+            )
+            ensure_lgbm_proba_uptodate(symbol=symbol, timeframe="M5")
+        return self.execute_entry(features, symbol=symbol, dry_run=dry_run, run_id=run_id)
+
     def execute_entry(
         self,
         features: Dict[str, float],
@@ -597,10 +782,30 @@ class ExecutionService:
         # --- 1) モデル予測 ---
         pred = self.ai_service.predict(features)
 
-        # ProbOut オブジェクトから確率を取得（確率は pred から取得）
-        # 固定値は設定しない（デバッグ時のみに限定）
-        prob_buy = getattr(pred, "p_buy", None)
-        prob_sell = getattr(pred, "p_sell", None)
+        # pred から確率を取得（dict / オブジェクト両対応）
+        if isinstance(pred, dict):
+            _pb = pred.get("prob_buy") or pred.get("p_buy")
+            _ps = pred.get("prob_sell") or pred.get("p_sell")
+            _p_skip_raw = pred.get("prob_skip") or pred.get("p_skip")
+            p_skip = float(_p_skip_raw) if _p_skip_raw is not None else 0.0
+            _probs_source = "dict"
+        else:
+            _pb = getattr(pred, "prob_buy", None) or getattr(pred, "p_buy", None)
+            _ps = getattr(pred, "prob_sell", None) or getattr(pred, "p_sell", None)
+            _p_skip_raw = getattr(pred, "prob_skip", None) or getattr(pred, "p_skip", None)
+            p_skip = float(_p_skip_raw) if _p_skip_raw is not None else 0.0
+            _probs_source = "object"
+        try:
+            prob_buy = float(_pb) if _pb is not None else None
+            prob_sell = float(_ps) if _ps is not None else None
+        except (TypeError, ValueError):
+            prob_buy = None
+            prob_sell = None
+        if _probs_source == "dict":
+            loguru_logger.info(
+                "[probs] extracted source=dict p_buy={} p_sell={} p_skip={}",
+                prob_buy, prob_sell, p_skip,
+            )
 
         # 確率が取得できない場合はエラーログを出してSKIPで返す（固定値は設定しない）
         if prob_buy is None or prob_sell is None:
@@ -703,6 +908,21 @@ class ExecutionService:
             prob_sell=prob_sell,
             best_threshold=best_threshold,
         )
+
+        # 確率確定直後に1回だけ push（全tickで履歴を積む。filter 通過前なのでグラフは毎tick更新される）
+        try:
+            from app.services.metrics import push_probs
+            push_probs(
+                float(prob_buy),
+                float(prob_sell),
+                float(p_skip),
+                float(best_threshold),
+            )
+        except Exception as e:
+            loguru_logger.warning(
+                "[probs] push_probs failed (metrics history not updated): {}",
+                e,
+            )
 
         # --- 2) EntryContext を構築（ProfileStats を含む） ---
         if timestamp is None:

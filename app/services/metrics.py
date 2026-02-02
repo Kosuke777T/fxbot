@@ -2,13 +2,58 @@
 # T-62 以降: runtime/metrics.json は atomic write（tmp → os.replace）+ ロック時リトライ、失敗時は tmp 残して次回回復可能。
 # 変更箇所: publish_metrics() 内の JSON 書き込みブロック（write_text → .tmp、os.replace で置換、リトライ、失敗時 tmp 残し）
 from __future__ import annotations
+from collections import deque
 from pathlib import Path
 from typing import Dict, Any
 import json
 import os
 import time
 import traceback
+from loguru import logger as _logger
 from core.metrics import METRICS_JSON, METRICS  # METRICS_JSON はファイルパス、METRICS はKVS
+
+# 確率履歴リング（最新100件）。Dashboard の p_buy/p_sell/p_skip グラフ用。
+_PROBS_HISTORY_MAXLEN = 100
+_probs_deque: deque = deque(maxlen=_PROBS_HISTORY_MAXLEN)
+_probs_latest: Dict[str, Any] | None = None
+
+
+_PROBS_DEDUP_EPS = 1e-6
+
+
+def push_probs(p_buy: float, p_sell: float, p_skip: float, threshold: float) -> None:
+    """
+    確率が確定した直後に1回だけ呼ぶ。履歴をリングに追加し、probs_latest を更新する。
+    直近と同一（eps 未満）なら append しない（変化時のみ履歴を伸ばす）。
+    publish_metrics 内でこれらが JSON に merge される。
+    """
+    eps = _PROBS_DEDUP_EPS
+    p_buy_f = float(p_buy)
+    p_sell_f = float(p_sell)
+    p_skip_f = float(p_skip)
+    threshold_f = float(threshold)
+    last = _probs_deque[-1] if _probs_deque else None
+    if last is not None:
+        if (
+            abs(last["p_buy"] - p_buy_f) < eps
+            and abs(last["p_sell"] - p_sell_f) < eps
+            and abs(last["p_skip"] - p_skip_f) < eps
+            and abs(last["threshold"] - threshold_f) < eps
+        ):
+            _logger.debug(
+                "[probs] dedup skip (no change) p_buy={:.4f} p_sell={:.4f}",
+                p_buy_f, p_sell_f,
+            )
+            return
+    ts = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(time.time()))
+    entry = {"p_buy": p_buy_f, "p_sell": p_sell_f, "p_skip": p_skip_f, "threshold": threshold_f, "ts": ts}
+    global _probs_latest
+    _probs_latest = dict(entry)
+    _probs_deque.append(entry)
+    _logger.info(
+        "[probs] pushed len={} p_buy={:.4f} p_sell={:.4f} p_skip={:.4f} thr={:.4f}",
+        len(_probs_deque), p_buy_f, p_sell_f, p_skip_f, threshold_f,
+    )
 
 def _metrics_enabled(no_metrics: bool = False) -> bool:
     """
@@ -56,6 +101,21 @@ def publish_metrics(kv: Dict[str, Any], no_metrics: bool = False) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     data = dict(kv)
     data.setdefault("ts", int(time.time()))
+
+    # 確率履歴を merge（Dashboard の折れ線グラフ用）
+    if _probs_latest is not None:
+        data["probs_latest"] = dict(_probs_latest)
+    _list = list(_probs_deque)
+    if _list:
+        data["probs_history"] = {
+            "p_buy": [e["p_buy"] for e in _list],
+            "p_sell": [e["p_sell"] for e in _list],
+            "p_skip": [e["p_skip"] for e in _list],
+            "threshold": float(_list[-1]["threshold"]) if _list else 0.52,
+        }
+    hist = data.get("probs_history")
+    hist_len = len(hist.get("p_buy", [])) if isinstance(hist, dict) else 0
+    _logger.info("[probs] publish merge ok hist_len={}", hist_len)
 
     txt = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
     tmp_path = path.parent / "metrics.json.tmp"
