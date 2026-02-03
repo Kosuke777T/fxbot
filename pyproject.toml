@@ -5,3 +5,8 @@ line-length = 88
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "ARG", "PT", "PL"]
 ignore = ["E501"]
+
+[project]
+name = "fxbot"
+version = "0.1.0"
+requires-python = ">=3.13"

@@ -150,6 +150,11 @@ class ControlTab(QWidget):
         # 確率履歴グラフ（決済枠の下）
         graph_group = QGroupBox("Probs (p_buy / p_sell / p_skip) — latest 100")
         graph_layout = QVBoxLayout(graph_group)
+        self.lbl_probs_latest = QLabel("latest: N/A")
+        self.lbl_probs_latest.setStyleSheet(
+            "QLabel { background-color: #f8f8f8; padding: 2px 6px; font-size: 11px; }"
+        )
+        graph_layout.addWidget(self.lbl_probs_latest)
         self._probs_fig = Figure(figsize=(6, 2.5), tight_layout=True)
         self._probs_ax = self._probs_fig.add_subplot(111)
         self._probs_canvas = FigureCanvas(self._probs_fig)
@@ -279,6 +284,7 @@ class ControlTab(QWidget):
         try:
             hist = kv.get("probs_history")
             if not isinstance(hist, dict):
+                self.lbl_probs_latest.setText("latest: N/A")
                 self._probs_ax.clear()
                 self._probs_ax.text(0.5, 0.5, "N/A", ha="center", va="center", transform=self._probs_ax.transAxes)
                 self._probs_canvas.draw_idle()
@@ -289,6 +295,7 @@ class ControlTab(QWidget):
             threshold_val = float(hist.get("threshold", 0.52))
             n = max(len(p_buy_list), len(p_sell_list), len(p_skip_list), 1)
             if n == 0:
+                self.lbl_probs_latest.setText("latest: N/A")
                 self._probs_ax.clear()
                 self._probs_ax.text(0.5, 0.5, "N/A", ha="center", va="center", transform=self._probs_ax.transAxes)
                 self._probs_canvas.draw_idle()
@@ -305,9 +312,16 @@ class ControlTab(QWidget):
             self._probs_ax.set_ylim(-0.05, 1.05)
             self._probs_ax.legend(loc="upper right", fontsize=7)
             self._probs_ax.set_xlabel("tick (latest 100)")
+            p_buy_str = f"{p_buy_list[-1]:.3f}" if p_buy_list else "N/A"
+            p_sell_str = f"{p_sell_list[-1]:.3f}" if p_sell_list else "N/A"
+            p_skip_str = f"{p_skip_list[-1]:.3f}" if p_skip_list else "N/A"
+            self.lbl_probs_latest.setText(
+                f"latest: p_buy={p_buy_str} p_sell={p_sell_str} p_skip={p_skip_str} thr={threshold_val:.2f} n={n}"
+            )
             self._probs_canvas.draw_idle()
         except Exception:
             try:
+                self.lbl_probs_latest.setText("latest: N/A")
                 self._probs_ax.clear()
                 self._probs_ax.text(0.5, 0.5, "N/A", ha="center", va="center", transform=self._probs_ax.transAxes)
                 self._probs_canvas.draw_idle()

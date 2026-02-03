@@ -702,6 +702,7 @@ class ExecutionService:
                 skip_reason,
             )
             return {"ok": False, "reasons": [skip_reason], "bar_confirmed": False}
+        pred_from_latest = None
         if bar_time is not None:
             loguru_logger.info(
                 "[proba] calling ensure_lgbm_proba_uptodate symbol={} timeframe=M5 bar_time={}",
@@ -709,7 +710,15 @@ class ExecutionService:
                 bar_time.strftime("%Y-%m-%d %H:%M:%S"),
             )
             ensure_lgbm_proba_uptodate(symbol=symbol, timeframe="M5")
-        return self.execute_entry(features, symbol=symbol, dry_run=dry_run, run_id=run_id)
+            pred_from_latest = self.ai_service.predict_latest(symbol)
+        return self.execute_entry(
+            features,
+            symbol=symbol,
+            dry_run=dry_run,
+            run_id=run_id,
+            bar_time=bar_time,
+            pred_from_latest=pred_from_latest,
+        )
 
     def execute_entry(
         self,
@@ -720,6 +729,8 @@ class ExecutionService:
         timestamp: Optional[datetime] = None,
         suppress_metrics: bool = False,
         run_id: Optional[int] = None,
+        bar_time: Optional[Any] = None,
+        pred_from_latest: Optional[Any] = None,
     ) -> Dict[str, Any]:
         """
         売買判断 → フィルタ判定 → decisions.jsonl 出力まで一貫処理
@@ -779,33 +790,42 @@ class ExecutionService:
         # 以降は effective_dry_run を使用（dry_run パラメータは上書き）
         dry_run = effective_dry_run
 
-        # --- 1) モデル予測 ---
-        pred = self.ai_service.predict(features)
-
-        # pred から確率を取得（dict / オブジェクト両対応）
-        if isinstance(pred, dict):
-            _pb = pred.get("prob_buy") or pred.get("p_buy")
-            _ps = pred.get("prob_sell") or pred.get("p_sell")
-            _p_skip_raw = pred.get("prob_skip") or pred.get("p_skip")
+        # --- 1) モデル予測（pred_from_latest があれば最新バー推論結果を使用、なければ features で推論） ---
+        tick_id = datetime.now().strftime("%Y%m%dT%H%M%S") + f".{int(time.time() * 1000) % 10000:04d}"
+        if pred_from_latest is not None:
+            _pb = getattr(pred_from_latest, "prob_buy", None) or getattr(pred_from_latest, "p_buy", None)
+            _ps = getattr(pred_from_latest, "prob_sell", None) or getattr(pred_from_latest, "p_sell", None)
+            _p_skip_raw = getattr(pred_from_latest, "prob_skip", None) or getattr(pred_from_latest, "p_skip", None)
             p_skip = float(_p_skip_raw) if _p_skip_raw is not None else 0.0
-            _probs_source = "dict"
+            try:
+                prob_buy = float(_pb) if _pb is not None else None
+                prob_sell = float(_ps) if _ps is not None else None
+            except (TypeError, ValueError):
+                prob_buy = None
+                prob_sell = None
         else:
-            _pb = getattr(pred, "prob_buy", None) or getattr(pred, "p_buy", None)
-            _ps = getattr(pred, "prob_sell", None) or getattr(pred, "p_sell", None)
-            _p_skip_raw = getattr(pred, "prob_skip", None) or getattr(pred, "p_skip", None)
-            p_skip = float(_p_skip_raw) if _p_skip_raw is not None else 0.0
-            _probs_source = "object"
-        try:
-            prob_buy = float(_pb) if _pb is not None else None
-            prob_sell = float(_ps) if _ps is not None else None
-        except (TypeError, ValueError):
-            prob_buy = None
-            prob_sell = None
-        if _probs_source == "dict":
-            loguru_logger.info(
-                "[probs] extracted source=dict p_buy={} p_sell={} p_skip={}",
-                prob_buy, prob_sell, p_skip,
-            )
+            pred = self.ai_service.predict(features, tick_id=tick_id)
+            if isinstance(pred, dict):
+                _pb = pred.get("prob_buy") or pred.get("p_buy")
+                _ps = pred.get("prob_sell") or pred.get("p_sell")
+                _p_skip_raw = pred.get("prob_skip") or pred.get("p_skip")
+                p_skip = float(_p_skip_raw) if _p_skip_raw is not None else 0.0
+            else:
+                _pb = getattr(pred, "prob_buy", None) or getattr(pred, "p_buy", None)
+                _ps = getattr(pred, "prob_sell", None) or getattr(pred, "p_sell", None)
+                _p_skip_raw = getattr(pred, "prob_skip", None) or getattr(pred, "p_skip", None)
+                p_skip = float(_p_skip_raw) if _p_skip_raw is not None else 0.0
+            try:
+                prob_buy = float(_pb) if _pb is not None else None
+                prob_sell = float(_ps) if _ps is not None else None
+            except (TypeError, ValueError):
+                prob_buy = None
+                prob_sell = None
+            if isinstance(pred, dict):
+                loguru_logger.info(
+                    "[probs] extracted source=dict p_buy={} p_sell={} p_skip={}",
+                    prob_buy, prob_sell, p_skip,
+                )
 
         # 確率が取得できない場合はエラーログを出してSKIPで返す（固定値は設定しない）
         if prob_buy is None or prob_sell is None:
@@ -893,30 +913,60 @@ class ExecutionService:
             DecisionsLogger.log(record)
             return {"ok": False, "reasons": ["ai_prediction_failed"]}
 
-        # best_threshold を取得
-        try:
-            model_metrics = get_model_metrics()
-            best_threshold = float(model_metrics.get("best_threshold", 0.52))
-        except Exception:
-            best_threshold = 0.52  # フォールバック
+        # しきい値: UI（trade_state）優先、未設定時のみ active_model の best_threshold を参照
+        settings = trade_state.get_settings()
+        thr_buy = getattr(settings, "threshold_buy", None)
+        thr_sell = getattr(settings, "threshold_sell", None)
+        if thr_buy is None or thr_sell is None:
+            try:
+                fallback = float(get_model_metrics().get("best_threshold", 0.52))
+            except Exception:
+                fallback = 0.52
+            if thr_buy is None:
+                thr_buy = fallback
+            if thr_sell is None:
+                thr_sell = fallback
+        thr_buy = float(thr_buy)
+        thr_sell = float(thr_sell)
+
+        # BUY/SELL 別しきい値: 優勢側のしきい値で判定（decide_signal は単一 threshold のため実効値を渡す）
+        pb = float(prob_buy) if prob_buy is not None else 0.0
+        ps = float(prob_sell) if prob_sell is not None else 0.0
+        if pb > ps:
+            effective_threshold = thr_buy
+        elif ps > pb:
+            effective_threshold = thr_sell
+        else:
+            effective_threshold = max(thr_buy, thr_sell)
+        best_threshold = effective_threshold  # 以降の decision_context 等で参照
 
         # decide_signal を使用してシグナル判定
-        # 注意: signal は意思決定結果（side/confidence/threshold判定）であり、
-        # 確率（prob_buy/prob_sell）は pred から取得する
         signal = decide_signal(
             prob_buy=prob_buy,
             prob_sell=prob_sell,
-            best_threshold=best_threshold,
+            best_threshold=effective_threshold,
+        )
+        # 観測点③：意思決定点（UI配線確認: thr_buy/thr_sell/source=trade_state）
+        bar_time_str = bar_time.strftime("%Y-%m-%d %H:%M:%S") if hasattr(bar_time, "strftime") and bar_time is not None else "n/a"
+        side_str = getattr(signal, "side", None) or "SKIP"
+        reason_str = getattr(signal, "reason", "") or "ok"
+        loguru_logger.info(
+            "DECIDE tick_id={} bar_time={} side={} "
+            "p_buy={:.3f} p_sell={:.3f} "
+            "thr_buy={:.2f} thr_sell={:.2f} source=trade_state reason={}",
+            tick_id, bar_time_str, side_str,
+            pb, ps,
+            thr_buy, thr_sell, reason_str,
         )
 
-        # 確率確定直後に1回だけ push（全tickで履歴を積む。filter 通過前なのでグラフは毎tick更新される）
+        # 確率確定直後に1回だけ push（実際に使ったしきい値で metrics に渡す）
         try:
             from app.services.metrics import push_probs
             push_probs(
                 float(prob_buy),
                 float(prob_sell),
                 float(p_skip),
-                float(best_threshold),
+                float(effective_threshold),
             )
         except Exception as e:
             loguru_logger.warning(

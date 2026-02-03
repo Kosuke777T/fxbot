@@ -1,6 +1,7 @@
 from __future__ import annotations
 from pathlib import Path
 from typing import Dict, Any, Optional, TYPE_CHECKING
+import hashlib
 import time
 import json
 import logging
@@ -270,10 +271,10 @@ class AISvc:
         self.expected_features: Optional[list[str]] = None
         self.calibrator_name: str = "none"  # execution_stub.py で参照される属性
         self.model_name: str = "unknown"  # execution_stub.py で参照される属性
-        
+
         # classes_ に基づく BUY/SELL の index マッピング（モデルロード時に確定）
         self._class_index_map: Optional[Dict[str, Any]] = None
-        
+
         # 警告ログの連打抑制フラグ
         self._warned_classmap_undetermined = False
 
@@ -428,7 +429,7 @@ class AISvc:
     def _determine_class_index_map(self, model) -> Optional[Dict[str, Any]]:
         """
         model.classes_ を観測して BUY/SELL の index を確定する。
-        
+
         Returns
         -------
         dict or None
@@ -442,7 +443,7 @@ class AISvc:
         """
         classes = None
         source = "unknown"
-        
+
         # _extract_classes_any() を使用して classes_ を回収
         try:
             classes = self._extract_classes_any(model)
@@ -461,24 +462,24 @@ class AISvc:
         except Exception as e:
             logger.warning("[ai_model] classes_ 取得中にエラー: {err}", err=e)
             return None
-        
+
         if classes is None:
             return None
-        
+
         # list 化
         try:
             classes_list = list(classes)
         except Exception:
             return None
-        
+
         if len(classes_list) < 2:
             logger.warning("[ai_model] classes_ の要素数が不足: {classes}", classes=classes_list)
             return None
-        
+
         # BUY/SELL の index を確定
         buy_index = None
         sell_index = None
-        
+
         # 文字列の場合
         for idx, cls in enumerate(classes_list):
             cls_str = str(cls).upper()
@@ -486,13 +487,13 @@ class AISvc:
                 buy_index = idx
             elif cls_str in ("SELL", "SHORT"):
                 sell_index = idx
-        
+
         # 数値の場合（既存のラベル規約を確認）
         if buy_index is None or sell_index is None:
             # 数値セットを観測
             try:
                 classes_set = set(classes_list)
-                
+
                 # {0, 1} の場合: SELL=0, BUY=1
                 if classes_set == {0, 1}:
                     for idx, cls in enumerate(classes_list):
@@ -501,7 +502,7 @@ class AISvc:
                         elif cls == 1:
                             buy_index = idx
                     source = f"numeric:{{0,1}}"
-                
+
                 # {-1, 1} の場合: SELL=-1, BUY=1
                 elif classes_set == {-1, 1}:
                     for idx, cls in enumerate(classes_list):
@@ -510,7 +511,7 @@ class AISvc:
                         elif cls == 1:
                             buy_index = idx
                     source = f"numeric:{{-1,1}}"
-                
+
                 # その他の数値セットは未対応（安全側に倒す）
                 else:
                     logger.warning(
@@ -525,7 +526,7 @@ class AISvc:
                     classes=classes_list,
                 )
                 return None
-        
+
         # 両方の index が確定できた場合のみ返す
         if buy_index is not None and sell_index is not None:
             return {
@@ -540,7 +541,7 @@ class AISvc:
                 classes=classes_list,
             )
             return None
-    
+
     def _ensure_model_loaded(self) -> None:
         """
         self.models に推論用モデルが未ロードなら、active_model.json を見てロードする。
@@ -562,7 +563,7 @@ class AISvc:
         # 観測: GUI/可視化側で解決している active_model.json の参照キーと model_path 解決結果をログ出力
         _referenced_keys = [k for k in ("model_path", "file", "feature_order", "features", "expected_features") if k in meta]
         logger.info(
-            "[OBS] AISvc active_model 参照: keys_in_meta=%s referenced_keys=%s",
+            "[OBS] AISvc active_model 参照: keys_in_meta={} referenced_keys={}",
             list(meta.keys()),
             _referenced_keys,
         )
@@ -578,7 +579,7 @@ class AISvc:
                     model_path = str(p)
 
         if model_path:
-            logger.info("[OBS] AISvc model_path 解決結果: %s", model_path)
+            logger.info("[OBS] AISvc model_path 解決結果: {}", model_path)
         if not model_path:
             logger.error("[AISvc] active_model.json に 'model_path' または 'file' がありません")
             return
@@ -642,7 +643,13 @@ class AISvc:
                         n=len(self.expected_features),
                     )
 
-    def predict(self, X: np.ndarray | Dict[str, float], *, no_metrics: bool = False) -> "AISvc.ProbOut":
+    def predict(
+        self,
+        X: np.ndarray | Dict[str, float],
+        *,
+        no_metrics: bool = False,
+        tick_id: Optional[str] = None,
+    ) -> "AISvc.ProbOut":
         """
         単一サンプルの特徴量を受け取り、p_buy / p_sell / p_skip を返す。
 
@@ -727,7 +734,7 @@ class AISvc:
             if hasattr(model, "predict_proba"):
                 proba = model.predict_proba(X)
                 proba = np.asarray(proba)
-                
+
                 # classes_ に基づいて正しく p_buy/p_sell を取得
                 if self._class_index_map and proba.ndim == 2 and proba.shape[1] >= 2:
                     buy_idx = self._class_index_map.get("buy_index")
@@ -761,7 +768,7 @@ class AISvc:
                             "[AISvc.predict] class_index_map が未確定（Booster）。安全停止（p_buy=p_sell=0）。"
                         )
                     return AISvc.ProbOut(0.0, 0.0, 1.0)
-                
+
                 y_pred = model.predict(X)
                 y_pred = np.asarray(y_pred)
                 # Booster の場合は predict が確率を返す前提だが、classes_ が無い場合は安全停止
@@ -776,9 +783,86 @@ class AISvc:
         p_sell = max(0.0, min(1.0, p_sell))
         p_skip = 0.0
 
+        # 観測点①：推論点（PROBA ログで tick_id / p_buy / X_hash を突合用に残す）
+        try:
+            if tick_id is None:
+                tick_id = time.strftime("%Y%m%dT%H%M%S", time.localtime()) + f".{int((time.time() % 1) * 10000):04d}"
+            x_row = X.iloc[-1] if hasattr(X, "iloc") else np.asarray(X)[-1]
+            x_bytes = np.asarray(x_row).astype(np.float64).tobytes()
+            x_hash = hashlib.sha1(x_bytes).hexdigest()[:8]
+            thr = 0.52
+            try:
+                thr = float(get_model_metrics().get("best_threshold", 0.52))
+            except Exception:
+                pass
+            logger.info(
+                "PROBA tick_id={} bar_time=n/a p_buy={:.3f} p_sell={:.3f} thr={:.2f} X_hash={}",
+                tick_id, p_buy, p_sell, thr, x_hash,
+            )
+        except Exception as e:
+            logger.debug("[AISvc.predict] PROBA log failed: {}", e)
+
         return AISvc.ProbOut(p_buy, p_sell, p_skip)
     # ここまで追加 ------------------------------------------------------------
 
+    def predict_latest(self, symbol: str) -> "AISvc.ProbOut":
+        """
+        最新 M5 バーの OHLC を毎回再読込し、その行の特徴量で推論する。キャッシュしない。
+        自動売買で「毎バー最新の p_buy」を使うために使用する。
+        """
+        self._ensure_model_loaded()
+        symbol_tag = (symbol or "USDJPY").rstrip("-").upper().strip()
+        try:
+            from app.services import data_guard
+            ohlc_path = data_guard.csv_path(symbol_tag=symbol_tag, timeframe="M5", layout="per-symbol")
+        except Exception:
+            logger.warning("[AISvc.predict_latest] data_guard path failed")
+            return AISvc.ProbOut(0.0, 0.0, 1.0)
+        if not ohlc_path.exists():
+            logger.warning("[AISvc.predict_latest] OHLC not found: {}", ohlc_path)
+            return AISvc.ProbOut(0.0, 0.0, 1.0)
+        try:
+            df_ohlc = pd.read_csv(ohlc_path, parse_dates=["time"])
+        except Exception as e:
+            logger.warning("[AISvc.predict_latest] OHLC read failed: {}", e)
+            return AISvc.ProbOut(0.0, 0.0, 1.0)
+        if df_ohlc.empty or "time" not in df_ohlc.columns:
+            logger.warning("[AISvc.predict_latest] OHLC empty or no time")
+            return AISvc.ProbOut(0.0, 0.0, 1.0)
+        df_ohlc["time"] = pd.to_datetime(df_ohlc["time"], errors="coerce")
+        df_ohlc = df_ohlc.dropna(subset=["time"]).sort_values("time").reset_index(drop=True)
+        if df_ohlc.empty:
+            return AISvc.ProbOut(0.0, 0.0, 1.0)
+        required_cols = ["time", "open", "high", "low", "close"]
+        for opt in ["tick_volume", "real_volume"]:
+            if opt in df_ohlc.columns:
+                required_cols.append(opt)
+        if not all(c in df_ohlc.columns for c in required_cols):
+            logger.warning("[AISvc.predict_latest] OHLC missing required columns")
+            return AISvc.ProbOut(0.0, 0.0, 1.0)
+        try:
+            from app.strategies.ai_strategy import build_features
+            df_feat = build_features(df_ohlc[required_cols], {"feature_recipe": "ohlcv_tech_v1"})
+        except Exception as e:
+            logger.warning("[AISvc.predict_latest] build_features failed: {}", e)
+            return AISvc.ProbOut(0.0, 0.0, 1.0)
+        if df_feat.empty:
+            return AISvc.ProbOut(0.0, 0.0, 1.0)
+        last_row = df_feat.iloc[-1]
+        bar_time = last_row.get("time") or df_feat["time"].iloc[-1]
+        bar_time_str = str(bar_time)
+        feat_dict = {k: float(v) if pd.notna(v) else 0.0 for k, v in last_row.items() if k != "time"}
+        try:
+            x_vals = np.array([feat_dict[k] for k in sorted(feat_dict)], dtype=float)
+            x_hash = hashlib.sha1(x_vals.tobytes()).hexdigest()[:8]
+        except Exception:
+            x_hash = "?"
+        pred = self.predict(feat_dict)
+        logger.info(
+            "PROBA bar_time={} p_buy={:.3f} X_hash={}",
+            bar_time_str, pred.p_buy, x_hash,
+        )
+        return pred
 
     def get_feature_importance(
         self,
@@ -991,7 +1075,7 @@ class AISvc:
         ss = _lazy_import_shap_service()
         if ss is None:
             raise RuntimeError("SHAP is unavailable in this environment.")
-        
+
         items = ss.compute_shap_feature_importance(
             target_model,
             df_bg,

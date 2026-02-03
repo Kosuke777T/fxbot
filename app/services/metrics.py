@@ -116,6 +116,12 @@ def publish_metrics(kv: Dict[str, Any], no_metrics: bool = False) -> None:
     hist = data.get("probs_history")
     hist_len = len(hist.get("p_buy", [])) if isinstance(hist, dict) else 0
     _logger.info("[probs] publish merge ok hist_len={}", hist_len)
+    # 観測点②：配布点（probs_history の末尾を時刻つきで保証）
+    tail_p_buy = "n/a"
+    if isinstance(hist, dict) and hist.get("p_buy"):
+        _pb = hist["p_buy"]
+        tail_p_buy = f"{_pb[-1]:.3f}" if _pb else "n/a"
+    _logger.info("METRICS_WRITE bar_time=n/a probs_len={} tail_p_buy={}", hist_len, tail_p_buy)
 
     txt = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
     tmp_path = path.parent / "metrics.json.tmp"
