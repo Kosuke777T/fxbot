@@ -10,3 +10,6 @@ ignore = ["E501"]
 name = "fxbot"
 version = "0.1.0"
 requires-python = ">=3.13"
+dependencies = [
+    "loguru>=0.7.3",
+]
