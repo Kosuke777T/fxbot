@@ -91,7 +91,8 @@ def main() -> int:
         # 4) 成行 BUY エントリー
         print()
         print(f"[4] order_send() で BUY エントリー: symbol={symbol}, lot={lot}")
-        ticket = client.order_send(symbol=symbol, order_type="BUY", lot=lot)
+        order_result = client.order_send(symbol=symbol, order_type="BUY", lot=lot)
+        ticket = (order_result or (None, None, None))[0]
         if not ticket:
             print("    -> order_send() が ticket を返しませんでした。")
             return 3

@@ -479,6 +479,7 @@ def _write_decision_log(symbol: str, record: Dict[str, Any]) -> None:
             # --- end action ---
 
             f.write(json.dumps(record, ensure_ascii=False) + "\n")
+            f.flush()
     except Exception:
         # ログ失敗で売買・探索を止めない
         return

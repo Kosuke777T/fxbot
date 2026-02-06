@@ -1,6 +1,7 @@
 from typing import Optional, Dict, Any, List
 from pathlib import Path
 import json
+import os
 from datetime import datetime, timezone
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from PyQt6.QtWidgets import (
@@ -18,6 +19,8 @@ from PyQt6.QtWidgets import (
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from core.metrics import METRICS_JSON, METRICS
+
+from loguru import logger as loguru_logger
 
 from app.core.config_loader import load_config
 from app.services import circuit_breaker, trade_state
@@ -38,10 +41,13 @@ def _write_runtime_flags(trading_enabled: bool) -> None:
         "updated_at": datetime.now(timezone.utc).astimezone().isoformat(),
         "source": "gui",
     }
-    _RUNTIME_FLAGS_PATH.write_text(
-        json.dumps(payload, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
+    try:
+        tmp = _RUNTIME_FLAGS_PATH.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        os.replace(tmp, _RUNTIME_FLAGS_PATH)
+    except Exception as e:
+        loguru_logger.error("[CRITICAL] runtime_flags write failed: {}", e)
+        raise
 
 
 class ControlTab(QWidget):

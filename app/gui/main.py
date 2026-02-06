@@ -90,6 +90,7 @@ class TradeLoopRunner(QObject):
         # T-62-1 stop残り火根絶: stop_event/run_id（in-flight thread を無効化するため）
         self._stop_event = threading.Event()
         self._run_id = 0
+        self._worker_thread: Optional[threading.Thread] = None
 
     def _emit_mt5_diag_once(self, *, dry_run: bool) -> None:
         """T-4: trade_loop開始直後のMT5診断ログ（重複防止）。"""
@@ -185,6 +186,14 @@ class TradeLoopRunner(QObject):
         rt.trade_run_id = self._run_id
         rt.trade_loop_running = False
         self._timer.stop()
+
+        th = getattr(self, "_worker_thread", None)
+        if th is not None:
+            if th.is_alive():
+                th.join(timeout=5)
+                if th.is_alive():
+                    logger.warning("[trade_loop] stop join timeout")
+            self._worker_thread = None
 
         logger.info("[trade_loop] stopping reason={} symbol={} run_id={}", reason, self._symbol, self._run_id)
         logger.info("[trade_loop] stopped reason={}", reason)
@@ -336,7 +345,9 @@ class TradeLoopRunner(QObject):
 
         # T-62-1 stop残り火根絶: captured run_id を渡して thread 起動
         rid = self._run_id
-        threading.Thread(target=self._run, args=(rid,), daemon=True).start()
+        t = threading.Thread(target=self._run, args=(rid,), daemon=True)
+        self._worker_thread = t
+        t.start()
 
     def _run(self, rid: int):
         """実際のループ処理（別スレッドで実行）。rid は起動時の _run_id（世代トークン）。"""

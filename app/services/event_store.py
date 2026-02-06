@@ -53,6 +53,7 @@ class _EventStore:
             self._buf.appendleft(ev)
             with open(_LOG_FILE, "a", encoding="utf-8") as f:
                 f.write(json.dumps(asdict(ev), ensure_ascii=False) + "\n")
+                f.flush()
 
     def add(self, **kwargs: Any) -> None:
         kwargs.setdefault("ts", _now())

@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 import threading
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Iterable, Optional
 import logging
 
@@ -15,6 +15,7 @@ from app.services import trade_state
 from app.services.circuit_breaker import CircuitBreaker
 from app.services.event_store import EVENT_STORE
 from app.services.filter_service import evaluate_entry
+from app.services.inflight_service import make_key as inflight_make_key, mark as inflight_mark, finish as inflight_finish
 from app.services.loss_streak_service import update_on_trade_result, get_consecutive_losses
 from app.core.config import cfg
 from core.indicators import atr as _atr
@@ -247,6 +248,8 @@ class TradeService:
         self._reconcile_interval = 15
         self._desync_fix = True
         self._last_reconcile = 0.0
+        self._entry_gate_lock = threading.Lock()
+        self._entry_inflight = False
 
         # --- バックテスト由来ロットスケーラー --------------------------
         # 月次リターン / DD の安定度に応じてロットを倍率調整する係数。
@@ -487,6 +490,14 @@ class TradeService:
     def can_trade(self) -> bool:
         return self.cb.can_trade()
 
+    def _log_gate_denied(self, symbol: str, reason: str, run_id: Optional[int] = None) -> None:
+        """ガード拒否を decisions.jsonl に GATE_DENIED として追記（検証用）。失敗時は握り潰す。"""
+        try:
+            from app.services.execution_stub import _write_decision_log
+            ts = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+            _write_decision_log(symbol, {"ts": ts, "action": "GATE_DENIED", "reason": reason, "run_id": run_id})
+        except Exception:
+            pass
 
     def open_position(
         self,
@@ -519,6 +530,7 @@ class TradeService:
                     "[ORDER] cancelled reason=trading_disabled run_id={} (before MT5)",
                     run_id,
                 )
+                self._log_gate_denied(symbol, "trading_disabled", run_id)
                 return
             if not getattr(rt_early, "trade_loop_running", False):
                 loguru_logger.info(
@@ -527,6 +539,7 @@ class TradeService:
                     getattr(rt_early, "trade_loop_running", False),
                     getattr(rt_early, "trade_run_id", None),
                 )
+                self._log_gate_denied(symbol, "trade_loop_not_running", run_id)
                 return
             if getattr(rt_early, "trade_run_id", None) != run_id:
                 loguru_logger.info(
@@ -535,6 +548,7 @@ class TradeService:
                     run_id,
                     run_id,
                 )
+                self._log_gate_denied(symbol, "run_id_mismatch", run_id)
                 return
 
         # --- T-45-4(A): ENTRYゲート（単一） ---
@@ -567,6 +581,7 @@ class TradeService:
                 )
             except Exception:
                 pass
+            self._log_gate_denied(symbol, "mt5_unavailable", run_id)
             return
 
         # --- フィルタエンジン呼び出しを追加 ---
@@ -591,6 +606,7 @@ class TradeService:
                     EVENT_STORE.add(kind="INFO", symbol=symbol, side=side_up, reason="guard_entry_denied", notes=(msg % (symbol, side_up, consecutive_losses, evidence_keys)))
                 except Exception:
                     pass
+                self._log_gate_denied(symbol, "circuit_breaker", run_id)
                 return
         except Exception:
             # 観測不能なら gate は縮退（raiseで止めない）
@@ -623,6 +639,7 @@ class TradeService:
                     EVENT_STORE.add(kind="INFO", symbol=symbol, side=side_up, reason="guard_entry_denied", notes=(msg % (symbol, side_up, open_count, max_pos, inflight_n, evidence_keys)))
                 except Exception:
                     pass
+                self._log_gate_denied(symbol, "max_positions_reached", run_id)
                 return
             # inflight gate（ENTRY/EXIT競合の最小抑止）
             inflight_orders = getattr(getattr(self.pos_guard, "state", None), "inflight_orders", None)
@@ -678,6 +695,7 @@ class TradeService:
                     )
                 except Exception:
                     pass
+                self._log_gate_denied(symbol, "inflight_orders", run_id)
                 return
         except Exception:
             # 観測不能なら gate は縮退（raiseで止めない）
@@ -703,45 +721,16 @@ class TradeService:
                     EVENT_STORE.add(kind="INFO", symbol=symbol, side=side_up, reason="guard_streak_denied", notes=(msg % (int(consecutive_losses), int(streak_th), symbol, side_up, evidence_keys)))
                 except Exception:
                     pass
+                self._log_gate_denied(symbol, "loss_streak_limit", run_id)
                 return
         except Exception:
             pass
 
-        # 3) entry_inflight（極小フラグ。無い場合のみ遅延生成）
+        # 3) entry_inflight（__init__ で初期化済み）
         entry_inflight_acquired = False
-        _lock = None
         try:
-            import threading
-
-            if not hasattr(self, "_entry_gate_lock"):
-                setattr(self, "_entry_gate_lock", threading.Lock())
-            if not hasattr(self, "_entry_inflight"):
-                setattr(self, "_entry_inflight", False)
-            _lock = getattr(self, "_entry_gate_lock", None)
-        except Exception:
-            _lock = None
-
-        try:
-            if _lock is not None:
-                with _lock:
-                    if bool(getattr(self, "_entry_inflight", False)):
-                        msg = "[guard][entry] denied reason=entry_inflight symbol=%s side=%s evidence_keys=%s"
-                        self._logger.info(
-                            "[guard][entry] denied reason=entry_inflight symbol=%s side=%s evidence_keys=%s",
-                            symbol,
-                            side_up,
-                            evidence_keys,
-                        )
-                        try:
-                            EVENT_STORE.add(kind="INFO", symbol=symbol, side=side_up, reason="guard_entry_denied", notes=(msg % (symbol, side_up, evidence_keys)))
-                        except Exception:
-                            pass
-                        return
-                    setattr(self, "_entry_inflight", True)
-                    entry_inflight_acquired = True
-            else:
-                # lockが使えない環境では最小のフラグのみ
-                if bool(getattr(self, "_entry_inflight", False)):
+            with self._entry_gate_lock:
+                if bool(self._entry_inflight):
                     msg = "[guard][entry] denied reason=entry_inflight symbol=%s side=%s evidence_keys=%s"
                     self._logger.info(
                         "[guard][entry] denied reason=entry_inflight symbol=%s side=%s evidence_keys=%s",
@@ -753,13 +742,16 @@ class TradeService:
                         EVENT_STORE.add(kind="INFO", symbol=symbol, side=side_up, reason="guard_entry_denied", notes=(msg % (symbol, side_up, evidence_keys)))
                     except Exception:
                         pass
+                    self._log_gate_denied(symbol, "entry_inflight", run_id)
                     return
-                setattr(self, "_entry_inflight", True)
+                self._entry_inflight = True
                 entry_inflight_acquired = True
         except Exception:
             # フラグが壊れても売買フローは止めない（縮退して継続）
             pass
         # --- /T-45-4(A) ---
+        inflight_key = None
+        order_ok = False
         try:
             entry_context = {
                 "timestamp": datetime.now(),
@@ -777,6 +769,7 @@ class TradeService:
             if not ok:
                 # ここではまだ decisions.jsonl には書かず、ログだけ軽く出しておく
                 self._logger.info(f"[Filter] entry blocked. reasons={reasons}")
+                self._log_gate_denied(symbol, "filter_blocked", run_id)
                 return
 
             equity = None
@@ -912,6 +905,7 @@ class TradeService:
             if run_id is not None:
                 if not trade_state.get_settings().trading_enabled:
                     loguru_logger.info("[ORDER] cancelled reason=trading_disabled run_id={}", run_id)
+                    self._log_gate_denied(symbol, "trading_disabled", run_id)
                     return
                 if not getattr(rt, "trade_loop_running", False):
                     loguru_logger.info(
@@ -920,6 +914,7 @@ class TradeService:
                         getattr(rt, "trade_loop_running", False),
                         getattr(rt, "trade_run_id", None),
                     )
+                    self._log_gate_denied(symbol, "trade_loop_not_running", run_id)
                     return
                 current = getattr(rt, "trade_run_id", None)
                 if current != run_id:
@@ -929,6 +924,7 @@ class TradeService:
                         run_id,
                         run_id,
                     )
+                    self._log_gate_denied(symbol, "run_id_mismatch", run_id)
                     return
 
             # --- SL/TP 補完ロジック（最終防波堤）---
@@ -943,6 +939,7 @@ class TradeService:
                             "[guard] denied reason=missing_sl_tp detail=tick_unavailable symbol={} side={} run_id={}",
                             symbol, side_up, run_id,
                         )
+                        self._log_gate_denied(symbol, "missing_sl_tp_tick_unavailable", run_id)
                         return
 
                     # 現在価格: BUY は ask、SELL は bid
@@ -961,6 +958,7 @@ class TradeService:
                             "[guard] denied reason=missing_sl_tp detail=exit_mode_none symbol={} side={} run_id={}",
                             symbol, side_up, run_id,
                         )
+                        self._log_gate_denied(symbol, "missing_sl_tp_exit_mode_none", run_id)
                         return
 
                     tp_pips = exit_plan.get("tp_pips")
@@ -981,6 +979,7 @@ class TradeService:
                             "[guard] denied reason=missing_sl_tp detail=pips_invalid tp_pips={} sl_pips={} symbol={} side={} run_id={}",
                             tp_pips, sl_pips, symbol, side_up, run_id,
                         )
+                        self._log_gate_denied(symbol, "missing_sl_tp_pips_invalid", run_id)
                         return
 
                     # 価格を計算: BUY は SL < entry < TP、SELL は TP < entry < SL
@@ -1004,6 +1003,7 @@ class TradeService:
                         "[guard] denied reason=missing_sl_tp detail=complement_failed error={} symbol={} side={} run_id={}",
                         e, symbol, side_up, run_id,
                     )
+                    self._log_gate_denied(symbol, "missing_sl_tp_complement_failed", run_id)
                     return
 
             # --- SL/TP 最終チェック（必ず数値が入っていること）---
@@ -1012,6 +1012,7 @@ class TradeService:
                     "[guard] denied reason=missing_sl_tp detail=final_check_failed sl={} tp={} symbol={} side={} run_id={}",
                     sl, tp, symbol, side_up, run_id,
                 )
+                self._log_gate_denied(symbol, "missing_sl_tp_final_check_failed", run_id)
                 return
 
             # --- T-3 observe: order_send prepared (single point) ---
@@ -1054,8 +1055,22 @@ class TradeService:
                 except Exception:
                     pass
             else:
-                # live: MT5へ実際に送る
-                ticket = self._mt5.order_send(
+                # live: MT5へ実際に送る（inflight は services 層で実施）
+                rt_final = trade_state.get_runtime()
+                current_run_id = getattr(rt_final, "trade_run_id", None)
+                if run_id is not None and current_run_id != run_id:
+                    loguru_logger.info(
+                        "[ORDER] cancelled reason=run_id_stale_final run_id={} current={}",
+                        run_id, current_run_id,
+                    )
+                    self._log_gate_denied(symbol, "run_id_stale_final", run_id)
+                    return
+                inflight_key = inflight_make_key(symbol)
+                try:
+                    inflight_mark(inflight_key)
+                except Exception:
+                    pass
+                order_result = self._mt5.order_send(
                     symbol=symbol,
                     order_type=side_up,
                     lot=float(lot_val),
@@ -1063,21 +1078,34 @@ class TradeService:
                     tp=tp,
                     comment=comment,
                 )
+                ticket, retcode, comment_msg = (order_result or (None, None, None))[:3]
+                order_ok = bool(ticket)
+                if ticket:
+                    self.on_order_success(ticket=ticket, side=side_up, symbol=symbol, price=None)
                 # --- T-3 observe: order_send result (best-effort) ---
                 loguru_logger.info(
                     "[ORDER] sent ok={} retcode={} order_id={} message={}",
                     bool(ticket),
-                    None,
+                    retcode,
                     ticket,
-                    None,
+                    comment_msg,
                 )
         finally:
+            if inflight_key is not None:
+                try:
+                    inflight_finish(key=inflight_key, ok=order_ok, symbol=symbol)
+                except Exception:
+                    pass
             # entry_inflight を解除（例外で止めない）
             try:
-                if entry_inflight_acquired and hasattr(self, "_entry_inflight"):
-                    setattr(self, "_entry_inflight", False)
-            except Exception:
-                pass
+                if entry_inflight_acquired:
+                    self._entry_inflight = False
+            except Exception as e:
+                loguru_logger.error("[CRITICAL] entry_inflight release failed: {}", e)
+                try:
+                    self._entry_inflight = False
+                except Exception as e2:
+                    loguru_logger.error("[CRITICAL] entry_inflight fallback release failed: {}", e2)
 
     def mark_order_inflight(self, order_id: str) -> None:
         self.pos_guard.mark_inflight(order_id)

@@ -13,6 +13,7 @@ from pathlib import Path
 from app.core import mt5_client
 from app.core.mt5_client import MT5Client
 from app.services import mt5_account_store  # ★ 追加
+from app.services.inflight_service import make_key as inflight_make_key, mark as inflight_mark, finish as inflight_finish
 
 
 # JSON安全な文字列に正規化するヘルパー
@@ -453,17 +454,30 @@ def mt5_smoke(
             }
             return result
 
-        # 5) (dry=False の場合のみ) 成行発注
+        # 5) (dry=False の場合のみ) 成行発注（inflight は services 層で実施）
         if not dry:
-            ticket = client.order_send(symbol=symbol, order_type="BUY", lot=lot)
-            result["details"]["order_send"] = {"ticket": ticket}
-            if not ticket:
-                result["step"] = "order_send"
-                result["error"] = {
-                    "code": "ORDER_SEND_FAILED",
-                    "message": _json_safe_str("order_send() が ticket を返しませんでした。"),
-                }
-                return result
+            _key = inflight_make_key(symbol)
+            try:
+                inflight_mark(_key)
+            except Exception:
+                pass
+            ticket = None
+            try:
+                order_result = client.order_send(symbol=symbol, order_type="BUY", lot=lot)
+                ticket = (order_result or (None, None, None))[0]
+                result["details"]["order_send"] = {"ticket": ticket}
+                if not ticket:
+                    result["step"] = "order_send"
+                    result["error"] = {
+                        "code": "ORDER_SEND_FAILED",
+                        "message": _json_safe_str("order_send() が ticket を返しませんでした。"),
+                    }
+                    return result
+            finally:
+                try:
+                    inflight_finish(key=_key, ok=bool(ticket), symbol=symbol)
+                except Exception:
+                    pass
 
             result["step"] = "order_send"
             result["details"]["order_send"]["success"] = True
@@ -491,7 +505,19 @@ def mt5_smoke(
                     }
                     return result
 
-                ok = client.close_position(ticket=ticket, symbol=symbol)
+                _key_close = inflight_make_key(symbol)
+                try:
+                    inflight_mark(_key_close, intent="CLOSE", ticket=ticket)
+                except Exception:
+                    pass
+                ok = False
+                try:
+                    ok = bool(client.close_position(ticket=ticket, symbol=symbol))
+                finally:
+                    try:
+                        inflight_finish(key=_key_close, ok=ok, symbol=symbol, intent="CLOSE", ticket=ticket)
+                    except Exception:
+                        pass
                 result["details"]["close_position"] = {"success": ok}
                 if not ok:
                     result["step"] = "close_position"

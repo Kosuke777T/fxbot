@@ -27,6 +27,7 @@ from app.core.strategy_profile import get_profile
 from app.services.edition_guard import filter_level, EditionGuard
 from app.services import trade_state, data_guard
 from app.services.ohlcv_update_service import ensure_lgbm_proba_uptodate
+from app.services.inflight_service import make_key as inflight_make_key, mark as inflight_mark, finish as inflight_finish
 from core.utils.timeutil import now_jst_iso
 from app.core import market, mt5_client
 from app.core.config_loader import load_config
@@ -1875,11 +1876,23 @@ class ExecutionService:
             DecisionsLogger.log(record)
 
             ret["stage"] = "close_attempted"
+            close_ticket = int(getattr(p, "ticket"))
+            inflight_key = inflight_make_key(symbol)
             ok = False
             try:
-                ok = bool(mt5_client.close_position(ticket=int(getattr(p, "ticket")), symbol=symbol))
-            except Exception:
-                ok = False
+                try:
+                    inflight_mark(inflight_key, intent="CLOSE", ticket=close_ticket)
+                except Exception:
+                    pass
+                try:
+                    ok = bool(mt5_client.close_position(ticket=close_ticket, symbol=symbol))
+                except Exception:
+                    ok = False
+            finally:
+                try:
+                    inflight_finish(key=inflight_key, ok=ok, symbol=symbol, intent="CLOSE", ticket=close_ticket)
+                except Exception:
+                    pass
 
             if ok:
                 ret["stage"] = "closed"

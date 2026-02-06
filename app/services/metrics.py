@@ -3,6 +3,7 @@
 # 変更箇所: publish_metrics() 内の JSON 書き込みブロック（write_text → .tmp、os.replace で置換、リトライ、失敗時 tmp 残し）
 from __future__ import annotations
 from collections import deque
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Any
 import json
@@ -45,7 +46,7 @@ def push_probs(p_buy: float, p_sell: float, p_skip: float, threshold: float) -> 
                 p_buy_f, p_sell_f,
             )
             return
-    ts = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(time.time()))
+    ts = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
     entry = {"p_buy": p_buy_f, "p_sell": p_sell_f, "p_skip": p_skip_f, "threshold": threshold_f, "ts": ts}
     global _probs_latest
     _probs_latest = dict(entry)

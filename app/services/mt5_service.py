@@ -5,17 +5,8 @@ from typing import Any, Dict, Optional, Tuple
 import MetaTrader5 as mt5
 from loguru import logger
 from app.core.symbol_map import resolve_symbol
-
-def _resolve_order_send_request(req):
-    """order_send(request) の request['symbol'] だけ resolve_symbol で正規化（最小・安全）"""
-    try:
-        if isinstance(req, dict) and 'symbol' in req:
-            r = dict(req)  # shallow copy
-            r['symbol'] = resolve_symbol(r['symbol'])
-            return r
-    except Exception:
-        pass
-    return req
+from app.core.mt5_client import _resolve_order_send_request
+from app.services.inflight_service import make_key as inflight_make_key, mark as inflight_mark, finish as inflight_finish
 
 @dataclass
 class BrokerConstraints:
@@ -123,19 +114,12 @@ class MT5Service:
         _c = f"intent=SLTP t={ticket} {reason}".strip()
         request = {'action': mt5.TRADE_ACTION_SLTP, 'position': ticket, 'symbol': symbol, 'sl': round(snapped, bc.digits), 'tp': float(getattr(pos, 'tp', 0.0) or 0.0), 'deviation': 10, 'comment': _c[:28], 'type_time': mt5.ORDER_TIME_GTC, 'type_filling': mt5.ORDER_FILLING_RETURN}
         last_err = ''
-        # inflight: A) symbol-only で ENTRY と SLTP を同一 inflight 扱いにする（最も安全）
-        _inflight_key = None
+        # inflight: A) symbol-only で ENTRY と SLTP を同一 inflight 扱いにする（services の inflight に委譲）
+        _inflight_key = inflight_make_key(symbol)
         try:
-            from app.core.symbol_map import resolve_symbol as _rs
-            _inflight_key = str(_rs(symbol))
-        except Exception:
-            _inflight_key = str(symbol or "UNKNOWN")
-        try:
-            from app.services import trade_service as _ts
-            _ts.mark_order_inflight(_inflight_key)
+            inflight_mark(_inflight_key, intent="SLTP", ticket=ticket)
         except Exception:
             pass
-        # ログだけは trade_service に依存させない（欠落防止）
         logger.info("[inflight][mark] key={} intent=SLTP ticket={}", _inflight_key, ticket)
         ok = False
         try:
@@ -157,13 +141,11 @@ class MT5Service:
                 request['sl'] = round(snapped, bc.digits)
             return (False, None, f'fail: {last_err}')
         finally:
-            # NOTE: 例外でも inflight が残り続けないように必ず clear（観測のみ・ロジック不変）
+            # NOTE: 例外でも inflight が残り続けないように必ず clear（services の inflight に委譲）
             try:
-                from app.services import trade_service as _ts
-                _ts.on_order_result(order_id=str(_inflight_key), ok=bool(ok), symbol=str(symbol))
+                inflight_finish(key=_inflight_key, ok=ok, symbol=symbol, intent="SLTP", ticket=ticket)
             except Exception:
                 pass
-            # ログだけは trade_service に依存させない（欠落防止）
             logger.info(
                 "[inflight][clear] key={} intent=SLTP ok={} symbol={} ticket={}",
                 _inflight_key,
