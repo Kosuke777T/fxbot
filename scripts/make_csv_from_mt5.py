@@ -29,6 +29,7 @@ from zoneinfo import ZoneInfo
 JST = ZoneInfo("Asia/Tokyo")
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 try:
@@ -530,8 +531,18 @@ def ensure_csv_for_timeframe(
     if not merged.empty:
         for c in ["open", "high", "low", "close"]:
             merged[c] = merged[c].astype("float32")
-        for c in ["tick_volume", "spread", "real_volume"]:
-            merged[c] = merged[c].astype("int32")
+        int_cols = ["tick_volume", "spread", "real_volume"]
+        # OBS: which int cols have NaN/inf
+        for c in int_cols:
+            s = pd.to_numeric(merged[c], errors="coerce")
+            na = int(s.isna().sum())
+            inf = int(np.isinf(s.to_numpy(dtype="float64", copy=False)).sum()) if len(s) else 0
+            if na or inf:
+                print(f"[OBS][int_cast] col={c} na={na} inf={inf}")
+        for c in int_cols:
+            s = pd.to_numeric(merged[c], errors="coerce")
+            s = s.replace([np.inf, -np.inf], np.nan).fillna(0)
+            merged[c] = s.astype("int32")
 
     # CSV保存前ガード：単調増加チェック
     if not merged.empty and "time" in merged.columns:
