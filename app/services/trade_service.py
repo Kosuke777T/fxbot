@@ -499,6 +499,31 @@ class TradeService:
         except Exception:
             pass
 
+    def _log_filter_mismatch(
+        self,
+        symbol: str,
+        run_id: Optional[int],
+        upstream_filter_pass: Any,
+        downstream_ok: bool,
+    ) -> None:
+        """上流通過・下流拒否の乖離を decisions.jsonl に FILTER_MISMATCH で追記。失敗時は握り潰す。"""
+        try:
+            from app.services.execution_stub import _write_decision_log
+            ts = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+            _write_decision_log(
+                symbol,
+                {
+                    "ts": ts,
+                    "action": "FILTER_MISMATCH",
+                    "reason": "execution_pass_but_trade_denied",
+                    "run_id": run_id,
+                    "upstream_filter_pass": upstream_filter_pass,
+                    "downstream_filter_pass": downstream_ok,
+                },
+            )
+        except Exception:
+            pass
+
     def open_position(
         self,
         symbol: str,
@@ -767,9 +792,11 @@ class TradeService:
             ok, reasons = evaluate_entry(entry_context)
 
             if not ok:
-                # ここではまだ decisions.jsonl には書かず、ログだけ軽く出しておく
                 self._logger.info(f"[Filter] entry blocked. reasons={reasons}")
                 self._log_gate_denied(symbol, "filter_blocked", run_id)
+                upstream_pass = features.get("upstream_filter_pass") if isinstance(features, dict) else None
+                if upstream_pass is True:
+                    self._log_filter_mismatch(symbol, run_id, upstream_filter_pass=True, downstream_ok=False)
                 return
 
             equity = None
@@ -1371,8 +1398,11 @@ def execute_decision(
     # 優先: decision_detail.size_decision -> meta.size_decision
     try:
         dd = decision.get("decision_detail")
-        if isinstance(dd, dict) and "size_decision" in dd and isinstance(dd.get("size_decision"), dict):
-            features.setdefault("size_decision", dd.get("size_decision"))
+        if isinstance(dd, dict):
+            if "size_decision" in dd and isinstance(dd.get("size_decision"), dict):
+                features.setdefault("size_decision", dd.get("size_decision"))
+            if "filter_pass" in dd:
+                features.setdefault("upstream_filter_pass", dd.get("filter_pass"))
     except Exception:
         pass
     try:

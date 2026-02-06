@@ -1,0 +1,94 @@
+app/services\ai_service.py:107:from app.services.feature_importance import compute_feature_importance
+app/services\ai_service.py:108:from app.services.edition_guard import get_capability
+app/services\condition_mining_candidates.py:6:from app.services.condition_mining_data import get_decisions_recent_past_summary
+app/services\condition_mining_candidates.py:7:from app.services.condition_mining_dsl import (
+app/services\condition_mining_data.py:10:from app.services import decision_log
+app/gui\dashboard_tab.py:18:from app.services import trade_service
+app/gui\backtest_tab.py:24:from app.services.data_guard import ensure_data
+app/gui\backtest_tab.py:25:from app.services.profiles_store import load_profiles
+app/services\condition_mining_facade.py:3:from app.services.condition_mining_data import get_decisions_window_summary, build_ops_cards_for_zero_decisions
+app/services\condition_mining_facade.py:8:from app.services.condition_mining_data import get_decisions_recent_past_summary
+app/services\condition_mining_facade.py:9:from app.services import mt5_account_store
+app/gui\control_tab.py:26:from app.services import circuit_breaker, trade_state
+app/gui\control_tab.py:27:from app.services.orderbook_stub import orderbook
+app/gui\history_tab.py:10:from app.services.event_store import EVENT_STORE, UiEvent
+app/gui\history_tab.py:11:from app.services.ops_history_service import get_ops_history_service
+app/gui\kpi_tab.py:14:from app.services.kpi_service import KPIService
+app/gui\kpi_tab.py:15:from app.services.edition_guard import get_capability
+app/gui\kpi_tab.py:16:from app.services.ops_history_service import get_ops_history_service
+app/services\diagnosis_service.py:10:from app.services.decision_log import _iter_jsonl, _get_decision_log_dir
+app/gui\ops_tab.py:27:from app.services.ops_service import get_ops_service
+app/gui\ops_tab.py:28:from app.services.profiles_store import load_profiles
+app/gui\ops_tab.py:29:from app.services.ops_history_service import get_ops_history_service, replay_from_record
+app/gui\ai_tab.py:23:from app.services.ai_service import AISvc
+app/gui\ai_tab.py:24:from app.services.recent_kpi import compute_recent_kpi_from_decisions
+app/gui\ai_tab.py:31:from app.services import edition_guard
+app/gui\ai_tab.py:32:from app.services.diagnosis_service import get_diagnosis_service
+app/gui\ai_tab.py:33:from app.services.aisvc_loader import get_last_model_health
+app/services\execution_service.py:22:from app.services.filter_service import evaluate_entry, _get_engine, extract_profile_switch
+app/services\execution_service.py:23:from app.services.profile_stats_service import get_profile_stats_service
+app/services\execution_service.py:24:from app.services.ai_service import get_ai_service, get_model_metrics
+app/services\execution_service.py:25:from app.services.loss_streak_service import get_consecutive_losses
+app/services\execution_service.py:27:from app.services.edition_guard import filter_level, EditionGuard
+app/services\execution_service.py:28:from app.services import trade_state, data_guard
+app/services\execution_service.py:29:from app.services.ohlcv_update_service import ensure_lgbm_proba_uptodate
+app/services\execution_service.py:30:from app.services.inflight_service import make_key as inflight_make_key, mark as inflight_mark, finish as inflight_finish
+app/services\filter_service.py:6:from app.services.edition_guard import filter_level
+app/services\execution_stub.py:62:from app.services import circuit_breaker, trade_service, trade_state
+app/services\execution_stub.py:63:from app.services.orderbook_stub import orderbook
+app/services\execution_stub.py:64:from app.services.trailing import AtrTrailer, TrailConfig, TrailState
+app/services\execution_stub.py:65:from app.services.trailing_hook import apply_trailing_update
+app/services\execution_stub.py:66:from app.services.trade_service import TradeService
+app/services\execution_stub.py:67:from app.services.filter_service import evaluate_entry, _get_engine
+app/services\execution_stub.py:68:from app.services.profile_stats_service import get_profile_stats_service
+app/services\execution_stub.py:69:from app.services.edition_guard import filter_level
+app/services\execution_stub.py:70:from app.services.loss_streak_service import get_consecutive_losses
+app/services\execution_stub.py:75:from app.services.event_store import EVENT_STORE
+app/services\execution_stub.py:76:from app.services.metrics import publish_metrics
+app/gui\scheduler_tab.py:33:from app.services.ai_service import get_model_metrics, get_active_model_meta
+app/gui\scheduler_tab.py:34:from app.services.ops_overview_facade import get_ops_overview
+app/gui\scheduler_tab.py:35:from app.services.condition_mining_facade import (
+app/gui\scheduler_tab.py:40:from app.services.recent_kpi import KPIService as RecentKPIService
+app/gui\scheduler_tab.py:41:from app.services.scheduler_facade import (
+app/gui\main.py:22:from app.services.execution_stub import evaluate_and_log_once
+app/gui\main.py:31:from app.services.kpi_service import KPIService
+app/gui\main.py:32:from app.services.scheduler_facade import get_scheduler
+app/gui\main.py:33:from app.services.execution_service import ExecutionService
+app/gui\main.py:34:from app.services import trade_state, mt5_account_store, mt5_selftest
+app/gui\main.py:35:from app.services.trade_service import get_profile_lot_limits
+app/gui\main.py:38:from app.services.orderbook_stub import orderbook
+app/gui\main.py:40:from app.services.aisvc_loader import check_model_health_at_startup, set_last_model_health
+app/gui\virtual_bt_tab.py:35:from app.services.virtual_bt_service import VirtualBacktestService
+app/gui\settings_tab.py:23:from app.services import mt5_account_store, mt5_selftest
+app/gui\settings_tab.py:24:from app.services.profiles_store import load_profiles, save_profiles
+app/gui\visualize_tab.py:28:from app.services.visualization_service import (
+app/gui\visualize_tab.py:34:from app.services.ohlcv_update_service import ensure_lgbm_proba_uptodate
+app/core\backtest\backtest_engine.py:56:from app.services.filter_service import evaluate_entry
+app/core\backtest\backtest_engine.py:57:from app.services.profile_stats_service import get_profile_stats_service
+app/services\mt5_selftest.py:15:from app.services import mt5_account_store  # 笘・霑ｽ蜉
+app/services\mt5_selftest.py:16:from app.services.inflight_service import make_key as inflight_make_key, mark as inflight_mark, finish as inflight_finish
+app/services\mt5_service.py:9:from app.services.inflight_service import make_key as inflight_make_key, mark as inflight_mark, finish as inflight_finish
+app/services\ohlcv_update_service.py:21:from app.services import data_guard
+app/services\ohlcv_update_service.py:22:from app.services.ai_service import get_ai_service, load_active_model_meta
+app/services\ohlcv_update_service.py:23:from app.services.execution_stub import _write_decision_log
+app/services\ops_history_service.py:20:from app.services.wfo_stability_service import evaluate_wfo_stability, load_saved_stability
+app/services\ops_overview_facade.py:9:from app.services.ops_history_service import summarize_ops_history
+app/services\ops_overview_facade.py:10:from app.services.wfo_stability_service import load_saved_stability
+app/gui\widgets\kpi_dashboard.py:20:from app.services.kpi_service import KPIService
+app/gui\widgets\model_info_widget.py:6:from app.services.ai_service import get_model_metrics
+app/services\recent_kpi.py:8:from app.services.decision_log import load_recent_decisions
+app/gui\widgets\monthly_dashboard.py:5:from app.services import kpi_service as kpi_mod
+app/gui\widgets\shap_bar.py:15:from app.services.ai_service import AISvc
+app/services\scheduler_daemon.py:22:from app.services.job_scheduler import JobScheduler
+app/services\scheduler_daemon.py:23:from app.services.execution_service import ExecutionService
+app/services\scheduler_daemon.py:24:from app.services import trade_state
+app/services\scheduler_guard.py:9:from app.services import edition_guard
+app/services\scheduler_facade.py:13:from app.services.job_scheduler import JobScheduler
+app/services\trade_service.py:14:from app.services import trade_state
+app/services\trade_service.py:15:from app.services.circuit_breaker import CircuitBreaker
+app/services\trade_service.py:16:from app.services.event_store import EVENT_STORE
+app/services\trade_service.py:17:from app.services.filter_service import evaluate_entry
+app/services\trade_service.py:18:from app.services.inflight_service import make_key as inflight_make_key, mark as inflight_mark, finish as inflight_finish
+app/services\trade_service.py:19:from app.services.loss_streak_service import update_on_trade_result, get_consecutive_losses
+app/services\trailing_hook.py:6:from app.services.event_store import EVENT_STORE
+app/services\visualization_service.py:14:from app.services import data_guard

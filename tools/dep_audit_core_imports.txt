@@ -1,0 +1,29 @@
+app/gui\control_tab.py:25:from app.core.config_loader import load_config
+app/gui\ai_tab.py:30:from app.core.strategy_profile import get_profile
+app/gui\main.py:18:from app.core import logger as app_logger
+app/gui\main.py:36:from app.core.config_loader import load_config
+app/gui\main.py:37:from app.core import market
+app/services\execution_service.py:20:from app.core.trade.decision_logic import decide_signal
+app/services\execution_service.py:21:from app.core.filter.strategy_filter_engine import StrategyFilterEngine
+app/services\execution_service.py:26:from app.core.strategy_profile import get_profile
+app/services\execution_service.py:32:from app.core import market, mt5_client
+app/services\execution_service.py:33:from app.core.config_loader import load_config
+app/services\execution_stub.py:57:from app.core import market, mt5_client
+app/services\execution_stub.py:58:from app.core.mt5_client import MT5Client
+app/services\execution_stub.py:59:from app.core.strategy_profile import get_profile
+app/services\execution_stub.py:61:from app.core.config_loader import load_config
+app/services\filter_service.py:5:from app.core.filter import StrategyFilterEngine
+app/services\inflight_service.py:7:from app.core.symbol_map import resolve_symbol
+app/services\mt5_selftest.py:13:from app.core import mt5_client
+app/services\mt5_selftest.py:14:from app.core.mt5_client import MT5Client
+app/services\mt5_service.py:7:from app.core.symbol_map import resolve_symbol
+app/services\mt5_service.py:8:from app.core.mt5_client import _resolve_order_send_request
+app/services\ohlcv_update_service.py:20:from app.core.symbol_map import resolve_symbol
+app/gui\widgets\monthly_returns_widget.py:12:from app.core.strategy_profile import get_profile
+app/services\orderbook_stub.py:6:from app.core import market
+app/services\trade_service.py:12:from app.core import mt5_client
+app/services\trade_service.py:13:from app.core.config_loader import load_config
+app/services\trade_service.py:20:from app.core.config import cfg
+app/services\trade_service.py:25:from app.core.mt5_client import MT5Client, TickSpec
+app/services\trade_service.py:26:from app.core.strategy_profile import StrategyProfile, get_profile
+app/services\visualization_service.py:13:from app.core.config_loader import load_config
